@@ -1,3 +1,5 @@
+import React from "react";
+
 const Sidebar = ({ role }) => {
   return (
     <div className="w-64 bg-[#0f0f14] text-white p-6">
