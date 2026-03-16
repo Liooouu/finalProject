@@ -76,7 +76,7 @@ function Login() {
           {/* EMAIL */}
           <input
             type="email"
-            placeholder="Email"
+            placeholder="@firstasia.edu.ph"
             className="w-full mb-4 p-3 rounded-lg bg-gray-100 border border-gray-300
                        focus:outline-none focus:ring-2 focus:ring-red-500"
             onChange={(e) => setEmail(e.target.value)}
