@@ -1,9 +1,9 @@
 import { Navigate } from "react-router-dom";
-import * as jwtDecode from "jwt-decode"; // Vite-compatible
+import * as jwtDecode from "jwt-decode"; 
 
 const AuthRedirect = ({ children }) => {
   const token = localStorage.getItem("token");
-  if (!token) return children; // not logged in, show normal component
+  if (!token) return children;
 
   try {
     const decoded = jwtDecode(token);
