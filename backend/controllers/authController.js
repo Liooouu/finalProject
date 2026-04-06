@@ -2,7 +2,6 @@ const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
-// Generate JWT token
 const generateToken = (user) => {
   return jwt.sign(
     { id: user._id, email: user.email, role: user.role },
@@ -11,20 +10,27 @@ const generateToken = (user) => {
   );
 };
 
-// REGISTER
 const register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !role) {
       return res.status(400).json({ message: "Missing fields" });
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email, role });
     if (existingUser) return res.status(400).json({ message: "User already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ name, email, password: hashedPassword, role });
+
+    const newUser = new User({
+      name,
+      email,
+      password: hashedPassword,
+      role,
+    });
+
+    console.log("Saving new user:", newUser);
     await newUser.save();
 
     const token = generateToken(newUser);
@@ -43,16 +49,18 @@ const register = async (req, res) => {
 // LOGIN
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
-    if (!email || !password) return res.status(400).json({ message: "Missing fields" });
+    if (!email || !password || !role)
+    return res.status(400).json({ message: "Missing fields" });
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const user = await User.findOne({ email, role });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
+    if (!isMatch) 
+    return res.status(400).json({ message: "Invalid credentials" });
+   
     const token = generateToken(user);
 
     res.status(200).json({
