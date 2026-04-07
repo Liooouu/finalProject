@@ -30,7 +30,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// -------------------- LOGIN --------------------
+// LOGIN
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -50,6 +50,11 @@ router.post("/login", async (req, res) => {
       { expiresIn: "1d" }
     );
 
+    // ✅ Add console logging here
+    console.log("Login successful for:", email);
+    console.log("Role:", user.role);
+    console.log("JWT Token:", token);
+
     res.json({ token, role: user.role });
   } catch (err) {
     console.error(err);
@@ -57,7 +62,7 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// -------------------- ADMIN LOGIN --------------------
+// ADMIN LOGIN
 router.post("/admin-login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -76,6 +81,10 @@ router.post("/admin-login", async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
+
+    // ✅ Add console logging here
+    console.log("Admin login successful for:", email);
+    console.log("JWT Token:", token);
 
     res.json({ token, role: admin.role });
   } catch (err) {

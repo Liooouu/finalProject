@@ -11,7 +11,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<AuthPage />} />
+      <Route path="/auth" element={<AuthPage />} />
 
       <Route
         path="/student-dashboard"
@@ -44,3 +44,4 @@ function App() {
 }
 
 export default App;
+

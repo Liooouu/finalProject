@@ -12,32 +12,38 @@ const generateToken = (user) => {
 
 const register = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
 
-    if (!name || !email || !password || !role) {
+    if (!name || !email || !password) {
       return res.status(400).json({ message: "Missing fields" });
     }
 
-    const existingUser = await User.findOne({ email, role });
-    if (existingUser) return res.status(400).json({ message: "User already exists" });
+    const existingUser = await User.findOne({ email });
+    if (existingUser)
+      return res.status(400).json({ message: "User already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // ✅ FORCE STUDENT ROLE
     const newUser = new User({
       name,
       email,
       password: hashedPassword,
-      role,
+      role: "student",
     });
 
-    console.log("Saving new user:", newUser);
     await newUser.save();
 
     const token = generateToken(newUser);
 
     res.status(201).json({
-      message: "User registered successfully",
-      user: { id: newUser._id, name, email, role },
+      message: "Student registered successfully",
+      user: {
+        id: newUser._id,
+        name,
+        email,
+        role: newUser.role
+      },
       token,
     });
   } catch (err) {
@@ -49,24 +55,36 @@ const register = async (req, res) => {
 // LOGIN
 const login = async (req, res) => {
   try {
-    const { email, password, role } = req.body;
+    const { email, password } = req.body;
 
-    if (!email || !password || !role)
-    return res.status(400).json({ message: "Missing fields" });
+    if (!email || !password)
+      return res.status(400).json({ message: "Missing fields" });
 
-    const user = await User.findOne({ email, role });
+    const user = await User.findOne({ email });
+
+    if (!user)
+      return res.status(400).json({ message: "User not found" });
 
     const isMatch = await bcrypt.compare(password, user.password);
 
-    if (!isMatch) 
-    return res.status(400).json({ message: "Invalid credentials" });
-   
+    if (!isMatch)
+      return res.status(400).json({ message: "Invalid credentials" });
+
     const token = generateToken(user);
+
+    // ✅ LOG INFO TO CONSOLE
+    console.log("Login successful for:", email);
+    console.log("JWT Token:", token);
 
     res.status(200).json({
       message: "Login successful",
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
-      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+      token, // this is the JWT for the client
     });
   } catch (err) {
     console.error("Login error:", err);
