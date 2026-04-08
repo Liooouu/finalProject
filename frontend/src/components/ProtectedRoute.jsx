@@ -1,21 +1,19 @@
-import React from "react";
-import { Navigate } from "react-router-dom";
-import { getUserRole } from "../utils/auth";
+import React from "react"; // <-- ADD THIS
+import { Navigate, Outlet } from "react-router-dom";
+import { getUserFromToken } from "../utils/auth";
 
-const ProtectedRoute = ({ children, allowedRole }) => {
-  const role = getUserRole();
+const ProtectedRoute = ({ allowedRoles }) => {
+  const user = getUserFromToken();
 
-  // Not logged in
-  if (!role) {
+  if (!user) {
     return <Navigate to="/auth" replace />;
   }
 
-  // Wrong role
-  if (role !== allowedRole) {
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/auth" replace />;
   }
 
-  return children;
+  return <Outlet />;
 };
 
 export default ProtectedRoute;

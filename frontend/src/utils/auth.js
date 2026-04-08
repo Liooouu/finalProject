@@ -2,7 +2,6 @@ import { jwtDecode } from "jwt-decode";
 
 export const getUserFromToken = () => {
   const token = localStorage.getItem("token");
-
   if (!token) return null;
 
   try {
@@ -15,4 +14,9 @@ export const getUserFromToken = () => {
 export const getUserRole = () => {
   const user = getUserFromToken();
   return user?.role || null;
+};
+
+export const logout = () => {
+  localStorage.removeItem("token");
+  window.location.href = "/auth";
 };

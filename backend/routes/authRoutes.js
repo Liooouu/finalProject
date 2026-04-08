@@ -1,48 +1,54 @@
 // backend/routes/authRoutes.js
 const express = require("express");
 const router = express.Router();
-const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// -------------------- REGISTER --------------------
+// -------------------- REGISTER (STUDENT ONLY) --------------------
 router.post("/register", async (req, res) => {
-  const { name, email, password, role } = req.body;
-
-  if (!name || !email || !password || !role) {
-    return res.status(400).json({ message: "Please fill all fields" });
-  }
+  const { name, email, password } = req.body;
 
   try {
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Please fill all fields" });
+    }
+
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: "Email already exists" });
+    if (existingUser)
+      return res.status(400).json({ message: "Email already exists" });
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({
+      name,
+      email,
+      password, // ✅ plain (model will hash)
+      role: "student",
+    });
 
-    const user = new User({ name, email, password: hashedPassword, role });
     await user.save();
 
     res.status(201).json({ message: "User registered successfully" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.error("REGISTER ERROR:", err);
+    res.status(500).json({ message: err.message });
   }
 });
 
-// LOGIN
+// -------------------- LOGIN (ALL ROLES) --------------------
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || !password)
-    return res.status(400).json({ message: "Please fill all fields" });
-
   try {
+    if (!email || !password) {
+      return res.status(400).json({ message: "Please fill all fields" });
+    }
+
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: "Invalid password" });
+    // ✅ use model method
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch)
+      return res.status(400).json({ message: "Invalid password" });
 
     const token = jwt.sign(
       { id: user._id, role: user.role },
@@ -50,31 +56,29 @@ router.post("/login", async (req, res) => {
       { expiresIn: "1d" }
     );
 
-    // ✅ Add console logging here
-    console.log("Login successful for:", email);
-    console.log("Role:", user.role);
-    console.log("JWT Token:", token);
+    console.log("Login successful:", email, "| Role:", user.role);
 
-    res.json({ token, role: user.role });
+    res.json({
+      token,
+      role: user.role,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.error("LOGIN ERROR:", err);
+    res.status(500).json({ message: err.message });
   }
 });
 
-// ADMIN LOGIN
+// -------------------- ADMIN LOGIN (OPTIONAL) --------------------
 router.post("/admin-login", async (req, res) => {
   const { email, password } = req.body;
-
-  if (!email || !password)
-    return res.status(400).json({ message: "Please fill all fields" });
 
   try {
     const admin = await User.findOne({ email, role: "admin" });
     if (!admin) return res.status(400).json({ message: "Admin not found" });
 
-    const isMatch = await bcrypt.compare(password, admin.password);
-    if (!isMatch) return res.status(400).json({ message: "Invalid password" });
+    const isMatch = await admin.comparePassword(password);
+    if (!isMatch)
+      return res.status(400).json({ message: "Invalid password" });
 
     const token = jwt.sign(
       { id: admin._id, role: admin.role },
@@ -82,14 +86,10 @@ router.post("/admin-login", async (req, res) => {
       { expiresIn: "1d" }
     );
 
-    // ✅ Add console logging here
-    console.log("Admin login successful for:", email);
-    console.log("JWT Token:", token);
-
     res.json({ token, role: admin.role });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.error("ADMIN LOGIN ERROR:", err);
+    res.status(500).json({ message: err.message });
   }
 });
 

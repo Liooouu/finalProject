@@ -1,35 +1,95 @@
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
-const createOrganizer = async (req, res) => {
+// 🔐 TOKEN GENERATOR
+const generateToken = (user) => {
+  return jwt.sign(
+    {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "1d" }
+  );
+};
+
+// REGISTER
+const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    if (!name || !email || !password)
+    if (!name || !email || !password) {
       return res.status(400).json({ message: "Missing fields" });
+    }
 
     const existingUser = await User.findOne({ email });
-    if (existingUser)
+
+    if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const organizer = new User({
+    const newUser = new User({
       name,
       email,
       password: hashedPassword,
-      role: "organizer", // ⭐ FORCE ORGANIZER ROLE
+      role: "student",
     });
 
-    await organizer.save();
+    await newUser.save();
+
+    const token = generateToken(newUser);
 
     res.status(201).json({
-      message: "Organizer account created successfully",
+      message: "Registered successfully",
+      user: {
+        id: newUser._id,
+        name,
+        email,
+        role: newUser.role,
+      },
+      token,
     });
   } catch (err) {
-    console.error("Create organizer error:", err);
     res.status(500).json({ message: err.message });
   }
 };
 
-module.exports = { createOrganizer };
+// LOGIN
+const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    const token = generateToken(user);
+
+    res.status(200).json({
+      message: "Login successful",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+      token,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = { register, login };
