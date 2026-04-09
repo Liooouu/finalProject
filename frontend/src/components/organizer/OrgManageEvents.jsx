@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import { formatTime12Hour } from "../../utils/helpers";
 
 const OrgManageEvents = () => {
   const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState("");
-  const [viewMode, setViewMode] = useState("my"); // "my" or "all"
+  const [viewMode, setViewMode] = useState("my");
   const [form, setForm] = useState({
     title: "",
     description: "",
     location: "",
     date: "",
     time: "",
+    attendanceStartTime: "",
+    attendanceEndTime: "",
   });
 
   const fetchEvents = async () => {
@@ -38,7 +41,15 @@ const OrgManageEvents = () => {
     try {
       await api.post("/events", form);
       setMessage("Event created successfully!");
-      setForm({ title: "", description: "", location: "", date: "", time: "" });
+      setForm({
+        title: "",
+        description: "",
+        location: "",
+        date: "",
+        time: "",
+        attendanceStartTime: "",
+        attendanceEndTime: "",
+      });
       setShowForm(false);
       fetchEvents();
     } catch (err) {
@@ -57,158 +68,227 @@ const OrgManageEvents = () => {
     }
   };
 
-  const statusColors = {
-    upcoming: "bg-blue-600",
-    live: "bg-green-600",
-    closed: "bg-gray-600",
+  const statusConfig = {
+    upcoming: { bg: "bg-blue-500/20", text: "text-blue-400", border: "border-blue-500/30" },
+    live: { bg: "bg-green-500/20", text: "text-green-400", border: "border-green-500/30" },
+    closed: { bg: "bg-gray-500/20", text: "text-gray-400", border: "border-gray-500/30" },
   };
 
   return (
-    <div className="p-6 text-white">
-      <div className="flex items-center justify-between mb-6">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Manage Events</h1>
-          <p className="text-gray-400">Create and manage your events here.</p>
+          <h1 className="text-3xl font-bold text-white">Manage Events</h1>
+          <p className="text-gray-400 mt-1">Create and manage your events</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg transition"
+          className="bg-linear-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200 flex items-center gap-2"
         >
-          {showForm ? "Cancel" : "+ Create Event"}
+          <span>{showForm ? "✕" : "+"}</span>
+          <span>{showForm ? "Cancel" : "Create Event"}</span>
         </button>
       </div>
 
-      <div className="flex gap-4 mb-6">
+      {/* View Toggle */}
+      <div className="flex gap-2">
         <button
           onClick={() => setViewMode("my")}
-          className={`px-4 py-2 rounded-lg transition ${
+          className={`px-5 py-2 rounded-lg font-medium transition-all duration-200 ${
             viewMode === "my"
-              ? "bg-red-600 text-white"
-              : "bg-white/10 text-gray-400 hover:bg-white/20"
+              ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
+              : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/10"
           }`}
         >
           My Events
         </button>
         <button
           onClick={() => setViewMode("all")}
-          className={`px-4 py-2 rounded-lg transition ${
+          className={`px-5 py-2 rounded-lg font-medium transition-all duration-200 ${
             viewMode === "all"
-              ? "bg-red-600 text-white"
-              : "bg-white/10 text-gray-400 hover:bg-white/20"
+              ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
+              : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/10"
           }`}
         >
           All Events
         </button>
       </div>
 
+      {/* Message */}
       {message && (
-        <p className="mb-4 text-green-400">{message}</p>
+        <div className="p-4 bg-green-500/20 border border-green-500/30 rounded-xl text-green-400">
+          {message}
+        </div>
       )}
 
+      {/* Create Form */}
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="bg-white/10 p-6 rounded-xl mb-8 flex flex-col gap-4"
+          className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 space-y-5"
         >
-          <h2 className="text-lg font-semibold">New Event</h2>
+          <h2 className="text-lg font-semibold text-white">Create New Event</h2>
 
-          <input
-            type="text"
-            name="title"
-            placeholder="Event Title"
-            value={form.title}
-            onChange={handleChange}
-            required
-            className="bg-white/10 border border-white/20 px-4 py-2 rounded-lg placeholder-gray-400 text-white"
-          />
-          <textarea
-            name="description"
-            placeholder="Description"
-            value={form.description}
-            onChange={handleChange}
-            rows={3}
-            className="bg-white/10 border border-white/20 px-4 py-2 rounded-lg placeholder-gray-400 text-white"
-          />
-          <input
-            type="text"
-            name="location"
-            placeholder="Location"
-            value={form.location}
-            onChange={handleChange}
-            className="bg-white/10 border border-white/20 px-4 py-2 rounded-lg placeholder-gray-400 text-white"
-          />
-          <div className="flex gap-4">
-            <input
-              type="date"
-              name="date"
-              value={form.date}
-              onChange={handleChange}
-              required
-              className="bg-white/10 border border-white/20 px-4 py-2 rounded-lg text-white flex-1"
-            />
-            <input
-              type="time"
-              name="time"
-              value={form.time}
-              onChange={handleChange}
-              required
-              className="bg-white/10 border border-white/20 px-4 py-2 rounded-lg text-white flex-1"
-            />
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <input
+                type="text"
+                name="title"
+                placeholder="Event Title"
+                value={form.title}
+                onChange={handleChange}
+                required
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <textarea
+                name="description"
+                placeholder="Description"
+                value={form.description}
+                onChange={handleChange}
+                rows={3}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <input
+                type="text"
+                name="location"
+                placeholder="Location"
+                value={form.location}
+                onChange={handleChange}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+              />
+            </div>
+            <div>
+              <input
+                type="date"
+                name="date"
+                value={form.date}
+                onChange={handleChange}
+                required
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+              />
+            </div>
+            <div>
+              <input
+                type="time"
+                name="time"
+                value={form.time}
+                onChange={handleChange}
+                required
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-white/10 pt-4">
+            <h3 className="text-sm font-semibold text-gray-400 mb-3">Attendance Window</h3>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Start Time</label>
+                <input
+                  type="time"
+                  name="attendanceStartTime"
+                  value={form.attendanceStartTime}
+                  onChange={handleChange}
+                  required
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">End Time</label>
+                <input
+                  type="time"
+                  name="attendanceEndTime"
+                  value={form.attendanceEndTime}
+                  onChange={handleChange}
+                  required
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">Students can only mark attendance within this time window.</p>
           </div>
 
           <button
             type="submit"
-            className="bg-red-600 hover:bg-red-500 text-white py-2 rounded-lg transition"
+            className="w-full bg-linear-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200"
           >
             Create Event
           </button>
         </form>
       )}
 
+      {/* Events List */}
       {events.length === 0 ? (
-        <p className="text-gray-400">
-          {viewMode === "my" ? "No events yet. Create your first one!" : "No events found."}
-        </p>
+        <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
+          <span className="text-5xl mb-4 block">📅</span>
+          <p className="text-gray-400">
+            {viewMode === "my" ? "No events yet. Create your first one!" : "No events found."}
+          </p>
+        </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {events.map((event) => (
-            <div
-              key={event._id}
-              className="bg-white/10 border border-white/10 rounded-xl p-5 cursor-pointer hover:bg-white/15 transition"
-              onClick={() => navigate(`/organizer/dashboard/events/${event._id}`)}
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-semibold">{event.title}</h3>
-                    <span className={`px-2 py-0.5 rounded text-xs ${statusColors[event.status] || "bg-gray-600"}`}>
-                      {event.status}
-                    </span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {events.map((event) => {
+            const status = statusConfig[event.status] || statusConfig.upcoming;
+            return (
+              <div
+                key={event._id}
+                onClick={() => navigate(`/organizer/dashboard/events/${event._id}`)}
+                className="group bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 cursor-pointer hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-red-500/20 rounded-lg">
+                      <span className="text-xl">📅</span>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-white group-hover:text-red-400 transition-colors">
+                        {event.title}
+                      </h3>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${status.bg} ${status.text}`}>
+                        {event.status?.charAt(0).toUpperCase() + event.status?.slice(1)}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-gray-400 text-sm">{event.description}</p>
-                  <p className="text-gray-300 text-sm mt-1">
-                    📍 {event.location || "TBA"} &nbsp;|&nbsp; 📅{" "}
-                    {new Date(event.date).toLocaleDateString()} &nbsp;|&nbsp; ⏰{" "}
-                    {event.time}
-                  </p>
-                  {viewMode === "all" && event.organizer && (
-                    <p className="text-gray-500 text-xs mt-2">
-                      Created by: {event.organizer.name || event.organizer}
-                    </p>
-                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(event._id);
+                    }}
+                    className="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors"
+                  >
+                    🗑️
+                  </button>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(event._id);
-                  }}
-                  className="bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-sm transition"
-                >
-                  Delete
-                </button>
+
+                <p className="text-gray-400 text-sm mb-4 line-clamp-2">
+                  {event.description || "No description"}
+                </p>
+
+                <div className="flex flex-wrap gap-4 text-sm text-gray-300 mb-4">
+                  <span className="flex items-center gap-1">📍 {event.location || "TBA"}</span>
+                  <span className="flex items-center gap-1">📅 {new Date(event.date).toLocaleDateString()}</span>
+                  <span className="flex items-center gap-1">⏰ {formatTime12Hour(event.time)}</span>
+                </div>
+
+                <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
+                  <p className="text-yellow-400 text-xs">
+                    📋 Attendance: {formatTime12Hour(event.attendanceStartTime)} - {formatTime12Hour(event.attendanceEndTime)}
+                  </p>
+                </div>
+
+                {viewMode === "all" && event.organizer && (
+                  <p className="text-xs text-gray-500 mt-4 pt-4 border-t border-white/10">
+                    Created by: <span className="text-gray-400">{event.organizer.name}</span>
+                  </p>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

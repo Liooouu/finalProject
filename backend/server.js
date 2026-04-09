@@ -1,5 +1,7 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
+const fs = require("fs");
 require("dotenv").config();
 
 const connectDB = require("./config/db");
@@ -10,13 +12,20 @@ const adminRoutes = require("./routes/adminRoutes");
 const eventRoutes = require("./routes/eventRoutes");
 const accountRoutes = require("./routes/accountRoutes");
 const reportRoutes = require("./routes/reportRoutes");
+const studentRoutes = require("./routes/studentRoutes");
+const organizerRoutes = require("./routes/organizerRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+if (!fs.existsSync("uploads")) {
+  fs.mkdirSync("uploads");
+}
+
 // ✅ MIDDLEWARES
 app.use(cors());
 app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ✅ ROUTES
 app.use("/api/auth", authRoutes);
@@ -25,6 +34,8 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/account", accountRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/student", studentRoutes);
+app.use("/api/organizer", organizerRoutes);
 
 app.get("/", (req, res) => {
   res.send("TrackED Backend Running");

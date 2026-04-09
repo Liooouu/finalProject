@@ -7,7 +7,11 @@ const { protect } = require("../middleware/authMiddleware");
 // CREATE EVENT
 router.post("/", protect, async (req, res) => {
   try {
-    const { title, description, date, time, location } = req.body;
+    const { title, description, date, time, location, attendanceStartTime, attendanceEndTime } = req.body;
+
+    if (!attendanceStartTime || !attendanceEndTime) {
+      return res.status(400).json({ error: "Attendance window (start and end time) is required" });
+    }
 
     const event = new Event({
       title,
@@ -15,6 +19,8 @@ router.post("/", protect, async (req, res) => {
       date,
       time,
       location,
+      attendanceStartTime,
+      attendanceEndTime,
       organizer: req.user._id,
     });
 
@@ -126,10 +132,31 @@ router.post("/:id/attendance", protect, async (req, res) => {
       return res.status(400).json({ error: "Attendance already marked" });
     }
 
+    const now = new Date();
+    const currentTime = now.getHours().toString().padStart(2, "0") + ":" + now.getMinutes().toString().padStart(2, "0");
+    const startTime = event.attendanceStartTime;
+    const endTime = event.attendanceEndTime;
+
+    if (currentTime < startTime) {
+      return res.status(400).json({ 
+        error: `Attendance not open yet. You can mark attendance starting at ${startTime}.` 
+      });
+    }
+
+    let status = "present";
+    let communityServiceHours = 0;
+
+    if (currentTime > endTime) {
+      status = "late";
+      communityServiceHours = 2;
+    }
+
     attendance = new Attendance({
       event: req.params.id,
       student: req.user._id,
-      status: "present",
+      attendedAt: now,
+      status,
+      communityServiceHours,
     });
 
     await attendance.save();
@@ -170,9 +197,17 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
     if (!event) return res.status(404).json({ error: "Event not found" });
 
     const { status } = req.body;
+    
+    let communityServiceHours = 0;
+    if (status === "late") {
+      communityServiceHours = 2;
+    } else if (status === "absent") {
+      communityServiceHours = 4;
+    }
+
     const attendance = await Attendance.findOneAndUpdate(
       { event: req.params.id, student: req.params.studentId },
-      { status },
+      { status, communityServiceHours },
       { new: true }
     ).populate("student", "name email");
 
@@ -191,10 +226,10 @@ router.put("/:id", protect, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const { title, description, date, time, location, status } = req.body;
+    const { title, description, date, time, location, status, attendanceStartTime, attendanceEndTime } = req.body;
     const event = await Event.findByIdAndUpdate(
       req.params.id,
-      { title, description, date, time, location, status },
+      { title, description, date, time, location, status, attendanceStartTime, attendanceEndTime },
       { new: true }
     ).populate("organizer", "name email");
 

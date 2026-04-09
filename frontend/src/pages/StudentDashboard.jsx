@@ -4,6 +4,10 @@ import Sidebar from "../components/Sidebar";
 
 import DashboardHome from "../components/student/StDashboardHome";
 import AttendEvents from "../components/student/AttendEvents";
+import CommunityService from "../components/student/CommunityService";
+import NotificationsPage from "../components/student/NotificationsPage";
+import SubmitExcuse from "../components/student/SubmitExcuse";
+import StudentProfile from "../components/student/StudentProfile";
 import AccountSettings from "../components/settings/AccountSettings";
 import EventDetails from "../components/EventDetails";
 
@@ -11,11 +15,15 @@ const StudentDashboard = () => {
   return (
     <div className="flex min-h-screen bg-linear-to-br from-red-950 to-black">
       <Sidebar role="student" />
-      <main className="flex-1 p-8 text-white">
+      <main className="flex-1 p-8 text-white overflow-auto">
         <Routes>
           <Route index element={<DashboardHome />} />
           <Route path="events" element={<AttendEvents />} />
           <Route path="events/:id" element={<EventDetails />} />
+          <Route path="community-service" element={<CommunityService />} />
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="submit-excuse" element={<SubmitExcuse />} />
+          <Route path="profile" element={<StudentProfile />} />
           <Route path="account-settings" element={<AccountSettings />} />
           <Route path="*" element={<Navigate to="" replace />} />
         </Routes>
