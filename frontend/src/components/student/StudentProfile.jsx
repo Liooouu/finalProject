@@ -78,9 +78,9 @@ const StudentProfile = () => {
       <div className="grid md:grid-cols-3 gap-6">
         {/* Profile Card */}
         <div className="md:col-span-2">
-          <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
+          <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-r from-red-600 to-red-800 p-6">
+            <div className="bg-linear-to-r from-red-600 to-red-800 p-6">
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-4xl">
                   👤
@@ -124,7 +124,7 @@ const StudentProfile = () => {
                   <div className="flex gap-3">
                     <button
                       type="submit"
-                      className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200"
+                      className="bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200"
                     >
                       Save Changes
                     </button>
@@ -156,7 +156,7 @@ const StudentProfile = () => {
                   </div>
                   <button
                     onClick={() => setEditing(true)}
-                    className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-blue-600/30 transition-all duration-200"
+                    className="bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-blue-600/30 transition-all duration-200"
                   >
                     Edit Profile
                   </button>
@@ -169,7 +169,7 @@ const StudentProfile = () => {
         {/* Stats & Actions */}
         <div className="space-y-6">
           {/* Statistics */}
-          <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+          <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
             <h3 className="text-lg font-semibold text-white mb-4">Statistics</h3>
             <div className="space-y-4">
               <div className="flex justify-between items-center p-3 bg-green-500/10 rounded-xl">
@@ -184,7 +184,7 @@ const StudentProfile = () => {
           </div>
 
           {/* Account Actions */}
-          <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+          <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
             <h3 className="text-lg font-semibold text-white mb-4">Account Actions</h3>
             <div className="space-y-2">
               <button className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors flex items-center gap-3">

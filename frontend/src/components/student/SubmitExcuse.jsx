@@ -97,7 +97,7 @@ const SubmitExcuse = () => {
       </div>
 
       {/* Guidelines */}
-      <div className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-6">
+      <div className="bg-linear-to-br from-blue-500/10 to-blue-500/5 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
           <span>📖</span> Important Guidelines
         </h3>
@@ -129,7 +129,7 @@ const SubmitExcuse = () => {
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 space-y-6">
+      <form onSubmit={handleSubmit} className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 space-y-6">
         {/* Event Selection */}
         <div>
           <label className="block text-sm font-semibold text-white mb-2">Select Event (Absences Only)</label>
@@ -204,7 +204,7 @@ const SubmitExcuse = () => {
           <button
             type="submit"
             disabled={submitting || absentEvents.length === 0}
-            className="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200 flex items-center justify-center gap-2"
+            className="flex-1 bg-linear-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200 flex items-center justify-center gap-2"
           >
             {submitting ? (
               <>
