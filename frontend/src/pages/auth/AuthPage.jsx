@@ -24,27 +24,25 @@ const AuthPage = () => {
     try {
       if (isLogin) {
         const res = await api.post("/auth/login", {
-          email: formData.email,
-          password: formData.password,
+          email: formData.email.trim(),       // ✅ trim to remove accidental newlines/spaces
+          password: formData.password.trim(), // ✅ trim
         });
 
         const token = res.data.token;
         const userRole = res.data.role;
 
-        // ✅ Save token
         localStorage.setItem("token", token);
-
-        // ✅ Redirect based on role
         navigate(`/${userRole}/dashboard`);
       } else {
-        // 🔒 Only students can register (extra safety)
         if (role !== "student") {
           alert("Only students can register.");
           return;
         }
 
         await api.post("/auth/register", {
-          ...formData,
+          name: formData.name.trim(),         // ✅ trim
+          email: formData.email.trim(),       // ✅ trim
+          password: formData.password.trim(), // ✅ trim
           role: "student",
         });
 
@@ -60,7 +58,7 @@ const AuthPage = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row items-center justify-center bg-linear-to-br from-red-900 via-red-800 to-black px-4">
-      
+
       {/* LEFT SIDE */}
       <div className="hidden md:flex flex-col justify-center md:w-1/2 max-w-md text-white px-8">
         <h1 className="text-5xl font-bold mb-4">Welcome to TrackED</h1>
@@ -72,12 +70,12 @@ const AuthPage = () => {
       {/* FORM */}
       <div className="w-full md:w-1/2 flex justify-center items-center">
         <div className="bg-white w-full max-w-md p-10 rounded-2xl shadow-xl">
-          
+
           <h2 className="text-3xl font-semibold text-center mb-6 text-red-900">
             {isLogin ? "Log In" : "Register"}
           </h2>
 
-          {/* ✅ ROLE SELECTOR (LOGIN ONLY) */}
+          {/* ROLE SELECTOR (LOGIN ONLY) */}
           {isLogin && (
             <div className="flex justify-center gap-3 mb-6">
               {["student", "admin", "organizer"].map((r) => (
@@ -85,9 +83,7 @@ const AuthPage = () => {
                   key={r}
                   type="button"
                   className={`px-4 py-2 rounded ${
-                    role === r
-                      ? "bg-red-700 text-white"
-                      : "bg-gray-200"
+                    role === r ? "bg-red-700 text-white" : "bg-gray-200"
                   }`}
                   onClick={() => setRole(r)}
                 >
@@ -97,14 +93,14 @@ const AuthPage = () => {
             </div>
           )}
 
-          {/* ✅ TOGGLE LOGIN / REGISTER */}
+          {/* TOGGLE LOGIN / REGISTER */}
           <div className="text-center mb-4">
             <button
               type="button"
               className="text-red-700 font-medium"
               onClick={() => {
                 setIsLogin(!isLogin);
-                setRole("student"); // 🔥 force student on register
+                setRole("student");
               }}
             >
               {isLogin
@@ -122,6 +118,7 @@ const AuthPage = () => {
                 type="text"
                 name="name"
                 placeholder="Full Name"
+                autoComplete="name"               // ✅ added
                 onChange={handleChange}
                 className="w-full border px-4 py-3 rounded-lg"
                 required
@@ -133,6 +130,7 @@ const AuthPage = () => {
               type="email"
               name="email"
               placeholder="Email"
+              autoComplete="email"                // ✅ added
               onChange={handleChange}
               className="w-full border px-4 py-3 rounded-lg"
               required
@@ -143,13 +141,17 @@ const AuthPage = () => {
               type="password"
               name="password"
               placeholder="Password"
+              autoComplete="current-password"     // ✅ added
               onChange={handleChange}
               className="w-full border px-4 py-3 rounded-lg"
               required
             />
 
             {/* SUBMIT */}
-            <button className="w-full bg-red-700 hover:bg-red-600 text-white py-3 rounded-lg transition">
+            <button
+              type="submit"                       // ✅ added explicit type
+              className="w-full bg-red-700 hover:bg-red-600 text-white py-3 rounded-lg transition"
+            >
               {isLogin ? "Log In" : "Register"}
             </button>
           </form>

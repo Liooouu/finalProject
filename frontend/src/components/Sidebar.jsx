@@ -20,14 +20,12 @@ const Sidebar = ({ role }) => {
     organizer: [
       { name: "Dashboard", path: "/organizer/dashboard" },
       { name: "Manage Events", path: "/organizer/dashboard/events" },
-      { name: "Manage Attendees", path: "/organizer/dashboard/attendees" },
       { name: "Account Settings", path: "/organizer/dashboard/account-settings" },
       { name: "Log Out", action: logout },
     ],
     student: [
       { name: "Dashboard", path: "/student/dashboard" },
       { name: "Attend Events", path: "/student/dashboard/events" },
-      { name: "My Attendance", path: "/student/dashboard/attendance" },
       { name: "Account Settings", path: "/student/dashboard/account-settings" },
       { name: "Log Out", action: logout },
     ],

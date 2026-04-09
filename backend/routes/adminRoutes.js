@@ -1,6 +1,5 @@
 const express = require("express");
 const router = express.Router();
-const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const { protect, authorize } = require("../middleware/authMiddleware");
 
@@ -20,12 +19,11 @@ router.post(
       if (existing)
         return res.status(400).json({ message: "User already exists" });
 
-      const hashedPassword = await bcrypt.hash(password, 10);
-
+      // ✅ plain password — model pre('save') will hash it
       const organizer = new User({
         name,
         email,
-        password: hashedPassword,
+        password,
         role: "organizer",
       });
 

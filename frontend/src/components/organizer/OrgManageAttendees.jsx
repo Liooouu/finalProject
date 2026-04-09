@@ -1,12 +1,12 @@
 import React from "react";
 
-const OrgManageEvents = () => {
+const OrgManageAttendees = () => {
   return (
     <div>
-      <h1>Manage Events</h1>
-      <p>Organizer can see and manage their events here.</p>
+      <h1>Manage Attendees</h1>
+      <p>Organizer can see the attendees for each event.</p>
     </div>
   );
 };
 
-export default OrgManageEvents;
+export default OrgManageAttendees;

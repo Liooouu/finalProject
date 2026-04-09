@@ -10,6 +10,9 @@ import OrganizerDashboard from "./pages/OrganizerDashboard";
 // Protected route wrapper
 import ProtectedRoute from "./components/ProtectedRoute";
 
+// Shared components
+import EventDetails from "./components/EventDetails";
+
 // Admin pages
 import DashboardHome from "./components/admin/DashboardHome";
 import CreateOrganizer from "./components/admin/CreateOrganizerPage";

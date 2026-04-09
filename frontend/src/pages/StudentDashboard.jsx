@@ -4,8 +4,8 @@ import Sidebar from "../components/Sidebar";
 
 import DashboardHome from "../components/student/StDashboardHome";
 import AttendEvents from "../components/student/AttendEvents";
-import MyAttendance from "../components/student/MyAttendance";
 import AccountSettings from "../components/settings/AccountSettings";
+import EventDetails from "../components/EventDetails";
 
 const StudentDashboard = () => {
   return (
@@ -15,7 +15,7 @@ const StudentDashboard = () => {
         <Routes>
           <Route index element={<DashboardHome />} />
           <Route path="events" element={<AttendEvents />} />
-          <Route path="attendance" element={<MyAttendance />} />
+          <Route path="events/:id" element={<EventDetails />} />
           <Route path="account-settings" element={<AccountSettings />} />
           <Route path="*" element={<Navigate to="" replace />} />
         </Routes>
