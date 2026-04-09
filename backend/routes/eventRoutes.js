@@ -35,15 +35,33 @@ router.get("/my-events", protect, async (req, res) => {
   }
 });
 
+// GET ALL EVENTS (for organizers - all events they can manage)
+router.get("/all", protect, async (req, res) => {
+  try {
+    if (req.user.role !== "organizer" && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    const events = await Event.find()
+      .populate("organizer", "name email")
+      .sort({ createdAt: -1 });
+    res.json(events);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // UPDATE EVENT STATUS
 router.patch("/:id/status", protect, async (req, res) => {
   try {
-    const { status } = req.body;
+    if (req.user.role !== "organizer" && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
 
-    const event = await Event.findOneAndUpdate(
-      { _id: req.params.id, organizer: req.user._id },
+    const { status } = req.body;
+    const event = await Event.findByIdAndUpdate(
+      req.params.id,
       { status },
-      { returnDocument: "after" } // ✅ fixed mongoose deprecation
+      { new: true }
     );
 
     if (!event) return res.status(404).json({ error: "Event not found" });
@@ -124,12 +142,12 @@ router.post("/:id/attendance", protect, async (req, res) => {
 // GET ATTENDEES (organizers)
 router.get("/:id/attendees", protect, async (req, res) => {
   try {
+    if (req.user.role !== "organizer" && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
-
-    if (event.organizer.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ error: "Not authorized to view attendees" });
-    }
 
     const attendees = await Attendance.find({ event: req.params.id })
       .populate("student", "name email")
@@ -144,12 +162,12 @@ router.get("/:id/attendees", protect, async (req, res) => {
 // UPDATE ATTENDEE STATUS (organizers)
 router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id);
-    if (!event) return res.status(404).json({ error: "Event not found" });
-
-    if (event.organizer.toString() !== req.user._id.toString()) {
+    if (req.user.role !== "organizer" && req.user.role !== "admin") {
       return res.status(403).json({ error: "Not authorized" });
     }
+
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
 
     const { status } = req.body;
     const attendance = await Attendance.findOneAndUpdate(
@@ -166,13 +184,36 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
   }
 });
 
-// ✅ DELETE EVENT
+// UPDATE EVENT (organizers)
+router.put("/:id", protect, async (req, res) => {
+  try {
+    if (req.user.role !== "organizer" && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const { title, description, date, time, location, status } = req.body;
+    const event = await Event.findByIdAndUpdate(
+      req.params.id,
+      { title, description, date, time, location, status },
+      { new: true }
+    ).populate("organizer", "name email");
+
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE EVENT
 router.delete("/:id", protect, async (req, res) => {
   try {
-    const event = await Event.findOneAndDelete({
-      _id: req.params.id,
-      organizer: req.user._id,
-    });
+    if (req.user.role !== "organizer" && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const event = await Event.findByIdAndDelete(req.params.id);
 
     if (!event) return res.status(404).json({ error: "Event not found" });
 
