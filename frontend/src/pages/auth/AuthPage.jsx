@@ -73,21 +73,21 @@ const AuthPage = () => {
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-red-800/20 rounded-full blur-3xl animate-pulse delay-1000" />
       </div>
 
-      <div className="relative w-full max-w-md">
+      <div className="relative w-full max-w-6xl flex flex-col lg:flex-row items-center gap-8 lg:gap-16">
         {/* Left Side - Branding */}
-        <div className="hidden lg:flex flex-col justify-center mb-8 lg:mb-0 lg:absolute lg:left-0 lg:-ml-16">
-          <div className="text-white">
-            <h1 className="text-5xl font-bold mb-4 tracking-tight">
+        <div className="flex flex-col justify-center lg:w-1/2 lg:pr-8">
+          <div className="text-white text-center lg:text-left">
+            <h1 className="text-5xl lg:text-6xl font-bold mb-4 tracking-tight">
               Track<span className="text-red-400">ED</span>
             </h1>
-            <p className="text-lg text-gray-300 max-w-md">
+            <p className="text-lg text-gray-300 max-w-md mx-auto lg:mx-0">
               Track your attendance, manage community service hours, and stay connected with your events.
             </p>
           </div>
         </div>
 
         {/* Auth Card */}
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-8">
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-8 w-full max-w-md">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-white mb-2">
               {isLogin ? "Welcome Back" : "Create Account"}
