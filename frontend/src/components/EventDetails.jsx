@@ -11,6 +11,8 @@ const EventDetails = () => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [myAttendance, setMyAttendance] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({});
   const role = getUserRole();
 
   useEffect(() => {
@@ -18,8 +20,16 @@ const EventDetails = () => {
       try {
         const eventRes = await api.get(`/events/${id}`);
         setEvent(eventRes.data);
+        setEditForm({
+          title: eventRes.data.title,
+          description: eventRes.data.description,
+          location: eventRes.data.location,
+          date: eventRes.data.date ? new Date(eventRes.data.date).toISOString().split("T")[0] : "",
+          time: eventRes.data.time,
+          status: eventRes.data.status,
+        });
 
-        if (role === "organizer") {
+        if (role === "organizer" || role === "admin") {
           const attendeesRes = await api.get(`/events/${id}/attendees`);
           setAttendees(attendeesRes.data);
         } else if (role === "student") {
@@ -55,6 +65,42 @@ const EventDetails = () => {
       setMessage("Status updated");
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to update status");
+    }
+  };
+
+  const handleEditChange = (e) => {
+    setEditForm({ ...editForm, [e.target.name]: e.target.value });
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.put(`/events/${id}`, editForm);
+      setEvent(res.data);
+      setIsEditing(false);
+      setMessage("Event updated successfully!");
+    } catch (err) {
+      setMessage(err.response?.data?.error || "Failed to update event");
+    }
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    try {
+      const res = await api.patch(`/events/${id}/status`, { status: newStatus });
+      setEvent({ ...event, status: res.data.status });
+      setMessage("Status updated!");
+    } catch (err) {
+      setMessage(err.response?.data?.error || "Failed to update status");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Delete this event?")) return;
+    try {
+      await api.delete(`/events/${id}`);
+      navigate(-1);
+    } catch (err) {
+      setMessage(err.response?.data?.error || "Failed to delete event");
     }
   };
 
@@ -150,41 +196,151 @@ const EventDetails = () => {
         </div>
       )}
 
-      {role === "organizer" && (
-        <div className="bg-white/10 rounded-xl p-6">
-          <h2 className="text-xl font-bold mb-4">Attendees ({attendees.length})</h2>
-          {message && <p className="text-green-400 mb-4">{message}</p>}
-          {attendees.length === 0 ? (
-            <p className="text-gray-400">No attendees yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {attendees.map((attendance) => (
-                <div
-                  key={attendance._id}
-                  className="flex justify-between items-center bg-white/5 p-4 rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium">{attendance.student?.name}</p>
-                    <p className="text-sm text-gray-400">{attendance.student?.email}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Checked in: {new Date(attendance.attendedAt).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <select
-                      value={attendance.status}
-                      onChange={(e) => handleUpdateStatus(attendance.student._id, e.target.value)}
-                      className="bg-white/10 border border-white/20 px-3 py-1 rounded text-black text-sm"
+      {(role === "organizer" || role === "admin") && (
+        <div className="space-y-6">
+          <div className="bg-white/10 rounded-xl p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Event Management</h2>
+              <div className="flex gap-2">
+                {!isEditing && (
+                  <>
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg transition"
                     >
-                      <option value="pending">Pending</option>
-                      <option value="present">Present</option>
-                      <option value="absent">Absent</option>
-                    </select>
-                  </div>
-                </div>
-              ))}
+                      Edit Event
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      className="bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-          )}
+
+            {isEditing ? (
+              <form onSubmit={handleSaveEdit} className="space-y-4">
+                <input
+                  type="text"
+                  name="title"
+                  value={editForm.title}
+                  onChange={handleEditChange}
+                  className="w-full bg-white/10 border border-white/20 px-4 py-2 rounded-lg text-white"
+                  required
+                />
+                <textarea
+                  name="description"
+                  value={editForm.description}
+                  onChange={handleEditChange}
+                  rows={3}
+                  className="w-full bg-white/10 border border-white/20 px-4 py-2 rounded-lg text-white"
+                />
+                <input
+                  type="text"
+                  name="location"
+                  value={editForm.location}
+                  onChange={handleEditChange}
+                  placeholder="Location"
+                  className="w-full bg-white/10 border border-white/20 px-4 py-2 rounded-lg text-white"
+                />
+                <div className="flex gap-4">
+                  <input
+                    type="date"
+                    name="date"
+                    value={editForm.date}
+                    onChange={handleEditChange}
+                    className="flex-1 bg-white/10 border border-white/20 px-4 py-2 rounded-lg text-white"
+                    required
+                  />
+                  <input
+                    type="time"
+                    name="time"
+                    value={editForm.time}
+                    onChange={handleEditChange}
+                    className="flex-1 bg-white/10 border border-white/20 px-4 py-2 rounded-lg text-white"
+                    required
+                  />
+                </div>
+                <select
+                  name="status"
+                  value={editForm.status}
+                  onChange={handleEditChange}
+                  className="w-full bg-white/10 border border-white/20 px-4 py-2 rounded-lg text-white"
+                >
+                  <option value="upcoming">Upcoming</option>
+                  <option value="live">Live</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded-lg transition"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="bg-gray-600 hover:bg-gray-500 text-white px-6 py-2 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="flex gap-2">
+                <span className="text-gray-400">Quick Status:</span>
+                <select
+                  value={event.status}
+                  onChange={(e) => handleStatusChange(e.target.value)}
+                  className="bg-white/10 border border-white/20 px-3 py-1 rounded text-black text-sm"
+                >
+                  <option value="upcoming">Upcoming</option>
+                  <option value="live">Live</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white/10 rounded-xl p-6">
+            <h2 className="text-xl font-bold mb-4">Attendees ({attendees.length})</h2>
+            {message && <p className="text-green-400 mb-4">{message}</p>}
+            {attendees.length === 0 ? (
+              <p className="text-gray-400">No attendees yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {attendees.map((attendance) => (
+                  <div
+                    key={attendance._id}
+                    className="flex justify-between items-center bg-white/5 p-4 rounded-lg"
+                  >
+                    <div>
+                      <p className="font-medium">{attendance.student?.name}</p>
+                      <p className="text-sm text-gray-400">{attendance.student?.email}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Checked in: {new Date(attendance.attendedAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <select
+                        value={attendance.status}
+                        onChange={(e) => handleUpdateStatus(attendance.student._id, e.target.value)}
+                        className="bg-white/10 border border-white/20 px-3 py-1 rounded text-black text-sm"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="present">Present</option>
+                        <option value="absent">Absent</option>
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

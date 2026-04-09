@@ -7,6 +7,7 @@ const OrgManageEvents = () => {
   const [events, setEvents] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState("");
+  const [viewMode, setViewMode] = useState("my"); // "my" or "all"
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -17,7 +18,8 @@ const OrgManageEvents = () => {
 
   const fetchEvents = async () => {
     try {
-      const res = await api.get("/events/my-events");
+      const endpoint = viewMode === "my" ? "/events/my-events" : "/events/all";
+      const res = await api.get(endpoint);
       setEvents(res.data);
     } catch (err) {
       console.error(err.response?.data || err.message);
@@ -26,7 +28,7 @@ const OrgManageEvents = () => {
 
   useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [viewMode]);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -55,6 +57,12 @@ const OrgManageEvents = () => {
     }
   };
 
+  const statusColors = {
+    upcoming: "bg-blue-600",
+    live: "bg-green-600",
+    closed: "bg-gray-600",
+  };
+
   return (
     <div className="p-6 text-white">
       <div className="flex items-center justify-between mb-6">
@@ -67,6 +75,29 @@ const OrgManageEvents = () => {
           className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg transition"
         >
           {showForm ? "Cancel" : "+ Create Event"}
+        </button>
+      </div>
+
+      <div className="flex gap-4 mb-6">
+        <button
+          onClick={() => setViewMode("my")}
+          className={`px-4 py-2 rounded-lg transition ${
+            viewMode === "my"
+              ? "bg-red-600 text-white"
+              : "bg-white/10 text-gray-400 hover:bg-white/20"
+          }`}
+        >
+          My Events
+        </button>
+        <button
+          onClick={() => setViewMode("all")}
+          className={`px-4 py-2 rounded-lg transition ${
+            viewMode === "all"
+              ? "bg-red-600 text-white"
+              : "bg-white/10 text-gray-400 hover:bg-white/20"
+          }`}
+        >
+          All Events
         </button>
       </div>
 
@@ -135,7 +166,9 @@ const OrgManageEvents = () => {
       )}
 
       {events.length === 0 ? (
-        <p className="text-gray-400">No events yet. Create your first one!</p>
+        <p className="text-gray-400">
+          {viewMode === "my" ? "No events yet. Create your first one!" : "No events found."}
+        </p>
       ) : (
         <div className="flex flex-col gap-4">
           {events.map((event) => (
@@ -145,14 +178,24 @@ const OrgManageEvents = () => {
               onClick={() => navigate(`/organizer/dashboard/events/${event._id}`)}
             >
               <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-lg font-semibold">{event.title}</h3>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="text-lg font-semibold">{event.title}</h3>
+                    <span className={`px-2 py-0.5 rounded text-xs ${statusColors[event.status] || "bg-gray-600"}`}>
+                      {event.status}
+                    </span>
+                  </div>
                   <p className="text-gray-400 text-sm">{event.description}</p>
                   <p className="text-gray-300 text-sm mt-1">
                     📍 {event.location || "TBA"} &nbsp;|&nbsp; 📅{" "}
                     {new Date(event.date).toLocaleDateString()} &nbsp;|&nbsp; ⏰{" "}
                     {event.time}
                   </p>
+                  {viewMode === "all" && event.organizer && (
+                    <p className="text-gray-500 text-xs mt-2">
+                      Created by: {event.organizer.name || event.organizer}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={(e) => {
