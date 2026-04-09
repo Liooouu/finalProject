@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { getUserRole } from "../utils/auth";
 import { formatTime12Hour } from "../utils/helpers";
+import { FaCheck, FaEdit, FaTrash, FaExclamationTriangle } from "react-icons/fa";
+import { BsClipboardCheck } from "react-icons/bs";
 
 const EventDetails = () => {
   const { id } = useParams();
@@ -205,7 +207,7 @@ const EventDetails = () => {
         {/* Attendance Window */}
         <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
           <p className="text-yellow-400 flex items-center gap-2">
-            <span>📋</span>
+            <span><BsClipboardCheck /></span>
             <span className="font-semibold">Attendance Window:</span>{" "}
             {formatTime12Hour(event.attendanceStartTime)} - {formatTime12Hour(event.attendanceEndTime)}
           </p>
@@ -234,7 +236,7 @@ const EventDetails = () => {
           {myAttendance ? (
             <div className="space-y-3">
               <div className={`flex items-center gap-3 ${myAttendance.status === "late" ? "text-yellow-400" : "text-green-400"}`}>
-                <span className="text-2xl">✓</span>
+                <span className="text-2xl"><FaCheck /></span>
                 <p className="text-lg font-medium">
                   {myAttendance.status === "late" ? "You marked attendance (Late)." : "You have marked your attendance."}
                 </p>
@@ -244,7 +246,7 @@ const EventDetails = () => {
               </p>
               {myAttendance.communityServiceHours > 0 && (
                 <p className="text-yellow-400 font-medium">
-                  ⚠️ Community Service: {myAttendance.communityServiceHours} hours
+                  <FaExclamationTriangle /> Community Service: {myAttendance.communityServiceHours} hours
                 </p>
               )}
             </div>
@@ -280,13 +282,13 @@ const EventDetails = () => {
                       onClick={() => setIsEditing(true)}
                       className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
                     >
-                      <span>✏️</span> Edit Event
+                      <span><FaEdit /></span> Edit Event
                     </button>
                     <button
                       onClick={handleDelete}
                       className="bg-red-500/20 hover:bg-red-500/30 text-red-400 px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
                     >
-                      <span>🗑️</span> Delete
+                      <span><FaTrash /></span> Delete
                     </button>
                   </>
                 )}
@@ -413,7 +415,7 @@ const EventDetails = () => {
                       </p>
                       {attendance.communityServiceHours > 0 && (
                         <p className="text-yellow-400 text-xs mt-1">
-                          ⚠️ Community Service: {attendance.communityServiceHours} hours
+                          <FaExclamationTriangle /> Community Service: {attendance.communityServiceHours} hours
                         </p>
                       )}
                     </div>

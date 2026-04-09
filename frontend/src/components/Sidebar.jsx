@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { logout } from "../utils/auth";
+import { FaHome, FaUser, FaUsers, FaCalendarAlt, FaChartBar, FaCog, FaBell, FaEdit, FaClock, FaDoorOpen } from "react-icons/fa";
 
 const Sidebar = ({ role }) => {
   const navigate = useNavigate();
@@ -8,29 +9,29 @@ const Sidebar = ({ role }) => {
 
   const menuItems = {
     admin: [
-      { name: "Dashboard", path: "/admin/dashboard", icon: "🏠" },
-      { name: "Create Organizer", path: "/admin/dashboard/create-organizer", icon: "👤" },
-      { name: "Manage Events", path: "/admin/dashboard/events", icon: "📅" },
-      { name: "Manage Users", path: "/admin/dashboard/users", icon: "👥" },
-      { name: "Attendance Report", path: "/admin/dashboard/reports", icon: "📊" },
-      { name: "Account Settings", path: "/admin/dashboard/account-settings", icon: "⚙️" },
+      { name: "Dashboard", path: "/admin/dashboard", icon: <FaHome /> },
+      { name: "Create Organizer", path: "/admin/dashboard/create-organizer", icon: <FaUser /> },
+      { name: "Manage Events", path: "/admin/dashboard/events", icon: <FaCalendarAlt /> },
+      { name: "Manage Users", path: "/admin/dashboard/users", icon: <FaUsers /> },
+      { name: "Attendance Report", path: "/admin/dashboard/reports", icon: <FaChartBar /> },
+      { name: "Account Settings", path: "/admin/dashboard/account-settings", icon: <FaCog /> },
     ],
     organizer: [
-      { name: "Dashboard", path: "/organizer/dashboard", icon: "🏠" },
-      { name: "Manage Events", path: "/organizer/dashboard/events", icon: "📅" },
-      { name: "Manage Excuses", path: "/organizer/dashboard/excuses", icon: "📝" },
-      { name: "Notifications", path: "/organizer/dashboard/notifications", icon: "🔔" },
-      { name: "My Profile", path: "/organizer/dashboard/profile", icon: "👤" },
-      { name: "Account Settings", path: "/organizer/dashboard/account-settings", icon: "⚙️" },
+      { name: "Dashboard", path: "/organizer/dashboard", icon: <FaHome /> },
+      { name: "Manage Events", path: "/organizer/dashboard/events", icon: <FaCalendarAlt /> },
+      { name: "Manage Excuses", path: "/organizer/dashboard/excuses", icon: <FaEdit /> },
+      { name: "Notifications", path: "/organizer/dashboard/notifications", icon: <FaBell /> },
+      { name: "My Profile", path: "/organizer/dashboard/profile", icon: <FaUser /> },
+      { name: "Account Settings", path: "/organizer/dashboard/account-settings", icon: <FaCog /> },
     ],
     student: [
-      { name: "Dashboard", path: "/student/dashboard", icon: "🏠" },
-      { name: "Attend Events", path: "/student/dashboard/events", icon: "📅" },
-      { name: "Community Service", path: "/student/dashboard/community-service", icon: "⏱️" },
-      { name: "Submit Excuse", path: "/student/dashboard/submit-excuse", icon: "📝" },
-      { name: "Notifications", path: "/student/dashboard/notifications", icon: "🔔" },
-      { name: "My Profile", path: "/student/dashboard/profile", icon: "👤" },
-      { name: "Account Settings", path: "/student/dashboard/account-settings", icon: "⚙️" },
+      { name: "Dashboard", path: "/student/dashboard", icon: <FaHome /> },
+      { name: "Attend Events", path: "/student/dashboard/events", icon: <FaCalendarAlt /> },
+      { name: "Community Service", path: "/student/dashboard/community-service", icon: <FaClock /> },
+      { name: "Submit Excuse", path: "/student/dashboard/submit-excuse", icon: <FaEdit /> },
+      { name: "Notifications", path: "/student/dashboard/notifications", icon: <FaBell /> },
+      { name: "My Profile", path: "/student/dashboard/profile", icon: <FaUser /> },
+      { name: "Account Settings", path: "/student/dashboard/account-settings", icon: <FaCog /> },
     ],
   };
 
@@ -48,7 +49,6 @@ const Sidebar = ({ role }) => {
 
   return (
     <div className="w-64 bg-linear-to-b from-[#0f0f14] to-[#1a1a24] text-white p-4 min-h-screen flex flex-col border-r border-white/5">
-      {/* Logo */}
       <div className="mb-8 px-2">
         <h2 className="text-2xl font-bold tracking-tight">
           Track<span className="text-red-400">ED</span>
@@ -56,7 +56,6 @@ const Sidebar = ({ role }) => {
         <p className="text-xs text-gray-500 mt-1 capitalize">{role} Portal</p>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 flex flex-col gap-1">
         {items.map((item, idx) => (
           <button
@@ -77,13 +76,12 @@ const Sidebar = ({ role }) => {
         ))}
       </nav>
 
-      {/* Logout */}
       <div className="mt-auto pt-4 border-t border-white/5">
         <button
           onClick={logout}
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 w-full"
         >
-          <span className="text-lg">🚪</span>
+          <span className="text-lg"><FaDoorOpen /></span>
           <span className="font-medium text-sm">Log Out</span>
         </button>
       </div>

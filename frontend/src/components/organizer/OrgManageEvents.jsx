@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { formatTime12Hour } from "../../utils/helpers";
+import { FaPlus, FaCalendarAlt, FaMapMarkerAlt, FaClock, FaTrash } from "react-icons/fa";
+import { MdClose } from "react-icons/md";
+import { BsClipboardCheck } from "react-icons/bs";
 
 const OrgManageEvents = () => {
   const navigate = useNavigate();
@@ -86,7 +89,7 @@ const OrgManageEvents = () => {
           onClick={() => setShowForm(!showForm)}
           className="bg-linear-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200 flex items-center gap-2"
         >
-          <span>{showForm ? "✕" : "+"}</span>
+          <span>{showForm ? <MdClose /> : <FaPlus />}</span>
           <span>{showForm ? "Cancel" : "Create Event"}</span>
         </button>
       </div>
@@ -225,7 +228,7 @@ const OrgManageEvents = () => {
       {/* Events List */}
       {events.length === 0 ? (
         <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
-          <span className="text-5xl mb-4 block">📅</span>
+          <span className="text-5xl mb-4 block"><FaCalendarAlt /></span>
           <p className="text-gray-400">
             {viewMode === "my" ? "No events yet. Create your first one!" : "No events found."}
           </p>
@@ -243,7 +246,7 @@ const OrgManageEvents = () => {
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-red-500/20 rounded-lg">
-                      <span className="text-xl">📅</span>
+                      <span className="text-xl"><FaCalendarAlt /></span>
                     </div>
                     <div>
                       <h3 className="text-lg font-bold text-white group-hover:text-red-400 transition-colors">
@@ -261,7 +264,7 @@ const OrgManageEvents = () => {
                     }}
                     className="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors"
                   >
-                    🗑️
+                    <FaTrash />
                   </button>
                 </div>
 
@@ -270,14 +273,14 @@ const OrgManageEvents = () => {
                 </p>
 
                 <div className="flex flex-wrap gap-4 text-sm text-gray-300 mb-4">
-                  <span className="flex items-center gap-1">📍 {event.location || "TBA"}</span>
-                  <span className="flex items-center gap-1">📅 {new Date(event.date).toLocaleDateString()}</span>
-                  <span className="flex items-center gap-1">⏰ {formatTime12Hour(event.time)}</span>
+                  <span className="flex items-center gap-1"><FaMapMarkerAlt /> {event.location || "TBA"}</span>
+                  <span className="flex items-center gap-1"><FaCalendarAlt /> {new Date(event.date).toLocaleDateString()}</span>
+                  <span className="flex items-center gap-1"><FaClock /> {formatTime12Hour(event.time)}</span>
                 </div>
 
                 <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
                   <p className="text-yellow-400 text-xs">
-                    📋 Attendance: {formatTime12Hour(event.attendanceStartTime)} - {formatTime12Hour(event.attendanceEndTime)}
+                    <BsClipboardCheck /> Attendance: {formatTime12Hour(event.attendanceStartTime)} - {formatTime12Hour(event.attendanceEndTime)}
                   </p>
                 </div>
 

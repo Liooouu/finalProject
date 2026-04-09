@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { formatTime12Hour } from "../../utils/helpers";
+import { FaCalendarAlt, FaMapMarkerAlt, FaClock } from "react-icons/fa";
+import { BsClipboardCheck } from "react-icons/bs";
 
 const AttendEvents = () => {
   const navigate = useNavigate();
@@ -46,7 +48,7 @@ const AttendEvents = () => {
 
       {events.length === 0 ? (
         <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
-          <span className="text-5xl mb-4 block">📅</span>
+          <span className="text-5xl mb-4 block"><FaCalendarAlt /></span>
           <p className="text-gray-400">No upcoming events available.</p>
         </div>
       ) : (
@@ -60,7 +62,7 @@ const AttendEvents = () => {
               {/* Event Icon & Title */}
               <div className="flex items-start justify-between mb-4">
                 <div className="p-3 bg-red-500/20 rounded-xl group-hover:bg-red-500/30 transition-colors">
-                  <span className="text-2xl">📅</span>
+                  <span className="text-2xl"><FaCalendarAlt /></span>
                 </div>
                 <span className="px-3 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full">
                   {event.status?.charAt(0).toUpperCase() + event.status?.slice(1)}
@@ -78,15 +80,15 @@ const AttendEvents = () => {
               {/* Event Details */}
               <div className="space-y-2 mb-4">
                 <div className="flex items-center gap-2 text-sm text-gray-300">
-                  <span>📅</span>
+                  <span><FaCalendarAlt /></span>
                   <span>{new Date(event.date).toLocaleDateString()}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-300">
-                  <span>⏰</span>
+                  <span><FaClock /></span>
                   <span>{formatTime12Hour(event.time)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-300">
-                  <span>📍</span>
+                  <span><FaMapMarkerAlt /></span>
                   <span>{event.location || "TBA"}</span>
                 </div>
               </div>
@@ -95,7 +97,7 @@ const AttendEvents = () => {
               {event.attendanceStartTime && event.attendanceEndTime && (
                 <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20 mb-4">
                   <p className="text-yellow-400 text-xs font-medium">
-                    📋 Attendance: {formatTime12Hour(event.attendanceStartTime)} - {formatTime12Hour(event.attendanceEndTime)}
+                    <BsClipboardCheck /> Attendance: {formatTime12Hour(event.attendanceStartTime)} - {formatTime12Hour(event.attendanceEndTime)}
                   </p>
                 </div>
               )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import { FaBook, FaCheck, FaFileAlt } from "react-icons/fa";
 
 const SubmitExcuse = () => {
   const navigate = useNavigate();
@@ -99,7 +100,7 @@ const SubmitExcuse = () => {
       {/* Guidelines */}
       <div className="bg-linear-to-br from-blue-500/10 to-blue-500/5 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-          <span>📖</span> Important Guidelines
+          <span><FaBook /></span> Important Guidelines
         </h3>
         <ul className="text-sm text-gray-300 space-y-2">
           <li className="flex items-start gap-2">
@@ -184,13 +185,13 @@ const SubmitExcuse = () => {
             <label htmlFor="file-upload" className="cursor-pointer">
               {file ? (
                 <div className="space-y-2">
-                  <span className="text-4xl">✅</span>
+                  <span className="text-4xl"><FaCheck /></span>
                   <p className="text-green-400 font-medium">{file.name}</p>
                   <p className="text-sm text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <span className="text-4xl">📄</span>
+                  <span className="text-4xl"><FaFileAlt /></span>
                   <p className="text-gray-400">Click to upload or drag and drop</p>
                   <p className="text-xs text-gray-500">PDF, DOC, JPG, PNG (max 5MB)</p>
                 </div>

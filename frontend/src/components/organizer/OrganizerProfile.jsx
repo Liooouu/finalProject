@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
+import { FaUser, FaLock, FaCalendarAlt, FaEdit } from "react-icons/fa";
 
 const OrganizerProfile = () => {
   const [profile, setProfile] = useState(null);
@@ -82,8 +83,8 @@ const OrganizerProfile = () => {
             {/* Header */}
             <div className="bg-linear-to-r from-red-600 to-red-800 p-6">
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-4xl">
-                  👤
+                  <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-4xl">
+                  <FaUser />
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-white">{profile?.name}</h2>
@@ -188,19 +189,19 @@ const OrganizerProfile = () => {
             <h3 className="text-lg font-semibold text-white mb-4">Account Actions</h3>
             <div className="space-y-2">
               <button className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors flex items-center gap-3">
-                <span>🔒</span> Change Password
+                <span><FaLock /></span> Change Password
               </button>
               <button
                 onClick={() => window.location.href = "/organizer/dashboard/events"}
                 className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors flex items-center gap-3"
               >
-                <span>📅</span> View My Events
+                <span><FaCalendarAlt /></span> View My Events
               </button>
               <button
                 onClick={() => window.location.href = "/organizer/dashboard/excuses"}
                 className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors flex items-center gap-3"
               >
-                <span>📝</span> Manage Excuses
+                <span><FaEdit /></span> Manage Excuses
               </button>
             </div>
           </div>

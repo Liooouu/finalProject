@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
+import { FaEdit, FaUser, FaFileAlt, FaCheck, FaTimes } from "react-icons/fa";
 
 const ManageExcuses = () => {
   const [excuses, setExcuses] = useState([]);
@@ -113,7 +114,7 @@ const ManageExcuses = () => {
       {/* Excuses List */}
       {filteredExcuses.length === 0 ? (
         <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
-          <span className="text-5xl mb-4 block">📝</span>
+          <span className="text-5xl mb-4 block"><FaEdit /></span>
           <p className="text-gray-400">No {filter} excuses found.</p>
         </div>
       ) : (
@@ -126,7 +127,7 @@ const ManageExcuses = () => {
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-4">
                     <div className="p-3 bg-red-500/20 rounded-xl">
-                      <span className="text-2xl">👤</span>
+                      <span className="text-2xl"><FaUser /></span>
                     </div>
                     <div>
                       <h3 className="text-lg font-bold text-white">{excuse.student?.name || "Unknown Student"}</h3>
@@ -167,7 +168,7 @@ const ManageExcuses = () => {
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors"
                     >
-                      <span>📄</span> View Attachment
+                      <span><FaFileAlt /></span> View Attachment
                     </a>
                   </div>
                 )}
@@ -207,13 +208,13 @@ const ManageExcuses = () => {
                             onClick={() => handleApprove(excuse._id)}
                             className="flex-1 bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-green-600/30 transition-all duration-200"
                           >
-                            ✓ Approve
+                            <FaCheck /> Approve
                           </button>
                           <button
                             onClick={() => handleReject(excuse._id)}
                             className="flex-1 bg-linear-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200"
                           >
-                            ✗ Reject
+                            <FaTimes /> Reject
                           </button>
                         </div>
                       </div>

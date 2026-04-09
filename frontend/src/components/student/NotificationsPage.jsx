@@ -1,5 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { FaCalendarAlt, FaExclamationTriangle, FaCheck, FaBell, FaBolt, FaInfo } from "react-icons/fa";
+import { FaChartBar } from "react-icons/fa6";
 
 const NotificationsPage = () => {
   const navigate = useNavigate();
@@ -8,7 +10,7 @@ const NotificationsPage = () => {
     {
       id: 1,
       type: "event",
-      icon: "📅",
+      icon: <FaCalendarAlt />,
       title: "New Event Scheduled",
       message: "A new event 'Campus Cleanup Drive' has been scheduled for next week.",
       time: "2 hours ago",
@@ -17,7 +19,7 @@ const NotificationsPage = () => {
     {
       id: 2,
       type: "reminder",
-      icon: "⚠️",
+      icon: <FaExclamationTriangle />,
       title: "Community Service Reminder",
       message: "You have pending community service hours. Please submit an excuse if you have a valid reason.",
       time: "1 day ago",
@@ -26,7 +28,7 @@ const NotificationsPage = () => {
     {
       id: 3,
       type: "success",
-      icon: "✅",
+      icon: <FaCheck />,
       title: "Excuse Approved",
       message: "Your excuse for the 'Library Workshop' event has been approved.",
       time: "2 days ago",
@@ -35,7 +37,7 @@ const NotificationsPage = () => {
     {
       id: 4,
       type: "info",
-      icon: "ℹ️",
+      icon: <FaInfo />,
       title: "Attendance Policy Update",
       message: "Please remember to mark your attendance within the designated time window.",
       time: "3 days ago",
@@ -44,7 +46,7 @@ const NotificationsPage = () => {
     {
       id: 5,
       type: "event",
-      icon: "📅",
+      icon: <FaCalendarAlt />,
       title: "Event Tomorrow",
       message: "Don't forget: 'Community Outreach Program' is happening tomorrow at 9:00 AM.",
       time: "4 days ago",
@@ -107,7 +109,7 @@ const NotificationsPage = () => {
 
       {notifications.length === 0 && (
         <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
-          <span className="text-5xl mb-4 block">🔔</span>
+          <span className="text-5xl mb-4 block"><FaBell /></span>
           <p className="text-gray-400">No notifications yet</p>
         </div>
       )}
@@ -115,21 +117,21 @@ const NotificationsPage = () => {
       {/* Quick Actions */}
       <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <span>⚡</span> Quick Actions
+          <span><FaBolt /></span> Quick Actions
         </h3>
         <div className="grid md:grid-cols-2 gap-4">
           <button
             onClick={() => navigate("/student/dashboard/events")}
             className="p-4 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 hover:border-red-500/30 transition-all duration-200 text-left group"
           >
-            <p className="font-medium text-white group-hover:text-red-400 transition-colors">📅 View Events</p>
+            <p className="font-medium text-white group-hover:text-red-400 transition-colors flex items-center gap-2"><FaCalendarAlt /> View Events</p>
             <p className="text-sm text-gray-400 mt-1">Check upcoming events</p>
           </button>
           <button
             onClick={() => navigate("/student/dashboard/community-service")}
             className="p-4 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 hover:border-yellow-500/30 transition-all duration-200 text-left group"
           >
-            <p className="font-medium text-white group-hover:text-yellow-400 transition-colors">📊 Community Service</p>
+            <p className="font-medium text-white group-hover:text-yellow-400 transition-colors flex items-center gap-2"><FaChartBar /> Community Service</p>
             <p className="text-sm text-gray-400 mt-1">View your records</p>
           </button>
         </div>

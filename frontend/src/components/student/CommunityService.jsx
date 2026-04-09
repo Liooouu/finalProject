@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
+import { FaCheck, FaTimes, FaClock, FaBook } from "react-icons/fa";
+import { BsClipboardCheck } from "react-icons/bs";
 
 const CommunityService = () => {
   const [data, setData] = useState(null);
@@ -53,7 +55,7 @@ const CommunityService = () => {
         <div className="bg-linear-to-br from-yellow-500/10 to-yellow-500/5 backdrop-blur-sm border border-yellow-500/20 rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-3">
             <div className="p-2 bg-yellow-500/20 rounded-lg">
-              <span className="text-xl">⏱️</span>
+              <span className="text-xl"><FaClock /></span>
             </div>
             <span className="text-yellow-400 text-sm font-medium">Total Hours</span>
           </div>
@@ -63,7 +65,7 @@ const CommunityService = () => {
         <div className="bg-linear-to-br from-green-500/10 to-green-500/5 backdrop-blur-sm border border-green-500/20 rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-3">
             <div className="p-2 bg-green-500/20 rounded-lg">
-              <span className="text-xl">✅</span>
+              <span className="text-xl"><FaCheck /></span>
             </div>
             <span className="text-green-400 text-sm font-medium">Events Attended</span>
           </div>
@@ -73,7 +75,7 @@ const CommunityService = () => {
         <div className="bg-linear-to-br from-red-500/10 to-red-500/5 backdrop-blur-sm border border-red-500/20 rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-3">
             <div className="p-2 bg-red-500/20 rounded-lg">
-              <span className="text-xl">❌</span>
+              <span className="text-xl"><FaTimes /></span>
             </div>
             <span className="text-red-400 text-sm font-medium">Pending Hours</span>
           </div>
@@ -91,7 +93,7 @@ const CommunityService = () => {
         
         {!data?.breakdown?.length ? (
           <div className="p-12 text-center">
-            <span className="text-5xl mb-4 block">📋</span>
+            <span className="text-5xl mb-4 block"><BsClipboardCheck /></span>
             <p className="text-gray-400">No attendance records found.</p>
           </div>
         ) : (
@@ -142,7 +144,7 @@ const CommunityService = () => {
       {/* Penalty Guide */}
       <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <span>📖</span> Penalty Guide
+          <span><FaBook /></span> Penalty Guide
         </h3>
         <div className="grid md:grid-cols-3 gap-4">
           <div className="flex items-center gap-3 p-4 bg-green-500/10 rounded-xl border border-green-500/20">

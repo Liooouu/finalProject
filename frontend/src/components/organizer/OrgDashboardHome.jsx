@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import { FaCalendarAlt, FaUsers, FaEdit, FaBolt, FaChartBar, FaExclamationTriangle } from "react-icons/fa";
+import { BsClipboardCheck } from "react-icons/bs";
 
 const OrganizerHome = () => {
   const navigate = useNavigate();
@@ -102,7 +104,7 @@ const OrganizerHome = () => {
         <div className="group bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-red-500/20 rounded-xl">
-              <span className="text-2xl">📅</span>
+              <span className="text-2xl"><FaCalendarAlt /></span>
             </div>
             <span className="text-xs text-red-400 font-medium bg-red-500/10 px-2 py-1 rounded-full">Events</span>
           </div>
@@ -113,7 +115,7 @@ const OrganizerHome = () => {
         <div className="group bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:border-green-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/10">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-green-500/20 rounded-xl">
-              <span className="text-2xl">👥</span>
+              <span className="text-2xl"><FaUsers /></span>
             </div>
             <span className="text-xs text-green-400 font-medium bg-green-500/10 px-2 py-1 rounded-full">Attendees</span>
           </div>
@@ -124,7 +126,7 @@ const OrganizerHome = () => {
         <div className="group bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:border-yellow-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/10">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-yellow-500/20 rounded-xl">
-              <span className="text-2xl">📝</span>
+              <span className="text-2xl"><FaEdit /></span>
             </div>
             <span className={`text-xs font-medium px-2 py-1 rounded-full ${stats.pendingExcuses > 0 ? 'text-yellow-400 bg-yellow-500/10' : 'text-gray-400 bg-white/10'}`}>
               Excuses
@@ -141,21 +143,21 @@ const OrganizerHome = () => {
       <div className="grid md:grid-cols-2 gap-4">
         <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span>⚡</span> Quick Actions
+            <span><FaBolt /></span> Quick Actions
           </h3>
           <div className="space-y-3">
             <button
               onClick={() => navigate("/organizer/dashboard/events")}
               className="w-full text-left p-4 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 hover:border-red-500/30 transition-all duration-200 group"
             >
-              <p className="font-medium text-white group-hover:text-red-400 transition-colors">📅 Manage Events</p>
+              <p className="font-medium text-white group-hover:text-red-400 transition-colors flex items-center gap-2"><FaCalendarAlt /> Manage Events</p>
               <p className="text-sm text-gray-400 mt-1">Create and manage your events</p>
             </button>
             <button
               onClick={() => navigate("/organizer/dashboard/excuses")}
               className="w-full text-left p-4 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 hover:border-yellow-500/30 transition-all duration-200 group"
             >
-              <p className="font-medium text-white group-hover:text-yellow-400 transition-colors">📝 Manage Excuses</p>
+              <p className="font-medium text-white group-hover:text-yellow-400 transition-colors flex items-center gap-2"><FaEdit /> Manage Excuses</p>
               <p className="text-sm text-gray-400 mt-1">Review student excuse letters</p>
             </button>
           </div>
@@ -163,18 +165,18 @@ const OrganizerHome = () => {
 
         <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span>📊</span> Recent Activity
+            <span><FaChartBar /></span> Recent Activity
           </h3>
           <div className="space-y-3">
             <div className="flex items-start gap-3 p-3 bg-white/5 rounded-xl">
-              <span className="text-xl">📋</span>
+              <span className="text-xl"><BsClipboardCheck /></span>
               <div>
                 <p className="text-sm text-white">Manage attendance for your events</p>
                 <p className="text-xs text-gray-500 mt-1">Click on any event to view attendees</p>
               </div>
             </div>
             <div className="flex items-start gap-3 p-3 bg-white/5 rounded-xl">
-              <span className="text-xl">⚠️</span>
+              <span className="text-xl"><FaExclamationTriangle /></span>
               <div>
                 <p className="text-sm text-white">Review pending excuses</p>
                 <p className="text-xs text-gray-500 mt-1">{stats.pendingExcuses} excuse(s) waiting for review</p>

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import { FaUser, FaEnvelope, FaEye, FaEyeSlash } from "react-icons/fa";
 
 const AuthPage = () => {
   const [role, setRole] = useState("student");
@@ -167,7 +168,7 @@ const AuthPage = () => {
                     required
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">
-                    👤
+                    <FaUser />
                   </span>
                 </div>
               </div>
@@ -188,7 +189,7 @@ const AuthPage = () => {
                   required
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">
-                  ✉️
+                  <FaEnvelope />
                 </span>
               </div>
             </div>
@@ -212,7 +213,7 @@ const AuthPage = () => {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
                 >
-                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
               </div>
             </div>

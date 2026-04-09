@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { FaEdit, FaCalendarAlt, FaCheck, FaBell, FaBolt, FaInfo } from "react-icons/fa";
 
 const NotificationsPage = () => {
   const navigate = useNavigate();
@@ -8,7 +9,7 @@ const NotificationsPage = () => {
     {
       id: 1,
       type: "excuse",
-      icon: "📝",
+      icon: <FaEdit />,
       title: "New Excuse Submitted",
       message: "John Doe has submitted an excuse letter for the 'Library Workshop' event.",
       time: "1 hour ago",
@@ -17,7 +18,7 @@ const NotificationsPage = () => {
     {
       id: 2,
       type: "event",
-      icon: "📅",
+      icon: <FaCalendarAlt />,
       title: "Attendance Window Opened",
       message: "The attendance window for 'Campus Cleanup Drive' is now open.",
       time: "2 hours ago",
@@ -26,7 +27,7 @@ const NotificationsPage = () => {
     {
       id: 3,
       type: "info",
-      icon: "ℹ️",
+      icon: <FaInfo />,
       title: "Weekly Report Ready",
       message: "Your weekly attendance summary is ready to view.",
       time: "1 day ago",
@@ -35,7 +36,7 @@ const NotificationsPage = () => {
     {
       id: 4,
       type: "success",
-      icon: "✅",
+      icon: <FaCheck />,
       title: "Excuse Approved",
       message: "You approved the excuse for 'Sports Day' event.",
       time: "2 days ago",
@@ -44,7 +45,7 @@ const NotificationsPage = () => {
     {
       id: 5,
       type: "event",
-      icon: "📅",
+      icon: <FaCalendarAlt />,
       title: "New Event Created",
       message: "You created a new event 'Community Outreach Program'.",
       time: "3 days ago",
@@ -107,7 +108,7 @@ const NotificationsPage = () => {
 
       {notifications.length === 0 && (
         <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
-          <span className="text-5xl mb-4 block">🔔</span>
+          <span className="text-5xl mb-4 block"><FaBell /></span>
           <p className="text-gray-400">No notifications yet</p>
         </div>
       )}
@@ -115,21 +116,21 @@ const NotificationsPage = () => {
       {/* Quick Actions */}
       <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <span>⚡</span> Quick Actions
+          <span><FaBolt /></span> Quick Actions
         </h3>
         <div className="grid md:grid-cols-2 gap-4">
           <button
             onClick={() => navigate("/organizer/dashboard/excuses")}
             className="p-4 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 hover:border-yellow-500/30 transition-all duration-200 text-left group"
           >
-            <p className="font-medium text-white group-hover:text-yellow-400 transition-colors">📝 Manage Excuses</p>
+            <p className="font-medium text-white group-hover:text-yellow-400 transition-colors flex items-center gap-2"><FaEdit /> Manage Excuses</p>
             <p className="text-sm text-gray-400 mt-1">Review student excuse letters</p>
           </button>
           <button
             onClick={() => navigate("/organizer/dashboard/events")}
             className="p-4 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 hover:border-red-500/30 transition-all duration-200 text-left group"
           >
-            <p className="font-medium text-white group-hover:text-red-400 transition-colors">📅 Manage Events</p>
+            <p className="font-medium text-white group-hover:text-red-400 transition-colors flex items-center gap-2"><FaCalendarAlt /> Manage Events</p>
             <p className="text-sm text-gray-400 mt-1">View and edit your events</p>
           </button>
         </div>

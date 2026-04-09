@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
+import { FaUser, FaLock, FaChartBar, FaEdit } from "react-icons/fa";
 
 const StudentProfile = () => {
   const [profile, setProfile] = useState(null);
@@ -82,8 +83,8 @@ const StudentProfile = () => {
             {/* Header */}
             <div className="bg-linear-to-r from-red-600 to-red-800 p-6">
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-4xl">
-                  👤
+                  <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-4xl">
+                  <FaUser />
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-white">{profile?.name}</h2>
@@ -188,19 +189,19 @@ const StudentProfile = () => {
             <h3 className="text-lg font-semibold text-white mb-4">Account Actions</h3>
             <div className="space-y-2">
               <button className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors flex items-center gap-3">
-                <span>🔒</span> Change Password
+                <span><FaLock /></span> Change Password
               </button>
               <button
                 onClick={() => window.location.href = "/student/dashboard/community-service"}
                 className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors flex items-center gap-3"
               >
-                <span>📊</span> View Community Service
+                <span><FaChartBar /></span> View Community Service
               </button>
               <button
                 onClick={() => window.location.href = "/student/dashboard/submit-excuse"}
                 className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors flex items-center gap-3"
               >
-                <span>📝</span> Submit Excuse
+                <span><FaEdit /></span> Submit Excuse
               </button>
             </div>
           </div>
