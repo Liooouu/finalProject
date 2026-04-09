@@ -45,7 +45,7 @@ const AttendEvents = () => {
       </div>
 
       {events.length === 0 ? (
-        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
+        <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
           <span className="text-5xl mb-4 block">📅</span>
           <p className="text-gray-400">No upcoming events available.</p>
         </div>
@@ -55,7 +55,7 @@ const AttendEvents = () => {
             <div
               key={event._id}
               onClick={() => navigate(`/student/dashboard/events/${event._id}`)}
-              className="group bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 cursor-pointer hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10 hover:-translate-y-1"
+              className="group bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 cursor-pointer hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10 hover:-translate-y-1"
             >
               {/* Event Icon & Title */}
               <div className="flex items-start justify-between mb-4">
