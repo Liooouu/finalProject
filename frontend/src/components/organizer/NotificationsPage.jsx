@@ -74,7 +74,7 @@ const NotificationsPage = () => {
           return (
             <div
               key={notif.id}
-              className={`bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border-l-4 rounded-2xl p-6 transition-all duration-200 hover:shadow-lg ${
+              className={`bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border-l-4 rounded-2xl p-6 transition-all duration-200 hover:shadow-lg ${
                 notif.unread ? "border-l-red-500" : "border-l-gray-500"
               }`}
             >
@@ -106,14 +106,14 @@ const NotificationsPage = () => {
       </div>
 
       {notifications.length === 0 && (
-        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
+        <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
           <span className="text-5xl mb-4 block">🔔</span>
           <p className="text-gray-400">No notifications yet</p>
         </div>
       )}
 
       {/* Quick Actions */}
-      <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+      <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <span>⚡</span> Quick Actions
         </h3>

@@ -174,7 +174,7 @@ const EventDetails = () => {
       </button>
 
       {/* Event Header Card */}
-      <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+      <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
         <div className="flex justify-between items-start mb-6">
           <div>
             <h1 className="text-3xl font-bold text-white">{event.title}</h1>
@@ -229,7 +229,7 @@ const EventDetails = () => {
 
       {/* Student Attendance Section */}
       {role === "student" && (
-        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+        <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
           <h2 className="text-xl font-bold text-white mb-4">Attendance</h2>
           {myAttendance ? (
             <div className="space-y-3">
@@ -258,7 +258,7 @@ const EventDetails = () => {
           ) : (
             <button
               onClick={handleMarkAttendance}
-              className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-8 py-3 rounded-xl shadow-lg shadow-green-600/30 transition-all duration-200"
+              className="bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-8 py-3 rounded-xl shadow-lg shadow-green-600/30 transition-all duration-200"
             >
               Mark My Attendance
             </button>
@@ -270,7 +270,7 @@ const EventDetails = () => {
       {(role === "organizer" || role === "admin") && (
         <div className="space-y-6">
           {/* Event Management Card */}
-          <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+          <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-white">Event Management</h2>
               <div className="flex gap-2">
@@ -367,7 +367,7 @@ const EventDetails = () => {
                 <div className="flex gap-3">
                   <button
                     type="submit"
-                    className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200"
+                    className="bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200"
                   >
                     Save Changes
                   </button>
@@ -397,7 +397,7 @@ const EventDetails = () => {
           </div>
 
           {/* Attendees Card */}
-          <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+          <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
             <h2 className="text-xl font-bold text-white mb-6">Attendees ({attendees.length})</h2>
             {attendees.length === 0 ? (
               <p className="text-gray-400 text-center py-8">No attendees yet.</p>

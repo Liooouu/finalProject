@@ -47,7 +47,7 @@ const Sidebar = ({ role }) => {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div className="w-64 bg-gradient-to-b from-[#0f0f14] to-[#1a1a24] text-white p-4 min-h-screen flex flex-col border-r border-white/5">
+    <div className="w-64 bg-linear-to-b from-[#0f0f14] to-[#1a1a24] text-white p-4 min-h-screen flex flex-col border-r border-white/5">
       {/* Logo */}
       <div className="mb-8 px-2">
         <h2 className="text-2xl font-bold tracking-tight">
@@ -64,7 +64,7 @@ const Sidebar = ({ role }) => {
             onClick={() => handleClick(item)}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 group ${
               isActive(item.path)
-                ? "bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-600/20"
+                ? "bg-linear-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-600/20"
                 : "text-gray-400 hover:bg-white/5 hover:text-white"
             }`}
           >

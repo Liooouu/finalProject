@@ -112,7 +112,7 @@ const ManageExcuses = () => {
 
       {/* Excuses List */}
       {filteredExcuses.length === 0 ? (
-        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
+        <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
           <span className="text-5xl mb-4 block">📝</span>
           <p className="text-gray-400">No {filter} excuses found.</p>
         </div>
@@ -121,7 +121,7 @@ const ManageExcuses = () => {
           {filteredExcuses.map((excuse) => {
             const status = statusConfig[excuse.status];
             return (
-              <div key={excuse._id} className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+              <div key={excuse._id} className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
                 {/* Header */}
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-4">
@@ -205,13 +205,13 @@ const ManageExcuses = () => {
                         <div className="flex gap-3">
                           <button
                             onClick={() => handleApprove(excuse._id)}
-                            className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-green-600/30 transition-all duration-200"
+                            className="flex-1 bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-green-600/30 transition-all duration-200"
                           >
                             ✓ Approve
                           </button>
                           <button
                             onClick={() => handleReject(excuse._id)}
-                            className="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200"
+                            className="flex-1 bg-linear-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200"
                           >
                             ✗ Reject
                           </button>
