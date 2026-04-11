@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
-import { getUserRole } from "../utils/auth";
+import { getUserRole, getUserFromToken } from "../utils/auth";
 import { formatTime12Hour } from "../utils/helpers";
 import { FaCheck, FaEdit, FaTrash, FaExclamationTriangle } from "react-icons/fa";
 import { BsClipboardCheck } from "react-icons/bs";
+import { QRCodeSVG } from "qrcode.react";
+import QRScanner from "./organizer/QRScanner";
 
 const EventDetails = () => {
   const { id } = useParams();
@@ -17,10 +19,30 @@ const EventDetails = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [role, setRole] = useState(null);
+  const [qrRefreshKey, setQrRefreshKey] = useState(0);
+  const [studentId, setStudentId] = useState(null);
 
   useEffect(() => {
     setRole(getUserRole());
+    const user = getUserFromToken();
+    if (user) setStudentId(user.id);
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setQrRefreshKey((prev) => prev + 1);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const refreshAttendees = useCallback(async () => {
+    try {
+      const attendeesRes = await api.get(`/events/${id}/attendees`);
+      setAttendees(attendeesRes.data);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+    }
+  }, [id]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -72,9 +94,9 @@ const EventDetails = () => {
     }
   };
 
-  const handleUpdateStatus = async (studentId, status) => {
+  const handleUpdateStatus = async (stdId, status) => {
     try {
-      const res = await api.patch(`/events/${id}/attendees/${studentId}`, { status });
+      const res = await api.patch(`/events/${id}/attendees/${stdId}`, { status });
       setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
       setMessage("Status updated");
     } catch (err) {
@@ -116,6 +138,15 @@ const EventDetails = () => {
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to delete event");
     }
+  };
+
+  const getQRData = () => {
+    if (!event || !studentId) return null;
+    return JSON.stringify({
+      eventId: event._id,
+      studentId: studentId,
+      timestamp: Date.now(),
+    });
   };
 
   if (loading) {
@@ -253,17 +284,44 @@ const EventDetails = () => {
           ) : isBeforeAttendanceWindow() ? (
             <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
               <p className="text-yellow-400">
-                ⏰ Attendance is not open yet. You can mark your attendance starting at{" "}
+                Attendance is not open yet. You can mark your attendance starting at{" "}
                 <span className="font-bold">{formatTime12Hour(event.attendanceStartTime)}</span>
               </p>
             </div>
           ) : (
-            <button
-              onClick={handleMarkAttendance}
-              className="bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-8 py-3 rounded-xl shadow-lg shadow-green-600/30 transition-all duration-200"
-            >
-              Mark My Attendance
-            </button>
+            <div className="space-y-4">
+              {/* QR Code Display */}
+              <div className="bg-white/5 rounded-xl p-6 text-center">
+                <p className="text-white font-medium mb-4">Show this QR code to the organizer to scan your attendance</p>
+                <div className="flex justify-center mb-4">
+                  {getQRData() && (
+                    <div className="p-4 bg-white rounded-xl">
+                      <QRCodeSVG
+                        key={qrRefreshKey}
+                        value={getQRData()}
+                        size={200}
+                        level="M"
+                        includeMargin={false}
+                      />
+                    </div>
+                  )}
+                </div>
+                <p className="text-gray-400 text-sm">
+                  QR code refreshes every 30 seconds for security
+                </p>
+              </div>
+
+              {/* Manual Button */}
+              <div className="border-t border-white/10 pt-4">
+                <p className="text-gray-400 text-sm text-center mb-3">Or mark attendance manually:</p>
+                <button
+                  onClick={handleMarkAttendance}
+                  className="w-full bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-8 py-3 rounded-xl shadow-lg shadow-green-600/30 transition-all duration-200"
+                >
+                  Mark My Attendance
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -271,6 +329,9 @@ const EventDetails = () => {
       {/* Organizer Management Section */}
       {(role === "organizer" || role === "admin") && (
         <div className="space-y-6">
+          {/* QR Scanner Card */}
+          <QRScanner eventId={id} onScanSuccess={refreshAttendees} />
+
           {/* Event Management Card */}
           <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
             <div className="flex justify-between items-center mb-6">
@@ -402,7 +463,7 @@ const EventDetails = () => {
           <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
             <h2 className="text-xl font-bold text-white mb-6">Attendees ({attendees.length})</h2>
             {attendees.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">No attendees yet.</p>
+              <p className="text-gray-400 text-center py-8">No attendees yet. Scan student QR codes to mark attendance.</p>
             ) : (
               <div className="space-y-3">
                 {attendees.map((attendance) => (
@@ -424,7 +485,6 @@ const EventDetails = () => {
                       onChange={(e) => handleUpdateStatus(attendance.student._id, e.target.value)}
                       className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
                     >
-                      <option value="pending">Pending</option>
                       <option value="present">Present (0 hrs)</option>
                       <option value="late">Late (2 hrs)</option>
                       <option value="absent">Absent (4 hrs)</option>

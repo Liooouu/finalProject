@@ -166,6 +166,81 @@ router.post("/:id/attendance", protect, async (req, res) => {
   }
 });
 
+// SCAN ATTENDANCE (organizer scans student QR)
+router.post("/:id/attendance/scan", protect, async (req, res) => {
+  try {
+    const { studentId, timestamp } = req.body;
+
+    if (!studentId) {
+      return res.status(400).json({ error: "Student ID is required" });
+    }
+
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    if (req.user.role !== "organizer" && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only organizers can scan attendance" });
+    }
+
+    if (req.user.role === "organizer" && event.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: "You are not the organizer of this event" });
+    }
+
+    const student = await require("../models/User").findById(studentId);
+    if (!student) return res.status(404).json({ error: "Student not found" });
+    if (student.role !== "student") return res.status(400).json({ error: "This user is not a student" });
+
+    let attendance = await Attendance.findOne({
+      event: req.params.id,
+      student: studentId,
+    });
+
+    if (attendance) {
+      return res.status(400).json({ error: `${student.name} has already marked attendance` });
+    }
+
+    const now = new Date();
+    const currentTime = now.getHours().toString().padStart(2, "0") + ":" + now.getMinutes().toString().padStart(2, "0");
+    const startTime = event.attendanceStartTime;
+    const endTime = event.attendanceEndTime;
+
+    if (currentTime < startTime) {
+      return res.status(400).json({ 
+        error: `Attendance not open yet. Student can mark attendance starting at ${startTime}.` 
+      });
+    }
+
+    let status = "present";
+    let communityServiceHours = 0;
+
+    if (currentTime > endTime) {
+      status = "late";
+      communityServiceHours = 2;
+    }
+
+    attendance = new Attendance({
+      event: req.params.id,
+      student: studentId,
+      attendedAt: now,
+      status,
+      communityServiceHours,
+    });
+
+    await attendance.save();
+
+    const populatedAttendance = await Attendance.findById(attendance._id)
+      .populate("student", "name email");
+
+    res.status(201).json({
+      success: true,
+      attendance: populatedAttendance,
+      message: `${student.name} marked as ${status}`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET ATTENDEES (organizers)
 router.get("/:id/attendees", protect, async (req, res) => {
   try {
