@@ -14,6 +14,7 @@ const accountRoutes = require("./routes/accountRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const studentRoutes = require("./routes/studentRoutes");
 const organizerRoutes = require("./routes/organizerRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -36,6 +37,7 @@ app.use("/api/account", accountRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/organizer", organizerRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (req, res) => {
   res.send("TrackED Backend Running");

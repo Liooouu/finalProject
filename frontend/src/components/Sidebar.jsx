@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { logout } from "../utils/auth";
 import { FaHome, FaUser, FaUsers, FaCalendarAlt, FaChartBar, FaCog, FaBell, FaEdit, FaClock, FaDoorOpen } from "react-icons/fa";
+import NotificationBell from "./NotificationBell";
 
 const Sidebar = ({ role }) => {
   const navigate = useNavigate();
@@ -49,11 +50,14 @@ const Sidebar = ({ role }) => {
 
   return (
     <div className="w-64 bg-linear-to-b from-[#0f0f14] to-[#1a1a24] text-white p-4 min-h-screen flex flex-col border-r border-white/5">
-      <div className="mb-8 px-2">
-        <h2 className="text-2xl font-bold tracking-tight">
-          Track<span className="text-red-400">ED</span>
-        </h2>
-        <p className="text-xs text-gray-500 mt-1 capitalize">{role} Portal</p>
+      <div className="mb-8 px-2 flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">
+            Track<span className="text-red-400">ED</span>
+          </h2>
+          <p className="text-xs text-gray-500 mt-1 capitalize">{role} Portal</p>
+        </div>
+        <NotificationBell role={role} />
       </div>
 
       <nav className="flex-1 flex flex-col gap-1">

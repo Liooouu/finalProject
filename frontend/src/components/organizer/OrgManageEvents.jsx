@@ -87,7 +87,7 @@ const OrgManageEvents = () => {
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="bg-linear-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200 flex items-center gap-2"
+          className="bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-green-600/30 transition-all duration-200 flex items-center gap-2"
         >
           <span>{showForm ? <MdClose /> : <FaPlus />}</span>
           <span>{showForm ? "Cancel" : "Create Event"}</span>
@@ -100,7 +100,7 @@ const OrgManageEvents = () => {
           onClick={() => setViewMode("my")}
           className={`px-5 py-2 rounded-lg font-medium transition-all duration-200 ${
             viewMode === "my"
-              ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
+              ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
               : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/10"
           }`}
         >
@@ -110,7 +110,7 @@ const OrgManageEvents = () => {
           onClick={() => setViewMode("all")}
           className={`px-5 py-2 rounded-lg font-medium transition-all duration-200 ${
             viewMode === "all"
-              ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
+              ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
               : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/10"
           }`}
         >
@@ -218,7 +218,7 @@ const OrgManageEvents = () => {
 
           <button
             type="submit"
-            className="w-full bg-linear-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200"
+            className="w-full bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-green-600/30 transition-all duration-200"
           >
             Create Event
           </button>

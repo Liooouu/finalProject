@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const Event = require("../models/Event");
 const Attendance = require("../models/Attendance");
+const Notification = require("../models/Notification");
+const User = require("../models/User");
 const { protect } = require("../middleware/authMiddleware");
 
 // CREATE EVENT
@@ -64,13 +66,45 @@ router.patch("/:id/status", protect, async (req, res) => {
     }
 
     const { status } = req.body;
+    const oldEvent = await Event.findById(req.params.id);
+    
+    if (!oldEvent) return res.status(404).json({ error: "Event not found" });
+
     const event = await Event.findByIdAndUpdate(
       req.params.id,
       { status },
       { new: true }
     );
 
-    if (!event) return res.status(404).json({ error: "Event not found" });
+    if (status === "closed" && oldEvent.status !== "closed") {
+      const attendees = await Attendance.find({ event: req.params.id });
+      const attendedStudentIds = attendees.map(a => a.student.toString());
+      
+      const allStudents = await User.find({ role: "student" });
+      const absentStudents = allStudents.filter(
+        s => !attendedStudentIds.includes(s._id.toString())
+      );
+
+      for (const student of absentStudents) {
+        const attendance = new Attendance({
+          event: req.params.id,
+          student: student._id,
+          attendedAt: new Date(),
+          status: "absent",
+          communityServiceHours: 4,
+        });
+        await attendance.save();
+
+        const notification = new Notification({
+          user: student._id,
+          type: "penalty",
+          title: "Absent from Event",
+          message: `You were marked as absent for "${oldEvent.title}". 4 community service hours have been added to your account.`,
+          relatedEvent: req.params.id,
+        });
+        await notification.save();
+      }
+    }
 
     res.json(event);
   } catch (err) {

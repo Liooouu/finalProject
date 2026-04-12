@@ -202,8 +202,8 @@ const CreateOrganizerPage = () => {
             disabled={loading}
             className={`w-full py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${
               loading
-                ? "bg-red-500/50 cursor-not-allowed"
-                : "bg-red-500 hover:bg-red-600"
+                ? "bg-green-500/50 cursor-not-allowed"
+                : "bg-green-500 hover:bg-green-600"
             }`}
           >
             {loading ? (

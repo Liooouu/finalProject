@@ -74,7 +74,7 @@ const AccountSettings = () => {
           onChange={(e) => setForm({ ...form, email: e.target.value })}
           className="border p-2 rounded"
         />
-        <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
+        <button type="submit" className="bg-green-500 text-white px-4 py-2 rounded">
           Update Info
         </button>
       </form>

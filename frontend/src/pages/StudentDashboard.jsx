@@ -7,7 +7,7 @@ import AttendEvents from "../components/student/AttendEvents";
 import CommunityService from "../components/student/CommunityService";
 import NotificationsPage from "../components/student/NotificationsPage";
 import SubmitExcuse from "../components/student/SubmitExcuse";
-import StudentProfile from "../components/student/StudentProfile";
+import ProfileSettings from "../components/settings/ProfileSettings";
 import AccountSettings from "../components/settings/AccountSettings";
 import EventDetails from "../components/EventDetails";
 
@@ -23,7 +23,7 @@ const StudentDashboard = () => {
           <Route path="community-service" element={<CommunityService />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="submit-excuse" element={<SubmitExcuse />} />
-          <Route path="profile" element={<StudentProfile />} />
+          <Route path="profile" element={<ProfileSettings />} />
           <Route path="account-settings" element={<AccountSettings />} />
           <Route path="*" element={<Navigate to="" replace />} />
         </Routes>

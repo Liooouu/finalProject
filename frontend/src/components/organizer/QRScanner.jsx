@@ -85,10 +85,13 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
         studentId,
       });
 
-      setSuccess(res.data.message);
+      const studentName = res.data.attendance.student.name;
+      const status = res.data.attendance.status;
+
+      setSuccess("Attendance marked!");
       setLastScan({
-        name: res.data.attendance.student.name,
-        status: res.data.attendance.status,
+        name: studentName,
+        status: status,
         time: new Date().toLocaleTimeString(),
       });
 
@@ -131,7 +134,7 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
       {!isScanning ? (
         <button
           onClick={startScanner}
-          className="w-full bg-linear-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200 flex items-center justify-center gap-2"
+          className="w-full bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-blue-600/30 transition-all duration-200 flex items-center justify-center gap-2"
         >
           <FaCamera />
           Start Scanner
@@ -160,15 +163,11 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
       )}
 
       {lastScan && !error && (
-        <div className="mt-4 p-3 bg-white/5 rounded-xl">
-          <p className="text-sm text-gray-400">Last scanned:</p>
-          <p className="text-white font-medium">
-            {lastScan.name} -{" "}
-            <span className={lastScan.status === "present" ? "text-green-400" : "text-yellow-400"}>
-              {lastScan.status.charAt(0).toUpperCase() + lastScan.status.slice(1)}
-            </span>
+        <div className="mt-4 p-4 bg-green-500/20 border border-green-500/30 rounded-xl text-center">
+          <p className="text-lg font-bold text-white">{lastScan.name}</p>
+          <p className={`text-sm font-medium ${lastScan.status === "present" ? "text-green-400" : "text-yellow-400"}`}>
+            {lastScan.status.charAt(0).toUpperCase() + lastScan.status.slice(1)}
           </p>
-          <p className="text-xs text-gray-500 mt-1">{lastScan.time}</p>
         </div>
       )}
     </div>
