@@ -6,9 +6,13 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 const { protect } = require("../middleware/authMiddleware");
 
-// CREATE EVENT
+// CREATE EVENT (organizer/admin only)
 router.post("/", protect, async (req, res) => {
   try {
+    if (req.user.role !== "organizer" && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only organizers and admins can create events" });
+    }
+
     const { title, description, date, time, location, attendanceStartTime, attendanceEndTime } = req.body;
 
     if (!attendanceStartTime || !attendanceEndTime) {
@@ -91,7 +95,7 @@ router.patch("/:id/status", protect, async (req, res) => {
           student: student._id,
           attendedAt: new Date(),
           status: "absent",
-          communityServiceHours: 4,
+          communityServiceHours: 8,
         });
         await attendance.save();
 
@@ -99,7 +103,7 @@ router.patch("/:id/status", protect, async (req, res) => {
           user: student._id,
           type: "penalty",
           title: "Absent from Event",
-          message: `You were marked as absent for "${oldEvent.title}". 4 community service hours have been added to your account.`,
+          message: `You were marked as absent for "${oldEvent.title}". 8 community service hours have been added to your account.`,
           relatedEvent: req.params.id,
         });
         await notification.save();
@@ -182,7 +186,7 @@ router.post("/:id/attendance", protect, async (req, res) => {
 
     if (currentTime > endTime) {
       status = "late";
-      communityServiceHours = 2;
+      communityServiceHours = 4;
     }
 
     attendance = new Attendance({
@@ -194,6 +198,18 @@ router.post("/:id/attendance", protect, async (req, res) => {
     });
 
     await attendance.save();
+
+    if (status === "late") {
+      const notification = new Notification({
+        user: req.user._id,
+        type: "attendance",
+        title: "Marked Late",
+        message: `You were late for event "${event.title}". 4 community service hours have been added to your record.`,
+        relatedEvent: event._id,
+      });
+      await notification.save();
+    }
+
     res.status(201).json(attendance);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -249,7 +265,7 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
 
     if (currentTime > endTime) {
       status = "late";
-      communityServiceHours = 2;
+      communityServiceHours = 4;
     }
 
     attendance = new Attendance({
@@ -261,6 +277,17 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
     });
 
     await attendance.save();
+
+    if (status === "late") {
+      const notification = new Notification({
+        user: studentId,
+        type: "attendance",
+        title: "Marked Late",
+        message: `You were marked as late for event "${event.title}" by the organizer. 4 community service hours have been added to your record.`,
+        relatedEvent: event._id,
+      });
+      await notification.save();
+    }
 
     const populatedAttendance = await Attendance.findById(attendance._id)
       .populate("student", "name email");
@@ -309,9 +336,9 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
     
     let communityServiceHours = 0;
     if (status === "late") {
-      communityServiceHours = 2;
-    } else if (status === "absent") {
       communityServiceHours = 4;
+    } else if (status === "absent") {
+      communityServiceHours = 8;
     }
 
     const attendance = await Attendance.findOneAndUpdate(
@@ -323,6 +350,72 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
     if (!attendance) return res.status(404).json({ error: "Attendance not found" });
 
     res.json(attendance);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// MANUAL ATTENDANCE (organizers add student manually)
+router.post("/:id/attendees/manual", protect, async (req, res) => {
+  try {
+    if (req.user.role !== "organizer" && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const { studentId, status } = req.body;
+    if (!studentId) return res.status(400).json({ error: "Student ID is required" });
+
+    const student = await User.findById(studentId);
+    if (!student) return res.status(404).json({ error: "Student not found" });
+    if (student.role !== "student") return res.status(400).json({ error: "User is not a student" });
+
+    // Check if attendance already exists
+    const existingAttendance = await Attendance.findOne({
+      event: req.params.id,
+      student: studentId,
+    });
+
+    if (existingAttendance) {
+      return res.status(400).json({ error: "Attendance already exists for this student" });
+    }
+
+    let communityServiceHours = 0;
+    if (status === "late") {
+      communityServiceHours = 4;
+    } else if (status === "absent") {
+      communityServiceHours = 8;
+    }
+
+    const attendance = new Attendance({
+      event: req.params.id,
+      student: studentId,
+      attendedAt: new Date(),
+      status: status || "present",
+      communityServiceHours,
+    });
+
+    await attendance.save();
+
+    if (status === "late" || status === "absent") {
+      const Notification = require("../models/Notification");
+      const hours = status === "late" ? 4 : 8;
+      const notification = new Notification({
+        user: studentId,
+        type: status === "late" ? "attendance" : "penalty",
+        title: status === "late" ? "Marked Late" : "Marked Absent",
+        message: `You were marked as ${status} for event "${event.title}" by the organizer. ${hours} community service hours have been added to your record.`,
+        relatedEvent: event._id,
+      });
+      await notification.save();
+    }
+
+    const populatedAttendance = await Attendance.findById(attendance._id)
+      .populate("student", "name email");
+
+    res.status(201).json(populatedAttendance);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

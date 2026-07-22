@@ -34,7 +34,7 @@ router.get("/attendance", async (req, res) => {
       },
     ]);
 
-    const statsMap = { present: 0, absent: 0, pending: 0 };
+    const statsMap = { present: 0, late: 0, absent: 0, pending: 0 };
     stats.forEach((s) => {
       statsMap[s._id] = s.count;
     });
@@ -47,6 +47,9 @@ router.get("/attendance", async (req, res) => {
           total: { $sum: 1 },
           present: {
             $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] },
+          },
+          late: {
+            $sum: { $cond: [{ $eq: ["$status", "late"] }, 1, 0] },
           },
           absent: {
             $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] },
@@ -71,6 +74,7 @@ router.get("/attendance", async (req, res) => {
           eventDate: "$event.date",
           total: 1,
           present: 1,
+          late: 1,
           absent: 1,
           pending: 1,
           attendanceRate: {
@@ -90,6 +94,7 @@ router.get("/attendance", async (req, res) => {
       stats: {
         total: attendance.length,
         present: statsMap.present,
+        late: statsMap.late,
         absent: statsMap.absent,
         pending: statsMap.pending,
       },
@@ -236,7 +241,7 @@ router.get("/events/export", async (req, res) => {
 
 router.get("/users", async (req, res) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 });
+    const users = await User.find().select("-password").sort({ createdAt: -1 });
 
     const byRole = await User.aggregate([
       {

@@ -1,7 +1,6 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { logout } from "../utils/auth";
-import { FaHome, FaUser, FaUsers, FaCalendarAlt, FaChartBar, FaCog, FaBell, FaEdit, FaClock, FaDoorOpen } from "react-icons/fa";
+import { FaHome, FaUser, FaUsers, FaCalendarAlt, FaChartBar, FaBell, FaEdit, FaClock } from "react-icons/fa";
 import NotificationBell from "./NotificationBell";
 
 const Sidebar = ({ role }) => {
@@ -15,7 +14,8 @@ const Sidebar = ({ role }) => {
       { name: "Manage Events", path: "/admin/dashboard/events", icon: <FaCalendarAlt /> },
       { name: "Manage Users", path: "/admin/dashboard/users", icon: <FaUsers /> },
       { name: "Attendance Report", path: "/admin/dashboard/reports", icon: <FaChartBar /> },
-      { name: "Account Settings", path: "/admin/dashboard/account-settings", icon: <FaCog /> },
+      { name: "Notifications", path: "/admin/dashboard/notifications", icon: <FaBell /> },
+      { name: "My Profile", path: "/admin/dashboard/profile", icon: <FaUser /> },
     ],
     organizer: [
       { name: "Dashboard", path: "/organizer/dashboard", icon: <FaHome /> },
@@ -23,7 +23,6 @@ const Sidebar = ({ role }) => {
       { name: "Manage Excuses", path: "/organizer/dashboard/excuses", icon: <FaEdit /> },
       { name: "Notifications", path: "/organizer/dashboard/notifications", icon: <FaBell /> },
       { name: "My Profile", path: "/organizer/dashboard/profile", icon: <FaUser /> },
-      { name: "Account Settings", path: "/organizer/dashboard/account-settings", icon: <FaCog /> },
     ],
     student: [
       { name: "Dashboard", path: "/student/dashboard", icon: <FaHome /> },
@@ -32,7 +31,6 @@ const Sidebar = ({ role }) => {
       { name: "Submit Excuse", path: "/student/dashboard/submit-excuse", icon: <FaEdit /> },
       { name: "Notifications", path: "/student/dashboard/notifications", icon: <FaBell /> },
       { name: "My Profile", path: "/student/dashboard/profile", icon: <FaUser /> },
-      { name: "Account Settings", path: "/student/dashboard/account-settings", icon: <FaCog /> },
     ],
   };
 
@@ -79,16 +77,6 @@ const Sidebar = ({ role }) => {
           </button>
         ))}
       </nav>
-
-      <div className="mt-auto pt-4 border-t border-white/5">
-        <button
-          onClick={logout}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 w-full"
-        >
-          <span className="text-lg"><FaDoorOpen /></span>
-          <span className="font-medium text-sm">Log Out</span>
-        </button>
-      </div>
     </div>
   );
 };

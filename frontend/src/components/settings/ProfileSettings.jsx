@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import { getUserFromToken } from "../../utils/auth";
-import { FaUser, FaLock, FaImage, FaCheck, FaTimes } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
+import { FaUser, FaLock, FaImage, FaCheck, FaTimes, FaDoorOpen } from "react-icons/fa";
 
 const ProfileSettings = () => {
+  const navigate = useNavigate();
   const user = getUserFromToken();
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({});
@@ -97,6 +99,11 @@ const ProfileSettings = () => {
     } finally {
       setUploadingPic(false);
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    navigate("/auth");
   };
 
   if (loading) {
@@ -317,6 +324,13 @@ const ProfileSettings = () => {
               )}
             </div>
           </div>
+
+          <button
+            onClick={handleLogout}
+            className="w-full bg-linear-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200 flex items-center justify-center gap-2"
+          >
+            <FaDoorOpen /> Log Out
+          </button>
         </div>
       </div>
     </div>

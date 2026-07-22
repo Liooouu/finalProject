@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { FaEdit, FaCalendarAlt, FaCheck, FaBell, FaBolt, FaInfo, FaTrash } from "react-icons/fa";
+import { FaEdit, FaCalendarAlt, FaCheck, FaBell, FaBolt, FaInfo, FaTrash, FaExclamationTriangle } from "react-icons/fa";
 
 const NotificationsPage = () => {
   const navigate = useNavigate();

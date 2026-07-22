@@ -7,8 +7,8 @@ import OrgManageEvents from "../components/organizer/OrgManageEvents";
 import ManageExcuses from "../components/organizer/ManageExcuses";
 import NotificationsPage from "../components/organizer/NotificationsPage";
 import ProfileSettings from "../components/settings/ProfileSettings";
-import AccountSettings from "../components/settings/AccountSettings";
 import EventDetails from "../components/EventDetails";
+import OrgManageAttendees from "../components/organizer/OrgManageAttendees";
 
 const OrganizerDashboard = () => {
   return (
@@ -19,10 +19,10 @@ const OrganizerDashboard = () => {
           <Route index element={<OrganizerHome />} />
           <Route path="events" element={<OrgManageEvents />} />
           <Route path="events/:id" element={<EventDetails />} />
+          <Route path="events/:id/attendees" element={<OrgManageAttendees />} />
           <Route path="excuses" element={<ManageExcuses />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="profile" element={<ProfileSettings />} />
-          <Route path="account-settings" element={<AccountSettings />} />
           <Route path="*" element={<Navigate to="" replace />} />
         </Routes>
       </main>

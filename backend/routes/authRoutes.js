@@ -53,7 +53,7 @@ router.post("/login", async (req, res) => {
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: "1d" }
+      { expiresIn: process.env.JWT_EXPIRES_IN || "1d" }
     );
 
     console.log("Login successful:", email, "| Role:", user.role);
@@ -83,7 +83,7 @@ router.post("/admin-login", async (req, res) => {
     const token = jwt.sign(
       { id: admin._id, role: admin.role },
       process.env.JWT_SECRET,
-      { expiresIn: "1d" }
+      { expiresIn: process.env.JWT_EXPIRES_IN || "1d" }
     );
 
     res.json({ token, role: admin.role });

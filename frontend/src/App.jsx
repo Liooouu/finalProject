@@ -18,11 +18,9 @@ import AttendanceReports from "./components/admin/AttendanceReports";
 
 import OrganizerHome from "./components/organizer/OrgDashboardHome";
 import OrgManageEvents from "./components/organizer/OrgManageEvents";
-import OrgManageAttendees from "./components/organizer/OrgManageAttendees";
 import ManageExcuses from "./components/organizer/ManageExcuses";
 
 import ProfileSettings from "./components/settings/ProfileSettings";
-import AccountSettings from "./components/settings/AccountSettings";
 
 function App() {
   return (
@@ -43,7 +41,6 @@ function App() {
           <Route path="events" element={<ManageEvents />} />
           <Route path="reports" element={<AttendanceReports />} />
           <Route path="profile" element={<ProfileSettings />} />
-          <Route path="account-settings" element={<AccountSettings />} />
           <Route path="*" element={<Navigate to="" replace />} />
         </Route>
       </Route>
@@ -52,10 +49,8 @@ function App() {
         <Route path="/organizer/dashboard/*" element={<OrganizerDashboard />}>
           <Route index element={<OrganizerHome />} />
           <Route path="events" element={<OrgManageEvents />} />
-          <Route path="attendees" element={<OrgManageAttendees />} />
           <Route path="excuses" element={<ManageExcuses />} />
           <Route path="profile" element={<ProfileSettings />} />
-          <Route path="account-settings" element={<AccountSettings />} />
           <Route path="*" element={<Navigate to="" replace />} />
         </Route>
       </Route>

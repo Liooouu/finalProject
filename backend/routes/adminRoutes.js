@@ -44,6 +44,18 @@ router.post(
   }
 );
 
+// GET ALL USERS (admin only)
+router.get("/users", protect, authorize("admin"), async (req, res) => {
+  try {
+    const filter = {};
+    if (req.query.role) filter.role = req.query.role;
+    const users = await User.find(filter).select("-password").sort({ createdAt: -1 });
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 router.delete(
   "/users/:id",
   protect,

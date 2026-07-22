@@ -80,20 +80,6 @@ const EventDetails = () => {
     fetchData();
   }, [id]);
 
-  const handleMarkAttendance = async () => {
-    try {
-      const res = await api.post(`/events/${id}/attendance`);
-      setMyAttendance(res.data);
-      if (res.data.status === "late") {
-        setMessage(`Attendance marked! Warning: You are late. 2 hours community service added.`);
-      } else {
-        setMessage("Attendance marked successfully!");
-      }
-    } catch (err) {
-      setMessage(err.response?.data?.error || "Failed to mark attendance");
-    }
-  };
-
   const handleUpdateStatus = async (stdId, status) => {
     try {
       const res = await api.patch(`/events/${id}/attendees/${stdId}`, { status });
@@ -181,13 +167,6 @@ const EventDetails = () => {
   };
 
   const status = statusConfig[event.status] || statusConfig.upcoming;
-
-  const isWithinAttendanceWindow = () => {
-    if (!event.attendanceStartTime || !event.attendanceEndTime) return true;
-    const now = new Date();
-    const currentTime = now.getHours().toString().padStart(2, "0") + ":" + now.getMinutes().toString().padStart(2, "0");
-    return currentTime >= event.attendanceStartTime && currentTime <= event.attendanceEndTime;
-  };
 
   const isBeforeAttendanceWindow = () => {
     if (!event.attendanceStartTime) return false;
@@ -309,17 +288,9 @@ const EventDetails = () => {
                 <p className="text-gray-400 text-sm">
                   QR code refreshes every 30 seconds for security
                 </p>
-              </div>
-
-              {/* Manual Button */}
-              <div className="border-t border-white/10 pt-4">
-                <p className="text-gray-400 text-sm text-center mb-3">Or mark attendance manually:</p>
-                <button
-                  onClick={handleMarkAttendance}
-                  className="w-full bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-8 py-3 rounded-xl shadow-lg shadow-green-600/30 transition-all duration-200"
-                >
-                  Mark My Attendance
-                </button>
+                <p className="text-gray-500 text-sm text-center mt-3">
+                  Show this QR code to the organizer to mark your attendance
+                </p>
               </div>
             </div>
           )}
@@ -486,8 +457,8 @@ const EventDetails = () => {
                       className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
                     >
                       <option value="present">Present (0 hrs)</option>
-                      <option value="late">Late (2 hrs)</option>
-                      <option value="absent">Absent (4 hrs)</option>
+                      <option value="late">Late (4 hrs)</option>
+                      <option value="absent">Absent (8 hrs)</option>
                     </select>
                   </div>
                 ))}

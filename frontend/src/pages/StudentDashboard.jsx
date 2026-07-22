@@ -8,7 +8,6 @@ import CommunityService from "../components/student/CommunityService";
 import NotificationsPage from "../components/student/NotificationsPage";
 import SubmitExcuse from "../components/student/SubmitExcuse";
 import ProfileSettings from "../components/settings/ProfileSettings";
-import AccountSettings from "../components/settings/AccountSettings";
 import EventDetails from "../components/EventDetails";
 
 const StudentDashboard = () => {
@@ -24,7 +23,6 @@ const StudentDashboard = () => {
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="submit-excuse" element={<SubmitExcuse />} />
           <Route path="profile" element={<ProfileSettings />} />
-          <Route path="account-settings" element={<AccountSettings />} />
           <Route path="*" element={<Navigate to="" replace />} />
         </Routes>
       </main>

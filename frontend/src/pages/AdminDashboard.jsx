@@ -7,8 +7,8 @@ import CreateOrganizerPage from "../components/admin/CreateOrganizerPage";
 import ManageEvents from "../components/admin/ManageEvents";
 import ManageUsers from "../components/admin/ManageUsers";
 import AttendanceReport from "../components/admin/AttendanceReports";
+import NotificationsPage from "../components/organizer/NotificationsPage";
 import ProfileSettings from "../components/settings/ProfileSettings";
-import AccountSettings from "../components/settings/AccountSettings";
 
 const AdminDashboard = () => {
   return (
@@ -21,8 +21,8 @@ const AdminDashboard = () => {
           <Route path="events" element={<ManageEvents />} />
           <Route path="users" element={<ManageUsers />} />
           <Route path="reports" element={<AttendanceReport />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="profile" element={<ProfileSettings />} />
-          <Route path="account-settings" element={<AccountSettings />} />
           <Route path="*" element={<Navigate to="" replace />} />
         </Routes>
       </main>

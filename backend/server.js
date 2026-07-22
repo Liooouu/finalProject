@@ -5,6 +5,10 @@ const fs = require("fs");
 require("dotenv").config();
 
 const connectDB = require("./config/db");
+const Event = require("./models/Event");
+const User = require("./models/User");
+const Attendance = require("./models/Attendance");
+const Notification = require("./models/Notification");
 
 const authRoutes = require("./routes/authRoutes");
 const protectedRoutes = require("./routes/protectedRoutes");
@@ -55,6 +59,66 @@ app.use((err, req, res, next) => {
 connectDB()
   .then(() => {
     console.log("MongoDB Connected ✅");
+
+    // ✅ BACKGROUND JOB: Auto-mark absent students every minute
+    setInterval(async () => {
+      try {
+        const now = new Date();
+        const currentTime = now.getHours().toString().padStart(2, "0") + ":" + now.getMinutes().toString().padStart(2, "0");
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // Find events where attendance window has ended today and not processed
+        const events = await Event.find({
+          date: { $gte: today, $lt: tomorrow },
+          attendanceEndTime: { $lt: currentTime },
+          attendanceProcessed: false,
+        });
+
+        for (const event of events) {
+          // Get all students
+          const students = await User.find({ role: "student" });
+
+          for (const student of students) {
+            // Check if student already has attendance
+            const existingAttendance = await Attendance.findOne({
+              event: event._id,
+              student: student._id,
+            });
+
+            if (!existingAttendance) {
+              // Create absent attendance with 8 hours community service
+              const attendance = new Attendance({
+                event: event._id,
+                student: student._id,
+                attendedAt: now,
+                status: "absent",
+                communityServiceHours: 8,
+              });
+              await attendance.save();
+
+              // Send notification to student
+              const notification = new Notification({
+                user: student._id,
+                type: "penalty",
+                title: "Marked Absent",
+                message: `You were marked as absent for event "${event.title}". 8 community service hours have been added to your record.`,
+                relatedEvent: event._id,
+              });
+              await notification.save();
+            }
+          }
+
+          // Mark event as processed
+          event.attendanceProcessed = true;
+          await event.save();
+        }
+      } catch (err) {
+        console.error("Error in attendance processing job:", err.message);
+      }
+    }, 60000); // Run every 60 seconds
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

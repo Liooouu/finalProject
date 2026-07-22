@@ -6,24 +6,28 @@ const { protect } = require("../middleware/authMiddleware");
 
 router.get("/", protect, async (req, res) => {
   try {
+    console.log("Fetching notifications for user:", req.user._id);
     const notifications = await Notification.find({ user: req.user._id })
       .populate("relatedEvent", "title date")
       .sort({ createdAt: -1 })
       .limit(50);
     res.json(notifications);
   } catch (err) {
+    console.error("Error fetching notifications:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
 router.get("/unread-count", protect, async (req, res) => {
   try {
+    console.log("Fetching unread count for user:", req.user._id);
     const count = await Notification.countDocuments({
       user: req.user._id,
       isRead: false,
     });
     res.json({ count });
   } catch (err) {
+    console.error("Error fetching unread count:", err);
     res.status(500).json({ error: err.message });
   }
 });

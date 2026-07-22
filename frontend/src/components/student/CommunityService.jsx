@@ -80,7 +80,7 @@ const CommunityService = () => {
             <span className="text-red-400 text-sm font-medium">Pending Hours</span>
           </div>
           <p className="text-4xl font-bold text-red-400">
-            {data?.breakdown?.filter(a => a.status === "absent").length * 4 || 0} <span className="text-lg font-normal text-gray-400">hrs</span>
+            {data?.breakdown?.filter(a => a.status === "absent").length * 8 || 0} <span className="text-lg font-normal text-gray-400">hrs</span>
           </p>
         </div>
       </div>
@@ -153,11 +153,11 @@ const CommunityService = () => {
           </div>
           <div className="flex items-center gap-3 p-4 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
             <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">Late</span>
-            <span className="text-gray-400 text-sm">→ 2 hours</span>
+            <span className="text-gray-400 text-sm">→ 4 hours</span>
           </div>
           <div className="flex items-center gap-3 p-4 bg-red-500/10 rounded-xl border border-red-500/20">
             <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400">Absent</span>
-            <span className="text-gray-400 text-sm">→ 4 hours</span>
+            <span className="text-gray-400 text-sm">→ 8 hours</span>
           </div>
         </div>
       </div>
