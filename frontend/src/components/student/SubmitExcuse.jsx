@@ -130,7 +130,7 @@ const SubmitExcuse = () => {
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6 space-y-6">
+      <form onSubmit={handleSubmit} className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6 space-y-6">
         {/* Event Selection */}
         <div>
           <label className="block text-sm font-semibold text-on mb-2">Select Event (Absences Only)</label>

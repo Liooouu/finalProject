@@ -62,13 +62,13 @@ const Sidebar = ({ role }) => {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div className="w-64 bg-linear-to-b dark:from-[#0f0f14] dark:to-[#1a1a24] from-white to-slate-50 text-on p-4 min-h-screen flex flex-col border-r border-line">
+    <div className="w-64 bg-linear-to-b from-[#0f0f14] to-[#1a1a24] text-white p-4 min-h-screen flex flex-col border-r border-white/5">
       <div className="mb-8 px-2 flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">
             Track<span className="text-red-400">ED</span>
           </h2>
-          <p className="text-xs text-on-muted mt-1 capitalize">{role} Portal</p>
+          <p className="text-xs text-gray-500 mt-1 capitalize">{role} Portal</p>
         </div>
         <button
           onClick={toggleTheme}
@@ -87,7 +87,7 @@ const Sidebar = ({ role }) => {
             className={`flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 group ${
               isActive(item.path)
                 ? "bg-linear-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-600/20"
-                : "text-on-dim hover:bg-card-alt hover:text-on"
+                : "text-gray-400 hover:bg-white/5 hover:text-white"
             }`}
           >
             <span className="text-lg">{item.icon}</span>
@@ -100,29 +100,29 @@ const Sidebar = ({ role }) => {
       </nav>
 
       {/* User Menu */}
-      <div className="mt-auto pt-4 border-t border-line relative" ref={menuRef}>
+      <div className="mt-auto pt-4 border-t border-white/5 relative" ref={menuRef}>
         <button
           onClick={() => setShowMenu(!showMenu)}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-card-alt transition-colors"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors"
         >
           <div className="w-9 h-9 rounded-full bg-linear-to-br from-red-500 to-red-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
             {user?.id?.slice(-2).toUpperCase() || "U"}
           </div>
           <div className="flex-1 min-w-0 text-left">
-            <p className="text-sm font-medium text-on truncate capitalize">{role}</p>
-            <p className="text-xs text-on-muted truncate">{user?.role || role}</p>
+            <p className="text-sm font-medium text-white truncate capitalize">{role}</p>
+            <p className="text-xs text-gray-500 truncate">{user?.role || role}</p>
           </div>
-          <span className={`text-on-muted text-xs transition-transform duration-200 ${showMenu ? "rotate-180" : ""}`}>▾</span>
+          <span className={`text-gray-500 text-xs transition-transform duration-200 ${showMenu ? "rotate-180" : ""}`}>▾</span>
         </button>
 
         {showMenu && (
-          <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-[#1a1a24] border border-line rounded-xl shadow-2xl overflow-hidden z-50">
+          <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#1a1a24] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
             <button
               onClick={() => {
                 navigate(profilePaths[role]);
                 setShowMenu(false);
               }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-on-dim hover:bg-card-alt hover:text-on transition-colors text-sm"
+              className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:bg-white/5 hover:text-white transition-colors text-sm"
             >
               <FaIdBadge /> My Profile
             </button>
@@ -131,7 +131,7 @@ const Sidebar = ({ role }) => {
                 localStorage.removeItem("token");
                 navigate("/auth");
               }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-on-dim hover:bg-card-alt hover:text-red-400 transition-colors text-sm border-t border-line"
+              className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:bg-white/5 hover:text-red-400 transition-colors text-sm border-t border-white/5"
             >
               <FaSignOutAlt /> Log Out
             </button>

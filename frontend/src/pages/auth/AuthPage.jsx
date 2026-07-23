@@ -67,7 +67,7 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br dark:from-red-950 dark:via-red-900 dark:to-black from-slate-50 via-white to-slate-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br dark:from-red-950 dark:via-red-900 dark:to-black from-slate-100 via-slate-200 to-slate-300 p-4">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-red-600/20 rounded-full blur-3xl animate-pulse" />
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-red-800/20 rounded-full blur-3xl animate-pulse delay-1000" />
@@ -85,7 +85,7 @@ const AuthPage = () => {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-white/5 backdrop-blur-xl border border-line rounded-2xl shadow-2xl p-8 w-full max-w-md">
+        <div className="bg-slate-50 dark:bg-white/5 backdrop-blur-xl border border-line rounded-2xl shadow-2xl p-8 w-full max-w-md">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-on mb-2">
               {isLogin ? "Welcome Back" : "Create Account"}

@@ -12,7 +12,7 @@ import OrgManageAttendees from "../components/organizer/OrgManageAttendees";
 
 const OrganizerDashboard = () => {
   return (
-    <div className="flex min-h-screen bg-linear-to-br dark:from-red-950 dark:to-black from-slate-50 to-white">
+    <div className="flex min-h-screen bg-linear-to-br dark:from-red-950 dark:to-black from-slate-100 to-slate-200">
       <Sidebar role="organizer" />
       <main className="flex-1 p-8 text-on overflow-auto">
         <Routes>

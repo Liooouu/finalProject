@@ -135,7 +135,7 @@ const ProfileSettings = () => {
 
       <div className="grid md:grid-cols-3 gap-6">
         <div className="md:col-span-2">
-          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl overflow-hidden">
+          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl overflow-hidden">
             <div className="bg-linear-to-r from-blue-600 to-blue-800 p-6">
               <div className="flex items-center gap-4">
                 <div className="relative">
@@ -292,7 +292,7 @@ const ProfileSettings = () => {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
             <h3 className="text-lg font-semibold text-on mb-4">Your Statistics</h3>
             <div className="space-y-4">
               {user.role === "student" && (

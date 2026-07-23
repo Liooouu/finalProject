@@ -113,7 +113,7 @@ const ManageExcuses = () => {
 
       {/* Excuses List */}
       {filteredExcuses.length === 0 ? (
-        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-12 text-center">
+        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-12 text-center">
           <span className="text-5xl mb-4 block"><FaEdit /></span>
           <p className="text-on-dim">No {filter} excuses found.</p>
         </div>
@@ -122,7 +122,7 @@ const ManageExcuses = () => {
           {filteredExcuses.map((excuse) => {
             const status = statusConfig[excuse.status];
             return (
-              <div key={excuse._id} className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+              <div key={excuse._id} className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
                 {/* Header */}
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-4">

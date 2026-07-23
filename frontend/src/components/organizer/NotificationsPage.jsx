@@ -122,7 +122,7 @@ const NotificationsPage = () => {
             <div
               key={notif._id}
               onClick={() => !notif.isRead && markAsRead(notif._id)}
-              className={`bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border-l-4 rounded-2xl p-6 transition-all duration-200 hover:shadow-lg cursor-pointer ${
+              className={`bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border-l-4 rounded-2xl p-6 transition-all duration-200 hover:shadow-lg cursor-pointer ${
                 notif.isRead ? "border-l-gray-500 opacity-70" : "border-l-green-500"
               }`}
             >
@@ -165,13 +165,13 @@ const NotificationsPage = () => {
       </div>
 
       {notifications.length === 0 && (
-        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-12 text-center">
+        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-12 text-center">
           <span className="text-5xl mb-4 block"><FaBell /></span>
           <p className="text-on-dim">No notifications yet</p>
         </div>
       )}
 
-      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-on mb-4 flex items-center gap-2">
           <span><FaBolt /></span> Quick Actions
         </h3>

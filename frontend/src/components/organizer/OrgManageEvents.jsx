@@ -129,7 +129,7 @@ const OrgManageEvents = () => {
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6 space-y-5"
+          className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6 space-y-5"
         >
           <h2 className="text-lg font-semibold text-on">Create New Event</h2>
 
@@ -227,7 +227,7 @@ const OrgManageEvents = () => {
 
       {/* Events List */}
       {events.length === 0 ? (
-        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-12 text-center">
+        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-12 text-center">
           <span className="text-5xl mb-4 block"><FaCalendarAlt /></span>
           <p className="text-on-dim">
             {viewMode === "my" ? "No events yet. Create your first one!" : "No events found."}
@@ -241,7 +241,7 @@ const OrgManageEvents = () => {
               <div
                 key={event._id}
                 onClick={() => navigate(`/organizer/dashboard/events/${event._id}`)}
-                className="group bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6 cursor-pointer hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10"
+                className="group bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6 cursor-pointer hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10"
               >
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">

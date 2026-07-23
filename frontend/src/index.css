@@ -14,12 +14,12 @@
 }
 
 :root {
-  --on: #0f172a;
-  --on-dim: #475569;
+  --on: #1e293b;
+  --on-dim: #64748b;
   --on-muted: #94a3b8;
-  --card-bg: #ffffff;
+  --card-bg: #f8fafc;
   --card-alt-bg: #f1f5f9;
-  --surface-bg: #f8fafc;
+  --surface-bg: #f1f5f9;
   --line-color: #e2e8f0;
   --line-dim-color: #f1f5f9;
 }

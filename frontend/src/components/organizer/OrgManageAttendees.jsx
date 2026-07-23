@@ -106,7 +106,7 @@ const OrgManageAttendees = () => {
       )}
 
       {/* Manual Attendance Section */}
-      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
         <h2 className="text-xl font-bold text-on mb-4 flex items-center gap-2">
           <FaUserPlus className="text-blue-400" />
           Add Attendance Manually
@@ -202,7 +202,7 @@ const OrgManageAttendees = () => {
       </div>
 
       {/* Current Attendees List */}
-      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
         <h2 className="text-xl font-bold text-on mb-4">
           Current Attendees ({attendees.length})
         </h2>

@@ -86,7 +86,7 @@ const CommunityService = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl overflow-hidden">
+      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl overflow-hidden">
         <div className="p-6 border-b border-line">
           <h2 className="text-lg font-semibold text-on">Detailed Breakdown</h2>
         </div>
@@ -142,7 +142,7 @@ const CommunityService = () => {
       </div>
 
       {/* Penalty Guide */}
-      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-on mb-4 flex items-center gap-2">
           <span><FaBook /></span> Penalty Guide
         </h3>

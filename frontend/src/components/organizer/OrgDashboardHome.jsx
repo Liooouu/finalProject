@@ -27,7 +27,7 @@ const OrganizerHome = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="group bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6 hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10">
+        <div className="group bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6 hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-red-500/20 rounded-xl">
               <span className="text-2xl"><FaCalendarAlt /></span>
@@ -38,7 +38,7 @@ const OrganizerHome = () => {
           <p className="text-4xl font-bold text-on mt-1">{stats.totalEvents}</p>
         </div>
 
-        <div className="group bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6 hover:border-green-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/10">
+        <div className="group bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6 hover:border-green-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/10">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-green-500/20 rounded-xl">
               <span className="text-2xl"><FaUsers /></span>
@@ -49,7 +49,7 @@ const OrganizerHome = () => {
           <p className="text-4xl font-bold text-green-400 mt-1">{stats.totalAttendees}</p>
         </div>
 
-        <div className="group bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6 hover:border-yellow-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/10">
+        <div className="group bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6 hover:border-yellow-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/10">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-yellow-500/20 rounded-xl">
               <span className="text-2xl"><FaEdit /></span>
@@ -67,7 +67,7 @@ const OrganizerHome = () => {
 
       {/* Recent Activity */}
       <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
           <h3 className="text-lg font-semibold text-on mb-4 flex items-center gap-2">
             <span><FaChartBar /></span> Quick Tips
           </h3>
@@ -89,7 +89,7 @@ const OrganizerHome = () => {
           </div>
         </div>
 
-        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
           <h3 className="text-lg font-semibold text-on mb-4 flex items-center gap-2">
             <span><FaClock /></span> Reminders
           </h3>

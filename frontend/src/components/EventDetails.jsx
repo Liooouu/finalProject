@@ -186,7 +186,7 @@ const EventDetails = () => {
       </button>
 
       {/* Event Header Card */}
-      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
         <div className="flex justify-between items-start mb-6">
           <div>
             <h1 className="text-3xl font-bold text-on">{event.title}</h1>
@@ -241,7 +241,7 @@ const EventDetails = () => {
 
       {/* Student Attendance Section */}
       {role === "student" && (
-        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
           <h2 className="text-xl font-bold text-on mb-4">Attendance</h2>
           {myAttendance ? (
             <div className="space-y-3">
@@ -312,7 +312,7 @@ const EventDetails = () => {
           </button>
 
           {/* Event Management Card */}
-          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-on">Event Management</h2>
               <div className="flex gap-2">
@@ -439,7 +439,7 @@ const EventDetails = () => {
           </div>
 
           {/* Attendees Card */}
-          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
             <h2 className="text-xl font-bold text-on mb-6">Attendees ({attendees.length})</h2>
             {attendees.length === 0 ? (
               <p className="text-on-dim text-center py-8">No attendees yet. Scan student QR codes to mark attendance.</p>

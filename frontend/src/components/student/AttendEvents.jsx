@@ -47,7 +47,7 @@ const AttendEvents = () => {
       </div>
 
       {events.length === 0 ? (
-        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-12 text-center">
+        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-12 text-center">
           <span className="text-5xl mb-4 block"><FaCalendarAlt /></span>
           <p className="text-on-dim">No upcoming events available.</p>
         </div>
@@ -57,7 +57,7 @@ const AttendEvents = () => {
             <div
               key={event._id}
               onClick={() => navigate(`/student/dashboard/events/${event._id}`)}
-              className="group bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6 cursor-pointer hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10 hover:-translate-y-1"
+              className="group bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6 cursor-pointer hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10 hover:-translate-y-1"
             >
               {/* Event Icon & Title */}
               <div className="flex items-start justify-between mb-4">
