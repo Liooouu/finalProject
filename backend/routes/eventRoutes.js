@@ -81,33 +81,7 @@ router.patch("/:id/status", protect, async (req, res) => {
     );
 
     if (status === "closed" && oldEvent.status !== "closed") {
-      const attendees = await Attendance.find({ event: req.params.id });
-      const attendedStudentIds = attendees.map(a => a.student.toString());
-      
-      const allStudents = await User.find({ role: "student" });
-      const absentStudents = allStudents.filter(
-        s => !attendedStudentIds.includes(s._id.toString())
-      );
-
-      for (const student of absentStudents) {
-        const attendance = new Attendance({
-          event: req.params.id,
-          student: student._id,
-          attendedAt: new Date(),
-          status: "absent",
-          communityServiceHours: 8,
-        });
-        await attendance.save();
-
-        const notification = new Notification({
-          user: student._id,
-          type: "penalty",
-          title: "Absent from Event",
-          message: `You were marked as absent for "${oldEvent.title}". 8 community service hours have been added to your account.`,
-          relatedEvent: req.params.id,
-        });
-        await notification.save();
-      }
+      // Absent marking handled by background job at end of day — not on close
     }
 
     res.json(event);
@@ -172,14 +146,7 @@ router.post("/:id/attendance", protect, async (req, res) => {
 
     const now = new Date();
     const currentTime = now.getHours().toString().padStart(2, "0") + ":" + now.getMinutes().toString().padStart(2, "0");
-    const startTime = event.attendanceStartTime;
     const endTime = event.attendanceEndTime;
-
-    if (currentTime < startTime) {
-      return res.status(400).json({ 
-        error: `Attendance not open yet. You can mark attendance starting at ${startTime}.` 
-      });
-    }
 
     let status = "present";
     let communityServiceHours = 0;
@@ -251,14 +218,9 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
 
     const now = new Date();
     const currentTime = now.getHours().toString().padStart(2, "0") + ":" + now.getMinutes().toString().padStart(2, "0");
-    const startTime = event.attendanceStartTime;
     const endTime = event.attendanceEndTime;
 
-    if (currentTime < startTime) {
-      return res.status(400).json({ 
-        error: `Attendance not open yet. Student can mark attendance starting at ${startTime}.` 
-      });
-    }
+    console.log(`[SCAN] currentTime: "${currentTime}", endTime: "${endTime}", currentTime > endTime: ${currentTime > endTime}`);
 
     let status = "present";
     let communityServiceHours = 0;

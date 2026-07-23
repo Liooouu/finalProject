@@ -4,7 +4,6 @@ import api from "../../api/axios";
 import { FaUser, FaEnvelope, FaEye, FaEyeSlash } from "react-icons/fa";
 
 const AuthPage = () => {
-  const [role, setRole] = useState("student");
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -40,12 +39,6 @@ const AuthPage = () => {
         localStorage.setItem("token", token);
         navigate(`/${userRole}/dashboard`);
       } else {
-        if (role !== "student") {
-          setError("Only students can register.");
-          setLoading(false);
-          return;
-        }
-
         await api.post("/auth/register", {
           name: formData.name.trim(),
           email: formData.email.trim(),
@@ -56,7 +49,6 @@ const AuthPage = () => {
         setError("");
         alert("Registration successful! Please log in.");
         setIsLogin(true);
-        setRole("student");
         setFormData({ ...formData, name: "", password: "" });
       }
     } catch (err) {
@@ -98,25 +90,6 @@ const AuthPage = () => {
           {error && (
             <div className="mb-6 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm text-center">
               {error}
-            </div>
-          )}
-
-          {isLogin && (
-            <div className="flex justify-center gap-2 mb-6">
-              {["student", "admin", "organizer"].map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRole(r)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    role === r
-                      ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
-                      : "bg-card text-on-dim hover:bg-card-alt hover:text-on"
-                  }`}
-                >
-                  {r.charAt(0).toUpperCase() + r.slice(1)}
-                </button>
-              ))}
             </div>
           )}
 

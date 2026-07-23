@@ -64,16 +64,12 @@ connectDB()
     setInterval(async () => {
       try {
         const now = new Date();
-        const currentTime = now.getHours().toString().padStart(2, "0") + ":" + now.getMinutes().toString().padStart(2, "0");
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
 
-        // Find events where attendance window has ended today and not processed
+        // Find events from previous days (event day is over) that haven't been processed
         const events = await Event.find({
-          date: { $gte: today, $lt: tomorrow },
-          attendanceEndTime: { $lt: currentTime },
+          date: { $lt: today },
           attendanceProcessed: false,
         });
 

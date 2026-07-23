@@ -68,29 +68,4 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// -------------------- ADMIN LOGIN (OPTIONAL) --------------------
-router.post("/admin-login", async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
-    const admin = await User.findOne({ email, role: "admin" });
-    if (!admin) return res.status(400).json({ message: "Admin not found" });
-
-    const isMatch = await admin.comparePassword(password);
-    if (!isMatch)
-      return res.status(400).json({ message: "Invalid password" });
-
-    const token = jwt.sign(
-      { id: admin._id, role: admin.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || "1d" }
-    );
-
-    res.json({ token, role: admin.role });
-  } catch (err) {
-    console.error("ADMIN LOGIN ERROR:", err);
-    res.status(500).json({ message: err.message });
-  }
-});
-
 module.exports = router;
