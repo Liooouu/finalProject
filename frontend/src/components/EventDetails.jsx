@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { getUserRole, getUserFromToken } from "../utils/auth";
 import { formatTime12Hour } from "../utils/helpers";
-import { FaCheck, FaEdit, FaTrash, FaExclamationTriangle } from "react-icons/fa";
+import { FaCheck, FaEdit, FaTrash, FaExclamationTriangle, FaUsers } from "react-icons/fa";
 import { BsClipboardCheck } from "react-icons/bs";
 import { QRCodeSVG } from "qrcode.react";
 import QRScanner from "./organizer/QRScanner";
@@ -302,6 +302,14 @@ const EventDetails = () => {
         <div className="space-y-6">
           {/* QR Scanner Card */}
           <QRScanner eventId={id} onScanSuccess={refreshAttendees} />
+
+          {/* Manage Attendance Button */}
+          <button
+            onClick={() => navigate(`/organizer/dashboard/events/${id}/attendees`)}
+            className="w-full bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold px-6 py-4 rounded-2xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg shadow-blue-600/30"
+          >
+            <FaUsers /> Manage Attendance Manually
+          </button>
 
           {/* Event Management Card */}
           <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">

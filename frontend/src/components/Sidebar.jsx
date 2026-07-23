@@ -1,7 +1,6 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FaHome, FaUser, FaUsers, FaCalendarAlt, FaChartBar, FaBell, FaEdit, FaClock } from "react-icons/fa";
-import NotificationBell from "./NotificationBell";
+import { FaHome, FaUser, FaUsers, FaCalendarAlt, FaChartBar, FaEdit, FaClock } from "react-icons/fa";
 
 const Sidebar = ({ role }) => {
   const navigate = useNavigate();
@@ -14,23 +13,17 @@ const Sidebar = ({ role }) => {
       { name: "Manage Events", path: "/admin/dashboard/events", icon: <FaCalendarAlt /> },
       { name: "Manage Users", path: "/admin/dashboard/users", icon: <FaUsers /> },
       { name: "Attendance Report", path: "/admin/dashboard/reports", icon: <FaChartBar /> },
-      { name: "Notifications", path: "/admin/dashboard/notifications", icon: <FaBell /> },
-      { name: "My Profile", path: "/admin/dashboard/profile", icon: <FaUser /> },
     ],
     organizer: [
       { name: "Dashboard", path: "/organizer/dashboard", icon: <FaHome /> },
       { name: "Manage Events", path: "/organizer/dashboard/events", icon: <FaCalendarAlt /> },
       { name: "Manage Excuses", path: "/organizer/dashboard/excuses", icon: <FaEdit /> },
-      { name: "Notifications", path: "/organizer/dashboard/notifications", icon: <FaBell /> },
-      { name: "My Profile", path: "/organizer/dashboard/profile", icon: <FaUser /> },
     ],
     student: [
       { name: "Dashboard", path: "/student/dashboard", icon: <FaHome /> },
       { name: "Attend Events", path: "/student/dashboard/events", icon: <FaCalendarAlt /> },
       { name: "Community Service", path: "/student/dashboard/community-service", icon: <FaClock /> },
       { name: "Submit Excuse", path: "/student/dashboard/submit-excuse", icon: <FaEdit /> },
-      { name: "Notifications", path: "/student/dashboard/notifications", icon: <FaBell /> },
-      { name: "My Profile", path: "/student/dashboard/profile", icon: <FaUser /> },
     ],
   };
 
@@ -55,7 +48,6 @@ const Sidebar = ({ role }) => {
           </h2>
           <p className="text-xs text-gray-500 mt-1 capitalize">{role} Portal</p>
         </div>
-        <NotificationBell role={role} />
       </div>
 
       <nav className="flex-1 flex flex-col gap-1">
