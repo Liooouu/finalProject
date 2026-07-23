@@ -245,10 +245,16 @@ const EventDetails = () => {
           <h2 className="text-xl font-bold text-on mb-4">Attendance</h2>
           {myAttendance ? (
             <div className="space-y-3">
-              <div className={`flex items-center gap-3 ${myAttendance.status === "late" ? "text-yellow-400" : "text-green-400"}`}>
-                <span className="text-2xl"><FaCheck /></span>
+              <div className={`flex items-center gap-3 ${myAttendance.status === "absent" ? "text-red-400" : myAttendance.status === "late" ? "text-yellow-400" : "text-green-400"}`}>
+                <span className="text-2xl">
+                  {myAttendance.status === "absent" ? "❌" : myAttendance.status === "late" ? "⏰" : <FaCheck />}
+                </span>
                 <p className="text-lg font-medium">
-                  {myAttendance.status === "late" ? "You marked attendance (Late)." : "You have marked your attendance."}
+                  {myAttendance.status === "absent"
+                    ? "You are marked as absent."
+                    : myAttendance.status === "late"
+                    ? "You are marked as late."
+                    : "You have marked your attendance."}
                 </p>
               </div>
               <p className="text-on-dim">
