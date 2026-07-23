@@ -78,7 +78,7 @@ const SubmitExcuse = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-3 text-gray-400">
+        <div className="flex items-center gap-3 text-on-dim">
           <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -93,16 +93,16 @@ const SubmitExcuse = () => {
     <div className="space-y-6 max-w-2xl">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-white">Submit Excuse Letter</h1>
-        <p className="text-gray-400 mt-1">Provide a valid reason for your absence</p>
+        <h1 className="text-3xl font-bold text-on">Submit Excuse Letter</h1>
+        <p className="text-on-dim mt-1">Provide a valid reason for your absence</p>
       </div>
 
       {/* Guidelines */}
       <div className="bg-linear-to-br from-blue-500/10 to-blue-500/5 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-6">
-        <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+        <h3 className="text-lg font-semibold text-on mb-3 flex items-center gap-2">
           <span><FaBook /></span> Important Guidelines
         </h3>
-        <ul className="text-sm text-gray-300 space-y-2">
+        <ul className="text-sm text-on-dim space-y-2">
           <li className="flex items-start gap-2">
             <span className="text-blue-400">•</span>
             Submit your excuse within 24 hours after the event
@@ -130,14 +130,14 @@ const SubmitExcuse = () => {
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 space-y-6">
+      <form onSubmit={handleSubmit} className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6 space-y-6">
         {/* Event Selection */}
         <div>
-          <label className="block text-sm font-semibold text-white mb-2">Select Event (Absences Only)</label>
+          <label className="block text-sm font-semibold text-on mb-2">Select Event (Absences Only)</label>
           <select
             value={selectedEvent}
             onChange={(e) => setSelectedEvent(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+            className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
             required
           >
             <option value="">-- Select an event --</option>
@@ -152,7 +152,7 @@ const SubmitExcuse = () => {
             )}
           </select>
           {absentEvents.length === 0 && (
-            <p className="text-sm text-gray-400 mt-2">
+            <p className="text-sm text-on-dim mt-2">
               You don't have any absent events to excuse.
             </p>
           )}
@@ -160,21 +160,21 @@ const SubmitExcuse = () => {
 
         {/* Excuse Text */}
         <div>
-          <label className="block text-sm font-semibold text-white mb-2">Excuse Description</label>
+          <label className="block text-sm font-semibold text-on mb-2">Excuse Description</label>
           <textarea
             value={excuseText}
             onChange={(e) => setExcuseText(e.target.value)}
             rows={5}
             placeholder="Please provide a detailed explanation for your absence..."
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+            className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
             required
           />
         </div>
 
         {/* File Upload */}
         <div>
-          <label className="block text-sm font-semibold text-white mb-2">Attach Document (Optional)</label>
-          <div className="border-2 border-dashed border-white/20 rounded-2xl p-8 text-center hover:border-red-500/30 transition-colors">
+          <label className="block text-sm font-semibold text-on mb-2">Attach Document (Optional)</label>
+          <div className="border-2 border-dashed dark:border-white/20 border-slate-300 rounded-2xl p-8 text-center hover:border-red-500/30 transition-colors">
             <input
               type="file"
               onChange={handleFileChange}
@@ -187,13 +187,13 @@ const SubmitExcuse = () => {
                 <div className="space-y-2">
                   <span className="text-4xl"><FaCheck /></span>
                   <p className="text-green-400 font-medium">{file.name}</p>
-                  <p className="text-sm text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                  <p className="text-sm text-on-dim">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   <span className="text-4xl"><FaFileAlt /></span>
-                  <p className="text-gray-400">Click to upload or drag and drop</p>
-                  <p className="text-xs text-gray-500">PDF, DOC, JPG, PNG (max 5MB)</p>
+                  <p className="text-on-dim">Click to upload or drag and drop</p>
+                  <p className="text-xs text-on-muted">PDF, DOC, JPG, PNG (max 5MB)</p>
                 </div>
               )}
             </label>
@@ -222,7 +222,7 @@ const SubmitExcuse = () => {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-6 bg-white/5 hover:bg-white/10 border border-white/10 text-white py-3 rounded-xl transition-all duration-200"
+            className="px-6 bg-card hover:bg-card-alt border border-line text-on py-3 rounded-xl transition-all duration-200"
           >
             Cancel
           </button>

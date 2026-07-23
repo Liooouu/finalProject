@@ -78,8 +78,8 @@ const CreateOrganizerPage = () => {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="bg-[#0f0f14] rounded-xl border border-gray-800 overflow-hidden">
-        <div className="p-6 border-b border-gray-800 bg-gradient-to-r from-red-950/30 to-transparent">
+      <div className="bg-card rounded-xl border border-line overflow-hidden">
+        <div className="p-6 border-b border-line bg-linear-to-r dark:from-red-950/30 dark:to-transparent from-red-50 to-transparent">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
               <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -88,7 +88,7 @@ const CreateOrganizerPage = () => {
             </div>
             <div>
               <h2 className="text-xl font-bold text-red-400">Create Organizer</h2>
-              <p className="text-sm text-gray-400">Add a new organizer account to manage events</p>
+              <p className="text-sm text-on-dim">Add a new organizer account to manage events</p>
             </div>
           </div>
         </div>
@@ -108,17 +108,17 @@ const CreateOrganizerPage = () => {
                 </svg>
                 <span className="font-medium">{success.message}</span>
               </div>
-              <p className="text-sm text-gray-400">Email: {success.email}</p>
+              <p className="text-sm text-on-dim">Email: {success.email}</p>
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-on-dim mb-2">
               Full Name
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-on-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </div>
@@ -126,8 +126,8 @@ const CreateOrganizerPage = () => {
                 type="text"
                 value={form.name}
                 placeholder="Enter full name"
-                className={`w-full pl-10 pr-4 py-3 bg-black rounded-lg border ${
-                  errors.name ? "border-red-500" : "border-gray-700"
+                className={`w-full pl-10 pr-4 py-3 bg-card dark:bg-black rounded-lg border ${
+                  errors.name ? "border-red-500" : "border-line"
                 } text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors`}
                 onChange={(e) => handleInputChange("name", e.target.value)}
               />
@@ -138,12 +138,12 @@ const CreateOrganizerPage = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-on-dim mb-2">
               Email Address
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-on-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </div>
@@ -151,8 +151,8 @@ const CreateOrganizerPage = () => {
                 type="email"
                 value={form.email}
                 placeholder="Enter email address"
-                className={`w-full pl-10 pr-4 py-3 bg-black rounded-lg border ${
-                  errors.email ? "border-red-500" : "border-gray-700"
+                className={`w-full pl-10 pr-4 py-3 bg-card dark:bg-black rounded-lg border ${
+                  errors.email ? "border-red-500" : "border-line"
                 } text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors`}
                 onChange={(e) => handleInputChange("email", e.target.value)}
               />
@@ -163,12 +163,12 @@ const CreateOrganizerPage = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-on-dim mb-2">
               Password
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-on-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
@@ -176,15 +176,15 @@ const CreateOrganizerPage = () => {
                 type="text"
                 value={form.password}
                 placeholder="Enter password"
-                className={`w-full pl-10 pr-24 py-3 bg-black rounded-lg border ${
-                  errors.password ? "border-red-500" : "border-gray-700"
+                className={`w-full pl-10 pr-24 py-3 bg-card dark:bg-black rounded-lg border ${
+                  errors.password ? "border-red-500" : "border-line"
                 } text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors`}
                 onChange={(e) => handleInputChange("password", e.target.value)}
               />
               <button
                 type="button"
                 onClick={generatePassword}
-                className="absolute inset-y-1 right-1 px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-300 transition-colors"
+                className="absolute inset-y-1 right-1 px-3 py-1 bg-card-alt hover:bg-card-alt rounded text-xs text-on-dim transition-colors"
               >
                 Generate
               </button>
@@ -192,7 +192,7 @@ const CreateOrganizerPage = () => {
             {errors.password && (
               <p className="mt-1 text-sm text-red-400">{errors.password}</p>
             )}
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-on-muted">
               Minimum 6 characters. Use "Generate" for a secure random password.
             </p>
           </div>
@@ -226,9 +226,9 @@ const CreateOrganizerPage = () => {
         </form>
       </div>
 
-      <div className="mt-6 p-4 bg-[#0f0f14]/50 rounded-xl border border-gray-800">
-        <h3 className="text-sm font-medium text-gray-300 mb-2">Organizer Capabilities</h3>
-        <ul className="text-sm text-gray-400 space-y-1">
+      <div className="mt-6 p-4 bg-card/50 rounded-xl border border-line">
+        <h3 className="text-sm font-medium text-on-dim mb-2">Organizer Capabilities</h3>
+        <ul className="text-sm text-on-dim space-y-1">
           <li className="flex items-center gap-2">
             <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />

@@ -82,8 +82,8 @@ const OrgManageEvents = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">Manage Events</h1>
-          <p className="text-gray-400 mt-1">Create and manage your events</p>
+          <h1 className="text-3xl font-bold text-on">Manage Events</h1>
+          <p className="text-on-dim mt-1">Create and manage your events</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
@@ -101,7 +101,7 @@ const OrgManageEvents = () => {
           className={`px-5 py-2 rounded-lg font-medium transition-all duration-200 ${
             viewMode === "my"
               ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
-              : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/10"
+              : "bg-card text-on-dim hover:bg-card-alt hover:text-on border border-line"
           }`}
         >
           My Events
@@ -111,7 +111,7 @@ const OrgManageEvents = () => {
           className={`px-5 py-2 rounded-lg font-medium transition-all duration-200 ${
             viewMode === "all"
               ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
-              : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/10"
+              : "bg-card text-on-dim hover:bg-card-alt hover:text-on border border-line"
           }`}
         >
           All Events
@@ -129,9 +129,9 @@ const OrgManageEvents = () => {
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 space-y-5"
+          className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6 space-y-5"
         >
-          <h2 className="text-lg font-semibold text-white">Create New Event</h2>
+          <h2 className="text-lg font-semibold text-on">Create New Event</h2>
 
           <div className="grid md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
@@ -142,7 +142,7 @@ const OrgManageEvents = () => {
                 value={form.title}
                 onChange={handleChange}
                 required
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
               />
             </div>
             <div className="md:col-span-2">
@@ -152,7 +152,7 @@ const OrgManageEvents = () => {
                 value={form.description}
                 onChange={handleChange}
                 rows={3}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
               />
             </div>
             <div className="md:col-span-2">
@@ -162,7 +162,7 @@ const OrgManageEvents = () => {
                 placeholder="Location"
                 value={form.location}
                 onChange={handleChange}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
               />
             </div>
             <div>
@@ -172,7 +172,7 @@ const OrgManageEvents = () => {
                 value={form.date}
                 onChange={handleChange}
                 required
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                className="w-full bg-card border border-line rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
               />
             </div>
             <div>
@@ -182,38 +182,38 @@ const OrgManageEvents = () => {
                 value={form.time}
                 onChange={handleChange}
                 required
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                className="w-full bg-card border border-line rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
               />
             </div>
           </div>
 
-          <div className="border-t border-white/10 pt-4">
-            <h3 className="text-sm font-semibold text-gray-400 mb-3">Attendance Window</h3>
+          <div className="border-t border-line pt-4">
+            <h3 className="text-sm font-semibold text-on-dim mb-3">Attendance Window</h3>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Start Time</label>
+                <label className="text-xs text-on-muted block mb-1">Start Time</label>
                 <input
                   type="time"
                   name="attendanceStartTime"
                   value={form.attendanceStartTime}
                   onChange={handleChange}
                   required
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">End Time</label>
+                <label className="text-xs text-on-muted block mb-1">End Time</label>
                 <input
                   type="time"
                   name="attendanceEndTime"
                   value={form.attendanceEndTime}
                   onChange={handleChange}
                   required
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
                 />
               </div>
             </div>
-            <p className="text-xs text-gray-500 mt-2">Students can only mark attendance within this time window.</p>
+            <p className="text-xs text-on-muted mt-2">Students can only mark attendance within this time window.</p>
           </div>
 
           <button
@@ -227,9 +227,9 @@ const OrgManageEvents = () => {
 
       {/* Events List */}
       {events.length === 0 ? (
-        <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
+        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-12 text-center">
           <span className="text-5xl mb-4 block"><FaCalendarAlt /></span>
-          <p className="text-gray-400">
+          <p className="text-on-dim">
             {viewMode === "my" ? "No events yet. Create your first one!" : "No events found."}
           </p>
         </div>
@@ -241,7 +241,7 @@ const OrgManageEvents = () => {
               <div
                 key={event._id}
                 onClick={() => navigate(`/organizer/dashboard/events/${event._id}`)}
-                className="group bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 cursor-pointer hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10"
+                className="group bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6 cursor-pointer hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10"
               >
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">
@@ -249,7 +249,7 @@ const OrgManageEvents = () => {
                       <span className="text-xl"><FaCalendarAlt /></span>
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-white group-hover:text-red-400 transition-colors">
+                      <h3 className="text-lg font-bold text-on group-hover:text-red-400 transition-colors">
                         {event.title}
                       </h3>
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${status.bg} ${status.text}`}>
@@ -268,11 +268,11 @@ const OrgManageEvents = () => {
                   </button>
                 </div>
 
-                <p className="text-gray-400 text-sm mb-4 line-clamp-2">
+                <p className="text-on-dim text-sm mb-4 line-clamp-2">
                   {event.description || "No description"}
                 </p>
 
-                <div className="flex flex-wrap gap-4 text-sm text-gray-300 mb-4">
+                <div className="flex flex-wrap gap-4 text-sm text-on-dim mb-4">
                   <span className="flex items-center gap-1"><FaMapMarkerAlt /> {event.location || "TBA"}</span>
                   <span className="flex items-center gap-1"><FaCalendarAlt /> {new Date(event.date).toLocaleDateString()}</span>
                   <span className="flex items-center gap-1"><FaClock /> {formatTime12Hour(event.time)}</span>
@@ -285,8 +285,8 @@ const OrgManageEvents = () => {
                 </div>
 
                 {viewMode === "all" && event.organizer && (
-                  <p className="text-xs text-gray-500 mt-4 pt-4 border-t border-white/10">
-                    Created by: <span className="text-gray-400">{event.organizer.name}</span>
+                  <p className="text-xs text-on-muted mt-4 pt-4 border-t border-line">
+                    Created by: <span className="text-on-dim">{event.organizer.name}</span>
                   </p>
                 )}
               </div>

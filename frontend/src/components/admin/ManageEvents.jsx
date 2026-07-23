@@ -104,12 +104,12 @@ const ManageEvents = () => {
             placeholder="Search events..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="px-4 py-2 bg-black rounded border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
+            className="px-4 py-2 bg-card dark:bg-black rounded border border-line text-on placeholder-on-muted focus:outline-none focus:border-red-500"
           />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 bg-black rounded border border-gray-700 text-white focus:outline-none focus:border-red-500"
+            className="px-4 py-2 bg-card dark:bg-black rounded border border-line text-on focus:outline-none focus:border-red-500"
           >
             <option value="all">All Status</option>
             <option value="upcoming">Upcoming</option>
@@ -120,15 +120,15 @@ const ManageEvents = () => {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Loading events...</div>
+        <div className="text-center py-12 text-on-dim">Loading events...</div>
       ) : filteredEvents.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">No events found</div>
+        <div className="text-center py-12 text-on-dim">No events found</div>
       ) : (
         <div className="grid gap-4">
           {filteredEvents.map((event) => (
             <div
               key={event._id}
-              className="bg-[#0f0f14] p-5 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors"
+              className="bg-card p-5 rounded-xl border border-line hover:border-line transition-colors"
             >
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div className="flex-1">
@@ -136,7 +136,7 @@ const ManageEvents = () => {
                     <h3 className="text-lg font-semibold">{event.title}</h3>
                     <span className={getStatusBadge(event.status)}>{event.status}</span>
                   </div>
-                  <div className="flex flex-wrap gap-4 text-sm text-gray-400">
+                  <div className="flex flex-wrap gap-4 text-sm text-on-dim">
                     <span className="flex items-center gap-1">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -164,7 +164,7 @@ const ManageEvents = () => {
                   <select
                     value={event.status}
                     onChange={(e) => updateEventStatus(event._id, e.target.value)}
-                    className="px-3 py-2 bg-black rounded border border-gray-700 text-sm text-white focus:outline-none focus:border-red-500"
+                    className="px-3 py-2 bg-card dark:bg-black rounded border border-line text-sm text-on focus:outline-none focus:border-red-500"
                   >
                     <option value="upcoming">Upcoming</option>
                     <option value="live">Live</option>
@@ -178,7 +178,7 @@ const ManageEvents = () => {
                   </button>
                   <button
                     onClick={() => deleteEvent(event._id)}
-                    className="px-4 py-2 bg-gray-800 hover:bg-red-900/50 border border-gray-700 hover:border-red-500 rounded text-sm font-medium transition-colors"
+                    className="px-4 py-2 bg-card-alt hover:bg-red-900/50 border border-line hover:border-red-500 rounded text-sm font-medium transition-colors"
                   >
                     Delete
                   </button>
@@ -191,11 +191,11 @@ const ManageEvents = () => {
 
       {showModal && selectedEvent && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#0f0f14] rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden border border-gray-700">
-            <div className="p-6 border-b border-gray-800 flex items-center justify-between">
+          <div className="bg-card rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden border border-line">
+            <div className="p-6 border-b border-line flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-bold">{selectedEvent.title}</h3>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-on-dim">
                   {new Date(selectedEvent.date).toLocaleDateString()} at {selectedEvent.time}
                   {selectedEvent.location && ` - ${selectedEvent.location}`}
                 </p>
@@ -217,17 +217,17 @@ const ManageEvents = () => {
                 Attendees ({attendees.length})
               </h4>
               {attendees.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">No attendees yet</p>
+                <p className="text-on-dim text-center py-8">No attendees yet</p>
               ) : (
                 <div className="space-y-2">
                   {attendees.map((attendee) => (
                     <div
                       key={attendee._id}
-                      className="flex items-center justify-between p-4 bg-black/30 rounded-lg"
+                      className="flex items-center justify-between p-4 bg-card-alt rounded-lg"
                     >
                       <div>
                         <p className="font-medium">{attendee.student?.name}</p>
-                        <p className="text-sm text-gray-400">{attendee.student?.email}</p>
+                        <p className="text-sm text-on-dim">{attendee.student?.email}</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <select
@@ -235,7 +235,7 @@ const ManageEvents = () => {
                           onChange={(e) =>
                             updateAttendeeStatus(selectedEvent._id, attendee.student._id, e.target.value)
                           }
-                          className="px-3 py-1 bg-black rounded border border-gray-700 text-sm focus:outline-none focus:border-red-500"
+                          className="px-3 py-1 bg-card dark:bg-black rounded border border-line text-sm focus:outline-none focus:border-red-500"
                         >
                           <option value="present">Present</option>
                           <option value="absent">Absent</option>

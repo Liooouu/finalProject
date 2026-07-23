@@ -34,7 +34,7 @@ const DashboardHome = () => {
     const styles = {
       upcoming: "bg-blue-900/50 text-blue-400",
       live: "bg-green-900/50 text-green-400",
-      closed: "bg-gray-700/50 text-gray-400",
+      closed: "bg-gray-700/50 text-on-dim",
     };
     return (
       <span className={`px-2 py-1 rounded text-xs font-medium ${styles[status] || styles.closed}`}>
@@ -81,14 +81,14 @@ const DashboardHome = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-red-400">Dashboard</h2>
-        <p className="text-gray-400 text-sm">
+        <p className="text-on-dim text-sm">
           {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-[#0f0f14] rounded-xl border border-gray-800 overflow-hidden">
-          <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-gradient-to-r from-red-950/30 to-transparent">
+        <div className="bg-card rounded-xl border border-line overflow-hidden">
+          <div className="p-4 border-b border-line flex items-center justify-between bg-linear-to-r dark:from-red-950/30 dark:to-transparent from-red-50 to-transparent">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
                 <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -97,7 +97,7 @@ const DashboardHome = () => {
               </div>
               <div>
                 <h3 className="font-semibold">Recent Events</h3>
-                <p className="text-xs text-gray-400">Latest 5 events</p>
+                <p className="text-xs text-on-dim">Latest 5 events</p>
               </div>
             </div>
             <Link
@@ -109,14 +109,14 @@ const DashboardHome = () => {
           </div>
           <div className="divide-y divide-gray-800/50">
             {events.length === 0 ? (
-              <p className="p-4 text-gray-400 text-center text-sm">No events yet</p>
+              <p className="p-4 text-on-dim text-center text-sm">No events yet</p>
             ) : (
               events.map((event) => (
-                <div key={event._id} className="p-4 hover:bg-white/5 transition-colors">
+                <div key={event._id} className="p-4 hover:bg-card-alt transition-colors">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{event.title}</p>
-                      <p className="text-sm text-gray-400 truncate">
+                      <p className="text-sm text-on-dim truncate">
                         {event.location || "No location"} • {new Date(event.date).toLocaleDateString()}
                       </p>
                     </div>
@@ -128,8 +128,8 @@ const DashboardHome = () => {
           </div>
         </div>
 
-        <div className="bg-[#0f0f14] rounded-xl border border-gray-800 overflow-hidden">
-          <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-gradient-to-r from-red-950/30 to-transparent">
+        <div className="bg-card rounded-xl border border-line overflow-hidden">
+          <div className="p-4 border-b border-line flex items-center justify-between bg-linear-to-r dark:from-red-950/30 dark:to-transparent from-red-50 to-transparent">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
                 <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -138,7 +138,7 @@ const DashboardHome = () => {
               </div>
               <div>
                 <h3 className="font-semibold">Recent Users</h3>
-                <p className="text-xs text-gray-400">Latest 5 registrations</p>
+                <p className="text-xs text-on-dim">Latest 5 registrations</p>
               </div>
             </div>
             <Link
@@ -150,10 +150,10 @@ const DashboardHome = () => {
           </div>
           <div className="divide-y divide-gray-800/50">
             {users.length === 0 ? (
-              <p className="p-4 text-gray-400 text-center text-sm">No users yet</p>
+              <p className="p-4 text-on-dim text-center text-sm">No users yet</p>
             ) : (
               users.map((user) => (
-                <div key={user._id} className="p-4 hover:bg-white/5 transition-colors">
+                <div key={user._id} className="p-4 hover:bg-card-alt transition-colors">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
@@ -161,7 +161,7 @@ const DashboardHome = () => {
                       </div>
                       <div className="min-w-0">
                         <p className="font-medium truncate">{user.name}</p>
-                        <p className="text-sm text-gray-400 truncate">{user.email}</p>
+                        <p className="text-sm text-on-dim truncate">{user.email}</p>
                       </div>
                     </div>
                     {getRoleBadge(user.role)}
@@ -173,8 +173,8 @@ const DashboardHome = () => {
         </div>
       </div>
 
-      <div className="bg-[#0f0f14] rounded-xl border border-gray-800 overflow-hidden">
-        <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-gradient-to-r from-red-950/30 to-transparent">
+      <div className="bg-card rounded-xl border border-line overflow-hidden">
+        <div className="p-4 border-b border-line flex items-center justify-between bg-linear-to-r dark:from-red-950/30 dark:to-transparent from-red-50 to-transparent">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
               <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -183,7 +183,7 @@ const DashboardHome = () => {
             </div>
             <div>
               <h3 className="font-semibold">Recent Attendance</h3>
-              <p className="text-xs text-gray-400">Latest 10 attendance records</p>
+              <p className="text-xs text-on-dim">Latest 10 attendance records</p>
             </div>
           </div>
           <Link
@@ -196,26 +196,26 @@ const DashboardHome = () => {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-800 bg-black/30">
-                <th className="text-left p-4 font-medium text-gray-400 text-sm">Event</th>
-                <th className="text-left p-4 font-medium text-gray-400 text-sm">Student</th>
-                <th className="text-left p-4 font-medium text-gray-400 text-sm">Status</th>
-                <th className="text-left p-4 font-medium text-gray-400 text-sm">Date</th>
+              <tr className="border-b border-line bg-card-alt">
+                <th className="text-left p-4 font-medium text-on-dim text-sm">Event</th>
+                <th className="text-left p-4 font-medium text-on-dim text-sm">Student</th>
+                <th className="text-left p-4 font-medium text-on-dim text-sm">Status</th>
+                <th className="text-left p-4 font-medium text-on-dim text-sm">Date</th>
               </tr>
             </thead>
             <tbody>
               {attendance.length === 0 ? (
                 <tr>
-                  <td colSpan="4" className="p-4 text-gray-400 text-center text-sm">
+                  <td colSpan="4" className="p-4 text-on-dim text-center text-sm">
                     No attendance records yet
                   </td>
                 </tr>
               ) : (
                 attendance.map((record, index) => (
-                  <tr key={index} className="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
+                  <tr key={index} className="border-b border-line hover:bg-card-alt transition-colors">
                     <td className="p-4">
                       <p className="font-medium text-sm">{record.event?.title || "Event"}</p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-on-dim">
                         {record.event?.date && new Date(record.event.date).toLocaleDateString()}
                       </p>
                     </td>
@@ -226,12 +226,12 @@ const DashboardHome = () => {
                         </div>
                         <div>
                           <p className="font-medium text-sm">{record.student?.name || "Unknown"}</p>
-                          <p className="text-xs text-gray-400">{record.student?.email || ""}</p>
+                          <p className="text-xs text-on-dim">{record.student?.email || ""}</p>
                         </div>
                       </div>
                     </td>
                     <td className="p-4">{getAttendanceBadge(record.status)}</td>
-                    <td className="p-4 text-sm text-gray-400">
+                    <td className="p-4 text-sm text-on-dim">
                       {new Date(record.attendedAt).toLocaleString()}
                     </td>
                   </tr>

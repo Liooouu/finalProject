@@ -65,7 +65,7 @@ const ManageExcuses = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-3 text-gray-400">
+        <div className="flex items-center gap-3 text-on-dim">
           <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -80,8 +80,8 @@ const ManageExcuses = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-white">Manage Excuses</h1>
-        <p className="text-gray-400 mt-1">Review and manage student excuse letters</p>
+        <h1 className="text-3xl font-bold text-on">Manage Excuses</h1>
+        <p className="text-on-dim mt-1">Review and manage student excuse letters</p>
       </div>
 
       {/* Message */}
@@ -100,7 +100,7 @@ const ManageExcuses = () => {
             className={`px-5 py-2 rounded-lg font-medium transition-all duration-200 capitalize ${
               filter === status
                 ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
-                : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/10"
+                : "bg-card text-on-dim hover:bg-card-alt hover:text-on border border-line"
             }`}
           >
             {status}
@@ -113,16 +113,16 @@ const ManageExcuses = () => {
 
       {/* Excuses List */}
       {filteredExcuses.length === 0 ? (
-        <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
+        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-12 text-center">
           <span className="text-5xl mb-4 block"><FaEdit /></span>
-          <p className="text-gray-400">No {filter} excuses found.</p>
+          <p className="text-on-dim">No {filter} excuses found.</p>
         </div>
       ) : (
         <div className="space-y-4">
           {filteredExcuses.map((excuse) => {
             const status = statusConfig[excuse.status];
             return (
-              <div key={excuse._id} className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+              <div key={excuse._id} className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
                 {/* Header */}
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-4">
@@ -130,33 +130,33 @@ const ManageExcuses = () => {
                       <span className="text-2xl"><FaUser /></span>
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-white">{excuse.student?.name || "Unknown Student"}</h3>
-                      <p className="text-sm text-gray-400">{excuse.student?.email}</p>
+                      <h3 className="text-lg font-bold text-on">{excuse.student?.name || "Unknown Student"}</h3>
+                      <p className="text-sm text-on-dim">{excuse.student?.email}</p>
                     </div>
                   </div>
                   <div className="text-right">
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${status.bg} ${status.text}`}>
                       {excuse.status}
                     </span>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-on-muted mt-1">
                       {new Date(excuse.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
 
                 {/* Event Info */}
-                <div className="p-4 bg-white/5 rounded-xl mb-4">
-                  <p className="text-sm text-gray-400 mb-1">Event:</p>
-                  <p className="font-medium text-white">{excuse.event?.title || "Unknown Event"}</p>
-                  <p className="text-sm text-gray-500">
+                <div className="p-4 bg-card rounded-xl mb-4">
+                  <p className="text-sm text-on-dim mb-1">Event:</p>
+                  <p className="font-medium text-on">{excuse.event?.title || "Unknown Event"}</p>
+                  <p className="text-sm text-on-muted">
                     {excuse.event?.date ? new Date(excuse.event.date).toLocaleDateString() : ""}
                   </p>
                 </div>
 
                 {/* Excuse Text */}
                 <div className="mb-4">
-                  <p className="text-sm text-gray-400 mb-1">Excuse:</p>
-                  <p className="text-white">{excuse.excuseText}</p>
+                  <p className="text-sm text-on-dim mb-1">Excuse:</p>
+                  <p className="text-on">{excuse.excuseText}</p>
                 </div>
 
                 {/* Attachment */}
@@ -175,18 +175,18 @@ const ManageExcuses = () => {
 
                 {/* Response Note */}
                 {excuse.responseNote && (
-                  <div className="p-4 bg-white/5 rounded-xl mb-4 border-l-4 border-green-500">
-                    <p className="text-sm text-gray-400 mb-1">Response Note:</p>
-                    <p className="text-white">{excuse.responseNote}</p>
+                  <div className="p-4 bg-card rounded-xl mb-4 border-l-4 border-green-500">
+                    <p className="text-sm text-on-dim mb-1">Response Note:</p>
+                    <p className="text-on">{excuse.responseNote}</p>
                     {excuse.reviewedBy && (
-                      <p className="text-xs text-gray-500 mt-1">By: {excuse.reviewedBy.name}</p>
+                      <p className="text-xs text-on-muted mt-1">By: {excuse.reviewedBy.name}</p>
                     )}
                   </div>
                 )}
 
                 {/* Review Actions */}
                 {filter === "pending" && (
-                  <div className="mt-4 pt-4 border-t border-white/10">
+                  <div className="mt-4 pt-4 border-t border-line">
                     <button
                       onClick={() => setSelectedExcuse(selectedExcuse === excuse._id ? null : excuse._id)}
                       className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
@@ -201,7 +201,7 @@ const ManageExcuses = () => {
                           onChange={(e) => setResponseNote(e.target.value)}
                           placeholder="Add a response note (optional)..."
                           rows={3}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                          className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
                         />
                         <div className="flex gap-3">
                           <button

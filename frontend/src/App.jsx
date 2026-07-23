@@ -1,5 +1,6 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { ThemeProvider } from "./context/ThemeContext";
 
 import AuthPage from "./pages/auth/AuthPage";
 import StudentDashboard from "./pages/StudentDashboard";
@@ -24,6 +25,7 @@ import ProfileSettings from "./components/settings/ProfileSettings";
 
 function App() {
   return (
+    <ThemeProvider>
     <Routes>
       <Route path="/" element={<Navigate to="/auth" />} />
 
@@ -55,6 +57,7 @@ function App() {
         </Route>
       </Route>
     </Routes>
+    </ThemeProvider>
   );
 }
 

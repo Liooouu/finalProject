@@ -109,7 +109,7 @@ const ProfileSettings = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-3 text-gray-400">
+        <div className="flex items-center gap-3 text-on-dim">
           <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -123,8 +123,8 @@ const ProfileSettings = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">Profile Settings</h1>
-        <p className="text-gray-400 mt-1">Manage your account information</p>
+        <h1 className="text-3xl font-bold text-on">Profile Settings</h1>
+        <p className="text-on-dim mt-1">Manage your account information</p>
       </div>
 
       {message && (
@@ -135,7 +135,7 @@ const ProfileSettings = () => {
 
       <div className="grid md:grid-cols-3 gap-6">
         <div className="md:col-span-2">
-          <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
+          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl overflow-hidden">
             <div className="bg-linear-to-r from-blue-600 to-blue-800 p-6">
               <div className="flex items-center gap-4">
                 <div className="relative">
@@ -162,8 +162,8 @@ const ProfileSettings = () => {
                   </label>
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-white">{profile?.name}</h2>
-                  <p className="text-white/80">{profile?.email}</p>
+                  <h2 className="text-2xl font-bold text-on">{profile?.name}</h2>
+                  <p className="text-on-dim">{profile?.email}</p>
                   <span className="inline-block mt-2 px-3 py-1 bg-white/20 rounded-full text-sm capitalize">
                     {profile?.role}
                   </span>
@@ -175,31 +175,31 @@ const ProfileSettings = () => {
               {editing ? (
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-semibold text-white mb-2">Full Name</label>
+                    <label className="block text-sm font-semibold text-on mb-2">Full Name</label>
                     <input
                       type="text"
                       name="name"
                       value={form.name}
                       onChange={handleChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                      className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-white mb-2">Email Address</label>
+                    <label className="block text-sm font-semibold text-on mb-2">Email Address</label>
                     <input
                       type="email"
                       name="email"
                       value={form.email}
                       onChange={handleChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                      className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
                       required
                     />
                   </div>
                   <div className="flex gap-3">
                     <button
                       type="submit"
-                      className="bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200"
+                      className="bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-on font-semibold px-6 py-3 rounded-xl transition-all duration-200"
                     >
                       <span className="flex items-center gap-2"><FaCheck /> Save Changes</span>
                     </button>
@@ -209,7 +209,7 @@ const ProfileSettings = () => {
                         setEditing(false);
                         setForm({ name: profile.name, email: profile.email });
                       }}
-                      className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-6 py-3 rounded-xl transition-all duration-200"
+                      className="bg-card hover:bg-card-alt border border-line text-on px-6 py-3 rounded-xl transition-all duration-200"
                     >
                       <span className="flex items-center gap-2"><FaTimes /> Cancel</span>
                     </button>
@@ -217,31 +217,31 @@ const ProfileSettings = () => {
                 </form>
               ) : showPasswordForm ? (
                 <form onSubmit={handlePasswordChange} className="space-y-4">
-                  <h3 className="text-lg font-semibold text-white">Change Password</h3>
+                  <h3 className="text-lg font-semibold text-on">Change Password</h3>
                   <div>
-                    <label className="block text-sm font-semibold text-white mb-2">Current Password</label>
+                    <label className="block text-sm font-semibold text-on mb-2">Current Password</label>
                     <input
                       type="password"
                       value={passwordForm.currentPassword}
                       onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                      className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-white mb-2">New Password</label>
+                    <label className="block text-sm font-semibold text-on mb-2">New Password</label>
                     <input
                       type="password"
                       value={passwordForm.newPassword}
                       onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                      className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
                       required
                     />
                   </div>
                   <div className="flex gap-3">
                     <button
                       type="submit"
-                      className="bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200"
+                      className="bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-on font-semibold px-6 py-3 rounded-xl transition-all duration-200"
                     >
                       <span className="flex items-center gap-2"><FaCheck /> Update Password</span>
                     </button>
@@ -251,7 +251,7 @@ const ProfileSettings = () => {
                         setShowPasswordForm(false);
                         setPasswordForm({ currentPassword: "", newPassword: "" });
                       }}
-                      className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-6 py-3 rounded-xl transition-all duration-200"
+                      className="bg-card hover:bg-card-alt border border-line text-on px-6 py-3 rounded-xl transition-all duration-200"
                     >
                       <span className="flex items-center gap-2"><FaTimes /> Cancel</span>
                     </button>
@@ -260,16 +260,16 @@ const ProfileSettings = () => {
               ) : (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm text-gray-400">Full Name</label>
-                    <p className="text-lg font-medium text-white">{profile?.name}</p>
+                    <label className="block text-sm text-on-dim">Full Name</label>
+                    <p className="text-lg font-medium text-on">{profile?.name}</p>
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400">Email Address</label>
-                    <p className="text-lg font-medium text-white">{profile?.email}</p>
+                    <label className="block text-sm text-on-dim">Email Address</label>
+                    <p className="text-lg font-medium text-on">{profile?.email}</p>
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400">Role</label>
-                    <p className="text-lg font-medium text-white capitalize">{profile?.role}</p>
+                    <label className="block text-sm text-on-dim">Role</label>
+                    <p className="text-lg font-medium text-on capitalize">{profile?.role}</p>
                   </div>
                   <div className="flex gap-3">
                     <button
@@ -292,17 +292,17 @@ const ProfileSettings = () => {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Your Statistics</h3>
+          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+            <h3 className="text-lg font-semibold text-on mb-4">Your Statistics</h3>
             <div className="space-y-4">
               {user.role === "student" && (
                 <>
                   <div className="flex justify-between items-center p-3 bg-green-500/10 rounded-xl">
-                    <span className="text-gray-400">Events Attended</span>
+                    <span className="text-on-dim">Events Attended</span>
                     <span className="text-2xl font-bold text-green-400">{stats.totalAttended || 0}</span>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-yellow-500/10 rounded-xl">
-                    <span className="text-gray-400">Community Service</span>
+                    <span className="text-on-dim">Community Service</span>
                     <span className="text-2xl font-bold text-yellow-400">{stats.totalHours || 0} hrs</span>
                   </div>
                 </>
@@ -310,17 +310,17 @@ const ProfileSettings = () => {
               {user.role === "organizer" && (
                 <>
                   <div className="flex justify-between items-center p-3 bg-blue-500/10 rounded-xl">
-                    <span className="text-gray-400">Events Created</span>
+                    <span className="text-on-dim">Events Created</span>
                     <span className="text-2xl font-bold text-blue-400">{stats.totalEvents || 0}</span>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-green-500/10 rounded-xl">
-                    <span className="text-gray-400">Total Attendees</span>
+                    <span className="text-on-dim">Total Attendees</span>
                     <span className="text-2xl font-bold text-green-400">{stats.totalAttendees || 0}</span>
                   </div>
                 </>
               )}
               {user.role === "admin" && (
-                <p className="text-gray-400 text-sm">Admin accounts have full system access.</p>
+                <p className="text-on-dim text-sm">Admin accounts have full system access.</p>
               )}
             </div>
           </div>

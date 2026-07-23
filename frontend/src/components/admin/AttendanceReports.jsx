@@ -168,7 +168,7 @@ const AttendanceReports = () => {
     <button
       onClick={() => setActiveTab(tab)}
       className={`px-4 py-2 rounded ${
-        activeTab === tab ? "bg-red-500 text-white" : "bg-[#1a1a24] text-gray-400 hover:text-white"
+        activeTab === tab ? "bg-red-500 text-white" : "bg-card text-on-dim hover:text-on"
       }`}
     >
       {label}
@@ -183,7 +183,7 @@ const AttendanceReports = () => {
         <TabButton tab="users" label="Users" />
       </div>
 
-      {loading && <p className="text-gray-400">Loading...</p>}
+      {loading && <p className="text-on-dim">Loading...</p>}
 
       {activeTab === "attendance" && attendanceData && (
         <>
@@ -195,13 +195,13 @@ const AttendanceReports = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-[#0f0f14] p-6 rounded-xl">
+            <div className="bg-card p-6 rounded-xl">
               <h3 className="text-lg font-semibold mb-4">Status Distribution</h3>
               <div className="h-64">
                 <Pie data={attendanceChartData} options={{ ...pieOptions, maintainAspectRatio: false }} />
               </div>
             </div>
-            <div className="bg-[#0f0f14] p-6 rounded-xl">
+            <div className="bg-card p-6 rounded-xl">
               <h3 className="text-lg font-semibold mb-4">Attendance by Event</h3>
               <div className="h-64">
                 <Bar data={attendanceByEventData} options={{ ...chartOptions, maintainAspectRatio: false }} />
@@ -209,7 +209,7 @@ const AttendanceReports = () => {
             </div>
           </div>
 
-          <div className="bg-[#0f0f14] p-6 rounded-xl">
+          <div className="bg-card p-6 rounded-xl">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Recent Attendance Records</h3>
               <button
@@ -222,7 +222,7 @@ const AttendanceReports = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-700">
+                  <tr className="border-b border-line">
                     <th className="text-left p-2">Event</th>
                     <th className="text-left p-2">Student</th>
                     <th className="text-left p-2">Status</th>
@@ -231,7 +231,7 @@ const AttendanceReports = () => {
                 </thead>
                 <tbody>
                   {attendanceData.records.slice(0, 10).map((r, i) => (
-                    <tr key={i} className="border-b border-gray-800">
+                    <tr key={i} className="border-b border-line">
                       <td className="p-2">{r.event?.title || "N/A"}</td>
                       <td className="p-2">{r.student?.name || "N/A"}</td>
                       <td className="p-2">
@@ -267,13 +267,13 @@ const AttendanceReports = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-[#0f0f14] p-6 rounded-xl">
+            <div className="bg-card p-6 rounded-xl">
               <h3 className="text-lg font-semibold mb-4">Events by Status</h3>
               <div className="h-64">
                 <Doughnut data={eventStatusData} options={{ ...pieOptions, maintainAspectRatio: false }} />
               </div>
             </div>
-            <div className="bg-[#0f0f14] p-6 rounded-xl">
+            <div className="bg-card p-6 rounded-xl">
               <h3 className="text-lg font-semibold mb-4">Top Events by Attendance</h3>
               <div className="h-64">
                 <Bar
@@ -295,7 +295,7 @@ const AttendanceReports = () => {
             </div>
           </div>
 
-          <div className="bg-[#0f0f14] p-6 rounded-xl">
+          <div className="bg-card p-6 rounded-xl">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">All Events</h3>
               <button
@@ -308,7 +308,7 @@ const AttendanceReports = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-700">
+                  <tr className="border-b border-line">
                     <th className="text-left p-2">Title</th>
                     <th className="text-left p-2">Date</th>
                     <th className="text-left p-2">Location</th>
@@ -319,7 +319,7 @@ const AttendanceReports = () => {
                 </thead>
                 <tbody>
                   {eventsData.events.map((e) => (
-                    <tr key={e._id} className="border-b border-gray-800">
+                    <tr key={e._id} className="border-b border-line">
                       <td className="p-2">{e.title}</td>
                       <td className="p-2">{new Date(e.date).toLocaleDateString()}</td>
                       <td className="p-2">{e.location || "N/A"}</td>
@@ -357,13 +357,13 @@ const AttendanceReports = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-[#0f0f14] p-6 rounded-xl">
+            <div className="bg-card p-6 rounded-xl">
               <h3 className="text-lg font-semibold mb-4">Users by Role</h3>
               <div className="h-64">
                 <Pie data={usersRoleData} options={{ ...pieOptions, maintainAspectRatio: false }} />
               </div>
             </div>
-            <div className="bg-[#0f0f14] p-6 rounded-xl">
+            <div className="bg-card p-6 rounded-xl">
               <h3 className="text-lg font-semibold mb-4">Role Distribution</h3>
               <div className="h-64 flex items-center justify-center">
                 <Doughnut
@@ -388,7 +388,7 @@ const AttendanceReports = () => {
             </div>
           </div>
 
-          <div className="bg-[#0f0f14] p-6 rounded-xl">
+          <div className="bg-card p-6 rounded-xl">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">All Users</h3>
               <button
@@ -401,7 +401,7 @@ const AttendanceReports = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-700">
+                  <tr className="border-b border-line">
                     <th className="text-left p-2">Name</th>
                     <th className="text-left p-2">Email</th>
                     <th className="text-left p-2">Role</th>
@@ -410,7 +410,7 @@ const AttendanceReports = () => {
                 </thead>
                 <tbody>
                   {usersData.users.map((u) => (
-                    <tr key={u._id} className="border-b border-gray-800">
+                    <tr key={u._id} className="border-b border-line">
                       <td className="p-2">{u.name}</td>
                       <td className="p-2">{u.email}</td>
                       <td className="p-2">

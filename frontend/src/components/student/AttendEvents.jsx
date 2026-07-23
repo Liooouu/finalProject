@@ -27,7 +27,7 @@ const AttendEvents = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-3 text-gray-400">
+        <div className="flex items-center gap-3 text-on-dim">
           <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -42,14 +42,14 @@ const AttendEvents = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-white">Upcoming Events</h1>
-        <p className="text-gray-400 mt-1">Browse and attend events</p>
+        <h1 className="text-3xl font-bold text-on">Upcoming Events</h1>
+        <p className="text-on-dim mt-1">Browse and attend events</p>
       </div>
 
       {events.length === 0 ? (
-        <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-12 text-center">
+        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-12 text-center">
           <span className="text-5xl mb-4 block"><FaCalendarAlt /></span>
-          <p className="text-gray-400">No upcoming events available.</p>
+          <p className="text-on-dim">No upcoming events available.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -57,7 +57,7 @@ const AttendEvents = () => {
             <div
               key={event._id}
               onClick={() => navigate(`/student/dashboard/events/${event._id}`)}
-              className="group bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 cursor-pointer hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10 hover:-translate-y-1"
+              className="group bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6 cursor-pointer hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10 hover:-translate-y-1"
             >
               {/* Event Icon & Title */}
               <div className="flex items-start justify-between mb-4">
@@ -69,25 +69,25 @@ const AttendEvents = () => {
                 </span>
               </div>
 
-              <h3 className="text-lg font-bold text-white mb-2 group-hover:text-red-400 transition-colors">
+              <h3 className="text-lg font-bold text-on mb-2 group-hover:text-red-400 transition-colors">
                 {event.title}
               </h3>
               
-              <p className="text-gray-400 text-sm mb-4 line-clamp-2">
+              <p className="text-on-dim text-sm mb-4 line-clamp-2">
                 {event.description || "No description provided"}
               </p>
 
               {/* Event Details */}
               <div className="space-y-2 mb-4">
-                <div className="flex items-center gap-2 text-sm text-gray-300">
+                <div className="flex items-center gap-2 text-sm text-on-dim">
                   <span><FaCalendarAlt /></span>
                   <span>{new Date(event.date).toLocaleDateString()}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-300">
+                <div className="flex items-center gap-2 text-sm text-on-dim">
                   <span><FaClock /></span>
                   <span>{formatTime12Hour(event.time)}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-300">
+                <div className="flex items-center gap-2 text-sm text-on-dim">
                   <span><FaMapMarkerAlt /></span>
                   <span>{event.location || "TBA"}</span>
                 </div>
@@ -104,9 +104,9 @@ const AttendEvents = () => {
 
               {/* Organizer */}
               {event.organizer && (
-                <div className="pt-4 border-t border-white/10">
-                  <p className="text-xs text-gray-500">
-                    Organized by <span className="text-gray-400">{event.organizer.name}</span>
+                <div className="pt-4 border-t border-line">
+                  <p className="text-xs text-on-muted">
+                    Organized by <span className="text-on-dim">{event.organizer.name}</span>
                   </p>
                 </div>
               )}

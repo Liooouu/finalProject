@@ -96,12 +96,12 @@ const ManageUsers = () => {
             placeholder="Search by name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="px-4 py-2 bg-black rounded border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
+            className="px-4 py-2 bg-card dark:bg-black rounded border border-line text-on placeholder-on-muted focus:outline-none focus:border-red-500"
           />
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="px-4 py-2 bg-black rounded border border-gray-700 text-white focus:outline-none focus:border-red-500"
+            className="px-4 py-2 bg-card dark:bg-black rounded border border-line text-on focus:outline-none focus:border-red-500"
           >
             <option value="all">All Roles</option>
             <option value="admin">Admin</option>
@@ -112,46 +112,46 @@ const ManageUsers = () => {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-[#0f0f14] p-4 rounded-xl border border-gray-800">
-          <p className="text-sm text-gray-400">Total Users</p>
+        <div className="bg-card p-4 rounded-xl border border-line">
+          <p className="text-sm text-on-dim">Total Users</p>
           <p className="text-2xl font-bold">{stats.total}</p>
         </div>
-        <div className="bg-[#0f0f14] p-4 rounded-xl border border-cyan-900/50">
+        <div className="bg-card p-4 rounded-xl border border-cyan-900/50">
           <p className="text-sm text-cyan-400">Admins</p>
           <p className="text-2xl font-bold text-cyan-400">{stats.admin}</p>
         </div>
-        <div className="bg-[#0f0f14] p-4 rounded-xl border border-yellow-900/50">
+        <div className="bg-card p-4 rounded-xl border border-yellow-900/50">
           <p className="text-sm text-yellow-400">Organizers</p>
           <p className="text-2xl font-bold text-yellow-400">{stats.organizer}</p>
         </div>
-        <div className="bg-[#0f0f14] p-4 rounded-xl border border-purple-900/50">
+        <div className="bg-card p-4 rounded-xl border border-purple-900/50">
           <p className="text-sm text-purple-400">Students</p>
           <p className="text-2xl font-bold text-purple-400">{stats.student}</p>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Loading users...</div>
+        <div className="text-center py-12 text-on-dim">Loading users...</div>
       ) : filteredUsers.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">No users found</div>
+        <div className="text-center py-12 text-on-dim">No users found</div>
       ) : (
-        <div className="bg-[#0f0f14] rounded-xl border border-gray-800 overflow-hidden">
+        <div className="bg-card rounded-xl border border-line overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-800 bg-black/30">
-                  <th className="text-left p-4 font-medium text-gray-400">Name</th>
-                  <th className="text-left p-4 font-medium text-gray-400">Email</th>
-                  <th className="text-left p-4 font-medium text-gray-400">Role</th>
-                  <th className="text-left p-4 font-medium text-gray-400">Created</th>
-                  <th className="text-left p-4 font-medium text-gray-400">Actions</th>
+                <tr className="border-b border-line bg-card-alt">
+                  <th className="text-left p-4 font-medium text-on-dim">Name</th>
+                  <th className="text-left p-4 font-medium text-on-dim">Email</th>
+                  <th className="text-left p-4 font-medium text-on-dim">Role</th>
+                  <th className="text-left p-4 font-medium text-on-dim">Created</th>
+                  <th className="text-left p-4 font-medium text-on-dim">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredUsers.map((user) => (
                   <tr
                     key={user._id}
-                    className="border-b border-gray-800/50 hover:bg-white/5 transition-colors"
+                    className="border-b border-line hover:bg-card-alt transition-colors"
                   >
                     <td className="p-4">
                       <div className="flex items-center gap-3">
@@ -161,9 +161,9 @@ const ManageUsers = () => {
                         <span className="font-medium">{user.name}</span>
                       </div>
                     </td>
-                    <td className="p-4 text-gray-400">{user.email}</td>
+                    <td className="p-4 text-on-dim">{user.email}</td>
                     <td className="p-4">{getRoleBadge(user.role)}</td>
-                    <td className="p-4 text-gray-400 text-sm">
+                    <td className="p-4 text-on-dim text-sm">
                       {new Date(user.createdAt).toLocaleDateString()}
                     </td>
                     <td className="p-4">
@@ -194,20 +194,20 @@ const ManageUsers = () => {
 
       {showModal && selectedUser && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#0f0f14] rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-gray-700">
-            <div className="p-6 border-b border-gray-800 flex items-center justify-between">
+          <div className="bg-card rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-line">
+            <div className="border-b border-line flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-linear-to-br from-red-500 to-red-700 flex items-center justify-center text-white text-xl font-bold">
                   {selectedUser.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <h3 className="text-xl font-bold">{selectedUser.name}</h3>
-                  <p className="text-sm text-gray-400">{selectedUser.email}</p>
+                  <p className="text-sm text-on-dim">{selectedUser.email}</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-gray-800 rounded"
+                className="p-2 hover:bg-card-alt rounded"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -216,9 +216,9 @@ const ManageUsers = () => {
             </div>
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
               <div className="flex items-center gap-3 mb-6">
-                <span className="text-sm text-gray-400">Role:</span>
+                <span className="text-sm text-on-dim">Role:</span>
                 {getRoleBadge(selectedUser.role)}
-                <span className="text-sm text-gray-400">
+                <span className="text-sm text-on-dim">
                   Joined: {new Date(selectedUser.createdAt).toLocaleDateString()}
                 </span>
               </div>
@@ -227,17 +227,17 @@ const ManageUsers = () => {
                 Attendance History ({userAttendance.length})
               </h4>
               {userAttendance.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">No attendance records</p>
+                <p className="text-on-dim text-center py-8">No attendance records</p>
               ) : (
                 <div className="space-y-2">
                   {userAttendance.map((record, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-4 bg-black/30 rounded-lg"
+                      className="flex items-center justify-between p-4 bg-card-alt rounded-lg"
                     >
                       <div>
                         <p className="font-medium">{record.event?.title || "Event"}</p>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-on-dim">
                           {record.event?.date && new Date(record.event.date).toLocaleDateString()}
                         </p>
                       </div>

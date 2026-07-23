@@ -138,7 +138,7 @@ const EventDetails = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-3 text-gray-400">
+        <div className="flex items-center gap-3 text-on-dim">
           <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -163,7 +163,7 @@ const EventDetails = () => {
   const statusConfig = {
     upcoming: { bg: "bg-blue-500/20", text: "text-blue-400", border: "border-blue-500/30" },
     live: { bg: "bg-green-500/20", text: "text-green-400", border: "border-green-500/30" },
-    closed: { bg: "bg-gray-500/20", text: "text-gray-400", border: "border-gray-500/30" },
+    closed: { bg: "bg-gray-500/20", text: "text-on-dim", border: "border-gray-500/30" },
   };
 
   const status = statusConfig[event.status] || statusConfig.upcoming;
@@ -180,37 +180,37 @@ const EventDetails = () => {
       {/* Back Button */}
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+        className="flex items-center gap-2 text-on-dim hover:text-on transition-colors"
       >
         <span>←</span> Back
       </button>
 
       {/* Event Header Card */}
-      <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
         <div className="flex justify-between items-start mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-white">{event.title}</h1>
+            <h1 className="text-3xl font-bold text-on">{event.title}</h1>
             <span className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-medium ${status.bg} ${status.text} border ${status.border}`}>
               {event.status?.charAt(0).toUpperCase() + event.status?.slice(1)}
             </span>
           </div>
         </div>
 
-        <p className="text-gray-300 mb-6">{event.description || "No description"}</p>
+        <p className="text-on-dim mb-6">{event.description || "No description"}</p>
 
         {/* Event Details Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-            <p className="text-gray-400 text-sm mb-1">Date</p>
-            <p className="text-lg font-semibold text-white">{new Date(event.date).toLocaleDateString()}</p>
+          <div className="bg-card p-4 rounded-xl border border-line-dim">
+            <p className="text-on-dim text-sm mb-1">Date</p>
+            <p className="text-lg font-semibold text-on">{new Date(event.date).toLocaleDateString()}</p>
           </div>
-          <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-            <p className="text-gray-400 text-sm mb-1">Time</p>
-            <p className="text-lg font-semibold text-white">{formatTime12Hour(event.time)}</p>
+          <div className="bg-card p-4 rounded-xl border border-line-dim">
+            <p className="text-on-dim text-sm mb-1">Time</p>
+            <p className="text-lg font-semibold text-on">{formatTime12Hour(event.time)}</p>
           </div>
-          <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-            <p className="text-gray-400 text-sm mb-1">Location</p>
-            <p className="text-lg font-semibold text-white">{event.location || "TBA"}</p>
+          <div className="bg-card p-4 rounded-xl border border-line-dim">
+            <p className="text-on-dim text-sm mb-1">Location</p>
+            <p className="text-lg font-semibold text-on">{event.location || "TBA"}</p>
           </div>
         </div>
 
@@ -225,9 +225,9 @@ const EventDetails = () => {
 
         {/* Organizer */}
         {event.organizer && (
-          <div className="mt-6 pt-6 border-t border-white/10">
-            <p className="text-gray-400 text-sm">Organized by</p>
-            <p className="text-lg font-semibold text-white">{event.organizer.name}</p>
+          <div className="mt-6 pt-6 border-t border-line">
+            <p className="text-on-dim text-sm">Organized by</p>
+            <p className="text-lg font-semibold text-on">{event.organizer.name}</p>
           </div>
         )}
       </div>
@@ -241,8 +241,8 @@ const EventDetails = () => {
 
       {/* Student Attendance Section */}
       {role === "student" && (
-        <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-          <h2 className="text-xl font-bold text-white mb-4">Attendance</h2>
+        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+          <h2 className="text-xl font-bold text-on mb-4">Attendance</h2>
           {myAttendance ? (
             <div className="space-y-3">
               <div className={`flex items-center gap-3 ${myAttendance.status === "late" ? "text-yellow-400" : "text-green-400"}`}>
@@ -251,7 +251,7 @@ const EventDetails = () => {
                   {myAttendance.status === "late" ? "You marked attendance (Late)." : "You have marked your attendance."}
                 </p>
               </div>
-              <p className="text-gray-400">
+              <p className="text-on-dim">
                 Checked in at: {new Date(myAttendance.attendedAt).toLocaleString()}
               </p>
               {myAttendance.communityServiceHours > 0 && (
@@ -270,8 +270,8 @@ const EventDetails = () => {
           ) : (
             <div className="space-y-4">
               {/* QR Code Display */}
-              <div className="bg-white/5 rounded-xl p-6 text-center">
-                <p className="text-white font-medium mb-4">Show this QR code to the organizer to scan your attendance</p>
+              <div className="bg-card rounded-xl p-6 text-center">
+                <p className="text-on font-medium mb-4">Show this QR code to the organizer to scan your attendance</p>
                 <div className="flex justify-center mb-4">
                   {getQRData() && (
                     <div className="p-4 bg-white rounded-xl">
@@ -285,10 +285,10 @@ const EventDetails = () => {
                     </div>
                   )}
                 </div>
-                <p className="text-gray-400 text-sm">
+                <p className="text-on-dim text-sm">
                   QR code refreshes every 30 seconds for security
                 </p>
-                <p className="text-gray-500 text-sm text-center mt-3">
+                <p className="text-on-muted text-sm text-center mt-3">
                   Show this QR code to the organizer to mark your attendance
                 </p>
               </div>
@@ -312,9 +312,9 @@ const EventDetails = () => {
           </button>
 
           {/* Event Management Card */}
-          <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-white">Event Management</h2>
+              <h2 className="text-xl font-bold text-on">Event Management</h2>
               <div className="flex gap-2">
                 {!isEditing && (
                   <>
@@ -342,7 +342,7 @@ const EventDetails = () => {
                   name="title"
                   value={editForm.title}
                   onChange={handleEditChange}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
                   required
                 />
                 <textarea
@@ -350,7 +350,7 @@ const EventDetails = () => {
                   value={editForm.description}
                   onChange={handleEditChange}
                   rows={3}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
                 />
                 <input
                   type="text"
@@ -358,7 +358,7 @@ const EventDetails = () => {
                   value={editForm.location}
                   onChange={handleEditChange}
                   placeholder="Location"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
                 />
                 <div className="grid grid-cols-2 gap-4">
                   <input
@@ -366,7 +366,7 @@ const EventDetails = () => {
                     name="date"
                     value={editForm.date}
                     onChange={handleEditChange}
-                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
                     required
                   />
                   <input
@@ -374,7 +374,7 @@ const EventDetails = () => {
                     name="time"
                     value={editForm.time}
                     onChange={handleEditChange}
-                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
                     required
                   />
                 </div>
@@ -384,7 +384,7 @@ const EventDetails = () => {
                     name="attendanceStartTime"
                     value={editForm.attendanceStartTime}
                     onChange={handleEditChange}
-                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
                     required
                   />
                   <input
@@ -392,7 +392,7 @@ const EventDetails = () => {
                     name="attendanceEndTime"
                     value={editForm.attendanceEndTime}
                     onChange={handleEditChange}
-                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
                     required
                   />
                 </div>
@@ -400,7 +400,7 @@ const EventDetails = () => {
                   name="status"
                   value={editForm.status}
                   onChange={handleEditChange}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
                 >
                   <option value="upcoming">Upcoming</option>
                   <option value="live">Live</option>
@@ -416,7 +416,7 @@ const EventDetails = () => {
                   <button
                     type="button"
                     onClick={() => setIsEditing(false)}
-                    className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-6 py-3 rounded-xl transition-all duration-200"
+                    className="bg-card hover:bg-card-alt border border-line text-on px-6 py-3 rounded-xl transition-all duration-200"
                   >
                     Cancel
                   </button>
@@ -424,11 +424,11 @@ const EventDetails = () => {
               </form>
             ) : (
               <div className="flex items-center gap-4">
-                <span className="text-gray-400">Quick Status:</span>
+                <span className="text-on-dim">Quick Status:</span>
                 <select
                   value={event.status}
                   onChange={(e) => handleStatusChange(e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="bg-card border border-line rounded-lg px-4 py-2 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
                 >
                   <option value="upcoming">Upcoming</option>
                   <option value="live">Live</option>
@@ -439,18 +439,18 @@ const EventDetails = () => {
           </div>
 
           {/* Attendees Card */}
-          <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-            <h2 className="text-xl font-bold text-white mb-6">Attendees ({attendees.length})</h2>
+          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-white to-slate-50 backdrop-blur-sm border border-line rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-on mb-6">Attendees ({attendees.length})</h2>
             {attendees.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">No attendees yet. Scan student QR codes to mark attendance.</p>
+              <p className="text-on-dim text-center py-8">No attendees yet. Scan student QR codes to mark attendance.</p>
             ) : (
               <div className="space-y-3">
                 {attendees.map((attendance) => (
-                  <div key={attendance._id} className="flex justify-between items-center p-4 bg-white/5 rounded-xl">
+                  <div key={attendance._id} className="flex justify-between items-center p-4 bg-card rounded-xl">
                     <div>
-                      <p className="font-medium text-white">{attendance.student?.name}</p>
-                      <p className="text-sm text-gray-400">{attendance.student?.email}</p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="font-medium text-on">{attendance.student?.name}</p>
+                      <p className="text-sm text-on-dim">{attendance.student?.email}</p>
+                      <p className="text-xs text-on-muted mt-1">
                         Checked in: {new Date(attendance.attendedAt).toLocaleString()}
                       </p>
                       {attendance.communityServiceHours > 0 && (
@@ -462,7 +462,7 @@ const EventDetails = () => {
                     <select
                       value={attendance.status}
                       onChange={(e) => handleUpdateStatus(attendance.student._id, e.target.value)}
-                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                      className="bg-card border border-line rounded-lg px-3 py-2 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
                     >
                       <option value="present">Present (0 hrs)</option>
                       <option value="late">Late (4 hrs)</option>

@@ -67,45 +67,40 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-red-950 via-red-900 to-black p-4">
-      {/* Animated Background Elements */}
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br dark:from-red-950 dark:via-red-900 dark:to-black from-slate-50 via-white to-slate-100 p-4">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-red-600/20 rounded-full blur-3xl animate-pulse" />
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-red-800/20 rounded-full blur-3xl animate-pulse delay-1000" />
       </div>
 
       <div className="relative w-full max-w-6xl flex flex-col lg:flex-row items-center gap-8 lg:gap-16">
-        {/* Left Side - Branding */}
         <div className="flex flex-col justify-center lg:w-1/2 lg:pr-8">
-          <div className="text-white text-center lg:text-left">
+          <div className="text-on text-center lg:text-left">
             <h1 className="text-5xl lg:text-6xl font-bold mb-4 tracking-tight">
               Track<span className="text-red-400">ED</span>
             </h1>
-            <p className="text-lg text-gray-300 max-w-md mx-auto lg:mx-0">
+            <p className="text-lg text-on-dim max-w-md mx-auto lg:mx-0">
               Track your attendance, manage community service hours, and stay connected with your events.
             </p>
           </div>
         </div>
 
-        {/* Auth Card */}
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-8 w-full max-w-md">
+        <div className="bg-white dark:bg-white/5 backdrop-blur-xl border border-line rounded-2xl shadow-2xl p-8 w-full max-w-md">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-white mb-2">
+            <h2 className="text-3xl font-bold text-on mb-2">
               {isLogin ? "Welcome Back" : "Create Account"}
             </h2>
-            <p className="text-gray-400 text-sm">
+            <p className="text-on-dim text-sm">
               {isLogin ? "Sign in to continue" : "Join TrackED today"}
             </p>
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="mb-6 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm text-center">
               {error}
             </div>
           )}
 
-          {/* Role Selector (Login Only) */}
           {isLogin && (
             <div className="flex justify-center gap-2 mb-6">
               {["student", "admin", "organizer"].map((r) => (
@@ -116,7 +111,7 @@ const AuthPage = () => {
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                     role === r
                       ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
-                      : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
+                      : "bg-card text-on-dim hover:bg-card-alt hover:text-on"
                   }`}
                 >
                   {r.charAt(0).toUpperCase() + r.slice(1)}
@@ -125,7 +120,6 @@ const AuthPage = () => {
             </div>
           )}
 
-          {/* Toggle Login/Register */}
           <div className="text-center mb-6">
             <button
               type="button"
@@ -150,12 +144,10 @@ const AuthPage = () => {
             </button>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Name (Register Only) */}
             {!isLogin && (
               <div className="space-y-2">
-                <label className="text-sm text-gray-400">Full Name</label>
+                <label className="text-sm text-on-dim">Full Name</label>
                 <div className="relative">
                   <input
                     type="text"
@@ -164,19 +156,18 @@ const AuthPage = () => {
                     onChange={handleChange}
                     placeholder="John Doe"
                     autoComplete="name"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500/50 transition-all"
+                    className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500/50 transition-all"
                     required
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-on-muted">
                     <FaUser />
                   </span>
                 </div>
               </div>
             )}
 
-            {/* Email */}
             <div className="space-y-2">
-              <label className="text-sm text-gray-400">Email Address</label>
+              <label className="text-sm text-on-dim">Email Address</label>
               <div className="relative">
                 <input
                   type="email"
@@ -185,18 +176,17 @@ const AuthPage = () => {
                   onChange={handleChange}
                   placeholder="you@example.com"
                   autoComplete="email"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500/50 transition-all"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500/50 transition-all"
                   required
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-on-muted">
                   <FaEnvelope />
                 </span>
               </div>
             </div>
 
-            {/* Password */}
             <div className="space-y-2">
-              <label className="text-sm text-gray-400">Password</label>
+              <label className="text-sm text-on-dim">Password</label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -205,20 +195,19 @@ const AuthPage = () => {
                   onChange={handleChange}
                   placeholder="••••••••"
                   autoComplete={isLogin ? "current-password" : "new-password"}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500/50 transition-all"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 pr-12 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500/50 transition-all"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-on-muted hover:text-on transition-colors"
                 >
                   {showPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
               </div>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
@@ -238,9 +227,8 @@ const AuthPage = () => {
             </button>
           </form>
 
-          {/* Footer */}
           <div className="mt-8 text-center">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-on-muted">
               By continuing, you agree to our Terms of Service and Privacy Policy
             </p>
           </div>

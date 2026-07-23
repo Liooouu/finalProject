@@ -12,9 +12,9 @@ import ProfileSettings from "../components/settings/ProfileSettings";
 
 const AdminDashboard = () => {
   return (
-    <div className="flex min-h-screen bg-linear-to-br from-red-950 to-black">
+    <div className="flex min-h-screen bg-linear-to-br dark:from-red-950 dark:to-black from-slate-50 to-white">
       <Sidebar role="admin" />
-      <main className="flex-1 p-8 text-white">
+      <main className="flex-1 p-8 text-on">
         <Routes>
           <Route index element={<DashboardHome />} />
           <Route path="create-organizer" element={<CreateOrganizerPage />} />
