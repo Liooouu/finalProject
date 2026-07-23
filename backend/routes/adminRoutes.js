@@ -44,8 +44,8 @@ router.post(
   }
 );
 
-// GET ALL USERS (admin only)
-router.get("/users", protect, authorize("admin"), async (req, res) => {
+// GET ALL USERS (admin and organizer)
+router.get("/users", protect, authorize("admin", "organizer"), async (req, res) => {
   try {
     const filter = {};
     if (req.query.role) filter.role = req.query.role;
