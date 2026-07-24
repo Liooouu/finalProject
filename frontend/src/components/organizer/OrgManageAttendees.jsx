@@ -155,7 +155,7 @@ const OrgManageAttendees = () => {
                 </button>
               </div>
 
-              <div className="flex gap-2 mt-4">
+              <div className="flex flex-col sm:flex-row gap-2 mt-4">
                 <button
                   onClick={() => handleAddAttendance("present")}
                   disabled={submitting}

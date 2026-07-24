@@ -319,9 +319,9 @@ const EventDetails = () => {
 
           {/* Event Management Card */}
           <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
               <h2 className="text-xl font-bold text-on">Event Management</h2>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {!isEditing && (
                   <>
                     <button
@@ -366,7 +366,7 @@ const EventDetails = () => {
                   placeholder="Location"
                   className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
                 />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <input
                     type="date"
                     name="date"
@@ -384,7 +384,7 @@ const EventDetails = () => {
                     required
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <input
                     type="time"
                     name="attendanceStartTime"
@@ -429,7 +429,7 @@ const EventDetails = () => {
                 </div>
               </form>
             ) : (
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <span className="text-on-dim">Quick Status:</span>
                 <select
                   value={event.status}
@@ -452,7 +452,7 @@ const EventDetails = () => {
             ) : (
               <div className="space-y-3">
                 {attendees.map((attendance) => (
-                  <div key={attendance._id} className="flex justify-between items-center p-4 bg-card rounded-xl">
+                  <div key={attendance._id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-4 bg-card rounded-xl gap-4">
                     <div>
                       <p className="font-medium text-on">{attendance.student?.name}</p>
                       <p className="text-sm text-on-dim">{attendance.student?.email}</p>

@@ -26,7 +26,7 @@ const OrganizerHome = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="group bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6 hover:border-red-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-red-500/20 rounded-xl">
@@ -66,7 +66,7 @@ const OrganizerHome = () => {
       </div>
 
       {/* Recent Activity */}
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
           <h3 className="text-lg font-semibold text-on mb-4 flex items-center gap-2">
             <span><FaChartBar /></span> Quick Tips

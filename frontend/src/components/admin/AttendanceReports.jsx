@@ -179,7 +179,7 @@ const AttendanceReports = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <TabButton tab="attendance" label="Attendance" />
         <TabButton tab="events" label="Events" />
         <TabButton tab="users" label="Users" />

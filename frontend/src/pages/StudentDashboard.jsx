@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { FaBars } from "react-icons/fa";
 import Sidebar from "../components/Sidebar";
 
 import DashboardHome from "../components/student/StDashboardHome";
@@ -11,10 +12,18 @@ import ProfileSettings from "../components/settings/ProfileSettings";
 import EventDetails from "../components/EventDetails";
 
 const StudentDashboard = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <div className="flex min-h-screen bg-linear-to-br dark:from-red-950 dark:to-black from-slate-100 to-slate-200">
-      <Sidebar role="student" />
-      <main className="flex-1 p-8 text-on overflow-auto">
+      <Sidebar role="student" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8 text-on overflow-auto">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="md:hidden mb-4 p-2 rounded-lg bg-card border border-line text-on hover:bg-card-alt transition-colors"
+        >
+          <FaBars className="text-lg" />
+        </button>
         <Routes>
           <Route index element={<DashboardHome />} />
           <Route path="events" element={<AttendEvents />} />

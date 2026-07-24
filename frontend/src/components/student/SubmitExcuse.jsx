@@ -201,7 +201,7 @@ const SubmitExcuse = () => {
         </div>
 
         {/* Buttons */}
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
           <button
             type="submit"
             disabled={submitting || absentEvents.length === 0}

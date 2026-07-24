@@ -61,7 +61,7 @@ const DashboardHome = () => {
         <h3 className="text-lg font-semibold text-on mb-4 flex items-center gap-2">
           <span className="text-xl"><FaBell /></span> Important Reminders
         </h3>
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex items-start gap-4 p-4 bg-card rounded-xl border border-line-dim hover:border-red-500/20 transition-colors">
             <span className="text-3xl"><BsClipboardCheck /></span>
             <div>

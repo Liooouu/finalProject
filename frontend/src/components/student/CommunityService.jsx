@@ -146,7 +146,7 @@ const CommunityService = () => {
         <h3 className="text-lg font-semibold text-on mb-4 flex items-center gap-2">
           <span><FaBook /></span> Penalty Guide
         </h3>
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex items-center gap-3 p-4 bg-green-500/10 rounded-xl border border-green-500/20">
             <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 dark:text-green-400 text-green-600">Present</span>
             <span className="text-on-dim text-sm">→ 0 hours</span>

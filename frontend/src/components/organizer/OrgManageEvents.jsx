@@ -95,7 +95,7 @@ const OrgManageEvents = () => {
       </div>
 
       {/* View Toggle */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setViewMode("my")}
           className={`px-5 py-2 rounded-lg font-medium transition-all duration-200 ${
@@ -133,7 +133,7 @@ const OrgManageEvents = () => {
         >
           <h2 className="text-lg font-semibold text-on">Create New Event</h2>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <input
                 type="text"
@@ -189,7 +189,7 @@ const OrgManageEvents = () => {
 
           <div className="border-t border-line pt-4">
             <h3 className="text-sm font-semibold text-on-dim mb-3">Attendance Window</h3>
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-on-muted block mb-1">Start Time</label>
                 <input

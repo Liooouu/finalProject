@@ -133,7 +133,7 @@ const ProfileSettings = () => {
         </div>
       )}
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2">
           <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl overflow-hidden">
             <div className="bg-linear-to-r from-blue-600 to-blue-800 p-6">

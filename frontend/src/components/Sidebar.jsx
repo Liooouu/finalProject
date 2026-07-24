@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FaHome, FaUser, FaUsers, FaCalendarAlt, FaChartBar, FaEdit, FaClock, FaSignOutAlt, FaIdBadge, FaSun, FaMoon } from "react-icons/fa";
+import { FaHome, FaUser, FaUsers, FaCalendarAlt, FaChartBar, FaEdit, FaClock, FaSignOutAlt, FaIdBadge, FaSun, FaMoon, FaTimes } from "react-icons/fa";
 import { getUserFromToken } from "../utils/auth";
 import { useTheme } from "../context/ThemeContext";
 
-const Sidebar = ({ role }) => {
+const Sidebar = ({ role, isOpen, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const user = getUserFromToken();
@@ -21,6 +21,15 @@ const Sidebar = ({ role }) => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [isOpen]);
 
   const menuItems = {
     admin: [
@@ -62,22 +71,43 @@ const Sidebar = ({ role }) => {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div className="w-64 bg-linear-to-b from-[#0f0f14] to-[#1a1a24] text-white p-4 min-h-screen flex flex-col border-r border-white/5">
-      <div className="mb-8 px-2 flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">
-            Track<span className="text-red-400">ED</span>
-          </h2>
-          <p className="text-xs text-gray-500 mt-1 capitalize">{role} Portal</p>
+    <>
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={onClose}
+        />
+      )}
+
+      <div className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-linear-to-b from-[#0f0f14] to-[#1a1a24] text-white p-4 min-h-screen flex flex-col border-r border-white/5
+        transform transition-transform duration-300 ease-in-out
+        md:static md:translate-x-0
+        ${isOpen ? "translate-x-0" : "-translate-x-full"}
+      `}>
+        <div className="mb-8 px-2 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">
+              Track<span className="text-red-400">ED</span>
+            </h2>
+            <p className="text-xs text-gray-500 mt-1 capitalize">{role} Portal</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg bg-card hover:bg-card-alt transition-colors text-on-dim"
+              title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {isDark ? <FaSun className="text-yellow-400" /> : <FaMoon className="text-blue-500" />}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-white/10 transition-colors text-gray-400 md:hidden"
+            >
+              <FaTimes />
+            </button>
+          </div>
         </div>
-        <button
-          onClick={toggleTheme}
-          className="p-2 rounded-lg bg-card hover:bg-card-alt transition-colors text-on-dim"
-          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-        >
-          {isDark ? <FaSun className="text-yellow-400" /> : <FaMoon className="text-blue-500" />}
-        </button>
-      </div>
 
       <nav className="flex-1 flex flex-col gap-1">
         {items.map((item, idx) => (
@@ -138,7 +168,8 @@ const Sidebar = ({ role }) => {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

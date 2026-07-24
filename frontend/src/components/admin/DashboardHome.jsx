@@ -79,7 +79,7 @@ const DashboardHome = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h2 className="text-2xl font-bold dark:text-red-400 text-red-600">Dashboard</h2>
         <p className="text-on-dim text-sm">
           {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}

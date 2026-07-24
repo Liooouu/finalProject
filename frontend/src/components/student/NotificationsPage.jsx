@@ -101,7 +101,7 @@ const NotificationsPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-on">Notifications</h1>
           <p className="text-on-dim mt-1">Stay updated with your events</p>
@@ -176,7 +176,7 @@ const NotificationsPage = () => {
         <h3 className="text-lg font-semibold text-on mb-4 flex items-center gap-2">
           <span><FaBolt /></span> Quick Actions
         </h3>
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
             onClick={() => navigate("/student/dashboard/events")}
             className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line-dim hover:border-green-500/30 transition-all duration-200 text-left group"
