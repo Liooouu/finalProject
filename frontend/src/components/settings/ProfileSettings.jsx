@@ -128,7 +128,7 @@ const ProfileSettings = () => {
       </div>
 
       {message && (
-        <div className={`p-4 rounded-xl ${message.includes("success") || message.includes("updated") ? "bg-green-500/20 border border-green-500/30 text-green-400" : "bg-red-500/20 border border-red-500/30 text-red-400"}`}>
+        <div className={`p-4 rounded-xl ${message.includes("success") || message.includes("updated") ? "dark:bg-green-500/20 bg-green-500/10 dark:border-green-500/30 border-green-500/20 dark:text-green-400 text-green-600" : "dark:bg-red-500/20 bg-red-500/10 dark:border-red-500/30 border-red-500/20 dark:text-red-400 text-red-600"}`}>
           {message}
         </div>
       )}
@@ -299,11 +299,11 @@ const ProfileSettings = () => {
                 <>
                   <div className="flex justify-between items-center p-3 bg-green-500/10 rounded-xl">
                     <span className="text-on-dim">Events Attended</span>
-                    <span className="text-2xl font-bold text-green-400">{stats.totalAttended || 0}</span>
+                    <span className="text-2xl font-bold dark:text-green-400 text-green-600">{stats.totalAttended || 0}</span>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-yellow-500/10 rounded-xl">
                     <span className="text-on-dim">Community Service</span>
-                    <span className="text-2xl font-bold text-yellow-400">{stats.totalHours || 0} hrs</span>
+                    <span className="text-2xl font-bold dark:text-yellow-400 text-yellow-600">{stats.totalHours || 0} hrs</span>
                   </div>
                 </>
               )}
@@ -311,11 +311,11 @@ const ProfileSettings = () => {
                 <>
                   <div className="flex justify-between items-center p-3 bg-blue-500/10 rounded-xl">
                     <span className="text-on-dim">Events Created</span>
-                    <span className="text-2xl font-bold text-blue-400">{stats.totalEvents || 0}</span>
+                    <span className="text-2xl font-bold dark:text-blue-400 text-blue-600">{stats.totalEvents || 0}</span>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-green-500/10 rounded-xl">
                     <span className="text-on-dim">Total Attendees</span>
-                    <span className="text-2xl font-bold text-green-400">{stats.totalAttendees || 0}</span>
+                    <span className="text-2xl font-bold dark:text-green-400 text-green-600">{stats.totalAttendees || 0}</span>
                   </div>
                 </>
               )}

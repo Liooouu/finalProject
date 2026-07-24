@@ -38,7 +38,7 @@ const DashboardHome = () => {
             <div className="p-3 bg-green-500/20 rounded-xl">
               <span className="text-2xl"><FaCalendarAlt /></span>
             </div>
-            <span className="text-xs text-green-400 font-medium bg-green-500/10 px-2 py-1 rounded-full">Events</span>
+            <span className="text-xs dark:text-green-400 text-green-600 font-medium bg-green-500/10 px-2 py-1 rounded-full">Events</span>
           </div>
           <h3 className="text-on-dim text-sm font-medium">Events Attended</h3>
           <p className="text-4xl font-bold text-on mt-1">{stats.totalAttended}</p>
@@ -49,10 +49,10 @@ const DashboardHome = () => {
             <div className="p-3 bg-yellow-500/20 rounded-xl">
               <span className="text-2xl"><FaClock /></span>
             </div>
-            <span className="text-xs text-yellow-400 font-medium bg-yellow-500/10 px-2 py-1 rounded-full">Hours</span>
+            <span className="text-xs dark:text-yellow-400 text-yellow-600 font-medium bg-yellow-500/10 px-2 py-1 rounded-full">Hours</span>
           </div>
           <h3 className="text-on-dim text-sm font-medium">Community Service</h3>
-          <p className="text-4xl font-bold text-yellow-400 mt-1">{stats.totalHours} <span className="text-lg font-normal text-on-dim">hrs</span></p>
+          <p className="text-4xl font-bold dark:text-yellow-400 text-yellow-600 mt-1">{stats.totalHours} <span className="text-lg font-normal text-on-dim">hrs</span></p>
         </div>
       </div>
 
@@ -76,7 +76,7 @@ const DashboardHome = () => {
               <p className="text-sm text-on-dim mt-1">Submit an excuse letter within 24 hours if you missed an event.</p>
               <button
                 onClick={() => navigate("/student/dashboard/submit-excuse")}
-                className="text-xs text-red-400 hover:text-red-300 mt-2 transition-colors"
+                className="text-xs dark:text-red-400 text-red-600 hover:text-red-300 mt-2 transition-colors"
               >
                 Submit Excuse →
               </button>

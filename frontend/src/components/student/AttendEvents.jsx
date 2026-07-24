@@ -64,12 +64,12 @@ const AttendEvents = () => {
                 <div className="p-3 bg-red-500/20 rounded-xl group-hover:bg-red-500/30 transition-colors">
                   <span className="text-2xl"><FaCalendarAlt /></span>
                 </div>
-                <span className="px-3 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full">
+                <span className="px-3 py-1 bg-blue-500/20 dark:text-blue-400 text-blue-600 text-xs font-medium rounded-full">
                   {event.status?.charAt(0).toUpperCase() + event.status?.slice(1)}
                 </span>
               </div>
 
-              <h3 className="text-lg font-bold text-on mb-2 group-hover:text-red-400 transition-colors">
+              <h3 className="text-lg font-bold text-on mb-2 dark:group-hover:text-red-400 group-hover:text-red-600 transition-colors">
                 {event.title}
               </h3>
               
@@ -96,7 +96,7 @@ const AttendEvents = () => {
               {/* Attendance Window */}
               {event.attendanceStartTime && event.attendanceEndTime && (
                 <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20 mb-4">
-                  <p className="text-yellow-400 text-xs font-medium">
+                  <p className="dark:text-yellow-400 text-yellow-600 text-xs font-medium">
                     <BsClipboardCheck /> Attendance: {formatTime12Hour(event.attendanceStartTime)} - {formatTime12Hour(event.attendanceEndTime)}
                   </p>
                 </div>
@@ -113,7 +113,7 @@ const AttendEvents = () => {
 
               {/* Action */}
               <div className="mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-red-400 text-sm font-medium flex items-center gap-1">
+                <span className="dark:text-red-400 text-red-600 text-sm font-medium flex items-center gap-1">
                   View Details <span>→</span>
                 </span>
               </div>

@@ -64,11 +64,11 @@ const NotificationsPage = () => {
   };
 
   const typeConfig = {
-    attendance: { bg: "bg-blue-500/20", text: "text-blue-400", label: "Attendance" },
-    excuse: { bg: "bg-yellow-500/20", text: "text-yellow-400", label: "Excuse" },
-    penalty: { bg: "bg-red-500/20", text: "text-red-400", label: "Penalty" },
-    system: { bg: "bg-purple-500/20", text: "text-purple-400", label: "System" },
-    info: { bg: "bg-gray-500/20", text: "text-gray-400", label: "Info" },
+    attendance: { bg: "bg-blue-500/20", text: "dark:text-blue-400 text-blue-600", label: "Attendance" },
+    excuse: { bg: "bg-yellow-500/20", text: "dark:text-yellow-400 text-yellow-600", label: "Excuse" },
+    penalty: { bg: "bg-red-500/20", text: "dark:text-red-400 text-red-600", label: "Penalty" },
+    system: { bg: "bg-purple-500/20", text: "dark:text-purple-400 text-purple-600", label: "System" },
+    info: { bg: "bg-gray-500/20", text: "dark:text-gray-400 text-gray-600", label: "Info" },
   };
 
   const formatTime = (date) => {
@@ -109,7 +109,7 @@ const NotificationsPage = () => {
         {unreadCount > 0 && (
           <button
             onClick={markAllAsRead}
-            className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors text-sm"
+            className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 dark:text-blue-400 text-blue-600 rounded-lg transition-colors text-sm"
           >
             Mark all as read ({unreadCount})
           </button>
@@ -146,7 +146,7 @@ const NotificationsPage = () => {
                           e.stopPropagation();
                           deleteNotification(notif._id);
                         }}
-                        className="p-1 text-on-muted hover:text-red-400 transition-colors"
+                        className="p-1 text-on-muted dark:hover:text-red-400 hover:text-red-600 transition-colors"
                       >
                         <FaTrash className="text-sm" />
                       </button>
@@ -154,7 +154,7 @@ const NotificationsPage = () => {
                   </div>
                   <p className="text-on-dim">{notif.message}</p>
                   {!notif.isRead && (
-                    <span className="inline-block mt-3 text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">
+                    <span className="inline-block mt-3 text-xs bg-green-500/20 dark:text-green-400 text-green-600 px-2 py-1 rounded-full">
                       New
                     </span>
                   )}
@@ -181,14 +181,14 @@ const NotificationsPage = () => {
             onClick={() => navigate("/student/dashboard/events")}
             className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line-dim hover:border-green-500/30 transition-all duration-200 text-left group"
           >
-            <p className="font-medium text-on group-hover:text-green-400 transition-colors flex items-center gap-2"><FaCalendarAlt /> View Events</p>
+            <p className="font-medium text-on dark:group-hover:text-green-400 group-hover:text-green-600 transition-colors flex items-center gap-2"><FaCalendarAlt /> View Events</p>
             <p className="text-sm text-on-dim mt-1">Check upcoming events</p>
           </button>
           <button
             onClick={() => navigate("/student/dashboard/community-service")}
             className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line-dim hover:border-yellow-500/30 transition-all duration-200 text-left group"
           >
-            <p className="font-medium text-on group-hover:text-yellow-400 transition-colors flex items-center gap-2"><FaChartBar /> Community Service</p>
+            <p className="font-medium text-on dark:group-hover:text-yellow-400 group-hover:text-yellow-600 transition-colors flex items-center gap-2"><FaChartBar /> Community Service</p>
             <p className="text-sm text-on-dim mt-1">View your records</p>
           </button>
         </div>

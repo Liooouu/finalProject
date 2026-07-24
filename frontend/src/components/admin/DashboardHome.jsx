@@ -32,8 +32,8 @@ const DashboardHome = () => {
 
   const getStatusBadge = (status) => {
     const styles = {
-      upcoming: "bg-blue-900/50 text-blue-400",
-      live: "bg-green-900/50 text-green-400",
+      upcoming: "dark:bg-blue-900/50 bg-blue-100 dark:text-blue-400 text-blue-700",
+      live: "dark:bg-green-900/50 bg-green-100 dark:text-green-400 text-green-700",
       closed: "bg-gray-700/50 text-on-dim",
     };
     return (
@@ -45,9 +45,9 @@ const DashboardHome = () => {
 
   const getRoleBadge = (role) => {
     const styles = {
-      admin: "bg-cyan-900/50 text-cyan-400",
-      organizer: "bg-yellow-900/50 text-yellow-400",
-      student: "bg-purple-900/50 text-purple-400",
+      admin: "dark:bg-cyan-900/50 bg-cyan-100 dark:text-cyan-400 text-cyan-700",
+      organizer: "dark:bg-yellow-900/50 bg-yellow-100 dark:text-yellow-400 text-yellow-700",
+      student: "dark:bg-purple-900/50 bg-purple-100 dark:text-purple-400 text-purple-700",
     };
     return (
       <span className={`px-2 py-1 rounded text-xs font-medium ${styles[role] || styles.student}`}>
@@ -58,9 +58,9 @@ const DashboardHome = () => {
 
   const getAttendanceBadge = (status) => {
     const styles = {
-      present: "bg-green-900/50 text-green-400",
-      absent: "bg-red-900/50 text-red-400",
-      pending: "bg-yellow-900/50 text-yellow-400",
+      present: "dark:bg-green-900/50 bg-green-100 dark:text-green-400 text-green-700",
+      absent: "dark:bg-red-900/50 bg-red-100 dark:text-red-400 text-red-700",
+      pending: "dark:bg-yellow-900/50 bg-yellow-100 dark:text-yellow-400 text-yellow-700",
     };
     return (
       <span className={`px-2 py-1 rounded text-xs font-medium ${styles[status] || styles.pending}`}>
@@ -80,7 +80,7 @@ const DashboardHome = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-red-400">Dashboard</h2>
+        <h2 className="text-2xl font-bold dark:text-red-400 text-red-600">Dashboard</h2>
         <p className="text-on-dim text-sm">
           {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
         </p>
@@ -91,7 +91,7 @@ const DashboardHome = () => {
           <div className="p-4 border-b border-line flex items-center justify-between bg-linear-to-r dark:from-red-950/30 dark:to-transparent from-red-50 to-transparent">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 dark:text-blue-400 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
@@ -102,12 +102,12 @@ const DashboardHome = () => {
             </div>
             <Link
               to="/admin/dashboard/events"
-              className="text-sm text-red-400 hover:text-red-300 transition-colors"
+              className="text-sm dark:text-red-400 dark:hover:text-red-300 text-red-600 hover:text-red-500 transition-colors"
             >
               View all →
             </Link>
           </div>
-          <div className="divide-y divide-gray-800/50">
+          <div className="divide-y dark:divide-gray-800/50 divide-slate-200">
             {events.length === 0 ? (
               <p className="p-4 text-on-dim text-center text-sm">No events yet</p>
             ) : (
@@ -132,7 +132,7 @@ const DashboardHome = () => {
           <div className="p-4 border-b border-line flex items-center justify-between bg-linear-to-r dark:from-red-950/30 dark:to-transparent from-red-50 to-transparent">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 dark:text-purple-400 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
               </div>
@@ -143,12 +143,12 @@ const DashboardHome = () => {
             </div>
             <Link
               to="/admin/dashboard/users"
-              className="text-sm text-red-400 hover:text-red-300 transition-colors"
+              className="text-sm dark:text-red-400 dark:hover:text-red-300 text-red-600 hover:text-red-500 transition-colors"
             >
               View all →
             </Link>
           </div>
-          <div className="divide-y divide-gray-800/50">
+          <div className="divide-y dark:divide-gray-800/50 divide-slate-200">
             {users.length === 0 ? (
               <p className="p-4 text-on-dim text-center text-sm">No users yet</p>
             ) : (
@@ -177,7 +177,7 @@ const DashboardHome = () => {
         <div className="p-4 border-b border-line flex items-center justify-between bg-linear-to-r dark:from-red-950/30 dark:to-transparent from-red-50 to-transparent">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-              <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 dark:text-green-400 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
             </div>
@@ -188,7 +188,7 @@ const DashboardHome = () => {
           </div>
           <Link
             to="/admin/dashboard/reports"
-            className="text-sm text-red-400 hover:text-red-300 transition-colors"
+            className="text-sm dark:text-red-400 dark:hover:text-red-300 text-red-600 hover:text-red-500 transition-colors"
           >
             View all →
           </Link>
@@ -221,7 +221,7 @@ const DashboardHome = () => {
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-purple-500/30 flex items-center justify-center text-purple-400 text-xs font-bold">
+                        <div className="w-6 h-6 rounded-full bg-purple-500/30 flex items-center justify-center dark:text-purple-400 text-purple-600 text-xs font-bold">
                           {record.student?.name?.charAt(0).toUpperCase() || "?"}
                         </div>
                         <div>

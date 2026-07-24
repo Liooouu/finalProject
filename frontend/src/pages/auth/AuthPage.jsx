@@ -88,7 +88,7 @@ const AuthPage = () => {
           </div>
 
           {error && (
-            <div className="mb-6 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm text-center">
+            <div className="mb-6 p-3 bg-red-500/20 border border-red-500/30 rounded-lg dark:text-red-400 text-red-600 text-sm text-center">
               {error}
             </div>
           )}
@@ -101,7 +101,7 @@ const AuthPage = () => {
                 setError("");
                 setFormData({ name: "", email: "", password: "" });
               }}
-              className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
+              className="dark:text-red-400 dark:hover:text-red-300 text-red-600 hover:text-red-500 text-sm font-medium transition-colors"
             >
               {isLogin ? (
                 <>

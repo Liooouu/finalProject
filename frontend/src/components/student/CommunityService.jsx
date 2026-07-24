@@ -36,9 +36,9 @@ const CommunityService = () => {
   }
 
   const statusConfig = {
-    present: { bg: "bg-green-500/20", text: "text-green-400", border: "border-green-500/30" },
-    late: { bg: "bg-yellow-500/20", text: "text-yellow-400", border: "border-yellow-500/30" },
-    absent: { bg: "bg-red-500/20", text: "text-red-400", border: "border-red-500/30" },
+    present: { bg: "bg-green-500/20", text: "dark:text-green-400 text-green-600", border: "border-green-500/30" },
+    late: { bg: "bg-yellow-500/20", text: "dark:text-yellow-400 text-yellow-600", border: "border-yellow-500/30" },
+    absent: { bg: "bg-red-500/20", text: "dark:text-red-400 text-red-600", border: "border-red-500/30" },
     pending: { bg: "bg-gray-500/20", text: "text-on-dim", border: "border-gray-500/30" },
   };
 
@@ -57,9 +57,9 @@ const CommunityService = () => {
             <div className="p-2 bg-yellow-500/20 rounded-lg">
               <span className="text-xl"><FaClock /></span>
             </div>
-            <span className="text-yellow-400 text-sm font-medium">Total Hours</span>
+            <span className="dark:text-yellow-400 text-yellow-600 text-sm font-medium">Total Hours</span>
           </div>
-          <p className="text-4xl font-bold text-yellow-400">{data?.totalHours || 0} <span className="text-lg font-normal text-on-dim">hrs</span></p>
+          <p className="text-4xl font-bold dark:text-yellow-400 text-yellow-600">{data?.totalHours || 0} <span className="text-lg font-normal text-on-dim">hrs</span></p>
         </div>
 
         <div className="bg-linear-to-br from-green-500/10 to-green-500/5 backdrop-blur-sm border border-green-500/20 rounded-2xl p-6">
@@ -67,9 +67,9 @@ const CommunityService = () => {
             <div className="p-2 bg-green-500/20 rounded-lg">
               <span className="text-xl"><FaCheck /></span>
             </div>
-            <span className="text-green-400 text-sm font-medium">Events Attended</span>
+            <span className="dark:text-green-400 text-green-600 text-sm font-medium">Events Attended</span>
           </div>
-          <p className="text-4xl font-bold text-green-400">{data?.totalAttended || 0}</p>
+          <p className="text-4xl font-bold dark:text-green-400 text-green-600">{data?.totalAttended || 0}</p>
         </div>
 
         <div className="bg-linear-to-br from-red-500/10 to-red-500/5 backdrop-blur-sm border border-red-500/20 rounded-2xl p-6">
@@ -77,9 +77,9 @@ const CommunityService = () => {
             <div className="p-2 bg-red-500/20 rounded-lg">
               <span className="text-xl"><FaTimes /></span>
             </div>
-            <span className="text-red-400 text-sm font-medium">Pending Hours</span>
+            <span className="dark:text-red-400 text-red-600 text-sm font-medium">Pending Hours</span>
           </div>
-          <p className="text-4xl font-bold text-red-400">
+          <p className="text-4xl font-bold dark:text-red-400 text-red-600">
             {data?.breakdown?.filter(a => a.status === "absent").length * 8 || 0} <span className="text-lg font-normal text-on-dim">hrs</span>
           </p>
         </div>
@@ -108,7 +108,7 @@ const CommunityService = () => {
                   <th className="px-6 py-4 text-left text-xs font-semibold text-on-dim uppercase tracking-wider">Checked In</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y dark:divide-white/5 divide-slate-200">
                 {data.breakdown.map((record, index) => {
                   const status = statusConfig[record.status] || statusConfig.pending;
                   return (
@@ -124,9 +124,9 @@ const CommunityService = () => {
                       </td>
                       <td className="px-6 py-4">
                         {record.communityServiceHours > 0 ? (
-                          <span className="text-yellow-400 font-medium">{record.communityServiceHours} hours</span>
+                          <span className="dark:text-yellow-400 text-yellow-600 font-medium">{record.communityServiceHours} hours</span>
                         ) : (
-                          <span className="text-green-400 font-medium">0 hours</span>
+                          <span className="dark:text-green-400 text-green-600 font-medium">0 hours</span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-on-dim text-sm">
@@ -148,15 +148,15 @@ const CommunityService = () => {
         </h3>
         <div className="grid md:grid-cols-3 gap-4">
           <div className="flex items-center gap-3 p-4 bg-green-500/10 rounded-xl border border-green-500/20">
-            <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">Present</span>
+            <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 dark:text-green-400 text-green-600">Present</span>
             <span className="text-on-dim text-sm">→ 0 hours</span>
           </div>
           <div className="flex items-center gap-3 p-4 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
-            <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">Late</span>
+            <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/20 dark:text-yellow-400 text-yellow-600">Late</span>
             <span className="text-on-dim text-sm">→ 4 hours</span>
           </div>
           <div className="flex items-center gap-3 p-4 bg-red-500/10 rounded-xl border border-red-500/20">
-            <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400">Absent</span>
+            <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-500/20 dark:text-red-400 text-red-600">Absent</span>
             <span className="text-on-dim text-sm">→ 8 hours</span>
           </div>
         </div>

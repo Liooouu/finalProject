@@ -115,9 +115,9 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
   };
 
   return (
-    <div className="bg-linear-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+    <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border dark:border-white/10 border-line rounded-2xl p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+        <h3 className="text-lg font-semibold dark:text-white text-on flex items-center gap-2">
           <FaCamera className="text-red-400" />
           Scan Student QR
         </h3>
@@ -142,7 +142,7 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
       ) : (
         <div className="space-y-4">
           <div id="qr-reader" className="rounded-xl overflow-hidden bg-black" ref={scannerRef} />
-          <p className="text-sm text-gray-400 text-center">
+          <p className="text-sm dark:text-gray-400 text-on-muted text-center">
             Point camera at student's QR code
           </p>
         </div>
@@ -164,7 +164,7 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
 
       {lastScan && !error && (
         <div className="mt-4 p-4 bg-green-500/20 border border-green-500/30 rounded-xl text-center">
-          <p className="text-lg font-bold text-white">{lastScan.name}</p>
+          <p className="text-lg font-bold dark:text-white text-on">{lastScan.name}</p>
           <p className={`text-sm font-medium ${lastScan.status === "present" ? "text-green-400" : "text-yellow-400"}`}>
             {lastScan.status.charAt(0).toUpperCase() + lastScan.status.slice(1)}
           </p>

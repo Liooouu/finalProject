@@ -87,7 +87,7 @@ const CreateOrganizerPage = () => {
               </svg>
             </div>
             <div>
-              <h2 className="text-xl font-bold text-red-400">Create Organizer</h2>
+              <h2 className="text-xl font-bold dark:text-red-400 text-red-600">Create Organizer</h2>
               <p className="text-sm text-on-dim">Add a new organizer account to manage events</p>
             </div>
           </div>
@@ -95,14 +95,14 @@ const CreateOrganizerPage = () => {
 
         <form onSubmit={createOrganizer} className="p-6 space-y-5">
           {errors.general && (
-            <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg text-red-400 text-sm">
+            <div className="p-4 dark:bg-red-900/30 bg-red-50 dark:border-red-800 border-red-300 rounded-lg dark:text-red-400 text-red-600 text-sm">
               {errors.general}
             </div>
           )}
 
           {success && (
-            <div className="p-4 bg-green-900/30 border border-green-800 rounded-lg">
-              <div className="flex items-center gap-2 text-green-400 mb-1">
+            <div className="p-4 dark:bg-green-900/30 bg-green-50 dark:border-green-800 border-green-300 rounded-lg">
+              <div className="flex items-center gap-2 dark:text-green-400 text-green-600 mb-1">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
@@ -128,12 +128,12 @@ const CreateOrganizerPage = () => {
                 placeholder="Enter full name"
                 className={`w-full pl-10 pr-4 py-3 bg-card dark:bg-black rounded-lg border ${
                   errors.name ? "border-red-500" : "border-line"
-                } text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors`}
+                } dark:text-white text-on placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors`}
                 onChange={(e) => handleInputChange("name", e.target.value)}
               />
             </div>
             {errors.name && (
-              <p className="mt-1 text-sm text-red-400">{errors.name}</p>
+              <p className="mt-1 text-sm dark:text-red-400 text-red-600">{errors.name}</p>
             )}
           </div>
 
@@ -153,12 +153,12 @@ const CreateOrganizerPage = () => {
                 placeholder="Enter email address"
                 className={`w-full pl-10 pr-4 py-3 bg-card dark:bg-black rounded-lg border ${
                   errors.email ? "border-red-500" : "border-line"
-                } text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors`}
+                } dark:text-white text-on placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors`}
                 onChange={(e) => handleInputChange("email", e.target.value)}
               />
             </div>
             {errors.email && (
-              <p className="mt-1 text-sm text-red-400">{errors.email}</p>
+              <p className="mt-1 text-sm dark:text-red-400 text-red-600">{errors.email}</p>
             )}
           </div>
 
@@ -178,7 +178,7 @@ const CreateOrganizerPage = () => {
                 placeholder="Enter password"
                 className={`w-full pl-10 pr-24 py-3 bg-card dark:bg-black rounded-lg border ${
                   errors.password ? "border-red-500" : "border-line"
-                } text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors`}
+                } dark:text-white text-on placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors`}
                 onChange={(e) => handleInputChange("password", e.target.value)}
               />
               <button
@@ -190,7 +190,7 @@ const CreateOrganizerPage = () => {
               </button>
             </div>
             {errors.password && (
-              <p className="mt-1 text-sm text-red-400">{errors.password}</p>
+              <p className="mt-1 text-sm dark:text-red-400 text-red-600">{errors.password}</p>
             )}
             <p className="mt-1 text-xs text-on-muted">
               Minimum 6 characters. Use "Generate" for a secure random password.
@@ -230,19 +230,19 @@ const CreateOrganizerPage = () => {
         <h3 className="text-sm font-medium text-on-dim mb-2">Organizer Capabilities</h3>
         <ul className="text-sm text-on-dim space-y-1">
           <li className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 dark:text-green-400 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
             Create and manage events
           </li>
           <li className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 dark:text-green-400 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
             View and update attendee attendance
           </li>
           <li className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 dark:text-green-400 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
             Cannot access admin dashboard or manage users

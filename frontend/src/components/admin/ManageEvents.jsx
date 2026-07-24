@@ -87,9 +87,9 @@ const ManageEvents = () => {
 
   const getStatusBadge = (status) => {
     const styles = {
-      upcoming: "bg-blue-900/50 text-blue-400 border-blue-700",
-      live: "bg-green-900/50 text-green-400 border-green-700",
-      closed: "bg-gray-900/50 text-gray-400 border-gray-700",
+      upcoming: "dark:bg-blue-900/50 bg-blue-100 dark:text-blue-400 text-blue-700 dark:border-blue-700 border-blue-300",
+      live: "dark:bg-green-900/50 bg-green-100 dark:text-green-400 text-green-700 dark:border-green-700 border-green-300",
+      closed: "dark:bg-gray-900/50 bg-gray-100 dark:text-gray-400 text-gray-700 dark:border-gray-700 border-gray-300",
     };
     return `px-3 py-1 rounded-full text-xs font-medium border ${styles[status] || styles.closed}`;
   };
@@ -97,7 +97,7 @@ const ManageEvents = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <h2 className="text-2xl font-bold text-red-400">Manage Events</h2>
+        <h2 className="text-2xl font-bold dark:text-red-400 text-red-600">Manage Events</h2>
         <div className="flex flex-col sm:flex-row gap-3">
           <input
             type="text"
@@ -204,7 +204,7 @@ const ManageEvents = () => {
                 <span className={getStatusBadge(selectedEvent.status)}>{selectedEvent.status}</span>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="p-2 hover:bg-gray-800 rounded"
+                  className="p-2 dark:hover:bg-gray-800 hover:bg-gray-200 rounded"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

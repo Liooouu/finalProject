@@ -152,8 +152,8 @@ const EventDetails = () => {
   if (!event) {
     return (
       <div className="text-center py-12">
-        <p className="text-red-400 text-lg">Event not found</p>
-        <button onClick={() => navigate(-1)} className="text-red-400 hover:underline mt-2">
+        <p className="dark:text-red-400 text-red-600 text-lg">Event not found</p>
+        <button onClick={() => navigate(-1)} className="dark:text-red-400 text-red-600 hover:underline mt-2">
           Go back
         </button>
       </div>
@@ -161,8 +161,8 @@ const EventDetails = () => {
   }
 
   const statusConfig = {
-    upcoming: { bg: "bg-blue-500/20", text: "text-blue-400", border: "border-blue-500/30" },
-    live: { bg: "bg-green-500/20", text: "text-green-400", border: "border-green-500/30" },
+    upcoming: { bg: "bg-blue-500/20", text: "dark:text-blue-400 text-blue-600", border: "border-blue-500/30" },
+    live: { bg: "bg-green-500/20", text: "dark:text-green-400 text-green-600", border: "border-green-500/30" },
     closed: { bg: "bg-gray-500/20", text: "text-on-dim", border: "border-gray-500/30" },
   };
 
@@ -216,7 +216,7 @@ const EventDetails = () => {
 
         {/* Attendance Window */}
         <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
-          <p className="text-yellow-400 flex items-center gap-2">
+          <p className="dark:text-yellow-400 text-yellow-600 flex items-center gap-2">
             <span><BsClipboardCheck /></span>
             <span className="font-semibold">Attendance Window:</span>{" "}
             {formatTime12Hour(event.attendanceStartTime)} - {formatTime12Hour(event.attendanceEndTime)}
@@ -234,7 +234,7 @@ const EventDetails = () => {
 
       {/* Message */}
       {message && (
-        <div className={`p-4 rounded-xl ${myAttendance?.status === "late" || message.includes("late") ? "bg-yellow-500/20 border border-yellow-500/30 text-yellow-400" : "bg-green-500/20 border border-green-500/30 text-green-400"}`}>
+        <div className={`p-4 rounded-xl ${myAttendance?.status === "late" || message.includes("late") ? "bg-yellow-500/20 border border-yellow-500/30 dark:text-yellow-400 text-yellow-600" : "bg-green-500/20 border border-green-500/30 dark:text-green-400 text-green-600"}`}>
           {message}
         </div>
       )}
@@ -245,7 +245,7 @@ const EventDetails = () => {
           <h2 className="text-xl font-bold text-on mb-4">Attendance</h2>
           {myAttendance ? (
             <div className="space-y-3">
-              <div className={`flex items-center gap-3 ${myAttendance.status === "absent" ? "text-red-400" : myAttendance.status === "late" ? "text-yellow-400" : "text-green-400"}`}>
+              <div className={`flex items-center gap-3 ${myAttendance.status === "absent" ? "dark:text-red-400 text-red-600" : myAttendance.status === "late" ? "dark:text-yellow-400 text-yellow-600" : "dark:text-green-400 text-green-600"}`}>
                 <span className="text-2xl">
                   {myAttendance.status === "absent" ? "❌" : myAttendance.status === "late" ? "⏰" : <FaCheck />}
                 </span>
@@ -261,14 +261,14 @@ const EventDetails = () => {
                 Checked in at: {new Date(myAttendance.attendedAt).toLocaleString()}
               </p>
               {myAttendance.communityServiceHours > 0 && (
-                <p className="text-yellow-400 font-medium">
+                <p className="dark:text-yellow-400 text-yellow-600 font-medium">
                   <FaExclamationTriangle /> Community Service: {myAttendance.communityServiceHours} hours
                 </p>
               )}
             </div>
           ) : isBeforeAttendanceWindow() ? (
             <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
-              <p className="text-yellow-400">
+              <p className="dark:text-yellow-400 text-yellow-600">
                 Attendance is not open yet. You can mark your attendance starting at{" "}
                 <span className="font-bold">{formatTime12Hour(event.attendanceStartTime)}</span>
               </p>
@@ -326,13 +326,13 @@ const EventDetails = () => {
                   <>
                     <button
                       onClick={() => setIsEditing(true)}
-                      className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                      className="bg-blue-500/20 hover:bg-blue-500/30 dark:text-blue-400 text-blue-600 px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
                     >
                       <span><FaEdit /></span> Edit Event
                     </button>
                     <button
                       onClick={handleDelete}
-                      className="bg-red-500/20 hover:bg-red-500/30 text-red-400 px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                      className="bg-red-500/20 hover:bg-red-500/30 dark:text-red-400 text-red-600 px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
                     >
                       <span><FaTrash /></span> Delete
                     </button>
@@ -460,7 +460,7 @@ const EventDetails = () => {
                         Checked in: {new Date(attendance.attendedAt).toLocaleString()}
                       </p>
                       {attendance.communityServiceHours > 0 && (
-                        <p className="text-yellow-400 text-xs mt-1">
+                        <p className="dark:text-yellow-400 text-yellow-600 text-xs mt-1">
                           <FaExclamationTriangle /> Community Service: {attendance.communityServiceHours} hours
                         </p>
                       )}

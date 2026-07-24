@@ -104,19 +104,19 @@ const SubmitExcuse = () => {
         </h3>
         <ul className="text-sm text-on-dim space-y-2">
           <li className="flex items-start gap-2">
-            <span className="text-blue-400">•</span>
+            <span className="dark:text-blue-400 text-blue-600">•</span>
             Submit your excuse within 24 hours after the event
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-blue-400">•</span>
+            <span className="dark:text-blue-400 text-blue-600">•</span>
             Attach supporting documents (medical certificate, etc.) if available
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-blue-400">•</span>
+            <span className="dark:text-blue-400 text-blue-600">•</span>
             Provide a clear and detailed explanation
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-blue-400">•</span>
+            <span className="dark:text-blue-400 text-blue-600">•</span>
             Your excuse will be reviewed by the event organizer
           </li>
         </ul>
@@ -124,7 +124,7 @@ const SubmitExcuse = () => {
 
       {/* Message */}
       {message && (
-        <div className={`p-4 rounded-xl ${message.includes("success") ? "bg-green-500/20 border border-green-500/30 text-green-400" : "bg-red-500/20 border border-red-500/30 text-red-400"}`}>
+        <div className={`p-4 rounded-xl ${message.includes("success") ? "bg-green-500/20 border border-green-500/30 dark:text-green-400 text-green-600" : "bg-red-500/20 border border-red-500/30 dark:text-red-400 text-red-600"}`}>
           {message}
         </div>
       )}
@@ -186,7 +186,7 @@ const SubmitExcuse = () => {
               {file ? (
                 <div className="space-y-2">
                   <span className="text-4xl"><FaCheck /></span>
-                  <p className="text-green-400 font-medium">{file.name}</p>
+                  <p className="dark:text-green-400 text-green-600 font-medium">{file.name}</p>
                   <p className="text-sm text-on-dim">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                 </div>
               ) : (
@@ -231,7 +231,7 @@ const SubmitExcuse = () => {
 
       {/* Warning */}
       <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-xl">
-        <p className="text-yellow-400 text-sm">
+        <p className="dark:text-yellow-400 text-yellow-600 text-sm">
           <strong>Note:</strong> Submitting false or misleading information may result in disciplinary action.
         </p>
       </div>

@@ -74,7 +74,7 @@ const OrgManageEvents = () => {
   const statusConfig = {
     upcoming: { bg: "bg-blue-500/20", text: "text-blue-400", border: "border-blue-500/30" },
     live: { bg: "bg-green-500/20", text: "text-green-400", border: "border-green-500/30" },
-    closed: { bg: "bg-gray-500/20", text: "text-gray-400", border: "border-gray-500/30" },
+    closed: { bg: "bg-gray-500/20", text: "text-on-dim", border: "border-gray-500/30" },
   };
 
   return (
@@ -172,7 +172,7 @@ const OrgManageEvents = () => {
                 value={form.date}
                 onChange={handleChange}
                 required
-                className="w-full bg-card border border-line rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                className="w-full bg-card border border-line rounded-xl px-4 py-3 dark:text-white text-on focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
               />
             </div>
             <div>
@@ -182,7 +182,7 @@ const OrgManageEvents = () => {
                 value={form.time}
                 onChange={handleChange}
                 required
-                className="w-full bg-card border border-line rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                className="w-full bg-card border border-line rounded-xl px-4 py-3 dark:text-white text-on focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
               />
             </div>
           </div>
@@ -198,7 +198,7 @@ const OrgManageEvents = () => {
                   value={form.attendanceStartTime}
                   onChange={handleChange}
                   required
-                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 dark:text-white text-on focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
                 />
               </div>
               <div>
@@ -209,7 +209,7 @@ const OrgManageEvents = () => {
                   value={form.attendanceEndTime}
                   onChange={handleChange}
                   required
-                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 dark:text-white text-on focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
                 />
               </div>
             </div>

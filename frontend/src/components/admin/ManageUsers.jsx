@@ -68,9 +68,9 @@ const ManageUsers = () => {
 
   const getRoleBadge = (role) => {
   const styles = {
-    admin: "bg-cyan-900/50 text-cyan-400 border-cyan-700",
-    organizer: "bg-yellow-900/50 text-yellow-400 border-yellow-700",
-    student: "bg-purple-900/50 text-purple-400 border-purple-700",
+    admin: "dark:bg-cyan-900/50 bg-cyan-100 dark:text-cyan-400 text-cyan-700 dark:border-cyan-700 border-cyan-300",
+    organizer: "dark:bg-yellow-900/50 bg-yellow-100 dark:text-yellow-400 text-yellow-700 dark:border-yellow-700 border-yellow-300",
+    student: "dark:bg-purple-900/50 bg-purple-100 dark:text-purple-400 text-purple-700 dark:border-purple-700 border-purple-300",
   };
   return (
     <span className={`px-3 py-1 rounded-full text-xs font-medium border ${styles[role] || styles.student}`}>
@@ -116,17 +116,17 @@ const ManageUsers = () => {
           <p className="text-sm text-on-dim">Total Users</p>
           <p className="text-2xl font-bold">{stats.total}</p>
         </div>
-        <div className="bg-card p-4 rounded-xl border border-cyan-900/50">
-          <p className="text-sm text-cyan-400">Admins</p>
-          <p className="text-2xl font-bold text-cyan-400">{stats.admin}</p>
+        <div className="bg-card p-4 rounded-xl border dark:border-cyan-900/50 border-cyan-200">
+          <p className="text-sm dark:text-cyan-400 text-cyan-600">Admins</p>
+          <p className="text-2xl font-bold dark:text-cyan-400 text-cyan-600">{stats.admin}</p>
         </div>
-        <div className="bg-card p-4 rounded-xl border border-yellow-900/50">
-          <p className="text-sm text-yellow-400">Organizers</p>
-          <p className="text-2xl font-bold text-yellow-400">{stats.organizer}</p>
+        <div className="bg-card p-4 rounded-xl border dark:border-yellow-900/50 border-yellow-200">
+          <p className="text-sm dark:text-yellow-400 text-yellow-600">Organizers</p>
+          <p className="text-2xl font-bold dark:text-yellow-400 text-yellow-600">{stats.organizer}</p>
         </div>
-        <div className="bg-card p-4 rounded-xl border border-purple-900/50">
-          <p className="text-sm text-purple-400">Students</p>
-          <p className="text-2xl font-bold text-purple-400">{stats.student}</p>
+        <div className="bg-card p-4 rounded-xl border dark:border-purple-900/50 border-purple-200">
+          <p className="text-sm dark:text-purple-400 text-purple-600">Students</p>
+          <p className="text-2xl font-bold dark:text-purple-400 text-purple-600">{stats.student}</p>
         </div>
       </div>
 
@@ -170,14 +170,14 @@ const ManageUsers = () => {
                       <div className="flex gap-2">
                         <button
                           onClick={() => openUserDetails(user)}
-                          className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors"
+                          className="px-3 py-1 dark:bg-gray-800 dark:hover:bg-gray-700 bg-gray-200 hover:bg-gray-300 rounded text-sm transition-colors"
                         >
                           View
                         </button>
                         {user.role !== "admin" && (
                           <button
                             onClick={() => deleteUser(user._id, user.role)}
-                            className="px-3 py-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-900 rounded text-sm transition-colors"
+                            className="px-3 py-1 dark:bg-red-900/30 bg-red-50 dark:hover:bg-red-900/50 hover:bg-red-100 dark:text-red-400 text-red-600 dark:border-red-900 border-red-300 border rounded text-sm transition-colors"
                           >
                             Delete
                           </button>
@@ -244,10 +244,10 @@ const ManageUsers = () => {
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-medium ${
                           record.status === "present"
-                            ? "bg-green-900/50 text-green-400"
+                            ? "dark:bg-green-900/50 bg-green-100 dark:text-green-400 text-green-700"
                             : record.status === "absent"
-                            ? "bg-red-900/50 text-red-400"
-                            : "bg-yellow-900/50 text-yellow-400"
+                            ? "dark:bg-red-900/50 bg-red-100 dark:text-red-400 text-red-700"
+                            : "dark:bg-yellow-900/50 bg-yellow-100 dark:text-yellow-400 text-yellow-700"
                         }`}
                       >
                         {record.status}

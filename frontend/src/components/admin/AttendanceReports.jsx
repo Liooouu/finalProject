@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
+import { useTheme } from "../../context/ThemeContext";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -20,6 +21,7 @@ const AttendanceReports = () => {
   const [eventsData, setEventsData] = useState(null);
   const [usersData, setUsersData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const { darkMode } = useTheme();
 
   const fetchAttendance = async () => {
     setLoading(true);
@@ -80,16 +82,16 @@ const AttendanceReports = () => {
 
   const chartOptions = {
     responsive: true,
-    plugins: { legend: { labels: { color: "#fff" } } },
+    plugins: { legend: { labels: { color: darkMode ? "#fff" : "#1e293b" } } },
     scales: {
-      x: { ticks: { color: "#aaa" }, grid: { color: "#333" } },
-      y: { ticks: { color: "#aaa" }, grid: { color: "#333" } },
+      x: { ticks: { color: darkMode ? "#aaa" : "#64748b" }, grid: { color: darkMode ? "#333" : "#e2e8f0" } },
+      y: { ticks: { color: darkMode ? "#aaa" : "#64748b" }, grid: { color: darkMode ? "#333" : "#e2e8f0" } },
     },
   };
 
   const pieOptions = {
     responsive: true,
-    plugins: { legend: { labels: { color: "#fff" } } },
+    plugins: { legend: { labels: { color: darkMode ? "#fff" : "#1e293b" } } },
   };
 
   const attendanceChartData = attendanceData
@@ -238,10 +240,10 @@ const AttendanceReports = () => {
                         <span
                           className={`px-2 py-1 rounded text-xs ${
                             r.status === "present"
-                              ? "bg-green-900 text-green-300"
+                              ? "dark:bg-green-900 bg-green-100 dark:text-green-300 text-green-700"
                               : r.status === "absent"
-                              ? "bg-red-900 text-red-300"
-                              : "bg-yellow-900 text-yellow-300"
+                              ? "dark:bg-red-900 bg-red-100 dark:text-red-300 text-red-700"
+                              : "dark:bg-yellow-900 bg-yellow-100 dark:text-yellow-300 text-yellow-700"
                           }`}
                         >
                           {r.status}
@@ -327,10 +329,10 @@ const AttendanceReports = () => {
                         <span
                           className={`px-2 py-1 rounded text-xs ${
                             e.status === "upcoming"
-                              ? "bg-blue-900 text-blue-300"
+                              ? "dark:bg-blue-900 bg-blue-100 dark:text-blue-300 text-blue-700"
                               : e.status === "live"
-                              ? "bg-green-900 text-green-300"
-                              : "bg-gray-700 text-gray-300"
+                              ? "dark:bg-green-900 bg-green-100 dark:text-green-300 text-green-700"
+                              : "dark:bg-gray-700 bg-gray-200 dark:text-gray-300 text-gray-600"
                           }`}
                         >
                           {e.status}
@@ -417,10 +419,10 @@ const AttendanceReports = () => {
                         <span
                           className={`px-2 py-1 rounded text-xs ${
                             u.role === "admin"
-                              ? "bg-cyan-900 text-cyan-300"
+                              ? "dark:bg-cyan-900 bg-cyan-100 dark:text-cyan-300 text-cyan-700"
                               : u.role === "organizer"
-                              ? "bg-yellow-900 text-yellow-300"
-                              : "bg-purple-900 text-purple-300"
+                              ? "dark:bg-yellow-900 bg-yellow-100 dark:text-yellow-300 text-yellow-700"
+                              : "dark:bg-purple-900 bg-purple-100 dark:text-purple-300 text-purple-700"
                           }`}
                         >
                           {u.role}
@@ -441,13 +443,13 @@ const AttendanceReports = () => {
 
 const StatCard = ({ label, value, color }) => {
   const colors = {
-    blue: "bg-blue-900/30 border-blue-700 text-blue-400",
-    green: "bg-green-900/30 border-green-700 text-green-400",
-    red: "bg-red-900/30 border-red-700 text-red-400",
-    yellow: "bg-yellow-900/30 border-yellow-700 text-yellow-400",
-    gray: "bg-gray-900/30 border-gray-700 text-gray-400",
-    purple: "bg-purple-900/30 border-purple-700 text-purple-400",
-    cyan: "bg-cyan-900/30 border-cyan-700 text-cyan-400",
+    blue: "dark:bg-blue-900/30 bg-blue-50 dark:border-blue-700 border-blue-200 dark:text-blue-400 text-blue-600",
+    green: "dark:bg-green-900/30 bg-green-50 dark:border-green-700 border-green-200 dark:text-green-400 text-green-600",
+    red: "dark:bg-red-900/30 bg-red-50 dark:border-red-700 border-red-200 dark:text-red-400 text-red-600",
+    yellow: "dark:bg-yellow-900/30 bg-yellow-50 dark:border-yellow-700 border-yellow-200 dark:text-yellow-400 text-yellow-600",
+    gray: "dark:bg-gray-900/30 bg-gray-100 dark:border-gray-700 border-gray-200 dark:text-gray-400 text-gray-600",
+    purple: "dark:bg-purple-900/30 bg-purple-50 dark:border-purple-700 border-purple-200 dark:text-purple-400 text-purple-600",
+    cyan: "dark:bg-cyan-900/30 bg-cyan-50 dark:border-cyan-700 border-cyan-200 dark:text-cyan-400 text-cyan-600",
   };
 
   return (
