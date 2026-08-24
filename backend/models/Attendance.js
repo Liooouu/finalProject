@@ -5,7 +5,7 @@ const attendanceSchema = new mongoose.Schema({
   event: { type: mongoose.Schema.Types.ObjectId, ref: "Event", required: true },
   student: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   attendedAt: { type: Date, default: Date.now },
-  status: { type: String, enum: ["present", "late", "absent", "pending"], default: "pending" },
+  status: { type: String, enum: ["present", "late", "absent", "pending", "excused"], default: "pending" },
   communityServiceHours: { type: Number, default: 0 },
 }, { timestamps: true });
 

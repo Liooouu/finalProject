@@ -245,7 +245,7 @@ const EventDetails = () => {
           <h2 className="text-xl font-bold text-on mb-4">Attendance</h2>
           {myAttendance ? (
             <div className="space-y-3">
-              <div className={`flex items-center gap-3 ${myAttendance.status === "absent" ? "dark:text-red-400 text-red-600" : myAttendance.status === "late" ? "dark:text-yellow-400 text-yellow-600" : "dark:text-green-400 text-green-600"}`}>
+              <div className={`flex items-center gap-3 ${myAttendance.status === "absent" ? "dark:text-red-400 text-red-600" : myAttendance.status === "late" ? "dark:text-yellow-400 text-yellow-600" : myAttendance.status === "excused" ? "dark:text-blue-400 text-blue-600" : "dark:text-green-400 text-green-600"}`}>
                 <span className="text-2xl">
                   {myAttendance.status === "absent" ? "❌" : myAttendance.status === "late" ? "⏰" : <FaCheck />}
                 </span>
@@ -254,6 +254,8 @@ const EventDetails = () => {
                     ? "You are marked as absent."
                     : myAttendance.status === "late"
                     ? "You are marked as late."
+                    : myAttendance.status === "excused"
+                    ? "Your absence has been excused."
                     : "You have marked your attendance."}
                 </p>
               </div>

@@ -170,7 +170,7 @@ const AttendanceReports = () => {
     <button
       onClick={() => setActiveTab(tab)}
       className={`px-4 py-2 rounded ${
-        activeTab === tab ? "bg-red-500 text-white" : "bg-card text-on-dim hover:text-on"
+        activeTab === tab ? "bg-green-500 text-white" : "bg-card text-on-dim hover:text-on"
       }`}
     >
       {label}
@@ -216,7 +216,7 @@ const AttendanceReports = () => {
               <h3 className="text-lg font-semibold">Recent Attendance Records</h3>
               <button
                 onClick={() => downloadCSV("attendance")}
-                className="bg-red-500 px-4 py-2 rounded hover:bg-red-600 text-sm"
+                className="bg-green-500 px-4 py-2 rounded hover:bg-green-600 text-sm"
               >
                 Export CSV
               </button>
@@ -302,7 +302,7 @@ const AttendanceReports = () => {
               <h3 className="text-lg font-semibold">All Events</h3>
               <button
                 onClick={() => downloadCSV("events")}
-                className="bg-red-500 px-4 py-2 rounded hover:bg-red-600 text-sm"
+                className="bg-green-500 px-4 py-2 rounded hover:bg-green-600 text-sm"
               >
                 Export CSV
               </button>
@@ -395,7 +395,7 @@ const AttendanceReports = () => {
               <h3 className="text-lg font-semibold">All Users</h3>
               <button
                 onClick={() => downloadCSV("users")}
-                className="bg-red-500 px-4 py-2 rounded hover:bg-red-600 text-sm"
+                className="bg-green-500 px-4 py-2 rounded hover:bg-green-600 text-sm"
               >
                 Export CSV
               </button>

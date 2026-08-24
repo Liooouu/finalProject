@@ -162,8 +162,8 @@ const ProfileSettings = () => {
                   </label>
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-on">{profile?.name}</h2>
-                  <p className="text-on-dim">{profile?.email}</p>
+                  <h2 className="text-2xl font-bold text-white">{profile?.name}</h2>
+                  <p className="text-blue-100">{profile?.email}</p>
                   <span className="inline-block mt-2 px-3 py-1 bg-white/20 rounded-full text-sm capitalize">
                     {profile?.role}
                   </span>

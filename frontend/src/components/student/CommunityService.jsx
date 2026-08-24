@@ -39,6 +39,7 @@ const CommunityService = () => {
     present: { bg: "bg-green-500/20", text: "dark:text-green-400 text-green-600", border: "border-green-500/30" },
     late: { bg: "bg-yellow-500/20", text: "dark:text-yellow-400 text-yellow-600", border: "border-yellow-500/30" },
     absent: { bg: "bg-red-500/20", text: "dark:text-red-400 text-red-600", border: "border-red-500/30" },
+    excused: { bg: "bg-blue-500/20", text: "dark:text-blue-400 text-blue-600", border: "border-blue-500/30" },
     pending: { bg: "bg-gray-500/20", text: "text-on-dim", border: "border-gray-500/30" },
   };
 

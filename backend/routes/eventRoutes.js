@@ -317,6 +317,53 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
   }
 });
 
+// MANUALLY ADJUST COMMUNITY SERVICE HOURS (organizers/admins)
+router.patch("/:id/attendees/:studentId/community-service", protect, async (req, res) => {
+  try {
+    if (req.user.role !== "organizer" && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const hours = Number(req.body.hours);
+    if (!Number.isFinite(hours) || hours < 0) {
+      return res.status(400).json({ error: "Hours must be a number greater than or equal to 0" });
+    }
+
+    const attendance = await Attendance.findOne({ event: req.params.id, student: req.params.studentId });
+    if (!attendance) return res.status(404).json({ error: "Attendance not found" });
+
+    const previousHours = attendance.communityServiceHours || 0;
+    attendance.communityServiceHours = hours;
+    await attendance.save();
+
+    let message;
+    if (hours === 0 && previousHours > 0) {
+      message = `Your community service hours for "${event.title}" have been removed by the organizer.`;
+    } else if (hours > previousHours) {
+      message = `${hours - previousHours} community service hour(s) were added to your record for "${event.title}". You now have ${hours} hour(s) for this event.`;
+    } else {
+      message = `Your community service hours for "${event.title}" were updated to ${hours} hour(s).`;
+    }
+
+    const notification = new Notification({
+      user: attendance.student,
+      type: "penalty",
+      title: "Community Service Updated",
+      message,
+      relatedEvent: event._id,
+    });
+    await notification.save();
+
+    const populated = await Attendance.findById(attendance._id).populate("student", "name email");
+    res.json(populated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // MANUAL ATTENDANCE (organizers add student manually)
 router.post("/:id/attendees/manual", protect, async (req, res) => {
   try {

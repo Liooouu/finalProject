@@ -9,6 +9,7 @@ const ManageUsers = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [userAttendance, setUserAttendance] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [csDrafts, setCsDrafts] = useState({});
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -46,6 +47,7 @@ const ManageUsers = () => {
   const openUserDetails = async (user) => {
     setSelectedUser(user);
     setShowModal(true);
+    setCsDrafts({});
     try {
       const res = await api.get("/reports/attendance");
       const userRecords = res.data.records.filter(
@@ -55,6 +57,22 @@ const ManageUsers = () => {
     } catch (err) {
       console.error(err);
       setUserAttendance([]);
+    }
+  };
+
+  const handleUpdateCS = async (record, hours) => {
+    const value = Number(hours);
+    if (!Number.isFinite(value) || value < 0) {
+      alert("Please enter a valid number of hours (0 or more)");
+      return;
+    }
+    try {
+      const res = await api.patch(`/admin/attendance/${record._id}/community-service`, {
+        hours: value,
+      });
+      setUserAttendance(userAttendance.map((r) => (r._id === res.data._id ? res.data : r)));
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to update community service");
     }
   };
 
@@ -230,28 +248,71 @@ const ManageUsers = () => {
                 <p className="text-on-dim text-center py-8">No attendance records</p>
               ) : (
                 <div className="space-y-2">
-                  {userAttendance.map((record, index) => (
+                  {userAttendance.map((record) => (
                     <div
-                      key={index}
-                      className="flex items-center justify-between p-4 bg-card-alt rounded-lg"
+                      key={record._id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-card-alt rounded-lg"
                     >
                       <div>
                         <p className="font-medium">{record.event?.title || "Event"}</p>
                         <p className="text-sm text-on-dim">
                           {record.event?.date && new Date(record.event.date).toLocaleDateString()}
+                          {record.communityServiceHours > 0 && (
+                            <span className="dark:text-yellow-400 text-yellow-600 font-medium">
+                              {" "}• {record.communityServiceHours} hrs CS
+                            </span>
+                          )}
                         </p>
                       </div>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          record.status === "present"
-                            ? "dark:bg-green-900/50 bg-green-100 dark:text-green-400 text-green-700"
-                            : record.status === "absent"
-                            ? "dark:bg-red-900/50 bg-red-100 dark:text-red-400 text-red-700"
-                            : "dark:bg-yellow-900/50 bg-yellow-100 dark:text-yellow-400 text-yellow-700"
-                        }`}
-                      >
-                        {record.status}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            record.status === "present"
+                              ? "dark:bg-green-900/50 bg-green-100 dark:text-green-400 text-green-700"
+                              : record.status === "absent"
+                              ? "dark:bg-red-900/50 bg-red-100 dark:text-red-400 text-red-700"
+                              : record.status === "excused"
+                              ? "dark:bg-blue-900/50 bg-blue-100 dark:text-blue-400 text-blue-700"
+                              : "dark:bg-yellow-900/50 bg-yellow-100 dark:text-yellow-400 text-yellow-700"
+                          }`}
+                        >
+                          {record.status}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min="0"
+                            value={csDrafts[record._id] ?? String(record.communityServiceHours)}
+                            onChange={(e) =>
+                              setCsDrafts({ ...csDrafts, [record._id]: e.target.value })
+                            }
+                            className="w-16 bg-card border border-line rounded-lg px-2 py-1.5 text-sm text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                            title="Set community service hours"
+                          />
+                          <button
+                            onClick={() =>
+                              handleUpdateCS(
+                                record,
+                                csDrafts[record._id] ?? record.communityServiceHours
+                              )
+                            }
+                            className="bg-green-500 hover:bg-green-600 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
+                          >
+                            Set
+                          </button>
+                          {record.communityServiceHours > 0 && (
+                            <button
+                              onClick={() => {
+                                setCsDrafts({ ...csDrafts, [record._id]: "0" });
+                                handleUpdateCS(record, 0);
+                              }}
+                              className="bg-card hover:bg-red-900/50 border border-line hover:border-red-500 dark:text-red-400 text-red-600 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

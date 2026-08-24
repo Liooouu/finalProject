@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
+const Attendance = require("../models/Attendance");
+const Notification = require("../models/Notification");
 const { protect, authorize } = require("../middleware/authMiddleware");
 
 // Admin creates organizer
@@ -75,6 +77,57 @@ router.delete(
       await User.findByIdAndDelete(req.params.id);
 
       res.json({ message: "User deleted successfully" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+// MANUALLY ADJUST COMMUNITY SERVICE HOURS (admin)
+router.patch(
+  "/attendance/:id/community-service",
+  protect,
+  authorize("admin"),
+  async (req, res) => {
+    try {
+      const hours = Number(req.body.hours);
+      if (!Number.isFinite(hours) || hours < 0) {
+        return res.status(400).json({ message: "Hours must be a number greater than or equal to 0" });
+      }
+
+      const attendance = await Attendance.findById(req.params.id).populate("event", "title");
+      if (!attendance) {
+        return res.status(404).json({ message: "Attendance record not found" });
+      }
+
+      const previousHours = attendance.communityServiceHours || 0;
+      attendance.communityServiceHours = hours;
+      await attendance.save();
+
+      let message;
+      if (hours === 0 && previousHours > 0) {
+        message = `Your community service hours for "${attendance.event.title}" have been removed by an admin.`;
+      } else if (hours > previousHours) {
+        message = `${hours - previousHours} community service hour(s) were added to your record for "${attendance.event.title}". You now have ${hours} hour(s) for this event.`;
+      } else {
+        message = `Your community service hours for "${attendance.event.title}" were updated to ${hours} hour(s).`;
+      }
+
+      const notification = new Notification({
+        user: attendance.student,
+        type: "penalty",
+        title: "Community Service Updated",
+        message,
+        relatedEvent: attendance.event._id,
+      });
+      await notification.save();
+
+      const populated = await Attendance.findById(attendance._id)
+        .populate("student", "name email")
+        .populate("event", "title date");
+
+      res.json(populated);
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Server error" });

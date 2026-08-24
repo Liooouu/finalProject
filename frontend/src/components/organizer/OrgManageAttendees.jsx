@@ -12,6 +12,7 @@ const OrgManageAttendees = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [csDrafts, setCsDrafts] = useState({});
 
   useEffect(() => {
     fetchData();
@@ -65,11 +66,36 @@ const OrgManageAttendees = () => {
     }
   };
 
+  const handleUpdateCS = async (attendance, hours) => {
+    const value = Number(hours);
+    if (!Number.isFinite(value) || value < 0) {
+      setMessage("Please enter a valid number of hours (0 or more)");
+      return;
+    }
+
+    try {
+      const studentId = attendance.student?._id || attendance.student;
+      const res = await api.patch(
+        `/events/${eventId}/attendees/${studentId}/community-service`,
+        { hours: value }
+      );
+      setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
+      setMessage(
+        value === 0
+          ? "Community service removed successfully!"
+          : "Community service updated successfully!"
+      );
+    } catch (err) {
+      setMessage(err.response?.data?.error || "Failed to update community service");
+    }
+  };
+
   const getStatusBadge = (status) => {
     const styles = {
       present: "bg-green-500/20 text-green-400 border-green-500/30",
       late: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
       absent: "bg-red-500/20 text-red-400 border-red-500/30",
+      excused: "bg-blue-500/20 text-blue-400 border-blue-500/30",
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium border ${styles[status] || styles.present}`}>
@@ -214,7 +240,7 @@ const OrgManageAttendees = () => {
             {attendees.map((attendance) => (
               <div
                 key={attendance._id}
-                className="flex items-center justify-between p-4 bg-card rounded-xl border border-line"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-card rounded-xl border border-line"
               >
                 <div>
                   <p className="text-on font-medium">
@@ -224,11 +250,47 @@ const OrgManageAttendees = () => {
                     {attendance.student?.email || ""}
                   </p>
                 </div>
-                <div className="text-right">
-                  {getStatusBadge(attendance.status)}
-                  <p className="text-on-dim text-sm mt-1">
-                    {attendance.communityServiceHours} hrs CS
-                  </p>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    {getStatusBadge(attendance.status)}
+                    <p className="text-on-dim text-sm mt-1">
+                      {attendance.communityServiceHours} hrs CS
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      value={csDrafts[attendance._id] ?? String(attendance.communityServiceHours)}
+                      onChange={(e) =>
+                        setCsDrafts({ ...csDrafts, [attendance._id]: e.target.value })
+                      }
+                      className="w-16 bg-card-alt border border-line rounded-lg px-2 py-1.5 text-sm text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                      title="Set community service hours"
+                    />
+                    <button
+                      onClick={() =>
+                        handleUpdateCS(
+                          attendance,
+                          csDrafts[attendance._id] ?? attendance.communityServiceHours
+                        )
+                      }
+                      className="bg-green-500 hover:bg-green-600 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
+                    >
+                      Set
+                    </button>
+                    {attendance.communityServiceHours > 0 && (
+                      <button
+                        onClick={() => {
+                          setCsDrafts({ ...csDrafts, [attendance._id]: "0" });
+                          handleUpdateCS(attendance, 0);
+                        }}
+                        className="bg-card-alt hover:bg-red-900/50 border border-line hover:border-red-500 dark:text-red-400 text-red-600 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

@@ -90,7 +90,7 @@ const SubmitExcuse = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl mx-auto">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-on">Submit Excuse Letter</h1>

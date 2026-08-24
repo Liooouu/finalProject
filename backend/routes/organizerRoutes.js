@@ -4,6 +4,7 @@ const { protect } = require("../middleware/authMiddleware");
 const Excuse = require("../models/Excuse");
 const Event = require("../models/Event");
 const Attendance = require("../models/Attendance");
+const Notification = require("../models/Notification");
 
 router.get("/excuses", protect, async (req, res) => {
   try {
@@ -70,6 +71,32 @@ router.patch("/excuses/:id", protect, async (req, res) => {
 
     if (!excuse) {
       return res.status(404).json({ error: "Excuse not found" });
+    }
+
+    if (status === "approved") {
+      const attendance = await Attendance.findOneAndUpdate(
+        { event: excuse.event._id, student: excuse.student._id },
+        { status: "excused", communityServiceHours: 0 },
+        { new: true }
+      );
+
+      const notification = new Notification({
+        user: excuse.student._id,
+        type: "excuse",
+        title: "Excuse Approved",
+        message: `Your excuse for "${excuse.event.title}" was approved. Any community service hours for this event have been removed.`,
+        relatedEvent: excuse.event._id,
+      });
+      await notification.save();
+    } else if (status === "rejected") {
+      const notification = new Notification({
+        user: excuse.student._id,
+        type: "excuse",
+        title: "Excuse Rejected",
+        message: `Your excuse for "${excuse.event.title}" was rejected.${responseNote ? ` Note: ${responseNote}` : ""}`,
+        relatedEvent: excuse.event._id,
+      });
+      await notification.save();
     }
 
     res.json(excuse);

@@ -172,7 +172,7 @@ const ManageEvents = () => {
                   </select>
                   <button
                     onClick={() => openEventDetails(event)}
-                    className="px-4 py-2 bg-red-500 hover:bg-red-600 rounded text-sm font-medium transition-colors"
+                    className="px-4 py-2 bg-green-500 hover:bg-green-600 rounded text-sm font-medium transition-colors"
                   >
                     View Attendees
                   </button>
@@ -191,7 +191,7 @@ const ManageEvents = () => {
 
       {showModal && selectedEvent && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden border border-line">
+          <div className="bg-slate-50 dark:bg-gray-900 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden border border-line">
             <div className="p-6 border-b border-line flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-bold">{selectedEvent.title}</h3>
