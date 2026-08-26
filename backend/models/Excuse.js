@@ -6,6 +6,7 @@ const excuseSchema = new mongoose.Schema({
   event: { type: mongoose.Schema.Types.ObjectId, ref: "Event", required: true },
   excuseText: { type: String, required: true },
   attachmentUrl: { type: String },
+  type: { type: String, enum: ["absence", "advance"], default: "absence" },
   status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
   responseNote: { type: String },
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

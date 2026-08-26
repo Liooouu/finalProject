@@ -135,9 +135,20 @@ const ManageExcuses = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${status.bg} ${status.text}`}>
-                      {excuse.status}
-                    </span>
+                    <div className="flex items-center justify-end gap-2">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          excuse.type === "advance"
+                            ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                            : "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                        }`}
+                      >
+                        {excuse.type === "advance" ? "Advance" : "Absence"}
+                      </span>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${status.bg} ${status.text}`}>
+                        {excuse.status}
+                      </span>
+                    </div>
                     <p className="text-xs text-on-muted mt-1">
                       {new Date(excuse.createdAt).toLocaleDateString()}
                     </p>
@@ -146,7 +157,11 @@ const ManageExcuses = () => {
 
                 {/* Event Info */}
                 <div className="p-4 bg-card rounded-xl mb-4">
-                  <p className="text-sm text-on-dim mb-1">Event:</p>
+                  <p className="text-sm text-on-dim mb-1">
+                    Event:{excuse.type === "advance" && (
+                      <span className="dark:text-blue-400 text-blue-600 font-medium"> filed in advance</span>
+                    )}
+                  </p>
                   <p className="font-medium text-on">{excuse.event?.title || "Unknown Event"}</p>
                   <p className="text-sm text-on-muted">
                     {excuse.event?.date ? new Date(excuse.event.date).toLocaleDateString() : ""}

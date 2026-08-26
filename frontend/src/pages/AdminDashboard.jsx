@@ -30,7 +30,7 @@ const AdminDashboard = () => {
           <Route path="events" element={<ManageEvents />} />
           <Route path="users" element={<ManageUsers />} />
           <Route path="reports" element={<AttendanceReport />} />
-          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="notifications" element={<NotificationsPage role="admin" />} />
           <Route path="profile" element={<ProfileSettings />} />
           <Route path="*" element={<Navigate to="" replace />} />
         </Routes>

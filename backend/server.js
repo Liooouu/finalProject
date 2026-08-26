@@ -67,6 +67,11 @@ connectDB()
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
+        const currentTime =
+          now.getHours().toString().padStart(2, "0") +
+          ":" +
+          now.getMinutes().toString().padStart(2, "0");
+
         // Find events from previous days (event day is over) that haven't been processed
         const events = await Event.find({
           date: { $lt: today },
@@ -109,6 +114,117 @@ connectDB()
 
           // Mark event as processed
           event.attendanceProcessed = true;
+          await event.save();
+        }
+
+        // ✅ EVENT DAY REMINDERS — for events happening today
+        const todayEnd = new Date(today);
+        todayEnd.setHours(23, 59, 59, 999);
+
+        const todaysEvents = await Event.find({
+          date: { $gte: today, $lte: todayEnd },
+          status: { $ne: "closed" },
+        });
+
+        for (const event of todaysEvents) {
+          let changed = false;
+
+          const allStudents = await User.find({ role: "student" }).select("_id");
+
+          const notifyNonAttendees = async (title, message, type) => {
+            const attendeeIds = new Set(
+              (
+                await Attendance.find({ event: event._id }).select("student")
+              ).map((a) => a.student.toString())
+            );
+            const missing = allStudents.filter(
+              (s) => !attendeeIds.has(s._id.toString())
+            );
+            if (missing.length === 0) return;
+            await Notification.insertMany(
+              missing.map((s) => ({
+                user: s._id,
+                type,
+                title,
+                message,
+                relatedEvent: event._id,
+              }))
+            );
+          };
+
+          // Attendance window just opened
+          if (!event.openNotified && currentTime >= event.attendanceStartTime) {
+            if (allStudents.length > 0) {
+              await Notification.insertMany(
+                allStudents.map((s) => ({
+                  user: s._id,
+                  type: "attendance",
+                  title: "Attendance Open",
+                  message: `Attendance is now open for "${event.title}". Mark your attendance before ${event.attendanceEndTime}.`,
+                  relatedEvent: event._id,
+                }))
+              );
+            }
+            event.openNotified = true;
+            changed = true;
+          }
+
+          // Closing soon (15 minutes before the window ends)
+          const [endH, endM] = event.attendanceEndTime.split(":").map(Number);
+          const cutoffTotal = Math.max(0, endH * 60 + endM - 15);
+          const closingSoonTime =
+            String(Math.floor(cutoffTotal / 60)).padStart(2, "0") +
+            ":" +
+            String(cutoffTotal % 60).padStart(2, "0");
+
+          if (!event.closingSoonNotified && currentTime >= closingSoonTime) {
+            await notifyNonAttendees(
+              "Attendance Closing Soon",
+              `The attendance window for "${event.title}" closes at ${event.attendanceEndTime}. Mark your attendance before you're marked absent!`,
+              "attendance"
+            );
+            event.closingSoonNotified = true;
+            changed = true;
+          }
+
+          // Window fully closed and student never checked in
+          if (!event.closedNotified && currentTime >= event.attendanceEndTime) {
+            await notifyNonAttendees(
+              "Attendance Missed",
+              `The attendance window for "${event.title}" has closed and you weren't marked as present. You may be marked absent for this event.`,
+              "penalty"
+            );
+            event.closedNotified = true;
+            changed = true;
+          }
+
+          if (changed) {
+            await event.save();
+          }
+        }
+
+        // ✅ UPCOMING EVENT REMINDER — 24 hours before the event starts
+        const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        const upcomingEvents = await Event.find({
+          date: { $gte: now, $lte: in24h },
+          status: { $ne: "closed" },
+          upcomingNotified: false,
+        });
+
+        for (const event of upcomingEvents) {
+          const students = await User.find({ role: "student" }).select("_id");
+          if (students.length > 0) {
+            await Notification.insertMany(
+              students.map((s) => ({
+                user: s._id,
+                type: "info",
+                title: "Upcoming Event Reminder",
+                message: `Don't forget: "${event.title}" is happening on ${new Date(event.date).toLocaleDateString()} at ${event.time}${event.location ? ` (${event.location})` : ""}.`,
+                relatedEvent: event._id,
+              }))
+            );
+          }
+          event.upcomingNotified = true;
           await event.save();
         }
       } catch (err) {

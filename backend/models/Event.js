@@ -11,6 +11,10 @@ const eventSchema = new mongoose.Schema({
   attendanceStartTime: { type: String, required: true },
   attendanceEndTime: { type: String, required: true },
   attendanceProcessed: { type: Boolean, default: false },
+  openNotified: { type: Boolean, default: false },
+  closingSoonNotified: { type: Boolean, default: false },
+  closedNotified: { type: Boolean, default: false },
+  upcomingNotified: { type: Boolean, default: false },
   organizer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 }, { timestamps: true });
 

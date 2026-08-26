@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import { setAuth } from "../../utils/auth";
 import { FaUser, FaEnvelope, FaEye, FaEyeSlash } from "react-icons/fa";
 
 const AuthPage = () => {
@@ -36,7 +37,7 @@ const AuthPage = () => {
         const token = res.data.token;
         const userRole = res.data.role;
 
-        localStorage.setItem("token", token);
+        setAuth(token, userRole);
         navigate(`/${userRole}/dashboard`);
       } else {
         await api.post("/auth/register", {

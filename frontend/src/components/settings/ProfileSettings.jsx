@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
-import { getUserFromToken } from "../../utils/auth";
-import { useNavigate } from "react-router-dom";
+import { getUserFromToken, logout } from "../../utils/auth";
 import { FaUser, FaLock, FaImage, FaCheck, FaTimes, FaDoorOpen } from "react-icons/fa";
 
 const ProfileSettings = () => {
-  const navigate = useNavigate();
   const user = getUserFromToken();
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({});
@@ -102,8 +100,7 @@ const ProfileSettings = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/auth");
+    logout();
   };
 
   if (loading) {

@@ -31,6 +31,21 @@ router.post("/", protect, async (req, res) => {
     });
 
     await event.save();
+
+    // Announce the new event to all students and admins
+    const recipients = await User.find({ role: { $in: ["student", "admin"] } }).select("_id");
+    if (recipients.length > 0) {
+      await Notification.insertMany(
+        recipients.map((u) => ({
+          user: u._id,
+          type: "info",
+          title: "New Event Posted",
+          message: `A new event "${event.title}" has been posted for ${new Date(event.date).toLocaleDateString()} at ${event.time}.`,
+          relatedEvent: event._id,
+        }))
+      );
+    }
+
     res.status(201).json(event);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -82,6 +97,22 @@ router.patch("/:id/status", protect, async (req, res) => {
 
     if (status === "closed" && oldEvent.status !== "closed") {
       // Absent marking handled by background job at end of day — not on close
+    }
+
+    // Announce when an event goes live
+    if (status === "live" && oldEvent.status !== "live") {
+      const recipients = await User.find({ role: { $in: ["student", "admin"] } }).select("_id");
+      if (recipients.length > 0) {
+        await Notification.insertMany(
+          recipients.map((u) => ({
+            user: u._id,
+            type: "info",
+            title: "Event Live Now",
+            message: `"${event.title}" is now live! Attendance closes at ${event.attendanceEndTime}.`,
+            relatedEvent: event._id,
+          }))
+        );
+      }
     }
 
     res.json(event);
@@ -140,7 +171,7 @@ router.post("/:id/attendance", protect, async (req, res) => {
       student: req.user._id,
     });
 
-    if (attendance) {
+    if (attendance && attendance.status !== "excused") {
       return res.status(400).json({ error: "Attendance already marked" });
     }
 
@@ -156,28 +187,43 @@ router.post("/:id/attendance", protect, async (req, res) => {
       communityServiceHours = 4;
     }
 
-    attendance = new Attendance({
-      event: req.params.id,
-      student: req.user._id,
-      attendedAt: now,
-      status,
-      communityServiceHours,
-    });
+    const replacedExcuse = attendance && attendance.status === "excused";
 
-    await attendance.save();
+    if (replacedExcuse) {
+      // Student had an approved advance excuse but attended anyway
+      attendance.attendedAt = now;
+      attendance.status = status;
+      attendance.communityServiceHours = communityServiceHours;
+      await attendance.save();
+    } else {
+      attendance = new Attendance({
+        event: req.params.id,
+        student: req.user._id,
+        attendedAt: now,
+        status,
+        communityServiceHours,
+      });
+
+      await attendance.save();
+    }
 
     if (status === "late") {
       const notification = new Notification({
         user: req.user._id,
         type: "attendance",
         title: "Marked Late",
-        message: `You were late for event "${event.title}". 4 community service hours have been added to your record.`,
+        message: `You were late for event "${event.title}".${replacedExcuse ? " Your approved excuse was replaced since you attended." : ""} 4 community service hours have been added to your record.`,
         relatedEvent: event._id,
       });
       await notification.save();
     }
 
-    res.status(201).json(attendance);
+    res.status(201).json({
+      ...attendance.toObject(),
+      message: replacedExcuse
+        ? `Your approved excuse was replaced — you were marked ${status}.`
+        : undefined,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -212,7 +258,7 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
       student: studentId,
     });
 
-    if (attendance) {
+    if (attendance && attendance.status !== "excused") {
       return res.status(400).json({ error: `${student.name} has already marked attendance` });
     }
 
@@ -230,15 +276,25 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
       communityServiceHours = 4;
     }
 
-    attendance = new Attendance({
-      event: req.params.id,
-      student: studentId,
-      attendedAt: now,
-      status,
-      communityServiceHours,
-    });
+    const replacedExcuse = attendance && attendance.status === "excused";
 
-    await attendance.save();
+    if (replacedExcuse) {
+      // Student had an approved advance excuse but attended anyway
+      attendance.attendedAt = now;
+      attendance.status = status;
+      attendance.communityServiceHours = communityServiceHours;
+      await attendance.save();
+    } else {
+      attendance = new Attendance({
+        event: req.params.id,
+        student: studentId,
+        attendedAt: now,
+        status,
+        communityServiceHours,
+      });
+
+      await attendance.save();
+    }
 
     if (status === "late") {
       const notification = new Notification({
@@ -257,7 +313,7 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
     res.status(201).json({
       success: true,
       attendance: populatedAttendance,
-      message: `${student.name} marked as ${status}`,
+      message: `${student.name} marked as ${status}${replacedExcuse ? " (approved excuse replaced)" : ""}`,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -445,6 +501,20 @@ router.put("/:id", protect, async (req, res) => {
     ).populate("organizer", "name email");
 
     if (!event) return res.status(404).json({ error: "Event not found" });
+
+    // Notify students and admins that event details changed
+    const recipients = await User.find({ role: { $in: ["student", "admin"] } }).select("_id");
+    if (recipients.length > 0) {
+      await Notification.insertMany(
+        recipients.map((u) => ({
+          user: u._id,
+          type: "info",
+          title: "Event Updated",
+          message: `Details of "${event.title}" were updated. Check the latest schedule.`,
+          relatedEvent: event._id,
+        }))
+      );
+    }
 
     res.json(event);
   } catch (err) {

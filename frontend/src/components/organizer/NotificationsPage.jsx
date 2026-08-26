@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { FaEdit, FaCalendarAlt, FaCheck, FaBell, FaBolt, FaInfo, FaTrash, FaExclamationTriangle } from "react-icons/fa";
+import { FaEdit, FaCalendarAlt, FaCheck, FaBell, FaBolt, FaInfo, FaTrash, FaExclamationTriangle, FaUsers } from "react-icons/fa";
 
-const NotificationsPage = () => {
+const NotificationsPage = ({ role = "organizer" }) => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -176,20 +176,41 @@ const NotificationsPage = () => {
           <span><FaBolt /></span> Quick Actions
         </h3>
         <div className="grid md:grid-cols-2 gap-4">
-          <button
-            onClick={() => navigate("/organizer/dashboard/excuses")}
-            className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line-dim hover:border-yellow-500/30 transition-all duration-200 text-left group"
-          >
-            <p className="font-medium text-on group-hover:text-yellow-400 transition-colors flex items-center gap-2"><FaEdit /> Manage Excuses</p>
-            <p className="text-sm text-on-dim mt-1">Review student excuse letters</p>
-          </button>
-          <button
-            onClick={() => navigate("/organizer/dashboard/events")}
-            className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line-dim hover:border-green-500/30 transition-all duration-200 text-left group"
-          >
-            <p className="font-medium text-on group-hover:text-green-400 transition-colors flex items-center gap-2"><FaCalendarAlt /> Manage Events</p>
-            <p className="text-sm text-on-dim mt-1">View and edit your events</p>
-          </button>
+          {role === "admin" ? (
+            <>
+              <button
+                onClick={() => navigate("/admin/dashboard/events")}
+                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line-dim hover:border-green-500/30 transition-all duration-200 text-left group"
+              >
+                <p className="font-medium text-on group-hover:text-green-400 transition-colors flex items-center gap-2"><FaCalendarAlt /> Manage Events</p>
+                <p className="text-sm text-on-dim mt-1">View and manage all events</p>
+              </button>
+              <button
+                onClick={() => navigate("/admin/dashboard/users")}
+                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line-dim hover:border-yellow-500/30 transition-all duration-200 text-left group"
+              >
+                <p className="font-medium text-on group-hover:text-yellow-400 transition-colors flex items-center gap-2"><FaUsers /> Manage Users</p>
+                <p className="text-sm text-on-dim mt-1">Review students and staff</p>
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => navigate("/organizer/dashboard/excuses")}
+                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line-dim hover:border-yellow-500/30 transition-all duration-200 text-left group"
+              >
+                <p className="font-medium text-on group-hover:text-yellow-400 transition-colors flex items-center gap-2"><FaEdit /> Manage Excuses</p>
+                <p className="text-sm text-on-dim mt-1">Review student excuse letters</p>
+              </button>
+              <button
+                onClick={() => navigate("/organizer/dashboard/events")}
+                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line-dim hover:border-green-500/30 transition-all duration-200 text-left group"
+              >
+                <p className="font-medium text-on group-hover:text-green-400 transition-colors flex items-center gap-2"><FaCalendarAlt /> Manage Events</p>
+                <p className="text-sm text-on-dim mt-1">View and edit your events</p>
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

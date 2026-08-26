@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
-import { getUserFromToken } from "../../utils/auth";
-import { useNavigate } from "react-router-dom";
+import { getUserFromToken, logout } from "../../utils/auth";
 
 const AccountSettings = () => {
-  const navigate = useNavigate();
   const [user, setUser] = useState({ name: "", email: "", role: "" });
   const [form, setForm] = useState({ name: "", email: "" });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "" });
@@ -41,8 +39,7 @@ const AccountSettings = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/auth");
+    logout();
   };
 
   return (

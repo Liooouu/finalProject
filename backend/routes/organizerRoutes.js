@@ -74,20 +74,39 @@ router.patch("/excuses/:id", protect, async (req, res) => {
     }
 
     if (status === "approved") {
-      const attendance = await Attendance.findOneAndUpdate(
-        { event: excuse.event._id, student: excuse.student._id },
-        { status: "excused", communityServiceHours: 0 },
-        { new: true }
-      );
+      if (excuse.type === "advance") {
+        // Pre-create the attendance as excused BEFORE the event happens,
+        // so the auto-absent background job never penalizes this student.
+        const attendance = await Attendance.findOneAndUpdate(
+          { event: excuse.event._id, student: excuse.student._id },
+          { status: "excused", communityServiceHours: 0 },
+          { new: true, upsert: true, setDefaultsOnInsert: true }
+        );
 
-      const notification = new Notification({
-        user: excuse.student._id,
-        type: "excuse",
-        title: "Excuse Approved",
-        message: `Your excuse for "${excuse.event.title}" was approved. Any community service hours for this event have been removed.`,
-        relatedEvent: excuse.event._id,
-      });
-      await notification.save();
+        const notification = new Notification({
+          user: excuse.student._id,
+          type: "excuse",
+          title: "Advance Excuse Approved",
+          message: `Your advance excuse for "${excuse.event.title}" was approved. You won't receive community service hours if you miss this event.`,
+          relatedEvent: excuse.event._id,
+        });
+        await notification.save();
+      } else {
+        const attendance = await Attendance.findOneAndUpdate(
+          { event: excuse.event._id, student: excuse.student._id },
+          { status: "excused", communityServiceHours: 0 },
+          { new: true }
+        );
+
+        const notification = new Notification({
+          user: excuse.student._id,
+          type: "excuse",
+          title: "Excuse Approved",
+          message: `Your excuse for "${excuse.event.title}" was approved. Any community service hours for this event have been removed.`,
+          relatedEvent: excuse.event._id,
+        });
+        await notification.save();
+      }
     } else if (status === "rejected") {
       const notification = new Notification({
         user: excuse.student._id,

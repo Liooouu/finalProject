@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FaHome, FaUser, FaUsers, FaCalendarAlt, FaChartBar, FaEdit, FaClock, FaSignOutAlt, FaIdBadge, FaSun, FaMoon, FaTimes } from "react-icons/fa";
-import { getUserFromToken } from "../utils/auth";
+import { FaHome, FaUser, FaUsers, FaCalendarAlt, FaChartBar, FaEdit, FaClock, FaSignOutAlt, FaIdBadge, FaSun, FaMoon, FaTimes, FaBell } from "react-icons/fa";
+import { getUserFromToken, logout } from "../utils/auth";
+import NotificationBell from "./NotificationBell";
 import { useTheme } from "../context/ThemeContext";
 
 const Sidebar = ({ role, isOpen, onClose }) => {
@@ -38,17 +39,20 @@ const Sidebar = ({ role, isOpen, onClose }) => {
       { name: "Manage Events", path: "/admin/dashboard/events", icon: <FaCalendarAlt /> },
       { name: "Manage Users", path: "/admin/dashboard/users", icon: <FaUsers /> },
       { name: "Attendance Report", path: "/admin/dashboard/reports", icon: <FaChartBar /> },
+      { name: "Notifications", path: "/admin/dashboard/notifications", icon: <FaBell /> },
     ],
     organizer: [
       { name: "Dashboard", path: "/organizer/dashboard", icon: <FaHome /> },
       { name: "Manage Events", path: "/organizer/dashboard/events", icon: <FaCalendarAlt /> },
       { name: "Manage Excuses", path: "/organizer/dashboard/excuses", icon: <FaEdit /> },
+      { name: "Notifications", path: "/organizer/dashboard/notifications", icon: <FaBell /> },
     ],
     student: [
       { name: "Dashboard", path: "/student/dashboard", icon: <FaHome /> },
       { name: "Attend Events", path: "/student/dashboard/events", icon: <FaCalendarAlt /> },
       { name: "Community Service", path: "/student/dashboard/community-service", icon: <FaClock /> },
       { name: "Submit Excuse", path: "/student/dashboard/submit-excuse", icon: <FaEdit /> },
+      { name: "Notifications", path: "/student/dashboard/notifications", icon: <FaBell /> },
     ],
   };
 
@@ -93,6 +97,7 @@ const Sidebar = ({ role, isOpen, onClose }) => {
             <p className="text-xs text-gray-500 mt-1 capitalize">{role} Portal</p>
           </div>
           <div className="flex items-center gap-2">
+            <NotificationBell role={role} />
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg bg-card hover:bg-card-alt transition-colors text-on-dim"
@@ -158,8 +163,7 @@ const Sidebar = ({ role, isOpen, onClose }) => {
             </button>
             <button
               onClick={() => {
-                localStorage.removeItem("token");
-                navigate("/auth");
+                logout();
               }}
               className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:bg-white/5 hover:text-red-400 transition-colors text-sm border-t border-white/5"
             >

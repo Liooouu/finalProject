@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { FaCalendarAlt, FaExclamationTriangle, FaCheck, FaBell, FaBolt, FaInfo, FaTrash } from "react-icons/fa";
+import { FaCalendarAlt, FaExclamationTriangle, FaCheck, FaBell, FaBolt, FaInfo, FaTrash, FaEdit } from "react-icons/fa";
 import { FaChartBar } from "react-icons/fa6";
 
 const NotificationsPage = () => {

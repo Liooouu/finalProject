@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { FaBook, FaCheck, FaFileAlt } from "react-icons/fa";
+import { FaBook, FaCheck, FaFileAlt, FaCalendarTimes, FaCalendarPlus } from "react-icons/fa";
 
 const SubmitExcuse = () => {
   const navigate = useNavigate();
+  const [mode, setMode] = useState("absence");
   const [absentEvents, setAbsentEvents] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState("");
   const [excuseText, setExcuseText] = useState("");
   const [file, setFile] = useState(null);
@@ -14,18 +16,49 @@ const SubmitExcuse = () => {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const fetchAbsentEvents = async () => {
+    const fetchData = async () => {
       try {
-        const res = await api.get("/student/absent-events");
-        setAbsentEvents(res.data);
+        const [absentRes, eventsRes, myAttendanceRes, excusesRes] = await Promise.all([
+          api.get("/student/absent-events"),
+          api.get("/events"),
+          api.get("/events/my-attendance"),
+          api.get("/student/excuses"),
+        ]);
+
+        // Events that already have a pending/approved excuse can't be re-filed
+        const excusedEventIds = new Set(
+          excusesRes.data
+            .filter((e) => e.status === "pending" || e.status === "approved")
+            .map((e) => e.event?._id || e.event)
+        );
+
+        setAbsentEvents(absentRes.data.filter((r) => !excusedEventIds.has(r.event._id)));
+
+        const attendedEventIds = new Set(
+          myAttendanceRes.data.map((a) => a.event?._id || a.event)
+        );
+        const now = new Date();
+        const upcoming = eventsRes.data.filter((e) => {
+          if (attendedEventIds.has(e._id) || excusedEventIds.has(e._id)) return false;
+          const dayEnd = new Date(e.date);
+          dayEnd.setHours(23, 59, 59, 999);
+          return dayEnd >= now || e.status === "live";
+        });
+        setUpcomingEvents(upcoming);
       } catch (err) {
         console.error(err.response?.data || err.message);
       } finally {
         setLoading(false);
       }
     };
-    fetchAbsentEvents();
+    fetchData();
   }, []);
+
+  const switchMode = (newMode) => {
+    setMode(newMode);
+    setSelectedEvent("");
+    setMessage("");
+  };
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -56,6 +89,7 @@ const SubmitExcuse = () => {
       const formData = new FormData();
       formData.append("eventId", selectedEvent);
       formData.append("excuseText", excuseText);
+      formData.append("type", mode);
       if (file) {
         formData.append("attachment", file);
       }
@@ -74,6 +108,9 @@ const SubmitExcuse = () => {
       setSubmitting(false);
     }
   };
+
+  const isAdvance = mode === "advance";
+  const eventOptions = isAdvance ? upcomingEvents : absentEvents;
 
   if (loading) {
     return (
@@ -94,7 +131,7 @@ const SubmitExcuse = () => {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-on">Submit Excuse Letter</h1>
-        <p className="text-on-dim mt-1">Provide a valid reason for your absence</p>
+        <p className="text-on-dim mt-1">File an excuse for a missed event or ahead of time for an upcoming one</p>
       </div>
 
       {/* Guidelines */}
@@ -102,24 +139,45 @@ const SubmitExcuse = () => {
         <h3 className="text-lg font-semibold text-on mb-3 flex items-center gap-2">
           <span><FaBook /></span> Important Guidelines
         </h3>
-        <ul className="text-sm text-on-dim space-y-2">
-          <li className="flex items-start gap-2">
-            <span className="dark:text-blue-400 text-blue-600">•</span>
-            Submit your excuse within 24 hours after the event
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="dark:text-blue-400 text-blue-600">•</span>
-            Attach supporting documents (medical certificate, etc.) if available
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="dark:text-blue-400 text-blue-600">•</span>
-            Provide a clear and detailed explanation
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="dark:text-blue-400 text-blue-600">•</span>
-            Your excuse will be reviewed by the event organizer
-          </li>
-        </ul>
+        {isAdvance ? (
+          <ul className="text-sm text-on-dim space-y-2">
+            <li className="flex items-start gap-2">
+              <span className="dark:text-blue-400 text-blue-600">•</span>
+              File before the event happens if you know you can't attend
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="dark:text-blue-400 text-blue-600">•</span>
+              Once approved, you won't receive community service hours for missing it
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="dark:text-blue-400 text-blue-600">•</span>
+              If you attend anyway, your attendance will simply be recorded as usual
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="dark:text-blue-400 text-blue-600">•</span>
+              Your excuse will be reviewed by the event organizer
+            </li>
+          </ul>
+        ) : (
+          <ul className="text-sm text-on-dim space-y-2">
+            <li className="flex items-start gap-2">
+              <span className="dark:text-blue-400 text-blue-600">•</span>
+              Submit your excuse within 24 hours after the event
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="dark:text-blue-400 text-blue-600">•</span>
+              Attach supporting documents (medical certificate, etc.) if available
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="dark:text-blue-400 text-blue-600">•</span>
+              Provide a clear and detailed explanation
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="dark:text-blue-400 text-blue-600">•</span>
+              Approved excuses remove your community service hours for that event
+            </li>
+          </ul>
+        )}
       </div>
 
       {/* Message */}
@@ -131,9 +189,40 @@ const SubmitExcuse = () => {
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6 space-y-6">
+        {/* Mode Toggle */}
+        <div>
+          <label className="block text-sm font-semibold text-on mb-2">Excuse Type</label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => switchMode("absence")}
+              className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl border font-medium text-sm transition-all ${
+                mode === "absence"
+                  ? "bg-red-500/20 border-red-500/40 dark:text-red-400 text-red-600"
+                  : "bg-card border-line text-on-dim hover:text-on"
+              }`}
+            >
+              <FaCalendarTimes /> Missed Event
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode("advance")}
+              className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl border font-medium text-sm transition-all ${
+                mode === "advance"
+                  ? "bg-blue-500/20 border-blue-500/40 dark:text-blue-400 text-blue-600"
+                  : "bg-card border-line text-on-dim hover:text-on"
+              }`}
+            >
+              <FaCalendarPlus /> Upcoming Event
+            </button>
+          </div>
+        </div>
+
         {/* Event Selection */}
         <div>
-          <label className="block text-sm font-semibold text-on mb-2">Select Event (Absences Only)</label>
+          <label className="block text-sm font-semibold text-on mb-2">
+            Select Event {isAdvance ? "(Upcoming)" : "(Absences Only)"}
+          </label>
           <select
             value={selectedEvent}
             onChange={(e) => setSelectedEvent(e.target.value)}
@@ -141,19 +230,26 @@ const SubmitExcuse = () => {
             required
           >
             <option value="">-- Select an event --</option>
-            {absentEvents.length === 0 ? (
-              <option value="" disabled>No absent events found</option>
+            {eventOptions.length === 0 ? (
+              <option value="" disabled>
+                {isAdvance ? "No upcoming events found" : "No absent events found"}
+              </option>
             ) : (
-              absentEvents.map((record) => (
-                <option key={record._id} value={record.event._id}>
-                  {record.event.title} - {new Date(record.event.date).toLocaleDateString()}
-                </option>
-              ))
+              eventOptions.map((item) => {
+                const event = isAdvance ? item : item.event;
+                return (
+                  <option key={event._id} value={event._id}>
+                    {event.title} - {new Date(event.date).toLocaleDateString()}
+                  </option>
+                );
+              })
             )}
           </select>
-          {absentEvents.length === 0 && (
+          {eventOptions.length === 0 && (
             <p className="text-sm text-on-dim mt-2">
-              You don't have any absent events to excuse.
+              {isAdvance
+                ? "You have no upcoming events to file an advance excuse for."
+                : "You don't have any absent events to excuse."}
             </p>
           )}
         </div>
@@ -165,7 +261,11 @@ const SubmitExcuse = () => {
             value={excuseText}
             onChange={(e) => setExcuseText(e.target.value)}
             rows={5}
-            placeholder="Please provide a detailed explanation for your absence..."
+            placeholder={
+              isAdvance
+                ? "Explain why you won't be able to attend this event..."
+                : "Please provide a detailed explanation for your absence..."
+            }
             className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
             required
           />
@@ -204,7 +304,7 @@ const SubmitExcuse = () => {
         <div className="flex flex-col sm:flex-row gap-4">
           <button
             type="submit"
-            disabled={submitting || absentEvents.length === 0}
+            disabled={submitting || eventOptions.length === 0}
             className="flex-1 bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-green-600/30 transition-all duration-200 flex items-center justify-center gap-2"
           >
             {submitting ? (
