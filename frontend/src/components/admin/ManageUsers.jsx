@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
+import StatusBadge from "../shared/StatusBadge";
 
 const ManageUsers = () => {
   const [users, setUsers] = useState([]);
@@ -265,19 +266,7 @@ const ManageUsers = () => {
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            record.status === "present"
-                              ? "dark:bg-green-900/50 bg-green-100 dark:text-green-400 text-green-700"
-                              : record.status === "absent"
-                              ? "dark:bg-red-900/50 bg-red-100 dark:text-red-400 text-red-700"
-                              : record.status === "excused"
-                              ? "dark:bg-blue-900/50 bg-blue-100 dark:text-blue-400 text-blue-700"
-                              : "dark:bg-yellow-900/50 bg-yellow-100 dark:text-yellow-400 text-yellow-700"
-                          }`}
-                        >
-                          {record.status}
-                        </span>
+                        <StatusBadge status={record.status} />
                         <div className="flex items-center gap-1.5">
                           <input
                             type="number"

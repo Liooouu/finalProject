@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { formatTime12Hour } from "../../utils/helpers";
@@ -22,19 +22,17 @@ const OrgManageEvents = () => {
     attendanceEndTime: "",
   });
 
-  const fetchEvents = async () => {
-    try {
-      const endpoint = viewMode === "my" ? "/events/my-events" : "/events/all";
-      const res = await api.get(endpoint);
-      setEvents(res.data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-    }
-  };
+  const fetchEvents = useCallback(() => {
+    const endpoint = viewMode === "my" ? "/events/my-events" : "/events/all";
+    return api
+      .get(endpoint)
+      .then((res) => setEvents(res.data))
+      .catch((err) => console.error(err.response?.data || err.message));
+  }, [viewMode]);
 
   useEffect(() => {
     fetchEvents();
-  }, [viewMode]);
+  }, [fetchEvents]);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });

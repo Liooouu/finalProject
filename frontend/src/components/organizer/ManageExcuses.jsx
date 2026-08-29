@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import { FaEdit, FaUser, FaFileAlt, FaCheck, FaTimes } from "react-icons/fa";
+import StatusBadge from "../shared/StatusBadge";
+import EmptyState from "../shared/EmptyState";
+import Loading from "../shared/Loading";
 
 const ManageExcuses = () => {
   const [excuses, setExcuses] = useState([]);
@@ -56,24 +59,8 @@ const ManageExcuses = () => {
     }
   };
 
-  const statusConfig = {
-    pending: { bg: "bg-yellow-500/20", text: "text-yellow-400", border: "border-yellow-500/30" },
-    approved: { bg: "bg-green-500/20", text: "text-green-400", border: "border-green-500/30" },
-    rejected: { bg: "bg-red-500/20", text: "text-red-400", border: "border-red-500/30" },
-  };
-
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-3 text-on-dim">
-          <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <span>Loading excuses...</span>
-        </div>
-      </div>
-    );
+    return <Loading label="Loading excuses..." />;
   }
 
   return (
@@ -99,7 +86,7 @@ const ManageExcuses = () => {
             onClick={() => setFilter(status)}
             className={`px-5 py-2 rounded-lg font-medium transition-all duration-200 capitalize ${
               filter === status
-                ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
+                ? "bg-green-600 text-white shadow-lg shadow-green-600/30"
                 : "bg-card text-on-dim hover:bg-card-alt hover:text-on border border-line"
             }`}
           >
@@ -113,14 +100,12 @@ const ManageExcuses = () => {
 
       {/* Excuses List */}
       {filteredExcuses.length === 0 ? (
-        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-12 text-center">
-          <span className="text-5xl mb-4 block"><FaEdit /></span>
-          <p className="text-on-dim">No {filter} excuses found.</p>
+        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl">
+          <EmptyState icon={<FaEdit />} title={`No ${filter} excuses`} description="Excuse letters submitted by students will appear here." />
         </div>
       ) : (
         <div className="space-y-4">
           {filteredExcuses.map((excuse) => {
-            const status = statusConfig[excuse.status];
             return (
               <div key={excuse._id} className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
                 {/* Header */}
@@ -145,9 +130,7 @@ const ManageExcuses = () => {
                       >
                         {excuse.type === "advance" ? "Advance" : "Absence"}
                       </span>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${status.bg} ${status.text}`}>
-                        {excuse.status}
-                      </span>
+                      <StatusBadge status={excuse.status} />
                     </div>
                     <p className="text-xs text-on-muted mt-1">
                       {new Date(excuse.createdAt).toLocaleDateString()}

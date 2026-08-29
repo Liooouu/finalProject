@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import api from "../../api/axios";
 import { FaUserPlus, FaSearch, FaCheck, FaTimes, FaClock } from "react-icons/fa";
+import StatusBadge from "../shared/StatusBadge";
+import EmptyState from "../shared/EmptyState";
+import Loading from "../shared/Loading";
 
 const OrgManageAttendees = () => {
   const { id: eventId } = useParams();
@@ -90,32 +93,8 @@ const OrgManageAttendees = () => {
     }
   };
 
-  const getStatusBadge = (status) => {
-    const styles = {
-      present: "bg-green-500/20 text-green-400 border-green-500/30",
-      late: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-      absent: "bg-red-500/20 text-red-400 border-red-500/30",
-      excused: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    };
-    return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${styles[status] || styles.present}`}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </span>
-    );
-  };
-
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-3 text-on-dim">
-          <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <span>Loading...</span>
-        </div>
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
@@ -234,7 +213,7 @@ const OrgManageAttendees = () => {
         </h2>
 
         {attendees.length === 0 ? (
-          <p className="text-on-dim text-center py-8">No attendance records yet</p>
+          <EmptyState icon={<FaUserPlus />} title="No attendees yet" description="Students marked present, absent, or late for this event will appear here." />
         ) : (
           <div className="space-y-3">
             {attendees.map((attendance) => (
@@ -252,7 +231,7 @@ const OrgManageAttendees = () => {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    {getStatusBadge(attendance.status)}
+                    <StatusBadge status={attendance.status} />
                     <p className="text-on-dim text-sm mt-1">
                       {attendance.communityServiceHours} hrs CS
                     </p>

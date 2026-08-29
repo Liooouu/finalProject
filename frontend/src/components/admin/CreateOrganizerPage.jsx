@@ -50,7 +50,7 @@ const CreateOrganizerPage = () => {
 
     setLoading(true);
     try {
-      const res = await api.post("/admin/create-organizer", form);
+      await api.post("/admin/create-organizer", form);
       setSuccess({
         message: "Organizer created successfully!",
         email: form.email,

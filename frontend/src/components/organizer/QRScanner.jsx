@@ -50,7 +50,7 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
             await handleScan(qrData.studentId);
 
             html5QrCode.pause(true);
-          } catch (parseError) {
+          } catch {
             setError("Invalid QR code format");
           }
         },
@@ -58,7 +58,7 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
       );
 
       setIsScanning(true);
-    } catch (err) {
+    } catch {
       setError("Failed to start camera. Please allow camera access.");
     }
   };

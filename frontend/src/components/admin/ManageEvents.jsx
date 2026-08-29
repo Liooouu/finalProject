@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
+import { FaCalendarAlt } from "react-icons/fa";
+import EmptyState from "../shared/EmptyState";
+import StatusBadge from "../shared/StatusBadge";
 
 const ManageEvents = () => {
   const [events, setEvents] = useState([]);
@@ -85,15 +88,6 @@ const ManageEvents = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const getStatusBadge = (status) => {
-    const styles = {
-      upcoming: "dark:bg-blue-900/50 bg-blue-100 dark:text-blue-400 text-blue-700 dark:border-blue-700 border-blue-300",
-      live: "dark:bg-green-900/50 bg-green-100 dark:text-green-400 text-green-700 dark:border-green-700 border-green-300",
-      closed: "dark:bg-gray-900/50 bg-gray-100 dark:text-gray-400 text-gray-700 dark:border-gray-700 border-gray-300",
-    };
-    return `px-3 py-1 rounded-full text-xs font-medium border ${styles[status] || styles.closed}`;
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -120,9 +114,9 @@ const ManageEvents = () => {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-on-dim">Loading events...</div>
+        <div className="text-center py-12 text-on-dim"><FaCalendarAlt className="animate-spin inline-block" /> Loading events...</div>
       ) : filteredEvents.length === 0 ? (
-        <div className="text-center py-12 text-on-dim">No events found</div>
+        <EmptyState icon={<FaCalendarAlt />} title="No events found" description="Events created by organizers will appear here." />
       ) : (
         <div className="grid gap-4">
           {filteredEvents.map((event) => (
@@ -134,7 +128,7 @@ const ManageEvents = () => {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-lg font-semibold">{event.title}</h3>
-                    <span className={getStatusBadge(event.status)}>{event.status}</span>
+                    <StatusBadge status={event.status} />
                   </div>
                   <div className="flex flex-wrap gap-4 text-sm text-on-dim">
                     <span className="flex items-center gap-1">
@@ -201,7 +195,7 @@ const ManageEvents = () => {
                 </p>
               </div>
               <div className="flex gap-2">
-                <span className={getStatusBadge(selectedEvent.status)}>{selectedEvent.status}</span>
+                <StatusBadge status={selectedEvent.status} />
                 <button
                   onClick={() => setShowModal(false)}
                   className="p-2 dark:hover:bg-gray-800 hover:bg-gray-200 rounded"

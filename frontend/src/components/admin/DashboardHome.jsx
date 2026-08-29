@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import { Link } from "react-router-dom";
+import Loading from "../shared/Loading";
 
 const DashboardHome = () => {
   const [loading, setLoading] = useState(true);
@@ -70,11 +71,7 @@ const DashboardHome = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full"></div>
-      </div>
-    );
+    return <Loading />;
   }
 
   return (

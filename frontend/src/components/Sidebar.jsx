@@ -4,6 +4,7 @@ import { FaHome, FaUser, FaUsers, FaCalendarAlt, FaChartBar, FaEdit, FaClock, Fa
 import { getUserFromToken, logout } from "../utils/auth";
 import NotificationBell from "./NotificationBell";
 import { useTheme } from "../context/ThemeContext";
+import FoxMark from "./shared/FoxMark";
 
 const Sidebar = ({ role, isOpen, onClose }) => {
   const navigate = useNavigate();
@@ -89,13 +90,16 @@ const Sidebar = ({ role, isOpen, onClose }) => {
         md:static md:translate-x-0
         ${isOpen ? "translate-x-0" : "-translate-x-full"}
       `}>
-        <div className="mb-8 px-2 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">
-              Track<span className="text-red-400">ED</span>
-            </h2>
-            <p className="text-xs text-gray-500 mt-1 capitalize">{role} Portal</p>
-          </div>
+          <div className="mb-8 px-2 flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2.5 mb-1">
+                <FoxMark className="w-8 h-8" />
+                <h2 className="text-2xl font-bold tracking-tight">
+                  Track<span className="text-red-400">ED</span>
+                </h2>
+              </div>
+              <p className="text-xs text-gray-500 mt-1 capitalize pl-[2.625rem]">{role} Portal</p>
+            </div>
           <div className="flex items-center gap-2">
             <NotificationBell role={role} />
             <button

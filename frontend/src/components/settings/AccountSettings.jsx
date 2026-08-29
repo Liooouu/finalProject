@@ -1,20 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import api from "../../api/axios";
 import { getUserFromToken, logout } from "../../utils/auth";
 
 const AccountSettings = () => {
-  const [user, setUser] = useState({ name: "", email: "", role: "" });
-  const [form, setForm] = useState({ name: "", email: "" });
+  const [currentUser] = useState(() => getUserFromToken());
+  const [user, setUser] = useState(currentUser || { name: "", email: "", role: "" });
+  const [form, setForm] = useState({
+    name: (currentUser && currentUser.name) || "",
+    email: (currentUser && currentUser.email) || "",
+  });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "" });
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    const currentUser = getUserFromToken();
-    if (currentUser) {
-      setUser(currentUser);
-      setForm({ name: currentUser.name || "", email: currentUser.email || "" });
-    }
-  }, []);
 
   const handleUpdate = async (e) => {
     e.preventDefault();

@@ -28,9 +28,67 @@
   --on: #ffffff;
   --on-dim: #9ca3af;
   --on-muted: #6b7280;
-  --card-bg: rgba(255, 255, 255, 0.05);
-  --card-alt-bg: rgba(255, 255, 255, 0.1);
+  --card-bg: rgba(35, 24, 27, 0.92);
+  --card-alt-bg: rgba(48, 33, 37, 0.92);
   --surface-bg: #0a0a0f;
-  --line-color: rgba(255, 255, 255, 0.1);
-  --line-dim-color: rgba(255, 255, 255, 0.05);
+  --line-color: rgba(255, 255, 255, 0.12);
+  --line-dim-color: rgba(255, 255, 255, 0.06);
+}
+
+::placeholder,
+input::placeholder,
+textarea::placeholder {
+  color: var(--on-dim);
+  opacity: 1;
+}
+
+/* ===== Starfield animations ===== */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 1; }
+}
+@keyframes meteor-shoot {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(-20deg);
+    opacity: 0;
+  }
+  3% { opacity: 1; }
+  25% {
+    transform: translate3d(-42vw, 15vh, 0) rotate(-20deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translate3d(-42vw, 15vh, 0) rotate(-20deg);
+    opacity: 0;
+  }
+}
+.star-dot {
+  position: absolute;
+  border-radius: 9999px;
+  animation-name: twinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+.meteor {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  animation-name: meteor-shoot;
+  animation-timing-function: cubic-bezier(0.2, 0, 0.6, 1);
+  animation-fill-mode: forwards;
+  animation-iteration-count: infinite;
+  pointer-events: none;
+}
+.meteor::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  width: 110px;
+  height: 2px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, currentColor, transparent);
 }
