@@ -13,7 +13,7 @@ router.post("/", protect, async (req, res) => {
       return res.status(403).json({ error: "Only organizers and admins can create events" });
     }
 
-    const { title, description, date, time, location, attendanceStartTime, attendanceEndTime } = req.body;
+    const { title, description, date, time, location, mapQuery, attendanceStartTime, attendanceEndTime } = req.body;
 
     if (!attendanceStartTime || !attendanceEndTime) {
       return res.status(400).json({ error: "Attendance window (start and end time) is required" });
@@ -25,6 +25,7 @@ router.post("/", protect, async (req, res) => {
       date,
       time,
       location,
+      mapQuery,
       attendanceStartTime,
       attendanceEndTime,
       organizer: req.user._id,
@@ -493,10 +494,10 @@ router.put("/:id", protect, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const { title, description, date, time, location, status, attendanceStartTime, attendanceEndTime } = req.body;
+    const { title, description, date, time, location, mapQuery, status, attendanceStartTime, attendanceEndTime } = req.body;
     const event = await Event.findByIdAndUpdate(
       req.params.id,
-      { title, description, date, time, location, status, attendanceStartTime, attendanceEndTime },
+      { title, description, date, time, location, mapQuery, status, attendanceStartTime, attendanceEndTime },
       { new: true }
     ).populate("organizer", "name email");
 

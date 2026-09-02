@@ -4,6 +4,8 @@ import { FaEdit, FaUser, FaFileAlt, FaCheck, FaTimes } from "react-icons/fa";
 import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
+import { usePageMeta } from "../../context/PageMetaContext";
+import Button from "../ui/Button";
 
 const ManageExcuses = () => {
   const [excuses, setExcuses] = useState([]);
@@ -12,6 +14,8 @@ const ManageExcuses = () => {
   const [selectedExcuse, setSelectedExcuse] = useState(null);
   const [responseNote, setResponseNote] = useState("");
   const [message, setMessage] = useState("");
+
+  usePageMeta("Manage Excuses", "Review and manage student excuse letters.");
 
   useEffect(() => {
     const fetchExcuses = async () => {
@@ -65,15 +69,9 @@ const ManageExcuses = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-on">Manage Excuses</h1>
-        <p className="text-on-dim mt-1">Review and manage student excuse letters</p>
-      </div>
-
       {/* Message */}
       {message && (
-        <div className={`p-4 rounded-xl ${message.includes("approved") ? "bg-green-500/20 border border-green-500/30 text-green-400" : "bg-red-500/20 border border-red-500/30 text-red-400"}`}>
+        <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${message.includes("approved") ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"}`}>
           {message}
         </div>
       )}
@@ -84,14 +82,14 @@ const ManageExcuses = () => {
           <button
             key={status}
             onClick={() => setFilter(status)}
-            className={`px-5 py-2 rounded-lg font-medium transition-all duration-200 capitalize ${
+            className={`rounded-lg px-4 py-1.5 text-sm font-medium capitalize transition-colors ${
               filter === status
-                ? "bg-green-600 text-white shadow-lg shadow-green-600/30"
+                ? "bg-indigo-600 text-white shadow-sm"
                 : "bg-card text-on-dim hover:bg-card-alt hover:text-on border border-line"
             }`}
           >
             {status}
-            <span className="ml-2 text-sm opacity-75">
+            <span className="ml-2 text-xs opacity-75">
               ({excuses.filter(e => e.status === status).length})
             </span>
           </button>
@@ -100,19 +98,19 @@ const ManageExcuses = () => {
 
       {/* Excuses List */}
       {filteredExcuses.length === 0 ? (
-        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl">
+        <div className="rounded-xl border border-line bg-card">
           <EmptyState icon={<FaEdit />} title={`No ${filter} excuses`} description="Excuse letters submitted by students will appear here." />
         </div>
       ) : (
         <div className="space-y-4">
           {filteredExcuses.map((excuse) => {
             return (
-              <div key={excuse._id} className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
+              <div key={excuse._id} className="rounded-xl border border-line bg-card p-6">
                 {/* Header */}
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-red-500/20 rounded-xl">
-                      <span className="text-2xl"><FaUser /></span>
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
+                      <FaUser className="text-lg" />
                     </div>
                     <div>
                       <h3 className="text-lg font-bold text-on">{excuse.student?.name || "Unknown Student"}</h3>
@@ -187,7 +185,7 @@ const ManageExcuses = () => {
                   <div className="mt-4 pt-4 border-t border-line">
                     <button
                       onClick={() => setSelectedExcuse(selectedExcuse === excuse._id ? null : excuse._id)}
-                      className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
+                      className="text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-500 dark:text-indigo-400"
                     >
                       {selectedExcuse === excuse._id ? "Cancel" : "Review Excuse"}
                     </button>
@@ -199,21 +197,23 @@ const ManageExcuses = () => {
                           onChange={(e) => setResponseNote(e.target.value)}
                           placeholder="Add a response note (optional)..."
                           rows={3}
-                          className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                          className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
                         />
                         <div className="flex gap-3">
-                          <button
+                          <Button
                             onClick={() => handleApprove(excuse._id)}
-                            className="flex-1 bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-green-600/30 transition-all duration-200"
+                            variant="primary"
+                            className="flex-1"
                           >
                             <FaCheck /> Approve
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             onClick={() => handleReject(excuse._id)}
-                            className="flex-1 bg-linear-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200"
+                            variant="danger"
+                            className="flex-1"
                           >
                             <FaTimes /> Reject
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     )}

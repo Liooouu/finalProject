@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import api from "../../api/axios";
 import { getUserFromToken, logout } from "../../utils/auth";
+import ConfirmDialog from "../ui/ConfirmDialog";
 
 const AccountSettings = () => {
   const [currentUser] = useState(() => getUserFromToken());
@@ -11,6 +12,7 @@ const AccountSettings = () => {
   });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "" });
   const [message, setMessage] = useState("");
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   const handleUpdate = async (e) => {
     e.preventDefault();
@@ -32,10 +34,6 @@ const AccountSettings = () => {
     } catch (err) {
       setMessage(err.response?.data?.error || "Password update failed");
     }
-  };
-
-  const handleLogout = () => {
-    logout();
   };
 
   return (
@@ -101,11 +99,22 @@ const AccountSettings = () => {
       </form>
 
       <button
-        onClick={handleLogout}
+        onClick={() => setConfirmLogout(true)}
         className="bg-red-500 text-white px-4 py-2 rounded w-full"
       >
         Log Out
       </button>
+
+      <ConfirmDialog
+        open={confirmLogout}
+        title="Log out of TrackED?"
+        message="You will need to sign back in to continue tracking attendance."
+        confirmLabel="Log Out"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={logout}
+        onCancel={() => setConfirmLogout(false)}
+      />
     </div>
   );
 };

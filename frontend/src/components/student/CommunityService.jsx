@@ -5,10 +5,13 @@ import { BsClipboardCheck } from "react-icons/bs";
 import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
+import { usePageMeta } from "../../context/PageMetaContext";
 
 const CommunityService = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  usePageMeta("Community Service", "Track your attendance and service hours.");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -30,12 +33,6 @@ const CommunityService = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-on">Community Service Records</h1>
-        <p className="text-on-dim mt-1">Track your attendance and community service hours</p>
-      </div>
-
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-linear-to-br from-yellow-500/10 to-yellow-500/5 backdrop-blur-sm border border-yellow-500/20 rounded-2xl p-6">
@@ -72,7 +69,7 @@ const CommunityService = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl overflow-hidden">
+      <div className="rounded-xl border border-line bg-card overflow-hidden">
         <div className="p-6 border-b border-line">
           <h2 className="text-lg font-semibold text-on">Detailed Breakdown</h2>
         </div>
@@ -126,7 +123,7 @@ const CommunityService = () => {
       </div>
 
       {/* Penalty Guide */}
-      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
+      <div className="rounded-xl border border-line bg-card p-6">
         <h3 className="text-lg font-semibold text-on mb-4 flex items-center gap-2">
           <span><FaBook /></span> Penalty Guide
         </h3>

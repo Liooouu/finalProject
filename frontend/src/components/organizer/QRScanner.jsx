@@ -115,10 +115,10 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
   };
 
   return (
-    <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border dark:border-white/10 border-line rounded-2xl p-6">
+    <div className="rounded-xl border border-line bg-card p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold dark:text-white text-on flex items-center gap-2">
-          <FaCamera className="text-red-400" />
+        <h3 className="text-lg font-semibold text-on flex items-center gap-2">
+          <FaCamera className="text-indigo-500" />
           Scan Student QR
         </h3>
         {isScanning && (
@@ -134,7 +134,7 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
       {!isScanning ? (
         <button
           onClick={startScanner}
-          className="w-full bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-blue-600/30 transition-all duration-200 flex items-center justify-center gap-2"
+          className="w-full rounded-lg bg-indigo-600 py-2.5 text-white shadow-sm transition-colors hover:bg-indigo-700 active:bg-indigo-800 inline-flex items-center justify-center gap-2 font-medium"
         >
           <FaCamera />
           Start Scanner

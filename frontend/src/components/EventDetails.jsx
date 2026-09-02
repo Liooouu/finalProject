@@ -8,6 +8,12 @@ import Loading from "./shared/Loading";
 import { BsClipboardCheck } from "react-icons/bs";
 import { QRCodeSVG } from "qrcode.react";
 import QRScanner from "./organizer/QRScanner";
+import { usePageMeta } from "../context/PageMetaContext";
+import Button from "./ui/Button";
+import StatusChip from "./ui/StatusChip";
+import EventMap from "./shared/EventMap";
+import MapPicker from "./shared/MapPicker";
+import ConfirmDialog from "./ui/ConfirmDialog";
 
 const EventDetails = () => {
   const { id } = useParams();
@@ -22,6 +28,11 @@ const EventDetails = () => {
   const [role, setRole] = useState(null);
   const [qrRefreshKey, setQrRefreshKey] = useState(0);
   const [studentId, setStudentId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  usePageMeta(event?.title || "Event", event?.date
+    ? new Date(event.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+    : "Event details");
 
   useEffect(() => {
     setRole(getUserRole());
@@ -55,6 +66,7 @@ const EventDetails = () => {
           title: eventRes.data.title,
           description: eventRes.data.description,
           location: eventRes.data.location,
+          mapQuery: eventRes.data.mapQuery || "",
           date: eventRes.data.date ? new Date(eventRes.data.date).toISOString().split("T")[0] : "",
           time: eventRes.data.time,
           status: eventRes.data.status,
@@ -95,6 +107,10 @@ const EventDetails = () => {
     setEditForm({ ...editForm, [e.target.name]: e.target.value });
   };
 
+  const handleMapPick = (v) => {
+    setEditForm({ ...editForm, location: v, mapQuery: v });
+  };
+
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     try {
@@ -118,7 +134,7 @@ const EventDetails = () => {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm("Delete this event?")) return;
+    setConfirmDelete(false);
     try {
       await api.delete(`/events/${id}`);
       navigate(-1);
@@ -142,22 +158,14 @@ const EventDetails = () => {
 
   if (!event) {
     return (
-      <div className="text-center py-12">
-        <p className="dark:text-red-400 text-red-600 text-lg">Event not found</p>
-        <button onClick={() => navigate(-1)} className="dark:text-red-400 text-red-600 hover:underline mt-2">
+      <div className="py-12 text-center">
+        <p className="text-lg text-on">Event not found</p>
+        <button onClick={() => navigate(-1)} className="mt-2 text-indigo-600 underline hover:text-indigo-500 dark:text-indigo-400">
           Go back
         </button>
       </div>
     );
   }
-
-  const statusConfig = {
-    upcoming: { bg: "bg-blue-500/20", text: "dark:text-blue-400 text-blue-600", border: "border-blue-500/30" },
-    live: { bg: "bg-green-500/20", text: "dark:text-green-400 text-green-600", border: "border-green-500/30" },
-    closed: { bg: "bg-gray-500/20", text: "text-on-dim", border: "border-gray-500/30" },
-  };
-
-  const status = statusConfig[event.status] || statusConfig.upcoming;
 
   const isBeforeAttendanceWindow = () => {
     if (!event.attendanceStartTime) return false;
@@ -177,13 +185,13 @@ const EventDetails = () => {
       </button>
 
       {/* Event Header Card */}
-      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
+      <div className="rounded-xl border border-line bg-card p-6">
         <div className="flex justify-between items-start mb-6">
           <div>
             <h1 className="text-3xl font-bold text-on">{event.title}</h1>
-            <span className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-medium ${status.bg} ${status.text} border ${status.border}`}>
-              {event.status?.charAt(0).toUpperCase() + event.status?.slice(1)}
-            </span>
+            <div className="mt-2">
+              <StatusChip status={event.status} />
+            </div>
           </div>
         </div>
 
@@ -191,19 +199,21 @@ const EventDetails = () => {
 
         {/* Event Details Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-card p-4 rounded-xl border border-line-dim">
+          <div className="bg-card p-4 rounded-xl border border-line">
             <p className="text-on-dim text-sm mb-1">Date</p>
             <p className="text-lg font-semibold text-on">{new Date(event.date).toLocaleDateString()}</p>
           </div>
-          <div className="bg-card p-4 rounded-xl border border-line-dim">
+          <div className="bg-card p-4 rounded-xl border border-line">
             <p className="text-on-dim text-sm mb-1">Time</p>
             <p className="text-lg font-semibold text-on">{formatTime12Hour(event.time)}</p>
           </div>
-          <div className="bg-card p-4 rounded-xl border border-line-dim">
+          <div className="bg-card p-4 rounded-xl border border-line">
             <p className="text-on-dim text-sm mb-1">Location</p>
             <p className="text-lg font-semibold text-on">{event.location || "TBA"}</p>
           </div>
         </div>
+
+        <EventMap event={event} className="mb-6 h-56 w-full" />
 
         {/* Attendance Window */}
         <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
@@ -232,7 +242,7 @@ const EventDetails = () => {
 
       {/* Student Attendance Section */}
       {role === "student" && (
-        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
+        <div className="rounded-xl border border-line bg-card p-6">
           <h2 className="text-xl font-bold text-on mb-4">Attendance</h2>
           {myAttendance ? (
             <div className="space-y-3">
@@ -303,32 +313,38 @@ const EventDetails = () => {
           <QRScanner eventId={id} onScanSuccess={refreshAttendees} />
 
           {/* Manage Attendance Button */}
-          <button
-            onClick={() => navigate(`/organizer/dashboard/events/${id}/attendees`)}
-            className="w-full bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold px-6 py-4 rounded-2xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg shadow-blue-600/30"
+          <Button
+            onClick={() => navigate(
+              role === "admin"
+                ? `/admin/dashboard/events/${id}/attendees`
+                : `/organizer/dashboard/events/${id}/attendees`
+            )}
+            className="w-full py-3"
           >
             <FaUsers /> Manage Attendance Manually
-          </button>
+          </Button>
 
           {/* Event Management Card */}
-          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
+          <div className="rounded-xl border border-line bg-card p-6">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
               <h2 className="text-xl font-bold text-on">Event Management</h2>
               <div className="flex flex-wrap gap-2">
                 {!isEditing && (
                   <>
-                    <button
+                    <Button
                       onClick={() => setIsEditing(true)}
-                      className="bg-blue-500/20 hover:bg-blue-500/30 dark:text-blue-400 text-blue-600 px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                      variant="secondary"
+                      size="sm"
                     >
-                      <span><FaEdit /></span> Edit Event
-                    </button>
-                    <button
-                      onClick={handleDelete}
-                      className="bg-red-500/20 hover:bg-red-500/30 dark:text-red-400 text-red-600 px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                      <FaEdit /> Edit Event
+                    </Button>
+                    <Button
+                      onClick={() => setConfirmDelete(true)}
+                      variant="danger"
+                      size="sm"
                     >
-                      <span><FaTrash /></span> Delete
-                    </button>
+                      <FaTrash /> Delete
+                    </Button>
                   </>
                 )}
               </div>
@@ -341,7 +357,7 @@ const EventDetails = () => {
                   name="title"
                   value={editForm.title}
                   onChange={handleEditChange}
-                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                   required
                 />
                 <textarea
@@ -349,7 +365,7 @@ const EventDetails = () => {
                   value={editForm.description}
                   onChange={handleEditChange}
                   rows={3}
-                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                 />
                 <input
                   type="text"
@@ -357,7 +373,12 @@ const EventDetails = () => {
                   value={editForm.location}
                   onChange={handleEditChange}
                   placeholder="Location"
-                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                />
+                <MapPicker
+                  value={editForm.mapQuery}
+                  onChange={handleMapPick}
+                  className="h-64"
                 />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <input
@@ -365,7 +386,7 @@ const EventDetails = () => {
                     name="date"
                     value={editForm.date}
                     onChange={handleEditChange}
-                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                     required
                   />
                   <input
@@ -373,7 +394,7 @@ const EventDetails = () => {
                     name="time"
                     value={editForm.time}
                     onChange={handleEditChange}
-                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                     required
                   />
                 </div>
@@ -383,7 +404,7 @@ const EventDetails = () => {
                     name="attendanceStartTime"
                     value={editForm.attendanceStartTime}
                     onChange={handleEditChange}
-                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                     required
                   />
                   <input
@@ -391,7 +412,7 @@ const EventDetails = () => {
                     name="attendanceEndTime"
                     value={editForm.attendanceEndTime}
                     onChange={handleEditChange}
-                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                     required
                   />
                 </div>
@@ -399,26 +420,25 @@ const EventDetails = () => {
                   name="status"
                   value={editForm.status}
                   onChange={handleEditChange}
-                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                 >
                   <option value="upcoming">Upcoming</option>
                   <option value="live">Live</option>
                   <option value="closed">Closed</option>
                 </select>
                 <div className="flex gap-3">
-                  <button
+                  <Button
                     type="submit"
-                    className="bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200"
                   >
                     Save Changes
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     onClick={() => setIsEditing(false)}
-                    className="bg-card hover:bg-card-alt border border-line text-on px-6 py-3 rounded-xl transition-all duration-200"
+                    variant="secondary"
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </form>
             ) : (
@@ -427,7 +447,7 @@ const EventDetails = () => {
                 <select
                   value={event.status}
                   onChange={(e) => handleStatusChange(e.target.value)}
-                  className="bg-card border border-line rounded-lg px-4 py-2 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  className="bg-card border border-line rounded-lg px-4 py-2 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                 >
                   <option value="upcoming">Upcoming</option>
                   <option value="live">Live</option>
@@ -438,7 +458,7 @@ const EventDetails = () => {
           </div>
 
           {/* Attendees Card */}
-          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
+          <div className="rounded-xl border border-line bg-card p-6">
             <h2 className="text-xl font-bold text-on mb-6">Attendees ({attendees.length})</h2>
             {attendees.length === 0 ? (
               <p className="text-on-dim text-center py-8">No attendees yet. Scan student QR codes to mark attendance.</p>
@@ -461,7 +481,7 @@ const EventDetails = () => {
                     <select
                       value={attendance.status}
                       onChange={(e) => handleUpdateStatus(attendance.student._id, e.target.value)}
-                      className="bg-card border border-line rounded-lg px-3 py-2 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                      className="bg-card border border-line rounded-lg px-3 py-2 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                     >
                       <option value="present">Present (0 hrs)</option>
                       <option value="late">Late (4 hrs)</option>
@@ -474,6 +494,17 @@ const EventDetails = () => {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete this event?"
+        message="This will permanently delete the event and all of its attendance records. This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   );
 };

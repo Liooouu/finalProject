@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import api from "../../api/axios";
 import { useTheme } from "../../context/ThemeContext";
+import { usePageMeta } from "../../context/PageMetaContext";
+import StatusChip from "../ui/StatusChip";
+import Button from "../ui/Button";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -23,7 +26,9 @@ const AttendanceReports = () => {
   const [loading, setLoading] = useState(false);
   const { darkMode } = useTheme();
 
-  const fetchAttendance = async () => {
+  usePageMeta("Reports", "System-wide analytics, breakdowns, and exports.");
+
+  const fetchAttendance = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get("/reports/attendance");
@@ -33,9 +38,9 @@ const AttendanceReports = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get("/reports/events");
@@ -45,9 +50,9 @@ const AttendanceReports = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get("/reports/users");
@@ -57,13 +62,13 @@ const AttendanceReports = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (activeTab === "attendance" && !attendanceData) fetchAttendance();
     if (activeTab === "events" && !eventsData) fetchEvents();
     if (activeTab === "users" && !usersData) fetchUsers();
-  }, [activeTab]);
+  }, [activeTab, attendanceData, eventsData, usersData, fetchAttendance, fetchEvents, fetchUsers]);
 
   const downloadCSV = async (type) => {
     try {
@@ -169,8 +174,10 @@ const AttendanceReports = () => {
   const TabButton = ({ tab, label }) => (
     <button
       onClick={() => setActiveTab(tab)}
-      className={`px-4 py-2 rounded ${
-        activeTab === tab ? "bg-green-500 text-white" : "bg-card text-on-dim hover:text-on"
+      className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
+        activeTab === tab
+          ? "bg-indigo-600 text-white shadow-sm"
+          : "bg-card text-on-dim hover:text-on border border-line"
       }`}
     >
       {label}
@@ -179,13 +186,18 @@ const AttendanceReports = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-2">
         <TabButton tab="attendance" label="Attendance" />
         <TabButton tab="events" label="Events" />
         <TabButton tab="users" label="Users" />
       </div>
 
-      {loading && <p className="text-on-dim">Loading...</p>}
+      {loading && (
+        <div className="flex h-40 items-center justify-center" role="status">
+          <span className="skeleton h-4 w-4 rounded-full" />
+          <span className="ml-2.5 text-sm text-on-dim">Loading...</span>
+        </div>
+      )}
 
       {activeTab === "attendance" && attendanceData && (
         <>
@@ -214,12 +226,13 @@ const AttendanceReports = () => {
           <div className="bg-card p-6 rounded-xl">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Recent Attendance Records</h3>
-              <button
+              <Button
                 onClick={() => downloadCSV("attendance")}
-                className="bg-green-500 px-4 py-2 rounded hover:bg-green-600 text-sm"
+                variant="secondary"
+                size="sm"
               >
                 Export CSV
-              </button>
+              </Button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -237,17 +250,7 @@ const AttendanceReports = () => {
                       <td className="p-2">{r.event?.title || "N/A"}</td>
                       <td className="p-2">{r.student?.name || "N/A"}</td>
                       <td className="p-2">
-                        <span
-                          className={`px-2 py-1 rounded text-xs ${
-                            r.status === "present"
-                              ? "dark:bg-green-900 bg-green-100 dark:text-green-300 text-green-700"
-                              : r.status === "absent"
-                              ? "dark:bg-red-900 bg-red-100 dark:text-red-300 text-red-700"
-                              : "dark:bg-yellow-900 bg-yellow-100 dark:text-yellow-300 text-yellow-700"
-                          }`}
-                        >
-                          {r.status}
-                        </span>
+                        <StatusChip status={r.status} />
                       </td>
                       <td className="p-2">{new Date(r.attendedAt).toLocaleDateString()}</td>
                     </tr>
@@ -300,12 +303,13 @@ const AttendanceReports = () => {
           <div className="bg-card p-6 rounded-xl">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">All Events</h3>
-              <button
+              <Button
                 onClick={() => downloadCSV("events")}
-                className="bg-green-500 px-4 py-2 rounded hover:bg-green-600 text-sm"
+                variant="secondary"
+                size="sm"
               >
                 Export CSV
-              </button>
+              </Button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -326,17 +330,7 @@ const AttendanceReports = () => {
                       <td className="p-2">{new Date(e.date).toLocaleDateString()}</td>
                       <td className="p-2">{e.location || "N/A"}</td>
                       <td className="p-2">
-                        <span
-                          className={`px-2 py-1 rounded text-xs ${
-                            e.status === "upcoming"
-                              ? "dark:bg-blue-900 bg-blue-100 dark:text-blue-300 text-blue-700"
-                              : e.status === "live"
-                              ? "dark:bg-green-900 bg-green-100 dark:text-green-300 text-green-700"
-                              : "dark:bg-gray-700 bg-gray-200 dark:text-gray-300 text-gray-600"
-                          }`}
-                        >
-                          {e.status}
-                        </span>
+                        <StatusChip status={e.status} />
                       </td>
                       <td className="p-2">{e.totalAttendees}</td>
                       <td className="p-2">{e.attendanceRate}%</td>
@@ -393,12 +387,13 @@ const AttendanceReports = () => {
           <div className="bg-card p-6 rounded-xl">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">All Users</h3>
-              <button
+              <Button
                 onClick={() => downloadCSV("users")}
-                className="bg-green-500 px-4 py-2 rounded hover:bg-green-600 text-sm"
+                variant="secondary"
+                size="sm"
               >
                 Export CSV
-              </button>
+              </Button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

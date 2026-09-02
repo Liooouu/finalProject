@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { FaBook, FaCheck, FaFileAlt, FaCalendarTimes, FaCalendarPlus } from "react-icons/fa";
 import Loading from "../shared/Loading";
+import { usePageMeta } from "../../context/PageMetaContext";
+import Button from "../ui/Button";
 
 const SubmitExcuse = () => {
   const navigate = useNavigate();
@@ -15,6 +17,8 @@ const SubmitExcuse = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+
+  usePageMeta("Submit Excuse", "File an excuse for a missed or upcoming event.");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -119,14 +123,8 @@ const SubmitExcuse = () => {
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-on">Submit Excuse Letter</h1>
-        <p className="text-on-dim mt-1">File an excuse for a missed event or ahead of time for an upcoming one</p>
-      </div>
-
       {/* Guidelines */}
-      <div className="bg-linear-to-br from-blue-500/10 to-blue-500/5 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-6">
+      <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-6">
         <h3 className="text-lg font-semibold text-on mb-3 flex items-center gap-2">
           <span><FaBook /></span> Important Guidelines
         </h3>
@@ -179,7 +177,7 @@ const SubmitExcuse = () => {
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6 space-y-6">
+      <form onSubmit={handleSubmit} className="rounded-xl border border-line bg-card p-6 space-y-6">
         {/* Mode Toggle */}
         <div>
           <label className="block text-sm font-semibold text-on mb-2">Excuse Type</label>
@@ -217,7 +215,7 @@ const SubmitExcuse = () => {
           <select
             value={selectedEvent}
             onChange={(e) => setSelectedEvent(e.target.value)}
-            className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+            className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
             required
           >
             <option value="">-- Select an event --</option>
@@ -265,7 +263,7 @@ const SubmitExcuse = () => {
         {/* File Upload */}
         <div>
           <label className="block text-sm font-semibold text-on mb-2">Attach Document (Optional)</label>
-          <div className="border-2 border-dashed dark:border-white/20 border-slate-300 rounded-2xl p-8 text-center hover:border-red-500/30 transition-colors">
+          <div className="border-2 border-dashed border-line rounded-xl p-8 text-center hover:border-indigo-500/40 transition-colors">
             <input
               type="file"
               onChange={handleFileChange}
@@ -293,30 +291,28 @@ const SubmitExcuse = () => {
 
         {/* Buttons */}
         <div className="flex flex-col sm:flex-row gap-4">
-          <button
+          <Button
             type="submit"
             disabled={submitting || eventOptions.length === 0}
-            className="flex-1 bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-green-600/30 transition-all duration-200 flex items-center justify-center gap-2"
+            className="flex-1 py-2.5"
           >
             {submitting ? (
               <>
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
+                <span className="skeleton h-4 w-4 rounded-full" />
                 Submitting...
               </>
             ) : (
               "Submit Excuse"
             )}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-6 bg-card hover:bg-card-alt border border-line text-on py-3 rounded-xl transition-all duration-200"
+            variant="secondary"
+            className="px-8"
           >
             Cancel
-          </button>
+          </Button>
         </div>
       </form>
 

@@ -1,11 +1,16 @@
 import React, { useState } from "react";
 import api from "../../api/axios";
+import { usePageMeta } from "../../context/PageMetaContext";
+import { FaUserPlus } from "react-icons/fa";
+import Button from "../ui/Button";
 
 const CreateOrganizerPage = () => {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
+
+  usePageMeta("Create Organizer", "Add a new organizer account to manage events.");
 
   const validateForm = () => {
     const newErrors = {};
@@ -79,15 +84,13 @@ const CreateOrganizerPage = () => {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="bg-card rounded-xl border border-line overflow-hidden">
-        <div className="p-6 border-b border-line bg-linear-to-r dark:from-red-950/30 dark:to-transparent from-red-50 to-transparent">
+        <div className="p-6 border-b border-line">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
-              <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
+            <div className="w-12 h-12 rounded-full bg-indigo-500/15 flex items-center justify-center ring-1 ring-indigo-500/25">
+              <FaUserPlus className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             </div>
             <div>
-              <h2 className="text-xl font-bold dark:text-red-400 text-red-600">Create Organizer</h2>
+              <h2 className="text-xl font-bold text-on">Create Organizer</h2>
               <p className="text-sm text-on-dim">Add a new organizer account to manage events</p>
             </div>
           </div>
@@ -128,7 +131,9 @@ const CreateOrganizerPage = () => {
                 placeholder="Enter full name"
                 className={`w-full pl-10 pr-4 py-3 bg-card dark:bg-black rounded-lg border ${
                   errors.name ? "border-red-500" : "border-line"
-                } dark:text-white text-on placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors`}
+                } bg-card text-on placeholder-on-muted focus:outline-none ${
+                  errors.name ? "focus:ring-2 focus:ring-red-500/40" : "focus:ring-2 focus:ring-indigo-500/40"
+                } focus:border-transparent transition-colors`}
                 onChange={(e) => handleInputChange("name", e.target.value)}
               />
             </div>
@@ -153,7 +158,9 @@ const CreateOrganizerPage = () => {
                 placeholder="Enter email address"
                 className={`w-full pl-10 pr-4 py-3 bg-card dark:bg-black rounded-lg border ${
                   errors.email ? "border-red-500" : "border-line"
-                } dark:text-white text-on placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors`}
+                } bg-card text-on placeholder-on-muted focus:outline-none ${
+                  errors.email ? "focus:ring-2 focus:ring-red-500/40" : "focus:ring-2 focus:ring-indigo-500/40"
+                } focus:border-transparent transition-colors`}
                 onChange={(e) => handleInputChange("email", e.target.value)}
               />
             </div>
@@ -178,7 +185,9 @@ const CreateOrganizerPage = () => {
                 placeholder="Enter password"
                 className={`w-full pl-10 pr-24 py-3 bg-card dark:bg-black rounded-lg border ${
                   errors.password ? "border-red-500" : "border-line"
-                } dark:text-white text-on placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors`}
+                } bg-card text-on placeholder-on-muted focus:outline-none ${
+                  errors.password ? "focus:ring-2 focus:ring-red-500/40" : "focus:ring-2 focus:ring-indigo-500/40"
+                } focus:border-transparent transition-colors`}
                 onChange={(e) => handleInputChange("password", e.target.value)}
               />
               <button
@@ -197,32 +206,23 @@ const CreateOrganizerPage = () => {
             </p>
           </div>
 
-          <button
+          <Button
             type="submit"
             disabled={loading}
-            className={`w-full py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${
-              loading
-                ? "bg-green-500/50 cursor-not-allowed"
-                : "bg-green-500 hover:bg-green-600"
-            }`}
+            className="w-full py-3"
           >
             {loading ? (
               <>
-                <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
+                <span className="skeleton h-4 w-4 rounded-full" />
                 Creating...
               </>
             ) : (
               <>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
+                <FaUserPlus className="text-sm" />
                 Create Organizer
               </>
             )}
-          </button>
+          </Button>
         </form>
       </div>
 

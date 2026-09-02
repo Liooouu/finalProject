@@ -46,17 +46,24 @@ const RedBackdrop = ({ isDark }) => {
         </g>
       </svg>
 
-      {/* Fox silhouette accent (Bit Defenders-inspired) */}
+      {/* TrackMark silhouette accent (scope + graduation tassel) */}
       <svg
         aria-hidden="true"
         className="absolute bottom-6 right-8 w-40 h-40 pointer-events-none"
         style={{ opacity: isDark ? 0.05 : 0.05 }}
         viewBox="0 0 48 48"
-        fill={isDark ? "#ffffff" : "#B91C2C"}
+        fill="none"
+        stroke={isDark ? "#ffffff" : "#B91C2C"}
+        strokeWidth="2"
+        strokeLinecap="round"
       >
-        <path d="M24 6 L38 15 L43 30 L33 41 L15 41 L5 30 L10 15 Z" />
-        <path d="M10 15 L5 3 L19 11 Z" />
-        <path d="M38 15 L43 3 L29 11 Z" />
+        <path d="M24 4.5 L29 10 L24 15.5 L19 10 Z" fill={isDark ? "#ffffff" : "#B91C2C"} stroke="none" />
+        <path d="M24 15.5 L24 20" />
+        <circle cx="24" cy="15.5" r="1.3" fill={isDark ? "#ffffff" : "#B91C2C"} stroke="none" />
+        <path d="M24 17 L22.2 19.4 M24 17 L24 19.8 M24 17 L25.8 19.4" />
+        <circle cx="24" cy="31" r="11" />
+        <path d="M24 42 L24 46.5 M35 31 L39.5 31 M13 31 L8.5 31" />
+        <circle cx="24" cy="31" r="2.2" fill={isDark ? "#ffffff" : "#B91C2C"} stroke="none" />
       </svg>
       <span
         aria-hidden="true"

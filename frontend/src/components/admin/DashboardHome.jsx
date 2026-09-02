@@ -1,13 +1,42 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import { Link } from "react-router-dom";
-import Loading from "../shared/Loading";
+import {
+  FaCalendarAlt,
+  FaUsers,
+  FaClipboardList,
+  FaUserTie,
+} from "react-icons/fa";
+import { usePageMeta } from "../../context/PageMetaContext";
+import { KpiCard, StatusChip, PageHeader, TableSkeleton, BaseCard } from "../ui";
+import Button from "../ui/Button";
+
+const Avatar = ({ name }) => {
+  const initials = (name || "?")
+    .split(/\s+/)
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  return (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-xs font-bold text-indigo-600 ring-1 ring-indigo-500/20 dark:text-indigo-400">
+      {initials}
+    </div>
+  );
+};
 
 const DashboardHome = () => {
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
   const [users, setUsers] = useState([]);
   const [attendance, setAttendance] = useState([]);
+
+  usePageMeta("Overview", new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }));
 
   useEffect(() => {
     fetchData();
@@ -21,9 +50,9 @@ const DashboardHome = () => {
         api.get("/reports/users"),
         api.get("/reports/attendance"),
       ]);
-      setEvents(eventsRes.data.events.slice(0, 5));
-      setUsers(usersRes.data.users.slice(0, 5));
-      setAttendance(attendanceRes.data.records.slice(0, 10));
+      setEvents(eventsRes.data.events);
+      setUsers(usersRes.data.users);
+      setAttendance(attendanceRes.data.records);
     } catch (err) {
       console.error(err);
     } finally {
@@ -31,213 +60,172 @@ const DashboardHome = () => {
     }
   };
 
-  const getStatusBadge = (status) => {
-    const styles = {
-      upcoming: "dark:bg-blue-900/50 bg-blue-100 dark:text-blue-400 text-blue-700",
-      live: "dark:bg-green-900/50 bg-green-100 dark:text-green-400 text-green-700",
-      closed: "bg-gray-700/50 text-on-dim",
-    };
-    return (
-      <span className={`px-2 py-1 rounded text-xs font-medium ${styles[status] || styles.closed}`}>
-        {status}
-      </span>
-    );
-  };
-
-  const getRoleBadge = (role) => {
-    const styles = {
-      admin: "dark:bg-cyan-900/50 bg-cyan-100 dark:text-cyan-400 text-cyan-700",
-      organizer: "dark:bg-yellow-900/50 bg-yellow-100 dark:text-yellow-400 text-yellow-700",
-      student: "dark:bg-purple-900/50 bg-purple-100 dark:text-purple-400 text-purple-700",
-    };
-    return (
-      <span className={`px-2 py-1 rounded text-xs font-medium ${styles[role] || styles.student}`}>
-        {role}
-      </span>
-    );
-  };
-
-  const getAttendanceBadge = (status) => {
-    const styles = {
-      present: "dark:bg-green-900/50 bg-green-100 dark:text-green-400 text-green-700",
-      absent: "dark:bg-red-900/50 bg-red-100 dark:text-red-400 text-red-700",
-      pending: "dark:bg-yellow-900/50 bg-yellow-100 dark:text-yellow-400 text-yellow-700",
-    };
-    return (
-      <span className={`px-2 py-1 rounded text-xs font-medium ${styles[status] || styles.pending}`}>
-        {status}
-      </span>
-    );
-  };
+  const students = users.filter((u) => u.role === "student");
+  const organizers = users.filter((u) => u.role === "organizer");
+  const presentCount = attendance.filter(
+    (r) => r.status === "present" || r.status === "attended"
+  ).length;
+  const attendanceRate = attendance.length
+    ? Math.round((presentCount / attendance.length) * 100)
+    : 0;
 
   if (loading) {
-    return <Loading />;
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="rounded-xl border border-line bg-card p-5">
+              <div className="skeleton h-3 w-1/2 rounded" />
+              <div className="skeleton mt-3 h-7 w-10 rounded" />
+            </div>
+          ))}
+        </div>
+        <TableSkeleton rows={6} />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <h2 className="text-2xl font-bold dark:text-red-400 text-red-600">Dashboard</h2>
-        <p className="text-on-dim text-sm">
-          {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-        </p>
+      <PageHeader
+        actions={
+          <Button as={Link} to="/admin/dashboard/create-organizer" variant="primary" size="sm">
+            <FaUserTie className="text-xs" />
+            Create Organizer
+          </Button>
+        }
+      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Events" value={events.length} icon={<FaCalendarAlt />} />
+        <KpiCard label="Students" value={students.length} icon={<FaUsers />} />
+        <KpiCard
+          label="Attendance Rate"
+          value={`${attendanceRate}%`}
+          icon={<FaClipboardList />}
+          hint={`${presentCount} of ${attendance.length} records`}
+        />
+        <KpiCard label="Organizers" value={organizers.length} icon={<FaUserTie />} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card rounded-xl border border-line overflow-hidden">
-          <div className="p-4 border-b border-line flex items-center justify-between bg-linear-to-r dark:from-red-950/30 dark:to-transparent from-red-50 to-transparent">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <svg className="w-5 h-5 dark:text-blue-400 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-semibold">Recent Events</h3>
-                <p className="text-xs text-on-dim">Latest 5 events</p>
-              </div>
-            </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <BaseCard
+          title="Recent Events"
+          icon={<FaCalendarAlt />}
+          menu={
             <Link
               to="/admin/dashboard/events"
-              className="text-sm dark:text-red-400 dark:hover:text-red-300 text-red-600 hover:text-red-500 transition-colors"
+              className="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
             >
-              View all →
+              View all
             </Link>
-          </div>
-          <div className="divide-y dark:divide-gray-800/50 divide-slate-200">
-            {events.length === 0 ? (
-              <p className="p-4 text-on-dim text-center text-sm">No events yet</p>
-            ) : (
-              events.map((event) => (
-                <div key={event._id} className="p-4 hover:bg-card-alt transition-colors">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{event.title}</p>
-                      <p className="text-sm text-on-dim truncate">
-                        {event.location || "No location"} • {new Date(event.date).toLocaleDateString()}
-                      </p>
-                    </div>
-                    {getStatusBadge(event.status)}
+          }
+        >
+          {events.length === 0 ? (
+            <p className="py-8 text-center text-sm text-on-dim">No events yet.</p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {events.slice(0, 5).map((event) => (
+                <li key={event._id} className="flex items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-on">{event.title}</p>
+                    <p className="truncate text-xs text-on-dim">
+                      {event.location || "No location"} · {new Date(event.date).toLocaleDateString()}
+                    </p>
                   </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+                  <StatusChip status={event.status} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </BaseCard>
 
-        <div className="bg-card rounded-xl border border-line overflow-hidden">
-          <div className="p-4 border-b border-line flex items-center justify-between bg-linear-to-r dark:from-red-950/30 dark:to-transparent from-red-50 to-transparent">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                <svg className="w-5 h-5 dark:text-purple-400 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-semibold">Recent Users</h3>
-                <p className="text-xs text-on-dim">Latest 5 registrations</p>
-              </div>
-            </div>
+        <BaseCard
+          title="Recent Users"
+          icon={<FaUsers />}
+          menu={
             <Link
               to="/admin/dashboard/users"
-              className="text-sm dark:text-red-400 dark:hover:text-red-300 text-red-600 hover:text-red-500 transition-colors"
+              className="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
             >
-              View all →
+              View all
             </Link>
-          </div>
-          <div className="divide-y dark:divide-gray-800/50 divide-slate-200">
-            {users.length === 0 ? (
-              <p className="p-4 text-on-dim text-center text-sm">No users yet</p>
-            ) : (
-              users.map((user) => (
-                <div key={user._id} className="p-4 hover:bg-card-alt transition-colors">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                        {user.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{user.name}</p>
-                        <p className="text-sm text-on-dim truncate">{user.email}</p>
-                      </div>
+          }
+        >
+          {users.length === 0 ? (
+            <p className="py-8 text-center text-sm text-on-dim">No users yet.</p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {users.slice(0, 5).map((user) => (
+                <li key={user._id} className="flex items-center justify-between gap-3 py-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar name={user.name} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-on">{user.name}</p>
+                      <p className="truncate text-xs text-on-dim">{user.email}</p>
                     </div>
-                    {getRoleBadge(user.role)}
                   </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+                  <span className="rounded-full bg-slate-500/10 px-2.5 py-0.5 text-xs font-medium capitalize text-slate-600 ring-1 ring-inset ring-slate-500/25 dark:text-slate-300">
+                    {user.role}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </BaseCard>
       </div>
 
-      <div className="bg-card rounded-xl border border-line overflow-hidden">
-        <div className="p-4 border-b border-line flex items-center justify-between bg-linear-to-r dark:from-red-950/30 dark:to-transparent from-red-50 to-transparent">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-              <svg className="w-5 h-5 dark:text-green-400 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-semibold">Recent Attendance</h3>
-              <p className="text-xs text-on-dim">Latest 10 attendance records</p>
-            </div>
-          </div>
+      <BaseCard
+        title="Recent Attendance"
+        icon={<FaClipboardList />}
+        menu={
           <Link
             to="/admin/dashboard/reports"
-            className="text-sm dark:text-red-400 dark:hover:text-red-300 text-red-600 hover:text-red-500 transition-colors"
+            className="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
           >
-            View all →
+            View all
           </Link>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-line bg-card-alt">
-                <th className="text-left p-4 font-medium text-on-dim text-sm">Event</th>
-                <th className="text-left p-4 font-medium text-on-dim text-sm">Student</th>
-                <th className="text-left p-4 font-medium text-on-dim text-sm">Status</th>
-                <th className="text-left p-4 font-medium text-on-dim text-sm">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {attendance.length === 0 ? (
-                <tr>
-                  <td colSpan="4" className="p-4 text-on-dim text-center text-sm">
-                    No attendance records yet
-                  </td>
+        }
+      >
+        {attendance.length === 0 ? (
+          <p className="py-8 text-center text-sm text-on-dim">No attendance records yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-line text-left">
+                  <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-on-muted">Event</th>
+                  <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-on-muted">Student</th>
+                  <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-on-muted">Status</th>
+                  <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-on-muted">Checked In</th>
                 </tr>
-              ) : (
-                attendance.map((record, index) => (
-                  <tr key={index} className="border-b border-line hover:bg-card-alt transition-colors">
-                    <td className="p-4">
-                      <p className="font-medium text-sm">{record.event?.title || "Event"}</p>
-                      <p className="text-xs text-on-dim">
-                        {record.event?.date && new Date(record.event.date).toLocaleDateString()}
-                      </p>
+              </thead>
+              <tbody>
+                {attendance.slice(0, 8).map((record, index) => (
+                  <tr key={index} className="border-b border-line last:border-0 hover:bg-card-alt/60">
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-medium text-on">{record.event?.title || "Event"}</p>
+                      {record.event?.date && (
+                        <p className="text-xs text-on-muted">{new Date(record.event.date).toLocaleDateString()}</p>
+                      )}
                     </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-purple-500/30 flex items-center justify-center dark:text-purple-400 text-purple-600 text-xs font-bold">
-                          {record.student?.name?.charAt(0).toUpperCase() || "?"}
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">{record.student?.name || "Unknown"}</p>
-                          <p className="text-xs text-on-dim">{record.student?.email || ""}</p>
-                        </div>
-                      </div>
+                    <td className="px-4 py-3">
+                      <p className="text-sm text-on">{record.student?.name || "Unknown"}</p>
+                      <p className="text-xs text-on-muted">{record.student?.email || ""}</p>
                     </td>
-                    <td className="p-4">{getAttendanceBadge(record.status)}</td>
-                    <td className="p-4 text-sm text-on-dim">
-                      {new Date(record.attendedAt).toLocaleString()}
+                    <td className="px-4 py-3">
+                      <StatusChip status={record.status} />
+                    </td>
+                    <td className="px-4 py-3 text-xs text-on-dim">
+                      {record.attendedAt ? new Date(record.attendedAt).toLocaleString() : "—"}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </BaseCard>
     </div>
   );
 };

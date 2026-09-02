@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import api from "../../api/axios";
 import { FaUserPlus, FaSearch, FaCheck, FaTimes, FaClock } from "react-icons/fa";
 import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
+import { usePageMeta } from "../../context/PageMetaContext";
+import Button from "../ui/Button";
 
 const OrgManageAttendees = () => {
   const { id: eventId } = useParams();
@@ -17,11 +19,9 @@ const OrgManageAttendees = () => {
   const [message, setMessage] = useState("");
   const [csDrafts, setCsDrafts] = useState({});
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  usePageMeta("Manage Attendees", "Manually add or scan student attendance.");
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [studentsRes, attendeesRes] = await Promise.all([
         api.get("/admin/users?role=student"),
@@ -34,7 +34,11 @@ const OrgManageAttendees = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const filteredStudents = students.filter(
     (s) =>
@@ -46,15 +50,21 @@ const OrgManageAttendees = () => {
   const availableStudents = filteredStudents.filter(
     (s) => !alreadyAttended.includes(s._id)
   );
+  const matchedAlready = students.filter(
+    (s) =>
+      alreadyAttended.includes(s._id) &&
+      (s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.email.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
-  const handleAddAttendance = async (status) => {
-    if (!selectedStudent) return;
+  const handleAddAttendance = async (status, student = selectedStudent) => {
+    if (!student) return;
     setSubmitting(true);
     setMessage("");
 
     try {
       const res = await api.post(`/events/${eventId}/attendees/manual`, {
-        studentId: selectedStudent._id,
+        studentId: student._id,
         status,
       });
 
@@ -99,21 +109,20 @@ const OrgManageAttendees = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-on">Manage Attendees</h1>
-        <p className="text-on-dim mt-1">Manually add or scan student attendance</p>
-      </div>
+      <p className="text-sm text-on-dim">
+        {attendees.length} {attendees.length === 1 ? "student" : "students"} checked in
+      </p>
 
       {message && (
-        <div className={`p-4 rounded-xl ${message.includes("success") ? "bg-green-500/20 border border-green-500/30 text-green-400" : "bg-red-500/20 border border-red-500/30 text-red-400"}`}>
+        <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${message.includes("success") ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"}`}>
           {message}
         </div>
       )}
 
       {/* Manual Attendance Section */}
-      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
+      <div className="rounded-xl border border-line bg-card p-6">
         <h2 className="text-xl font-bold text-on mb-4 flex items-center gap-2">
-          <FaUserPlus className="text-blue-400" />
+          <FaUserPlus className="text-indigo-500" />
           Add Attendance Manually
         </h2>
 
@@ -121,29 +130,22 @@ const OrgManageAttendees = () => {
           <div>
             <label className="block text-sm font-semibold text-on-dim mb-2">Search Student</label>
             <div className="relative">
-              <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-on-dim" />
+              <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-on-muted" />
               <input
                 type="text"
                 placeholder="Search by name or email..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
-                  if (!selectedStudent && e.target.value) {
-                    const found = students.find(
-                      (s) => s.email === e.target.value || s.name.toLowerCase().includes(e.target.value.toLowerCase())
-                    );
-                    if (found && !alreadyAttended.includes(found._id)) {
-                      setSelectedStudent(found);
-                    }
-                  }
+                  if (selectedStudent) setSelectedStudent(null);
                 }}
-                className="w-full bg-card border border-line rounded-xl pl-12 pr-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                className="w-full rounded-lg border border-line bg-card-alt/60 py-2.5 pl-10 pr-4 text-sm text-on focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
               />
             </div>
           </div>
 
           {selectedStudent ? (
-            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4">
+            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-on font-medium">{selectedStudent.name}</p>
@@ -155,59 +157,111 @@ const OrgManageAttendees = () => {
                     setSearchTerm("");
                   }}
                   className="p-2 text-on-dim hover:text-on transition-colors"
+                  aria-label="Clear selection"
                 >
                   <FaTimes />
                 </button>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2 mt-4">
-                <button
+                <Button
                   onClick={() => handleAddAttendance("present")}
                   disabled={submitting}
-                  className="flex-1 bg-green-600 hover:bg-green-500 text-white font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  variant="primary"
+                  className="flex-1"
                 >
                   <FaCheck /> Present (0 hrs)
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => handleAddAttendance("late")}
                   disabled={submitting}
-                  className="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="flex-1 bg-amber-500 text-white shadow-sm hover:bg-amber-600"
                 >
                   <FaClock /> Late (4 hrs)
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => handleAddAttendance("absent")}
                   disabled={submitting}
-                  className="flex-1 bg-red-600 hover:bg-red-500 text-white font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  variant="danger"
+                  className="flex-1"
                 >
                   <FaTimes /> Absent (8 hrs)
-                </button>
+                </Button>
               </div>
             </div>
-          ) : (
-            availableStudents.length > 0 && searchTerm && (
-              <div className="space-y-2">
-                {availableStudents.slice(0, 5).map((student) => (
+          ) : availableStudents.length > 0 ? (
+            <div className="max-h-72 overflow-auto rounded-lg border border-line bg-card p-1.5 space-y-1">
+              {availableStudents.map((student) => (
+                <div
+                  key={student._id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-line bg-card-alt/40 p-2.5"
+                >
                   <button
-                    key={student._id}
                     onClick={() => {
                       setSelectedStudent(student);
                       setSearchTerm(student.email);
                     }}
-                    className="w-full text-left p-3 bg-card hover:bg-card-alt border border-line rounded-lg transition-colors"
+                    className="min-w-0 flex-1 text-left"
                   >
-                    <p className="text-on font-medium">{student.name}</p>
-                    <p className="text-on-dim text-sm">{student.email}</p>
+                    <p className="truncate text-on font-medium">{student.name}</p>
+                    <p className="truncate text-on-dim text-sm">{student.email}</p>
                   </button>
-                ))}
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      onClick={() => handleAddAttendance("present", student)}
+                      disabled={submitting}
+                      className="rounded-lg bg-green-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-600 disabled:opacity-50"
+                    >
+                      <FaCheck /> Present
+                    </button>
+                    <button
+                      onClick={() => handleAddAttendance("late", student)}
+                      disabled={submitting}
+                      className="rounded-lg bg-amber-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
+                    >
+                      <FaClock /> Late
+                    </button>
+                    <button
+                      onClick={() => handleAddAttendance("absent", student)}
+                      disabled={submitting}
+                      className="rounded-lg bg-red-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50"
+                    >
+                      <FaTimes /> Absent
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : searchTerm ? (
+            matchedAlready.length > 0 ? (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
+                <p className="flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400">
+                  <FaCheck className="text-xs" /> Already checked in for this event
+                </p>
+                <div className="mt-2 space-y-1.5">
+                  {matchedAlready.map((s) => (
+                    <div key={s._id} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="text-on">{s.name}</span>
+                      <span className="text-on-muted">{s.email}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
+            ) : (
+              <p className="text-sm text-on-muted">
+                No students match "{searchTerm}".
+              </p>
             )
+          ) : (
+            <p className="text-sm text-on-muted">
+              No students to add — everyone is already checked in for this event.
+            </p>
           )}
         </div>
       </div>
 
       {/* Current Attendees List */}
-      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
+      <div className="rounded-xl border border-line bg-card p-6">
         <h2 className="text-xl font-bold text-on mb-4">
           Current Attendees ({attendees.length})
         </h2>

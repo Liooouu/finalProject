@@ -3,6 +3,11 @@ import api from "../../api/axios";
 import { FaCalendarAlt } from "react-icons/fa";
 import EmptyState from "../shared/EmptyState";
 import StatusBadge from "../shared/StatusBadge";
+import StatusChip from "../ui/StatusChip";
+import Button from "../ui/Button";
+import ConfirmDialog from "../ui/ConfirmDialog";
+import { usePageMeta } from "../../context/PageMetaContext";
+import { TableSkeleton } from "../ui";
 
 const ManageEvents = () => {
   const [events, setEvents] = useState([]);
@@ -12,6 +17,9 @@ const ManageEvents = () => {
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  usePageMeta("Manage Events", "Every event across the institution.");
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -58,9 +66,6 @@ const ManageEvents = () => {
   };
 
   const deleteEvent = async (eventId) => {
-    if (!window.confirm("Are you sure you want to delete this event? This will also delete all attendance records.")) {
-      return;
-    }
     try {
       await api.delete(`/events/${eventId}`);
       setEvents(events.filter((e) => e._id !== eventId));
@@ -88,22 +93,27 @@ const ManageEvents = () => {
     return matchesSearch && matchesStatus;
   });
 
+  const inputClasses =
+    "px-3.5 py-2 bg-card rounded-lg border border-line text-sm text-on placeholder-on-muted focus:outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500/40 transition-colors";
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <h2 className="text-2xl font-bold dark:text-red-400 text-red-600">Manage Events</h2>
-        <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-on-dim">
+          {filteredEvents.length} of {events.length} events
+        </p>
+        <div className="flex flex-col gap-3 sm:flex-row">
           <input
             type="text"
             placeholder="Search events..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="px-4 py-2 bg-card dark:bg-black rounded border border-line text-on placeholder-on-muted focus:outline-none focus:border-red-500"
+            className={inputClasses}
           />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 bg-card dark:bg-black rounded border border-line text-on focus:outline-none focus:border-red-500"
+            className={inputClasses}
           >
             <option value="all">All Status</option>
             <option value="upcoming">Upcoming</option>
@@ -114,7 +124,7 @@ const ManageEvents = () => {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-on-dim"><FaCalendarAlt className="animate-spin inline-block" /> Loading events...</div>
+        <TableSkeleton rows={5} />
       ) : filteredEvents.length === 0 ? (
         <EmptyState icon={<FaCalendarAlt />} title="No events found" description="Events created by organizers will appear here." />
       ) : (
@@ -128,7 +138,7 @@ const ManageEvents = () => {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-lg font-semibold">{event.title}</h3>
-                    <StatusBadge status={event.status} />
+                    <StatusChip status={event.status} />
                   </div>
                   <div className="flex flex-wrap gap-4 text-sm text-on-dim">
                     <span className="flex items-center gap-1">
@@ -158,24 +168,27 @@ const ManageEvents = () => {
                   <select
                     value={event.status}
                     onChange={(e) => updateEventStatus(event._id, e.target.value)}
-                    className="px-3 py-2 bg-card dark:bg-black rounded border border-line text-sm text-on focus:outline-none focus:border-red-500"
+                    className="px-3 py-2 bg-card rounded-lg border border-line text-sm text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                   >
                     <option value="upcoming">Upcoming</option>
                     <option value="live">Live</option>
                     <option value="closed">Closed</option>
                   </select>
-                  <button
+                  <Button
                     onClick={() => openEventDetails(event)}
-                    className="px-4 py-2 bg-green-500 hover:bg-green-600 rounded text-sm font-medium transition-colors"
+                    variant="secondary"
+                    size="sm"
+                    className="border-indigo-500/30 text-indigo-600 dark:text-indigo-400"
                   >
                     View Attendees
-                  </button>
-                  <button
-                    onClick={() => deleteEvent(event._id)}
-                    className="px-4 py-2 bg-card-alt hover:bg-red-900/50 border border-line hover:border-red-500 rounded text-sm font-medium transition-colors"
+                  </Button>
+                  <Button
+                    onClick={() => setDeleteTarget(event._id)}
+                    variant="danger"
+                    size="sm"
                   >
                     Delete
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -185,7 +198,7 @@ const ManageEvents = () => {
 
       {showModal && selectedEvent && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-50 dark:bg-gray-900 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden border border-line">
+          <div className="bg-card rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden border border-line">
             <div className="p-6 border-b border-line flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-bold">{selectedEvent.title}</h3>
@@ -198,7 +211,7 @@ const ManageEvents = () => {
                 <StatusBadge status={selectedEvent.status} />
                 <button
                   onClick={() => setShowModal(false)}
-                  className="p-2 dark:hover:bg-gray-800 hover:bg-gray-200 rounded"
+                  className="p-2 hover:bg-card-alt rounded"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -229,7 +242,7 @@ const ManageEvents = () => {
                           onChange={(e) =>
                             updateAttendeeStatus(selectedEvent._id, attendee.student._id, e.target.value)
                           }
-                          className="px-3 py-1 bg-card dark:bg-black rounded border border-line text-sm focus:outline-none focus:border-red-500"
+                          className="px-3 py-1 bg-card rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                         >
                           <option value="present">Present</option>
                           <option value="absent">Absent</option>
@@ -244,6 +257,21 @@ const ManageEvents = () => {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete this event?"
+        message="This will permanently delete the event and all of its attendance records, including community service credits. This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          const target = deleteTarget;
+          setDeleteTarget(null);
+          deleteEvent(target);
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 };

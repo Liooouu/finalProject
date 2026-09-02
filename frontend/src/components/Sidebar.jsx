@@ -1,28 +1,47 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FaHome, FaUser, FaUsers, FaCalendarAlt, FaChartBar, FaEdit, FaClock, FaSignOutAlt, FaIdBadge, FaSun, FaMoon, FaTimes, FaBell } from "react-icons/fa";
-import { getUserFromToken, logout } from "../utils/auth";
-import NotificationBell from "./NotificationBell";
-import { useTheme } from "../context/ThemeContext";
-import FoxMark from "./shared/FoxMark";
+import {
+  FaHome,
+  FaUserPlus,
+  FaCalendarAlt,
+  FaUsers,
+  FaChartBar,
+  FaBell,
+  FaEdit,
+  FaClock,
+  FaTimes,
+} from "react-icons/fa";
+import TrackMark from "./shared/TrackMark";
+import { portalName } from "../utils/nav";
+
+const menuItems = {
+  admin: [
+    { name: "Dashboard", path: "/admin/dashboard", icon: <FaHome /> },
+    { name: "Create Organizer", path: "/admin/dashboard/create-organizer", icon: <FaUserPlus /> },
+    { name: "Manage Events", path: "/admin/dashboard/events", icon: <FaCalendarAlt /> },
+    { name: "Manage Users", path: "/admin/dashboard/users", icon: <FaUsers /> },
+    { name: "Attendance Report", path: "/admin/dashboard/reports", icon: <FaChartBar /> },
+    { name: "Notifications", path: "/admin/dashboard/notifications", icon: <FaBell /> },
+  ],
+  organizer: [
+    { name: "Dashboard", path: "/organizer/dashboard", icon: <FaHome /> },
+    { name: "Manage Events", path: "/organizer/dashboard/events", icon: <FaCalendarAlt /> },
+    { name: "Manage Excuses", path: "/organizer/dashboard/excuses", icon: <FaEdit /> },
+    { name: "Notifications", path: "/organizer/dashboard/notifications", icon: <FaBell /> },
+  ],
+  student: [
+    { name: "Dashboard", path: "/student/dashboard", icon: <FaHome /> },
+    { name: "Attend Events", path: "/student/dashboard/events", icon: <FaCalendarAlt /> },
+    { name: "Community Service", path: "/student/dashboard/community-service", icon: <FaClock /> },
+    { name: "Submit Excuse", path: "/student/dashboard/submit-excuse", icon: <FaEdit /> },
+    { name: "Notifications", path: "/student/dashboard/notifications", icon: <FaBell /> },
+  ],
+};
 
 const Sidebar = ({ role, isOpen, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const user = getUserFromToken();
-  const [showMenu, setShowMenu] = useState(false);
-  const menuRef = useRef(null);
-  const { isDark, toggleTheme } = useTheme();
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setShowMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  const items = menuItems[role] || [];
 
   useEffect(() => {
     if (isOpen) {
@@ -30,153 +49,97 @@ const Sidebar = ({ role, isOpen, onClose }) => {
     } else {
       document.body.style.overflow = "";
     }
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [isOpen]);
 
-  const menuItems = {
-    admin: [
-      { name: "Dashboard", path: "/admin/dashboard", icon: <FaHome /> },
-      { name: "Create Organizer", path: "/admin/dashboard/create-organizer", icon: <FaUser /> },
-      { name: "Manage Events", path: "/admin/dashboard/events", icon: <FaCalendarAlt /> },
-      { name: "Manage Users", path: "/admin/dashboard/users", icon: <FaUsers /> },
-      { name: "Attendance Report", path: "/admin/dashboard/reports", icon: <FaChartBar /> },
-      { name: "Notifications", path: "/admin/dashboard/notifications", icon: <FaBell /> },
-    ],
-    organizer: [
-      { name: "Dashboard", path: "/organizer/dashboard", icon: <FaHome /> },
-      { name: "Manage Events", path: "/organizer/dashboard/events", icon: <FaCalendarAlt /> },
-      { name: "Manage Excuses", path: "/organizer/dashboard/excuses", icon: <FaEdit /> },
-      { name: "Notifications", path: "/organizer/dashboard/notifications", icon: <FaBell /> },
-    ],
-    student: [
-      { name: "Dashboard", path: "/student/dashboard", icon: <FaHome /> },
-      { name: "Attend Events", path: "/student/dashboard/events", icon: <FaCalendarAlt /> },
-      { name: "Community Service", path: "/student/dashboard/community-service", icon: <FaClock /> },
-      { name: "Submit Excuse", path: "/student/dashboard/submit-excuse", icon: <FaEdit /> },
-      { name: "Notifications", path: "/student/dashboard/notifications", icon: <FaBell /> },
-    ],
+  const isActive = (path) => {
+    if (path === location.pathname) return true;
+    // Treat a path as active when it's the dashboard and we're under it, or
+    // when a dynamic detail route shares the same section path.
+    if (path.endsWith("/events") && location.pathname.startsWith(path)) return true;
+    return false;
   };
-
-  const profilePaths = {
-    admin: "/admin/dashboard/profile",
-    organizer: "/organizer/dashboard/profile",
-    student: "/student/dashboard/profile",
-  };
-
-  const items = menuItems[role] || [];
-
-  const handleClick = (item) => {
-    if (item.action) {
-      item.action();
-    } else {
-      navigate(item.path);
-    }
-  };
-
-  const isActive = (path) => location.pathname === path;
 
   return (
     <>
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
           onClick={onClose}
+          aria-hidden="true"
         />
       )}
 
-      <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-linear-to-b from-[#0f0f14] to-[#1a1a24] text-white p-4 min-h-screen flex flex-col border-r border-white/5
-        transform transition-transform duration-300 ease-in-out
-        md:static md:translate-x-0
-        ${isOpen ? "translate-x-0" : "-translate-x-full"}
-      `}>
-          <div className="mb-8 px-2 flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2.5 mb-1">
-                <FoxMark className="w-8 h-8" />
-                <h2 className="text-2xl font-bold tracking-tight">
-                  Track<span className="text-red-400">ED</span>
-                </h2>
-              </div>
-              <p className="text-xs text-gray-500 mt-1 capitalize pl-[2.625rem]">{role} Portal</p>
-            </div>
-          <div className="flex items-center gap-2">
-            <NotificationBell role={role} />
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg bg-card hover:bg-card-alt transition-colors text-on-dim"
-              title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            >
-              {isDark ? <FaSun className="text-yellow-400" /> : <FaMoon className="text-blue-500" />}
-            </button>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-white/10 transition-colors text-gray-400 md:hidden"
-            >
-              <FaTimes />
-            </button>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-line bg-[var(--app-base)]/95 backdrop-blur-xl transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {/* Brand */}
+        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-line px-5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/10 ring-1 ring-indigo-500/20">
+            <TrackMark className="h-7 w-7" />
+          </span>
+          <div className="min-w-0 leading-tight">
+            <p className="text-[17px] font-bold tracking-tight text-on">
+              Track<span className="text-indigo-600">ED</span>
+            </p>
+            <p className="text-[11px] text-on-dim">{portalName[role]}</p>
           </div>
+          <button
+            onClick={onClose}
+            aria-label="Close navigation"
+            className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-lg text-on-dim hover:bg-card-alt hover:text-on md:hidden"
+          >
+            <FaTimes />
+          </button>
         </div>
 
-      <nav className="flex-1 flex flex-col gap-1">
-        {items.map((item, idx) => (
-          <button
-            key={idx}
-            onClick={() => handleClick(item)}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 group ${
-              isActive(item.path)
-                ? "bg-linear-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-600/20"
-                : "text-gray-400 hover:bg-white/5 hover:text-white"
-            }`}
-          >
-            <span className="text-lg">{item.icon}</span>
-            <span className="font-medium text-sm">{item.name}</span>
-            {isActive(item.path) && (
-              <span className="ml-auto w-2 h-2 bg-white rounded-full animate-pulse" />
-            )}
-          </button>
-        ))}
-      </nav>
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
+          <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-on-muted">
+            Menu
+          </p>
+          <ul className="flex flex-col gap-1">
+            {items.map((item) => {
+              const active = isActive(item.path);
+              return (
+                <li key={item.name}>
+                  <button
+                    onClick={() => {
+                      navigate(item.path);
+                      onClose();
+                    }}
+                    aria-current={active ? "page" : undefined}
+                    className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                      active
+                        ? "bg-indigo-500/10 font-medium text-indigo-700 dark:text-indigo-300"
+                        : "text-on-dim hover:bg-card-alt hover:text-on"
+                    }`}
+                  >
+                    {active && (
+                      <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-indigo-600 dark:bg-indigo-400" />
+                    )}
+                    <span className={`text-base ${active ? "text-indigo-600 dark:text-indigo-400" : "text-on-muted"}`}>
+                      {item.icon}
+                    </span>
+                    {item.name}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
 
-      {/* User Menu */}
-      <div className="mt-auto pt-4 border-t border-white/5 relative" ref={menuRef}>
-        <button
-          onClick={() => setShowMenu(!showMenu)}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors"
-        >
-          <div className="w-9 h-9 rounded-full bg-linear-to-br from-red-500 to-red-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-            {user?.id?.slice(-2).toUpperCase() || "U"}
-          </div>
-          <div className="flex-1 min-w-0 text-left">
-            <p className="text-sm font-medium text-white truncate capitalize">{role}</p>
-            <p className="text-xs text-gray-500 truncate">{user?.role || role}</p>
-          </div>
-          <span className={`text-gray-500 text-xs transition-transform duration-200 ${showMenu ? "rotate-180" : ""}`}>▾</span>
-        </button>
-
-        {showMenu && (
-          <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#1a1a24] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
-            <button
-              onClick={() => {
-                navigate(profilePaths[role]);
-                setShowMenu(false);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:bg-white/5 hover:text-white transition-colors text-sm"
-            >
-              <FaIdBadge /> My Profile
-            </button>
-            <button
-              onClick={() => {
-                logout();
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:bg-white/5 hover:text-red-400 transition-colors text-sm border-t border-white/5"
-            >
-              <FaSignOutAlt /> Log Out
-            </button>
-          </div>
-        )}
-      </div>
-      </div>
+        {/* Footer */}
+        <div className="shrink-0 border-t border-line px-5 py-4">
+          <p className="text-[11px] text-on-muted">
+            University Event Attendance
+          </p>
+        </div>
+      </aside>
     </>
   );
 };

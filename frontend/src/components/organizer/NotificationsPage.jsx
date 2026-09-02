@@ -3,11 +3,18 @@ import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { FaEdit, FaCalendarAlt, FaCheck, FaBell, FaBolt, FaInfo, FaTrash, FaExclamationTriangle, FaUsers } from "react-icons/fa";
 import Loading from "../shared/Loading";
+import { usePageMeta } from "../../context/PageMetaContext";
+import EmptyState from "../shared/EmptyState";
+import Button from "../ui/Button";
+import ConfirmDialog from "../ui/ConfirmDialog";
 
 const NotificationsPage = ({ role = "organizer" }) => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  usePageMeta("Notifications", "Stay updated with your events.");
 
   const fetchNotifications = async () => {
     try {
@@ -91,20 +98,18 @@ const NotificationsPage = ({ role = "organizer" }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-on">Notifications</h1>
-          <p className="text-on-dim mt-1">Stay updated with your events</p>
-        </div>
-        {unreadCount > 0 && (
-          <button
+      {unreadCount > 0 && (
+        <div className="flex justify-end">
+          <Button
             onClick={markAllAsRead}
-            className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors text-sm"
+            variant="secondary"
+            size="sm"
           >
+            <FaCheck className="text-xs" />
             Mark all as read ({unreadCount})
-          </button>
-        )}
-      </div>
+          </Button>
+        </div>
+      )}
 
       <div className="space-y-4">
         {notifications.map((notif) => {
@@ -113,38 +118,41 @@ const NotificationsPage = ({ role = "organizer" }) => {
             <div
               key={notif._id}
               onClick={() => !notif.isRead && markAsRead(notif._id)}
-              className={`bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border-l-4 rounded-2xl p-6 transition-all duration-200 hover:shadow-lg cursor-pointer ${
-                notif.isRead ? "border-l-gray-500 opacity-70" : "border-l-green-500"
+              className={`cursor-pointer rounded-xl border bg-card p-6 transition-all duration-200 hover:shadow-lg ${
+                notif.isRead
+                  ? "border-line opacity-65"
+                  : "border-indigo-500/40 shadow-md shadow-indigo-900/5"
               }`}
             >
               <div className="flex items-start gap-4">
-                <div className={`p-3 rounded-xl ${config.bg}`}>
-                  <span className={`text-2xl ${config.text}`}>{getIcon(notif.type)}</span>
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${config.bg.replace("20", "15")} ${config.text}`}>
+                  <span className="text-lg">{getIcon(notif.type)}</span>
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start mb-2">
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="font-semibold text-on">{notif.title}</h3>
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium mt-1 ${config.bg} ${config.text}`}>
+                      <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${config.bg} ${config.text}`}>
                         {config.label}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-on-muted">{formatTime(notif.createdAt)}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-on-muted">{formatTime(notif.createdAt)}</span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          deleteNotification(notif._id);
+                          setDeleteTarget(notif._id);
                         }}
-                        className="p-1 text-on-muted hover:text-red-400 transition-colors"
+                        className="p-1 text-on-muted transition-colors hover:text-red-500"
+                        aria-label="Delete notification"
                       >
                         <FaTrash className="text-sm" />
                       </button>
                     </div>
                   </div>
-                  <p className="text-on-dim">{notif.message}</p>
+                  <p className="text-sm text-on-dim">{notif.message}</p>
                   {!notif.isRead && (
-                    <span className="inline-block mt-3 text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">
+                    <span className="mt-3 inline-block rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400">
                       New
                     </span>
                   )}
@@ -156,31 +164,32 @@ const NotificationsPage = ({ role = "organizer" }) => {
       </div>
 
       {notifications.length === 0 && (
-        <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-12 text-center">
-          <span className="text-5xl mb-4 block"><FaBell /></span>
-          <p className="text-on-dim">No notifications yet</p>
-        </div>
+        <EmptyState
+          icon={<FaBell />}
+          title="No notifications yet"
+          description="You're all caught up."
+        />
       )}
 
-      <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
+      <div className="rounded-xl border border-line bg-card p-6">
         <h3 className="text-lg font-semibold text-on mb-4 flex items-center gap-2">
-          <span><FaBolt /></span> Quick Actions
+          <span className="text-indigo-500"><FaBolt /></span> Quick Actions
         </h3>
         <div className="grid md:grid-cols-2 gap-4">
           {role === "admin" ? (
             <>
               <button
                 onClick={() => navigate("/admin/dashboard/events")}
-                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line-dim hover:border-green-500/30 transition-all duration-200 text-left group"
+                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line text-left group transition-colors"
               >
-                <p className="font-medium text-on group-hover:text-green-400 transition-colors flex items-center gap-2"><FaCalendarAlt /> Manage Events</p>
+                <p className="font-medium text-on group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors flex items-center gap-2"><FaCalendarAlt /> Manage Events</p>
                 <p className="text-sm text-on-dim mt-1">View and manage all events</p>
               </button>
               <button
                 onClick={() => navigate("/admin/dashboard/users")}
-                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line-dim hover:border-yellow-500/30 transition-all duration-200 text-left group"
+                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line text-left group transition-colors"
               >
-                <p className="font-medium text-on group-hover:text-yellow-400 transition-colors flex items-center gap-2"><FaUsers /> Manage Users</p>
+                <p className="font-medium text-on group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors flex items-center gap-2"><FaUsers /> Manage Users</p>
                 <p className="text-sm text-on-dim mt-1">Review students and staff</p>
               </button>
             </>
@@ -188,22 +197,37 @@ const NotificationsPage = ({ role = "organizer" }) => {
             <>
               <button
                 onClick={() => navigate("/organizer/dashboard/excuses")}
-                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line-dim hover:border-yellow-500/30 transition-all duration-200 text-left group"
+                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line text-left group transition-colors"
               >
-                <p className="font-medium text-on group-hover:text-yellow-400 transition-colors flex items-center gap-2"><FaEdit /> Manage Excuses</p>
+                <p className="font-medium text-on group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors flex items-center gap-2"><FaEdit /> Manage Excuses</p>
                 <p className="text-sm text-on-dim mt-1">Review student excuse letters</p>
               </button>
               <button
                 onClick={() => navigate("/organizer/dashboard/events")}
-                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line-dim hover:border-green-500/30 transition-all duration-200 text-left group"
+                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line text-left group transition-colors"
               >
-                <p className="font-medium text-on group-hover:text-green-400 transition-colors flex items-center gap-2"><FaCalendarAlt /> Manage Events</p>
+                <p className="font-medium text-on group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors flex items-center gap-2"><FaCalendarAlt /> Manage Events</p>
                 <p className="text-sm text-on-dim mt-1">View and edit your events</p>
               </button>
             </>
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete notification?"
+        message="This notification will be permanently removed."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          const target = deleteTarget;
+          setDeleteTarget(null);
+          deleteNotification(target);
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 };

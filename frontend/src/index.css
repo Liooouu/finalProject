@@ -1,8 +1,12 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
   --color-on: var(--on);
   --color-on-dim: var(--on-dim);
   --color-on-muted: var(--on-muted);
@@ -13,26 +17,64 @@
   --color-line-dim: var(--line-dim-color);
 }
 
+/* ============================================================
+   Design tokens
+   ============================================================ */
 :root {
-  --on: #1e293b;
-  --on-dim: #64748b;
-  --on-muted: #94a3b8;
-  --card-bg: #f8fafc;
+  --on: #0f172a;
+  --on-dim: #475569;
+  --on-muted: #64748b;
+  --card-bg: #ffffff;
   --card-alt-bg: #f1f5f9;
-  --surface-bg: #f1f5f9;
+  --surface-bg: #f8fafc;
   --line-color: #e2e8f0;
   --line-dim-color: #f1f5f9;
+
+  --skeleton-bg: #e2e8f0;
+  --skeleton-shine: rgba(255, 255, 255, 0.85);
+
+  /* Aurora canvas */
+  --app-base: #f5f7fc;
+  --orb-1: radial-gradient(65% 65% at 50% 50%, rgba(79, 70, 229, 0.22) 0%, transparent 70%);
+  --orb-2: radial-gradient(65% 65% at 50% 50%, rgba(14, 165, 233, 0.16) 0%, transparent 70%);
+  --orb-3: radial-gradient(65% 65% at 50% 50%, rgba(139, 92, 246, 0.14) 0%, transparent 70%);
+  --app-grid-line: rgba(15, 23, 42, 0.05);
+  --app-noise-opacity: 0.45;
 }
 
 .dark {
-  --on: #ffffff;
-  --on-dim: #9ca3af;
-  --on-muted: #6b7280;
-  --card-bg: rgba(35, 24, 27, 0.92);
-  --card-alt-bg: rgba(48, 33, 37, 0.92);
-  --surface-bg: #0a0a0f;
-  --line-color: rgba(255, 255, 255, 0.12);
-  --line-dim-color: rgba(255, 255, 255, 0.06);
+  --on: #f1f5f9;
+  --on-dim: #94a3b8;
+  --on-muted: #64748b;
+  --card-bg: #141a29;
+  --card-alt-bg: #1b2234;
+  --surface-bg: #0b0f1a;
+  --line-color: rgba(148, 163, 184, 0.16);
+  --line-dim-color: rgba(148, 163, 184, 0.08);
+
+  --skeleton-bg: rgba(148, 163, 184, 0.16);
+  --skeleton-shine: rgba(148, 163, 184, 0.22);
+
+  --app-base: #070a12;
+  --orb-1: radial-gradient(65% 65% at 50% 50%, rgba(99, 102, 241, 0.28) 0%, transparent 70%);
+  --orb-2: radial-gradient(65% 65% at 50% 50%, rgba(14, 165, 233, 0.18) 0%, transparent 70%);
+  --orb-3: radial-gradient(65% 65% at 50% 50%, rgba(168, 85, 247, 0.15) 0%, transparent 70%);
+  --app-grid-line: rgba(148, 163, 184, 0.06);
+  --app-noise-opacity: 0.35;
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-color: var(--app-base);
+  color: var(--on);
+  font-family: var(--font-sans);
 }
 
 ::placeholder,
@@ -42,53 +84,121 @@ textarea::placeholder {
   opacity: 1;
 }
 
-/* ===== Starfield animations ===== */
-@keyframes twinkle {
-  0%, 100% { opacity: 0.15; }
-  50% { opacity: 1; }
+::selection {
+  background: rgba(99, 102, 241, 0.25);
 }
-@keyframes meteor-shoot {
-  0% {
-    transform: translate3d(0, 0, 0) rotate(-20deg);
-    opacity: 0;
-  }
-  3% { opacity: 1; }
-  25% {
-    transform: translate3d(-42vw, 15vh, 0) rotate(-20deg);
-    opacity: 0;
-  }
-  100% {
-    transform: translate3d(-42vw, 15vh, 0) rotate(-20deg);
-    opacity: 0;
-  }
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-color) transparent;
 }
-.star-dot {
+
+/* Accessible focus states — visible on every interactive element */
+:where(a, button, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid rgb(99 102 241 / 0.9);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ============================================================
+   Aurora canvas — the app's signature backdrop
+   ============================================================ */
+.app-aurora {
+  background-color: var(--app-base);
+}
+
+.app-orb {
   position: absolute;
   border-radius: 9999px;
-  animation-name: twinkle;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  will-change: transform;
+  filter: blur(16px);
 }
-.meteor {
-  position: absolute;
-  top: 0;
-  left: 100%;
-  width: 8px;
-  height: 8px;
-  border-radius: 9999px;
-  animation-name: meteor-shoot;
-  animation-timing-function: cubic-bezier(0.2, 0, 0.6, 1);
-  animation-fill-mode: forwards;
-  animation-iteration-count: infinite;
-  pointer-events: none;
+
+.app-orb-1 { background: var(--orb-1); animation: aurora-drift-1 28s ease-in-out infinite; }
+.app-orb-2 { background: var(--orb-2); animation: aurora-drift-2 36s ease-in-out infinite; }
+.app-orb-3 { background: var(--orb-3); animation: aurora-drift-3 32s ease-in-out infinite; }
+
+@keyframes aurora-drift-1 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(5%, 3%, 0) scale(1.06); }
 }
-.meteor::before {
+@keyframes aurora-drift-2 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.04); }
+  50%      { transform: translate3d(-4%, -2%, 0) scale(1); }
+}
+@keyframes aurora-drift-3 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(2%, -4%, 0) scale(1.07); }
+}
+
+/* Faint top grid, fades out toward the body */
+.app-grid {
+  background-image:
+    linear-gradient(var(--app-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--app-grid-line) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% -10%, black 25%, transparent 72%);
+  mask-image: radial-gradient(ellipse 90% 60% at 50% -10%, black 25%, transparent 72%);
+}
+
+/* Film grain — kills gradient banding, adds premium texture */
+.app-noise {
+  opacity: var(--app-noise-opacity);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/></svg>");
+}
+
+/* ============================================================
+   Loading skeletons
+   ============================================================ */
+@keyframes skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--skeleton-bg);
+}
+.skeleton::after {
   content: "";
   position: absolute;
-  top: 3px;
-  left: 4px;
-  width: 110px;
-  height: 2px;
-  border-radius: 9999px;
-  background: linear-gradient(to right, currentColor, transparent);
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(90deg, transparent, var(--skeleton-shine), transparent);
+  animation: skeleton-shimmer 1.4s infinite;
+}
+
+/* ============================================================
+   Micro animations
+   ============================================================ */
+/* Success checkmark / confirmation pop */
+@keyframes pop-in {
+  0%   { transform: scale(0.6); opacity: 0; }
+  70%  { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-pop {
+  animation: pop-in 0.35s cubic-bezier(0.2, 0.8, 0.3, 1.1) both;
+}
+
+/* Draw a checkmark stroke (for check-in confirmation) */
+@keyframes draw-check {
+  to { stroke-dashoffset: 0; }
+}
+.draw-check {
+  stroke-dasharray: 36;
+  stroke-dashoffset: 36;
+  animation: draw-check 0.45s ease forwards;
+}
+
+/* Soft fade/slide for panels */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fade-up 0.3s ease both;
 }

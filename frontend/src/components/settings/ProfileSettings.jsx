@@ -2,7 +2,14 @@ import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import { getUserFromToken, logout } from "../../utils/auth";
 import { FaUser, FaLock, FaImage, FaCheck, FaTimes, FaDoorOpen } from "react-icons/fa";
+import { usePageMeta } from "../../context/PageMetaContext";
+import { BaseCard } from "../ui";
+import Button from "../ui/Button";
+import ConfirmDialog from "../ui/ConfirmDialog";
 import Loading from "../shared/Loading";
+
+const inputClasses =
+  "w-full rounded-lg border border-line bg-card-alt/60 px-3.5 py-2.5 text-sm text-on placeholder-on-muted focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-colors";
 
 const ProfileSettings = () => {
   const user = getUserFromToken();
@@ -14,7 +21,11 @@ const ProfileSettings = () => {
   const [form, setForm] = useState({ name: "", email: "" });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "" });
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("success");
   const [uploadingPic, setUploadingPic] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+
+  usePageMeta("Profile Settings", "Manage your account information.");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -43,7 +54,12 @@ const ProfileSettings = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [user.role]);
+
+  const showMessage = (text, type = "success") => {
+    setMessage(text);
+    setMessageType(type);
+  };
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -55,9 +71,9 @@ const ProfileSettings = () => {
       const res = await api.patch("/account", form);
       setProfile(res.data);
       setEditing(false);
-      setMessage("Profile updated successfully!");
+      showMessage("Profile updated successfully!");
     } catch (err) {
-      setMessage(err.response?.data?.error || "Failed to update profile");
+      showMessage(err.response?.data?.error || "Failed to update profile", "error");
     }
   };
 
@@ -67,9 +83,9 @@ const ProfileSettings = () => {
       await api.patch("/account/password", passwordForm);
       setPasswordForm({ currentPassword: "", newPassword: "" });
       setShowPasswordForm(false);
-      setMessage("Password changed successfully!");
+      showMessage("Password changed successfully!");
     } catch (err) {
-      setMessage(err.response?.data?.error || "Password update failed");
+      showMessage(err.response?.data?.error || "Password update failed", "error");
     }
   };
 
@@ -78,7 +94,7 @@ const ProfileSettings = () => {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      setMessage("File size must be less than 5MB");
+      showMessage("File size must be less than 5MB", "error");
       return;
     }
 
@@ -92,16 +108,16 @@ const ProfileSettings = () => {
       });
 
       setProfile(res.data.user);
-      setMessage("Profile picture updated!");
+      showMessage("Profile picture updated!");
     } catch (err) {
-      setMessage(err.response?.data?.error || "Failed to upload picture");
+      showMessage(err.response?.data?.error || "Failed to upload picture", "error");
     } finally {
       setUploadingPic(false);
     }
   };
 
   const handleLogout = () => {
-    logout();
+    setConfirmLogout(true);
   };
 
   if (loading) {
@@ -110,217 +126,230 @@ const ProfileSettings = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-on">Profile Settings</h1>
-        <p className="text-on-dim mt-1">Manage your account information</p>
-      </div>
-
       {message && (
-        <div className={`p-4 rounded-xl ${message.includes("success") || message.includes("updated") ? "dark:bg-green-500/20 bg-green-500/10 dark:border-green-500/30 border-green-500/20 dark:text-green-400 text-green-600" : "dark:bg-red-500/20 bg-red-500/10 dark:border-red-500/30 border-red-500/20 dark:text-red-400 text-red-600"}`}>
+        <div
+          className={`rounded-lg border px-3.5 py-2.5 text-sm ${
+            messageType === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300"
+              : "border-red-200 bg-red-50 text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
+          }`}
+        >
           {message}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="md:col-span-2">
-          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl overflow-hidden">
-            <div className="bg-linear-to-r from-blue-600 to-blue-800 p-6">
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  {profile?.profilePicture ? (
-                    <img
-                      src={`http://localhost:5000${profile.profilePicture}`}
-                      alt="Profile"
-                      className="w-20 h-20 rounded-full object-cover bg-white/20"
-                    />
-                  ) : (
-                    <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-4xl">
-                      <FaUser className="text-white" />
-                    </div>
-                  )}
-                  <label className="absolute bottom-0 right-0 bg-green-500 hover:bg-green-600 text-white p-1.5 rounded-full cursor-pointer transition-colors">
-                    <FaImage className="text-sm" />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handlePictureUpload}
-                      className="hidden"
-                      disabled={uploadingPic}
-                    />
-                  </label>
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">{profile?.name}</h2>
-                  <p className="text-blue-100">{profile?.email}</p>
-                  <span className="inline-block mt-2 px-3 py-1 bg-white/20 rounded-full text-sm capitalize">
-                    {profile?.role}
-                  </span>
-                </div>
+          <BaseCard>
+            <div className="mb-6 flex flex-col gap-4 rounded-xl bg-linear-to-br from-indigo-600 to-indigo-900 p-6 sm:flex-row sm:items-center">
+              <div className="relative shrink-0">
+                {profile?.profilePicture ? (
+                  <img
+                    src={`http://localhost:5000${profile.profilePicture}`}
+                    alt="Profile"
+                    className="h-20 w-20 rounded-full object-cover ring-4 ring-white/20"
+                  />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/15 ring-4 ring-white/20">
+                    <FaUser className="text-3xl text-white" />
+                  </div>
+                )}
+                <label className="absolute -bottom-1 -right-1 cursor-pointer rounded-full bg-white p-1.5 text-indigo-700 shadow-md transition-colors hover:bg-slate-100">
+                  <FaImage className="text-xs" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePictureUpload}
+                    className="hidden"
+                    disabled={uploadingPic}
+                  />
+                </label>
+              </div>
+              <div className="min-w-0 text-white">
+                <h2 className="truncate text-2xl font-bold">{profile?.name}</h2>
+                <p className="truncate text-indigo-200">{profile?.email}</p>
+                <span className="mt-2 inline-block rounded-full bg-white/20 px-3 py-0.5 text-sm capitalize">
+                  {profile?.role}
+                </span>
               </div>
             </div>
 
-            <div className="p-6">
-              {editing ? (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-on mb-2">Full Name</label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={form.name}
-                      onChange={handleChange}
-                      className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-on mb-2">Email Address</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={form.email}
-                      onChange={handleChange}
-                      className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                      required
-                    />
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      type="submit"
-                      className="bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-on font-semibold px-6 py-3 rounded-xl transition-all duration-200"
-                    >
-                      <span className="flex items-center gap-2"><FaCheck /> Save Changes</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditing(false);
-                        setForm({ name: profile.name, email: profile.email });
-                      }}
-                      className="bg-card hover:bg-card-alt border border-line text-on px-6 py-3 rounded-xl transition-all duration-200"
-                    >
-                      <span className="flex items-center gap-2"><FaTimes /> Cancel</span>
-                    </button>
-                  </div>
-                </form>
-              ) : showPasswordForm ? (
-                <form onSubmit={handlePasswordChange} className="space-y-4">
-                  <h3 className="text-lg font-semibold text-on">Change Password</h3>
-                  <div>
-                    <label className="block text-sm font-semibold text-on mb-2">Current Password</label>
-                    <input
-                      type="password"
-                      value={passwordForm.currentPassword}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                      className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-on mb-2">New Password</label>
-                    <input
-                      type="password"
-                      value={passwordForm.newPassword}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                      className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                      required
-                    />
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      type="submit"
-                      className="bg-linear-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-on font-semibold px-6 py-3 rounded-xl transition-all duration-200"
-                    >
-                      <span className="flex items-center gap-2"><FaCheck /> Update Password</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPasswordForm(false);
-                        setPasswordForm({ currentPassword: "", newPassword: "" });
-                      }}
-                      className="bg-card hover:bg-card-alt border border-line text-on px-6 py-3 rounded-xl transition-all duration-200"
-                    >
-                      <span className="flex items-center gap-2"><FaTimes /> Cancel</span>
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm text-on-dim">Full Name</label>
-                    <p className="text-lg font-medium text-on">{profile?.name}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-on-dim">Email Address</label>
-                    <p className="text-lg font-medium text-on">{profile?.email}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-on-dim">Role</label>
-                    <p className="text-lg font-medium text-on capitalize">{profile?.role}</p>
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setEditing(true)}
-                      className="bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-blue-600/30 transition-all duration-200"
-                    >
-                      Edit Profile
-                    </button>
-                    <button
-                      onClick={() => setShowPasswordForm(true)}
-                      className="bg-linear-to-r from-yellow-600 to-yellow-700 hover:from-yellow-500 hover:to-yellow-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-yellow-600/30 transition-all duration-200"
-                    >
-                      <span className="flex items-center gap-2"><FaLock /> Change Password</span>
-                    </button>
-                  </div>
+            {editing ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="pf-name" className="text-sm font-medium text-on">
+                    Full Name
+                  </label>
+                  <input
+                    id="pf-name"
+                    type="text"
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    className={inputClasses}
+                    required
+                  />
                 </div>
-              )}
-            </div>
-          </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="pf-email" className="text-sm font-medium text-on">
+                    Email Address
+                  </label>
+                  <input
+                    id="pf-email"
+                    type="email"
+                    name="email"
+                    value={form.email}
+                    onChange={handleChange}
+                    className={inputClasses}
+                    required
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <Button type="submit">
+                    <FaCheck /> Save Changes
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setEditing(false);
+                      setForm({ name: profile.name, email: profile.email });
+                    }}
+                    variant="secondary"
+                  >
+                    <FaTimes /> Cancel
+                  </Button>
+                </div>
+              </form>
+            ) : showPasswordForm ? (
+              <form onSubmit={handlePasswordChange} className="space-y-4">
+                <h3 className="text-lg font-semibold text-on">Change Password</h3>
+                <div className="space-y-1.5">
+                  <label htmlFor="pw-current" className="text-sm font-medium text-on">
+                    Current Password
+                  </label>
+                  <input
+                    id="pw-current"
+                    type="password"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                    className={inputClasses}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="pw-new" className="text-sm font-medium text-on">
+                    New Password
+                  </label>
+                  <input
+                    id="pw-new"
+                    type="password"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    className={inputClasses}
+                    required
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <Button type="submit">
+                    <FaCheck /> Update Password
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setShowPasswordForm(false);
+                      setPasswordForm({ currentPassword: "", newPassword: "" });
+                    }}
+                    variant="secondary"
+                  >
+                    <FaTimes /> Cancel
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="space-y-4">
+                {[
+                  { label: "Full Name", value: profile?.name },
+                  { label: "Email Address", value: profile?.email },
+                  {
+                    label: "Role",
+                    value: profile?.role ? profile.role[0].toUpperCase() + profile.role.slice(1) : "",
+                  },
+                ].map((field) => (
+                  <div key={field.label}>
+                    <label className="text-sm text-on-dim">{field.label}</label>
+                    <p className="text-lg font-medium text-on">{field.value}</p>
+                  </div>
+                ))}
+                <div className="flex flex-wrap gap-3">
+                  <Button onClick={() => setEditing(true)}>
+                    <FaUser /> Edit Profile
+                  </Button>
+                  <Button onClick={() => setShowPasswordForm(true)} variant="secondary">
+                    <FaLock /> Change Password
+                  </Button>
+                </div>
+              </div>
+            )}
+          </BaseCard>
         </div>
 
         <div className="space-y-6">
-          <div className="bg-linear-to-br dark:from-white/10 dark:to-white/5 from-slate-50 to-slate-100 backdrop-blur-sm border border-line rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-on mb-4">Your Statistics</h3>
+          <BaseCard title="Your Statistics" icon={<FaUser />}>
             <div className="space-y-4">
               {user.role === "student" && (
                 <>
-                  <div className="flex justify-between items-center p-3 bg-green-500/10 rounded-xl">
-                    <span className="text-on-dim">Events Attended</span>
-                    <span className="text-2xl font-bold dark:text-green-400 text-green-600">{stats.totalAttended || 0}</span>
+                  <div className="flex items-center justify-between rounded-lg bg-indigo-500/10 p-3">
+                    <span className="text-sm text-on-dim">Events Attended</span>
+                    <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                      {stats.totalAttended || 0}
+                    </span>
                   </div>
-                  <div className="flex justify-between items-center p-3 bg-yellow-500/10 rounded-xl">
-                    <span className="text-on-dim">Community Service</span>
-                    <span className="text-2xl font-bold dark:text-yellow-400 text-yellow-600">{stats.totalHours || 0} hrs</span>
+                  <div className="flex items-center justify-between rounded-lg bg-amber-500/10 p-3">
+                    <span className="text-sm text-on-dim">Community Service</span>
+                    <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                      {stats.totalHours || 0} hrs
+                    </span>
                   </div>
                 </>
               )}
               {user.role === "organizer" && (
                 <>
-                  <div className="flex justify-between items-center p-3 bg-blue-500/10 rounded-xl">
-                    <span className="text-on-dim">Events Created</span>
-                    <span className="text-2xl font-bold dark:text-blue-400 text-blue-600">{stats.totalEvents || 0}</span>
+                  <div className="flex items-center justify-between rounded-lg bg-indigo-500/10 p-3">
+                    <span className="text-sm text-on-dim">Events Created</span>
+                    <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                      {stats.totalEvents || 0}
+                    </span>
                   </div>
-                  <div className="flex justify-between items-center p-3 bg-green-500/10 rounded-xl">
-                    <span className="text-on-dim">Total Attendees</span>
-                    <span className="text-2xl font-bold dark:text-green-400 text-green-600">{stats.totalAttendees || 0}</span>
+                  <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 p-3">
+                    <span className="text-sm text-on-dim">Total Attendees</span>
+                    <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                      {stats.totalAttendees || 0}
+                    </span>
                   </div>
                 </>
               )}
               {user.role === "admin" && (
-                <p className="text-on-dim text-sm">Admin accounts have full system access.</p>
+                <p className="text-sm text-on-dim">Admin accounts have full system access.</p>
               )}
             </div>
-          </div>
+          </BaseCard>
 
-          <button
-            onClick={handleLogout}
-            className="w-full bg-linear-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-red-600/30 transition-all duration-200 flex items-center justify-center gap-2"
-          >
+          <Button onClick={handleLogout} variant="danger" className="w-full py-2.5">
             <FaDoorOpen /> Log Out
-          </button>
+          </Button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmLogout}
+        title="Log out of TrackED?"
+        message="You will need to sign back in to continue tracking attendance."
+        confirmLabel="Log Out"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={logout}
+        onCancel={() => setConfirmLogout(false)}
+      />
     </div>
   );
 };
