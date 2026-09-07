@@ -28,7 +28,7 @@ import TodayCard from "./TodayCard";
 // TODO(required-hours): hardcoded target until a `requiredServiceHours` field
 // is added to the Student/User schema. Add `requiredServiceHours: Number,
 // default: 40` to backend/models/User.js and fetch it from the account/API.
-const REQUIRED_HOURS = 40;
+const REQUIRED_HOURS = 10;
 const EVENTS_BADGE = 5;
 const HOURS_BADGE = 20;
 
@@ -291,11 +291,11 @@ const DashboardHome = () => {
                   <Sparkline data={serviceTrend} color="#facc15" />
                 </div>
               </div>
-              <ProgressBar current={stats.totalHours} target={REQUIRED_HOURS} />
+              <ProgressBar current={stats.totalHours} target={stats.totalHours} />
               <p className="text-xs text-on-muted mt-2">
-                {REQUIRED_HOURS - stats.totalHours > 0
-                  ? `${REQUIRED_HOURS - stats.totalHours} hrs left to reach your target`
-                  : "Target reached — great job!"}
+                {stats.totalHours > 0
+                  ? `Total: ${stats.totalHours} community service hours`
+                  : "No community service hours yet"}
               </p>
             </div>
 

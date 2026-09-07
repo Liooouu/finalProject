@@ -136,7 +136,7 @@ const Sidebar = ({ role, isOpen, onClose }) => {
         {/* Footer */}
         <div className="shrink-0 border-t border-line px-5 py-4">
           <p className="text-[11px] text-on-muted">
-            University Event Attendance
+            Events Attendance System Management
           </p>
         </div>
       </aside>

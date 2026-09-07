@@ -155,7 +155,7 @@ const AuthPage = () => {
                 Lock onto every lecture, event, and community hour.
               </h2>
               <p className="mt-3 max-w-md text-indigo-100/80">
-                TrackED keeps university attendance in clear focus — for students,
+                TrackED keeps Events attendance in clear focus — for students,
                 organizers, and admins.
               </p>
 
@@ -178,7 +178,7 @@ const AuthPage = () => {
             </div>
 
             <p className="text-xs text-indigo-100/60">
-              © {new Date().getFullYear()} TrackED · University Event Attendance System
+              © {new Date().getFullYear()} TrackED · Events Attendance Management System
             </p>
           </div>
         </div>
