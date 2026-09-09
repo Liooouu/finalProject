@@ -29,6 +29,7 @@ const EventDetails = () => {
   const [qrRefreshKey, setQrRefreshKey] = useState(0);
   const [studentId, setStudentId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [csDrafts, setCsDrafts] = useState({});
 
   usePageMeta(event?.title || "Event", event?.date
     ? new Date(event.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
@@ -100,6 +101,19 @@ const EventDetails = () => {
       setMessage("Status updated");
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to update status");
+    }
+  };
+
+  const handleUpdateCS = async (stdId, val) => {
+    const hours = Number(val);
+    if (!Number.isFinite(hours) || hours < 0) return;
+    try {
+      const res = await api.patch(`/events/${id}/attendees/${stdId}/community-service`, { hours });
+      setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
+      setCsDrafts((d) => ({ ...d, [stdId]: hours }));
+      setMessage("Service hours updated");
+    } catch (err) {
+      setMessage(err.response?.data?.error || "Failed to update service hours");
     }
   };
 
@@ -478,15 +492,37 @@ const EventDetails = () => {
                         </p>
                       )}
                     </div>
-                    <select
-                      value={attendance.status}
-                      onChange={(e) => handleUpdateStatus(attendance.student._id, e.target.value)}
-                      className="bg-card border border-line rounded-lg px-3 py-2 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                    >
-                      <option value="present">Present (0 hrs)</option>
-                      <option value="late">Late (4 hrs)</option>
-                      <option value="absent">Absent (8 hrs)</option>
-                    </select>
+                    <div className="flex flex-col gap-2">
+                      <select
+                        value={attendance.status}
+                        onChange={(e) => handleUpdateStatus(attendance.student._id, e.target.value)}
+                        className="bg-card border border-line rounded-lg px-3 py-2 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                      >
+                        <option value="present">Present (0 hrs)</option>
+                        <option value="late">Late (4 hrs)</option>
+                        <option value="absent">Absent (8 hrs)</option>
+                      </select>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          value={csDrafts[attendance.student._id] ?? attendance.communityServiceHours ?? 0}
+                          onChange={(e) =>
+                            setCsDrafts((d) => ({ ...d, [attendance.student._id]: e.target.value }))
+                          }
+                          className="w-20 bg-card border border-line rounded-lg px-3 py-2 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            handleUpdateCS(attendance.student._id, csDrafts[attendance.student._id] ?? attendance.communityServiceHours ?? 0)
+                          }
+                        >
+                          Set hrs
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>

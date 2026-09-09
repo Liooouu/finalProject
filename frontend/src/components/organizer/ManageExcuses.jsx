@@ -118,7 +118,7 @@ const ManageExcuses = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-2 flex-wrap">
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-medium ${
                           excuse.type === "advance"

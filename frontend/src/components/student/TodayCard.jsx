@@ -189,45 +189,47 @@ const TodayCard = ({
             <p className="text-sm font-semibold text-on">{monthTitle}</p>
             <FaCalendarAlt className="text-on-muted text-sm" />
           </div>
-          <div className="grid grid-cols-7 gap-1 text-center">
-            {WEEKDAYS.map((w) => (
-              <span key={w} className="text-[10px] font-medium uppercase text-on-muted py-1">
-                {w}
-              </span>
-            ))}
-            {cells.map((d, i) => {
-              if (!d) return <span key={`blank-${i}`} />;
-              const key = `${now.getFullYear()}-${now.getMonth()}-${d}`;
-              const isToday = key === todayKey;
-              const evIdxs = eventDayMap[key];
-              const isSelected = !!evIdxs?.includes(selectedUpcoming);
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  disabled={!evIdxs?.length}
-                  onClick={() => onSelectEvent(evIdxs[0])}
-                  className={`relative mx-auto flex h-9 w-9 items-center justify-center rounded-lg text-sm transition-colors ${
-                    isSelected
-                      ? "bg-indigo-600 font-bold text-white shadow"
-                      : isToday
-                        ? "font-bold text-indigo-600 ring-2 ring-inset ring-indigo-500/60 dark:text-indigo-400"
-                        : evIdxs?.length
-                          ? "cursor-pointer text-on hover:bg-card-alt"
-                          : "text-on-muted"
-                  }`}
-                >
-                  {d}
-                  {evIdxs?.length && (
-                    <span
-                      className={`absolute bottom-0.5 h-1 w-1 rounded-full ${
-                        isSelected ? "bg-white" : "bg-indigo-500"
-                      }`}
-                    />
-                  )}
-                </button>
-              );
-            })}
+          <div className="rounded-xl border border-line p-2">
+            <div className="grid grid-cols-7 gap-1 text-center">
+              {WEEKDAYS.map((w) => (
+                <span key={w} className="text-[10px] font-medium uppercase text-on-muted py-1">
+                  {w}
+                </span>
+              ))}
+              {cells.map((d, i) => {
+                if (!d) return <span key={`blank-${i}`} />;
+                const key = `${now.getFullYear()}-${now.getMonth()}-${d}`;
+                const isToday = key === todayKey;
+                const evIdxs = eventDayMap[key];
+                const isSelected = !!evIdxs?.includes(selectedUpcoming);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={!evIdxs?.length}
+                    onClick={() => onSelectEvent(evIdxs[0])}
+                    className={`relative mx-auto flex h-9 w-full max-w-9 items-center justify-center rounded-lg text-sm transition-colors ${
+                      isSelected
+                        ? "bg-indigo-600 font-bold text-white shadow"
+                        : isToday
+                          ? "font-bold text-indigo-600 ring-2 ring-inset ring-indigo-500/60 dark:text-indigo-400"
+                          : evIdxs?.length
+                            ? "cursor-pointer text-on hover:bg-card-alt"
+                            : "text-on-muted"
+                    }`}
+                  >
+                    {d}
+                    {evIdxs?.length && (
+                      <span
+                        className={`absolute bottom-0.5 h-1 w-1 rounded-full ${
+                          isSelected ? "bg-white" : "bg-indigo-500"
+                        }`}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <p className="mt-2 text-xs text-on-muted">
             Dots mark days with events — tap one to highlight it below.
@@ -240,10 +242,10 @@ const TodayCard = ({
             <button
               key={a.label}
               onClick={() => navigate(a.path)}
-              className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors hover:-translate-y-0.5 ${a.color}`}
+              className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors hover:-translate-y-0.5 ${a.color}`}
             >
               {a.icon}
-              <span className="whitespace-nowrap">{a.label}</span>
+              <span>{a.label}</span>
             </button>
           ))}
         </div>

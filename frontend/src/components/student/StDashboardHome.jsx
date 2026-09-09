@@ -28,9 +28,9 @@ import TodayCard from "./TodayCard";
 // TODO(required-hours): hardcoded target until a `requiredServiceHours` field
 // is added to the Student/User schema. Add `requiredServiceHours: Number,
 // default: 40` to backend/models/User.js and fetch it from the account/API.
-const REQUIRED_HOURS = 10;
+const REQUIRED_HOURS = 40;
 const EVENTS_BADGE = 5;
-const HOURS_BADGE = 20;
+const CS_TIERS = [10, 20, 30, 40];
 
 const DashboardHome = () => {
   const navigate = useNavigate();
@@ -124,30 +124,20 @@ const DashboardHome = () => {
         binary: true,
         earned: activity.length > 0 && activity.every((r) => r.status !== "absent"),
       },
-      {
-        icon: <FaClock />,
-        label: "10+ service hours",
-        current: stats.totalHours,
-        target: 10,
-        unit: "hrs",
-        earned: stats.totalHours >= 10,
-      },
-      {
-        icon: <FaTrophy />,
-        label: `${HOURS_BADGE}+ service hours`,
-        current: stats.totalHours,
-        target: HOURS_BADGE,
-        unit: "hrs",
-        earned: stats.totalHours >= HOURS_BADGE,
-      },
-      {
-        icon: <FaClock />,
-        label: "Reach required service total",
-        current: stats.totalHours,
-        target: REQUIRED_HOURS,
-        unit: "hrs",
-        earned: stats.totalHours >= REQUIRED_HOURS,
-      },
+      ...(() => {
+        const nextTier = CS_TIERS.find((t) => stats.totalHours < t) || REQUIRED_HOURS;
+        const allDone = stats.totalHours >= REQUIRED_HOURS;
+        return [
+          {
+            icon: allDone ? <FaTrophy /> : <FaClock />,
+            label: allDone ? "Service hours complete!" : `${nextTier}+ service hours`,
+            current: stats.totalHours,
+            target: nextTier,
+            unit: "hrs",
+            earned: allDone,
+          },
+        ];
+      })(),
     ],
     [stats.totalAttended, stats.totalHours, activity]
   );
@@ -178,23 +168,15 @@ const DashboardHome = () => {
 
   return (
     <div className="space-y-6">
+      {/* ===== ROW 1: Upcoming Events + Live calendar (side by side) ===== */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* ===== TOP-LEFT PRIORITY: Live calendar + weather + quick actions ===== */}
-        <div className="lg:col-span-2 flex flex-col space-y-6">
-          <BaseCard title="Today" icon={<FaClock />}>
-            <TodayCard
-              events={upcomingEvents}
-              selectedUpcoming={selectedUpcoming}
-              onSelectEvent={setSelectedUpcoming}
-              quickActions={quickActions}
-            />
-          </BaseCard>
-
-          {/* ===== UPCOMING EVENTS + LOCATION MAP ===== */}
+        {/* ===== TOP-LEFT PRIORITY: Upcoming Events + Location Map ===== */}
+        <div className="lg:col-span-2">
           <BaseCard
             title="Upcoming Events"
             icon={<FaCalendarAlt />}
-            className="flex-1"
+            className="h-full flex flex-col"
+            bodyClassName="flex flex-1 flex-col min-h-0"
             centerTitle
           >
             {upcomingEvents.length === 0 ? (
@@ -203,7 +185,7 @@ const DashboardHome = () => {
                 <p className="text-on-dim text-sm">No upcoming events right now — check back soon.</p>
               </div>
             ) : (
-              <div className="flex h-full flex-col">
+              <div className="flex min-h-0 flex-1 flex-col">
                 <ul className="divide-y divide-line">
                   {upcomingEvents.map((event, i) => (
                     <li key={event._id}>
@@ -256,11 +238,11 @@ const DashboardHome = () => {
                   ))}
                 </ul>
 
-                <div className="mt-5 -mx-5 -mb-5 flex w-auto flex-1 flex-col justify-center overflow-hidden rounded-b-xl">
+                <div className="mt-5 flex w-auto flex-1 flex-col overflow-hidden rounded-xl border border-line p-2">
                   <EventMap
                     event={upcomingEvents[selectedUpcoming]}
                     frame={false}
-                    className="h-56 w-full grow sm:min-h-0 max-w-none"
+                    className="h-full w-full max-w-none rounded-lg"
                   />
                 </div>
               </div>
@@ -268,48 +250,60 @@ const DashboardHome = () => {
           </BaseCard>
         </div>
 
-        {/* ===== TOP-RIGHT PRIORITY: Key stats ===== */}
-        <div className="lg:col-span-1 flex flex-col space-y-6">
-          <BaseCard title="Your Stats" icon={<FaClock />} menu={menu}>
-            {/* Events Attended */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2 text-sm text-on-dim">
-                <span className="text-green-400"><FaCalendarAlt /></span> Events Attended
-              </div>
-              <span className="text-2xl font-bold text-on">{stats.totalAttended}</span>
-            </div>
-
-            {/* Service Hours + Sparkline + Progress */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2 text-sm text-on-dim">
-                  <span className="text-yellow-400"><FaClock /></span> Service Hours
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-yellow-400">{stats.totalHours}</span>
-                  <span className="text-sm text-on-muted">hrs</span>
-                  <Sparkline data={serviceTrend} color="#facc15" />
-                </div>
-              </div>
-              <ProgressBar current={stats.totalHours} target={stats.totalHours} />
-              <p className="text-xs text-on-muted mt-2">
-                {stats.totalHours > 0
-                  ? `Total: ${stats.totalHours} community service hours`
-                  : "No community service hours yet"}
-              </p>
-            </div>
-
-            {/* Upcoming */}
-            <div className="flex items-center justify-between pt-4 border-t border-line">
-              <div className="flex items-center gap-2 text-sm text-on-dim">
-                <span className="text-blue-400"><FaCalendarAlt /></span> Upcoming Events
-              </div>
-              <span className="text-2xl font-bold text-on">{upcoming}</span>
-            </div>
+        {/* ===== TOP-RIGHT PRIORITY: Live calendar + weather + quick actions ===== */}
+        <div className="lg:col-span-1">
+          <BaseCard title="Today" icon={<FaClock />}>
+            <TodayCard
+              events={upcomingEvents}
+              selectedUpcoming={selectedUpcoming}
+              onSelectEvent={setSelectedUpcoming}
+              quickActions={quickActions}
+            />
           </BaseCard>
+        </div>
+      </div>
 
-          {/* ===== ACHIEVEMENTS (gamification) ===== */}
-          <BaseCard title="Achievements" icon={<FaTrophy />} className="flex-1" menu={menu}>
+      {/* ===== ROW 2: Recent Activity + Achievements (side by side) ===== */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          {/* ===== SECONDARY: Recent Activity feed (scanned after the top row) ===== */}
+          <BaseCard title="Recent Activity" icon={<MdLocalActivity />} className="h-full" menu={menu}>
+            {!activity.length ? (
+              <div className="flex flex-col items-center py-6 text-center">
+                <span className="text-3xl text-on-muted mb-2"><BsEmojiSmile /></span>
+                <p className="text-on-dim text-sm">No activity yet — check in at your next event to get started.</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-line">
+                {activity.map((record, idx) => (
+                  <li key={idx} className="flex items-center gap-4 py-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${
+                      record.status === "absent"
+                        ? "bg-red-500/10 text-red-400"
+                        : "bg-green-500/10 text-green-400"
+                    }`}>
+                      {record.status === "absent" ? <FaClock /> : <BsClipboardCheck />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-on font-medium truncate">{record.event?.title || "Unknown Event"}</p>
+                      <p className="text-xs text-on-muted">
+                        {record.event?.date ? new Date(record.event.date).toLocaleDateString() : "-"}
+                      </p>
+                    </div>
+                    <StatusPill
+                      status={record.status}
+                      hint={`${record.communityServiceHours || 0} hrs`}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </BaseCard>
+        </div>
+
+        {/* ===== ACHIEVEMENTS (gamification) ===== */}
+        <div className="lg:col-span-1">
+          <BaseCard title="Achievements" icon={<FaTrophy />} className="h-full" menu={menu}>
             <div className="space-y-5">
               {badges.map((b, i) => (
                 <div key={i} className="space-y-1.5">
@@ -347,38 +341,43 @@ const DashboardHome = () => {
         </div>
       </div>
 
-      {/* ===== SECONDARY: Recent Activity feed (scanned after the top row) ===== */}
-      <BaseCard title="Recent Activity" icon={<MdLocalActivity />} menu={menu}>
-        {!activity.length ? (
-          <div className="flex flex-col items-center py-6 text-center">
-            <span className="text-3xl text-on-muted mb-2"><BsEmojiSmile /></span>
-            <p className="text-on-dim text-sm">No activity yet — check in at your next event to get started.</p>
+      {/* ===== ROW 3: Key stats (very bottom) ===== */}
+      <BaseCard title="Your Stats" icon={<FaClock />} menu={menu}>
+        {/* Events Attended */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 text-sm text-on-dim">
+            <span className="text-green-400"><FaCalendarAlt /></span> Events Attended
           </div>
-        ) : (
-          <ul className="divide-y divide-line">
-            {activity.map((record, idx) => (
-              <li key={idx} className="flex items-center gap-4 py-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${
-                  record.status === "absent"
-                    ? "bg-red-500/10 text-red-400"
-                    : "bg-green-500/10 text-green-400"
-                }`}>
-                  {record.status === "absent" ? <FaClock /> : <BsClipboardCheck />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-on font-medium truncate">{record.event?.title || "Unknown Event"}</p>
-                  <p className="text-xs text-on-muted">
-                    {record.event?.date ? new Date(record.event.date).toLocaleDateString() : "-"}
-                  </p>
-                </div>
-                <StatusPill
-                  status={record.status}
-                  hint={`${record.communityServiceHours || 0} hrs`}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
+          <span className="text-2xl font-bold text-on">{stats.totalAttended}</span>
+        </div>
+
+        {/* Service Hours + Sparkline + Progress */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2 text-sm text-on-dim">
+              <span className="text-yellow-400"><FaClock /></span> Service Hours
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-bold text-yellow-400">{stats.totalHours}</span>
+              <span className="text-sm text-on-muted">hrs</span>
+              <Sparkline data={serviceTrend} color="#facc15" />
+            </div>
+          </div>
+          <ProgressBar current={stats.totalHours} target={REQUIRED_HOURS} />
+          <p className="text-xs text-on-muted mt-2">
+            {stats.totalHours > 0
+              ? `Total: ${stats.totalHours} community service hours`
+              : "No community service hours yet"}
+          </p>
+        </div>
+
+        {/* Upcoming */}
+        <div className="flex items-center justify-between pt-4 border-t border-line">
+          <div className="flex items-center gap-2 text-sm text-on-dim">
+            <span className="text-blue-400"><FaCalendarAlt /></span> Upcoming Events
+          </div>
+          <span className="text-2xl font-bold text-on">{upcoming}</span>
+        </div>
       </BaseCard>
     </div>
   );

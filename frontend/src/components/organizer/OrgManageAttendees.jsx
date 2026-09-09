@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { FaUserPlus, FaSearch, FaCheck, FaTimes, FaClock } from "react-icons/fa";
+import { FaUserPlus, FaSearch, FaCheck, FaTimes, FaClock, FaArrowLeft } from "react-icons/fa";
 import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
+import { getUserRole } from "../../utils/auth";
 import Button from "../ui/Button";
 
 const OrgManageAttendees = () => {
   const { id: eventId } = useParams();
+  const navigate = useNavigate();
   const [students, setStudents] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -109,6 +111,20 @@ const OrgManageAttendees = () => {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate(
+            getUserRole() === "admin"
+              ? `/admin/dashboard/events/${eventId}`
+              : `/organizer/dashboard/events/${eventId}`
+          )}
+        >
+          <FaArrowLeft /> Back to event
+        </Button>
+      </div>
+
       <p className="text-sm text-on-dim">
         {attendees.length} {attendees.length === 1 ? "student" : "students"} checked in
       </p>
