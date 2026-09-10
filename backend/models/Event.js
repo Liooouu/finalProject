@@ -6,6 +6,8 @@ const eventSchema = new mongoose.Schema({
   description: { type: String },
   date: { type: Date, required: true },
   time: { type: String, required: true },
+  endDate: { type: Date },
+  endTime: { type: String },
   location: { type: String },
   mapQuery: { type: String, trim: true },
   status: { type: String, enum: ["upcoming", "live", "closed"], default: "upcoming" },

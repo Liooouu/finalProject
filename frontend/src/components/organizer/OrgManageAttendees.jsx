@@ -95,13 +95,25 @@ const OrgManageAttendees = () => {
         { hours: value }
       );
       setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
-      setMessage(
-        value === 0
-          ? "Community service removed successfully!"
-          : "Community service updated successfully!"
-      );
+      setMessage(`Service goal set to ${value} hrs`);
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to update community service");
+    }
+  };
+
+  const handleRemoveCS = async (attendance) => {
+    const studentId = attendance.student?._id || attendance.student;
+    try {
+      const res = await api.patch(
+        `/events/${eventId}/attendees/${studentId}/community-service/remove`,
+        {}
+      );
+      const newGoal = res.data.requiredServiceHours ?? res.data.student?.requiredServiceHours ?? 0;
+      setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
+      setCsDrafts((d) => ({ ...d, [attendance._id]: String(newGoal) }));
+      setMessage("Community service removed");
+    } catch (err) {
+      setMessage(err.response?.data?.error || "Failed to remove community service");
     }
   };
 
@@ -305,40 +317,38 @@ const OrgManageAttendees = () => {
                     <p className="text-on-dim text-sm mt-1">
                       {attendance.communityServiceHours} hrs CS
                     </p>
+                    <p className="text-on-muted text-xs mt-0.5">
+                      Goal: {attendance.requiredServiceHours ?? attendance.student?.requiredServiceHours ?? 0} hrs
+                    </p>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <input
                       type="number"
                       min="0"
-                      value={csDrafts[attendance._id] ?? String(attendance.communityServiceHours)}
+                      value={csDrafts[attendance._id] ?? String(attendance.requiredServiceHours ?? attendance.student?.requiredServiceHours ?? 0)}
                       onChange={(e) =>
                         setCsDrafts({ ...csDrafts, [attendance._id]: e.target.value })
                       }
                       className="w-16 bg-card-alt border border-line rounded-lg px-2 py-1.5 text-sm text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                      title="Set community service hours"
+                      title="Set the student's community service goal"
                     />
                     <button
                       onClick={() =>
                         handleUpdateCS(
                           attendance,
-                          csDrafts[attendance._id] ?? attendance.communityServiceHours
+                          csDrafts[attendance._id] ?? attendance.requiredServiceHours ?? attendance.student?.requiredServiceHours ?? 0
                         )
                       }
                       className="bg-green-500 hover:bg-green-600 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
                     >
-                      Set
+                      Set goal
                     </button>
-                    {attendance.communityServiceHours > 0 && (
-                      <button
-                        onClick={() => {
-                          setCsDrafts({ ...csDrafts, [attendance._id]: "0" });
-                          handleUpdateCS(attendance, 0);
-                        }}
-                        className="bg-card-alt hover:bg-red-900/50 border border-line hover:border-red-500 dark:text-red-400 text-red-600 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
-                      >
-                        Remove
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleRemoveCS(attendance)}
+                      className="bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
+                    >
+                      Remove CS
+                    </button>
                   </div>
                 </div>
               </div>

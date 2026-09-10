@@ -26,6 +26,8 @@ const OrgManageEvents = () => {
     mapQuery: "",
     date: "",
     time: "",
+    endDate: "",
+    endTime: "",
     attendanceStartTime: "",
     attendanceEndTime: "",
   });
@@ -62,6 +64,8 @@ const OrgManageEvents = () => {
         mapQuery: "",
         date: "",
         time: "",
+        endDate: "",
+        endTime: "",
         attendanceStartTime: "",
         attendanceEndTime: "",
       });
@@ -198,6 +202,40 @@ const OrgManageEvents = () => {
             </div>
           </div>
 
+          {/* Event Ends — when the event itself finishes */}
+          <div className="border-t border-line pt-4">
+            <h3 className="text-sm font-semibold text-on-dim mb-3">Event Ends</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-on-muted block mb-1">End Date</label>
+                <input
+                  type="date"
+                  name="endDate"
+                  value={form.endDate}
+                  onChange={handleChange}
+                  className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-on-muted block mb-1">End Time</label>
+                <input
+                  type="time"
+                  name="endTime"
+                  value={form.endTime}
+                  onChange={handleChange}
+                  className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-on-muted mt-2">
+              This event ends on{" "}
+              <span className="font-medium text-on-dim">
+                {form.endDate || form.date || "—"} at {form.endTime || form.attendanceEndTime || "—"}
+              </span>
+              . Leave blank to default to the event date and attendance end time.
+            </p>
+          </div>
+
           <div className="border-t border-line pt-4">
             <h3 className="text-sm font-semibold text-on-dim mb-3">Attendance Window</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -289,6 +327,9 @@ const OrgManageEvents = () => {
                   <span className="flex items-center gap-1"><FaCalendarAlt /> {new Date(event.date).toLocaleDateString()}</span>
                   <span className="flex items-center gap-1"><FaClock /> {formatTime12Hour(event.time)}</span>
                 </div>
+                <p className="text-xs text-on-muted mb-4">
+                  Ends: {new Date(event.endDate || event.date).toLocaleDateString()} at {formatTime12Hour(event.endTime || event.attendanceEndTime)}
+                </p>
 
                 <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
                   <p className="text-yellow-400 text-xs">

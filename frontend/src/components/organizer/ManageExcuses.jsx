@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
-import { FaEdit, FaUser, FaFileAlt, FaCheck, FaTimes } from "react-icons/fa";
+import { FaEdit, FaUser, FaFileAlt, FaCheck, FaTimes, FaTrash } from "react-icons/fa";
 import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
 import Button from "../ui/Button";
+import ConfirmDialog from "../ui/ConfirmDialog";
 
 const ManageExcuses = () => {
   const [excuses, setExcuses] = useState([]);
@@ -13,7 +14,9 @@ const ManageExcuses = () => {
   const [filter, setFilter] = useState("pending");
   const [selectedExcuse, setSelectedExcuse] = useState(null);
   const [responseNote, setResponseNote] = useState("");
+  const [removalMode, setRemovalMode] = useState("complete");
   const [message, setMessage] = useState("");
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   usePageMeta("Manage Excuses", "Review and manage student excuse letters.");
 
@@ -38,11 +41,13 @@ const ManageExcuses = () => {
       const res = await api.patch(`/organizer/excuses/${id}`, {
         status: "approved",
         responseNote,
+        removal: removalMode,
       });
       setExcuses(excuses.map(e => e._id === id ? res.data : e));
       setMessage("Excuse approved!");
       setSelectedExcuse(null);
       setResponseNote("");
+      setRemovalMode("complete");
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to approve excuse");
     }
@@ -63,6 +68,30 @@ const ManageExcuses = () => {
     }
   };
 
+  const reviewedExcuseCount = excuses.filter(e => e.status !== "pending").length;
+
+  const confirmDeleteOne = (id) => setPendingDelete({ type: "one", id });
+  const confirmDeleteAll = () => setPendingDelete({ type: "all" });
+
+  const doDelete = async () => {
+    const target = pendingDelete;
+    try {
+      if (target.type === "all") {
+        const res = await api.delete("/organizer/excuses");
+        setExcuses(excuses.filter(e => e.status === "pending"));
+        setMessage(`${res.data.deleted} reviewed excuse(s) deleted!`);
+      } else {
+        await api.delete(`/organizer/excuses/${target.id}`);
+        setExcuses(excuses.filter(e => e._id !== target.id));
+        setMessage("Excuse deleted!");
+      }
+    } catch (err) {
+      setMessage(err.response?.data?.error || "Failed to delete excuse");
+    } finally {
+      setPendingDelete(null);
+    }
+  };
+
   if (loading) {
     return <Loading label="Loading excuses..." />;
   }
@@ -76,24 +105,34 @@ const ManageExcuses = () => {
         </div>
       )}
 
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap gap-2">
-        {["pending", "approved", "rejected"].map((status) => (
+      {/* Filter Tabs + bulk delete */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          {["pending", "approved", "rejected"].map((status) => (
+            <button
+              key={status}
+              onClick={() => setFilter(status)}
+              className={`rounded-lg px-4 py-1.5 text-sm font-medium capitalize transition-colors ${
+                filter === status
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "bg-card text-on-dim hover:bg-card-alt hover:text-on border border-line"
+              }`}
+            >
+              {status}
+              <span className="ml-2 text-xs opacity-75">
+                ({excuses.filter(e => e.status === status).length})
+              </span>
+            </button>
+          ))}
+        </div>
+        {reviewedExcuseCount > 0 && (
           <button
-            key={status}
-            onClick={() => setFilter(status)}
-            className={`rounded-lg px-4 py-1.5 text-sm font-medium capitalize transition-colors ${
-              filter === status
-                ? "bg-indigo-600 text-white shadow-sm"
-                : "bg-card text-on-dim hover:bg-card-alt hover:text-on border border-line"
-            }`}
+            onClick={confirmDeleteAll}
+            className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/20 dark:text-red-400"
           >
-            {status}
-            <span className="ml-2 text-xs opacity-75">
-              ({excuses.filter(e => e.status === status).length})
-            </span>
+            <span className="inline-flex items-center gap-2"><FaTrash /> Delete all reviewed ({reviewedExcuseCount})</span>
           </button>
-        ))}
+        )}
       </div>
 
       {/* Excuses List */}
@@ -199,6 +238,37 @@ const ManageExcuses = () => {
                           rows={3}
                           className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
                         />
+                        {excuse.type === "absence" && (
+                        <div className="space-y-2">
+                          <p className="text-xs text-on-muted">
+                            On approval, how should the student's community service hours be handled?
+                          </p>
+                          <div className="flex gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => setRemovalMode("16")}
+                              className={`flex-1 min-w-[10rem] rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors ${
+                                removalMode === "16"
+                                  ? "border-indigo-500/50 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+                                  : "border-line bg-card text-on-dim hover:bg-card-alt hover:text-on"
+                              }`}
+                            >
+                              Remove 16 hrs
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRemovalMode("complete")}
+                              className={`flex-1 min-w-[10rem] rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors ${
+                                removalMode === "complete"
+                                  ? "border-indigo-500/50 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+                                  : "border-line bg-card text-on-dim hover:bg-card-alt hover:text-on"
+                              }`}
+                            >
+                              Remove completely
+                            </button>
+                          </div>
+                        </div>
+                        )}
                         <div className="flex gap-3">
                           <Button
                             onClick={() => handleApprove(excuse._id)}
@@ -219,10 +289,40 @@ const ManageExcuses = () => {
                     )}
                   </div>
                 )}
+
+                {/* Delete reviewed excuse */}
+                {filter !== "pending" && (
+                  <div className="mt-4 pt-4 border-t border-line flex justify-end">
+                    <button
+                      onClick={() => confirmDeleteOne(excuse._id)}
+                      className="inline-flex items-center gap-2 text-sm font-medium text-red-600 transition-colors hover:text-red-500 dark:text-red-400"
+                    >
+                      <FaTrash /> Delete
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* In-app delete confirmation */}
+      {pendingDelete && (
+        <ConfirmDialog
+          open
+          title={pendingDelete.type === "all" ? "Delete all reviewed excuses?" : "Delete this excuse letter?"}
+          message={
+            pendingDelete.type === "all"
+              ? `This will permanently delete all ${reviewedExcuseCount} reviewed excuse letters. This cannot be undone.`
+              : "This will permanently delete this reviewed excuse letter. This cannot be undone."
+          }
+          confirmLabel="Delete"
+          variant="danger"
+          icon={<FaTrash />}
+          onConfirm={doDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
       )}
     </div>
   );

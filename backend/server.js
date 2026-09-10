@@ -11,7 +11,6 @@ const Attendance = require("./models/Attendance");
 const Notification = require("./models/Notification");
 
 const authRoutes = require("./routes/authRoutes");
-const protectedRoutes = require("./routes/protectedRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const eventRoutes = require("./routes/eventRoutes");
 const accountRoutes = require("./routes/accountRoutes");
@@ -34,7 +33,6 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ✅ ROUTES
 app.use("/api/auth", authRoutes);
-app.use("/api/protected", protectedRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/account", accountRoutes);
@@ -72,18 +70,39 @@ connectDB()
           ":" +
           now.getMinutes().toString().padStart(2, "0");
 
-        // Find events from previous days (event day is over) that haven't been processed
-        const events = await Event.find({
-          date: { $lt: today },
-          attendanceProcessed: false,
+        // Find events whose day is over (past date, or today once the event's
+        // end time has passed). Reconcile every run so students registered
+        // after an earlier pass still get their absent record + hours.
+        const todayEnd = new Date(today);
+        todayEnd.setHours(23, 59, 59, 999);
+
+        const candidateEvents = await Event.find({
+          date: { $lte: todayEnd },
+          status: { $ne: "closed" },
         });
 
-        for (const event of events) {
+        const isSameDay = (d) => {
+          const v = new Date(d);
+          return (
+            v.getFullYear() === today.getFullYear() &&
+            v.getMonth() === today.getMonth() &&
+            v.getDate() === today.getDate()
+          );
+        };
+
+        for (const event of candidateEvents) {
+          const endDate = new Date(event.endDate || event.date);
+          const endTime = event.endTime || event.attendanceEndTime;
+          const dayOver =
+            endDate < today || (isSameDay(endDate) && currentTime >= endTime);
+
+          if (!dayOver) continue;
+
           // Get all students
           const students = await User.find({ role: "student" });
 
           for (const student of students) {
-            // Check if student already has attendance
+            // Check if student already has attendance (idempotent — no duplicates)
             const existingAttendance = await Attendance.findOne({
               event: event._id,
               student: student._id,
@@ -97,6 +116,9 @@ connectDB()
                 attendedAt: now,
                 status: "absent",
                 communityServiceHours: 8,
+                communityServiceLog: [
+                  { action: "penalty", hours: 8, note: "Marked absent (auto)" },
+                ],
               });
               await attendance.save();
 
@@ -105,21 +127,15 @@ connectDB()
                 user: student._id,
                 type: "penalty",
                 title: "Marked Absent",
-                message: `You were marked as absent for event "${event.title}". 8 community service hours have been added to your record.`,
+                message: `You were marked as absent for event "${event.title}". 8 community service hours have been added to your community service hours.`,
                 relatedEvent: event._id,
               });
               await notification.save();
             }
           }
-
-          // Mark event as processed
-          event.attendanceProcessed = true;
-          await event.save();
         }
 
         // ✅ EVENT DAY REMINDERS — for events happening today
-        const todayEnd = new Date(today);
-        todayEnd.setHours(23, 59, 59, 999);
 
         const todaysEvents = await Event.find({
           date: { $gte: today, $lte: todayEnd },

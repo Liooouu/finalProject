@@ -16,12 +16,6 @@ export const profilePathFor = {
   student: "/student/dashboard/profile",
 };
 
-export const notificationsPathFor = {
-  admin: "/admin/dashboard/notifications",
-  organizer: "/organizer/dashboard/notifications",
-  student: "/student/dashboard/notifications",
-};
-
 const TITLES = {
   "/student/dashboard": "Dashboard",
   "/student/dashboard/events": "Attend Events",

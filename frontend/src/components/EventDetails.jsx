@@ -70,6 +70,8 @@ const EventDetails = () => {
           mapQuery: eventRes.data.mapQuery || "",
           date: eventRes.data.date ? new Date(eventRes.data.date).toISOString().split("T")[0] : "",
           time: eventRes.data.time,
+          endDate: eventRes.data.endDate ? new Date(eventRes.data.endDate).toISOString().split("T")[0] : "",
+          endTime: eventRes.data.endTime || "",
           status: eventRes.data.status,
           attendanceStartTime: eventRes.data.attendanceStartTime || "",
           attendanceEndTime: eventRes.data.attendanceEndTime || "",
@@ -111,9 +113,22 @@ const EventDetails = () => {
       const res = await api.patch(`/events/${id}/attendees/${stdId}/community-service`, { hours });
       setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
       setCsDrafts((d) => ({ ...d, [stdId]: hours }));
-      setMessage("Service hours updated");
+      setMessage(`Service goal set to ${hours} hrs`);
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to update service hours");
+    }
+  };
+
+  const handleRemoveCS = async (attendance) => {
+    const stdId = attendance.student?._id || attendance.student;
+    try {
+      const res = await api.patch(`/events/${id}/attendees/${stdId}/community-service/remove`, {});
+      const newGoal = res.data.requiredServiceHours ?? res.data.student?.requiredServiceHours ?? 0;
+      setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
+      setCsDrafts((d) => ({ ...d, [stdId]: String(newGoal) }));
+      setMessage("Community service removed");
+    } catch (err) {
+      setMessage(err.response?.data?.error || "Failed to remove service hours");
     }
   };
 
@@ -212,20 +227,28 @@ const EventDetails = () => {
         <p className="text-on-dim mb-6">{event.description || "No description"}</p>
 
         {/* Event Details Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-card p-4 rounded-xl border border-line">
-            <p className="text-on-dim text-sm mb-1">Date</p>
-            <p className="text-lg font-semibold text-on">{new Date(event.date).toLocaleDateString()}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+            <div className="bg-card p-4 rounded-xl border border-line">
+              <p className="text-on-dim text-sm mb-1">Date</p>
+              <p className="text-lg font-semibold text-on">{new Date(event.date).toLocaleDateString()}</p>
+            </div>
+            <div className="bg-card p-4 rounded-xl border border-line">
+              <p className="text-on-dim text-sm mb-1">Starts</p>
+              <p className="text-lg font-semibold text-on">{formatTime12Hour(event.time)}</p>
+            </div>
+            <div className="bg-card p-4 rounded-xl border border-line">
+              <p className="text-on-dim text-sm mb-1">Location</p>
+              <p className="text-lg font-semibold text-on">{event.location || "TBA"}</p>
+            </div>
           </div>
-          <div className="bg-card p-4 rounded-xl border border-line">
-            <p className="text-on-dim text-sm mb-1">Time</p>
-            <p className="text-lg font-semibold text-on">{formatTime12Hour(event.time)}</p>
+
+          <div className="mb-6 bg-card p-4 rounded-xl border border-line">
+            <p className="text-on-dim text-sm mb-1">Ends</p>
+            <p className="text-lg font-semibold text-on">
+              {new Date(event.endDate || event.date).toLocaleDateString()} at{" "}
+              {formatTime12Hour(event.endTime || event.attendanceEndTime)}
+            </p>
           </div>
-          <div className="bg-card p-4 rounded-xl border border-line">
-            <p className="text-on-dim text-sm mb-1">Location</p>
-            <p className="text-lg font-semibold text-on">{event.location || "TBA"}</p>
-          </div>
-        </div>
 
         <EventMap event={event} className="mb-6 h-56 w-full" />
 
@@ -430,6 +453,31 @@ const EventDetails = () => {
                     required
                   />
                 </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-on-muted mb-1">Event End Date</label>
+                    <input
+                      type="date"
+                      name="endDate"
+                      value={editForm.endDate || ""}
+                      onChange={handleEditChange}
+                      className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-on-muted mb-1">Event End Time</label>
+                    <input
+                      type="time"
+                      name="endTime"
+                      value={editForm.endTime || ""}
+                      onChange={handleEditChange}
+                      className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                    />
+                  </div>
+                  <p className="text-xs text-on-muted">
+                    Set when the event itself ends. Leave blank to use the event date and attendance end time.
+                  </p>
+                </div>
                 <select
                   name="status"
                   value={editForm.status}
@@ -491,6 +539,9 @@ const EventDetails = () => {
                           <FaExclamationTriangle /> Community Service: {attendance.communityServiceHours} hours
                         </p>
                       )}
+                      <p className="text-xs text-on-muted mt-1">
+                        Service goal: {attendance.requiredServiceHours ?? attendance.student?.requiredServiceHours ?? 0} hrs
+                      </p>
                     </div>
                     <div className="flex flex-col gap-2">
                       <select
@@ -506,20 +557,29 @@ const EventDetails = () => {
                         <input
                           type="number"
                           min="0"
-                          value={csDrafts[attendance.student._id] ?? attendance.communityServiceHours ?? 0}
+                          value={csDrafts[attendance.student._id] ?? attendance.requiredServiceHours ?? attendance.student?.requiredServiceHours ?? 0}
                           onChange={(e) =>
                             setCsDrafts((d) => ({ ...d, [attendance.student._id]: e.target.value }))
                           }
                           className="w-20 bg-card border border-line rounded-lg px-3 py-2 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                          title="Set the student's community service goal"
                         />
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() =>
-                            handleUpdateCS(attendance.student._id, csDrafts[attendance.student._id] ?? attendance.communityServiceHours ?? 0)
+                            handleUpdateCS(attendance.student._id, csDrafts[attendance.student._id] ?? attendance.requiredServiceHours ?? attendance.student?.requiredServiceHours ?? 0)
                           }
                         >
-                          Set hrs
+                          Set goal
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveCS(attendance)}
+                          className="text-red-500 hover:border-red-500/40"
+                        >
+                          Remove CS
                         </Button>
                       </div>
                     </div>

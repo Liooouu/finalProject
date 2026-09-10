@@ -32,10 +32,19 @@ router.get("/community-service", protect, async (req, res) => {
 
     const totalHours = attendances.reduce((sum, a) => sum + (a.communityServiceHours || 0), 0);
     const totalAttended = attendances.filter(a => a.status !== "absent").length;
+    // The goal (requiredHours) is set exactly by organizers/admins and never
+    // changes automatically. Penalties (late=4, absent=8) add to totalHours
+    // (the student's community service hours); excuses/removals take them off.
+    // completedHours stays 0 here — it only moves when the student genuinely
+    // finishes service.
+    const completedHours = 0;
+    const requiredHours = req.user.requiredServiceHours || 0;
 
     res.json({
       totalHours,
+      completedHours,
       totalAttended,
+      requiredHours,
       breakdown: attendances,
     });
   } catch (err) {

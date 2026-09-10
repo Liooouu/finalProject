@@ -9,6 +9,8 @@ import {
   FaTrophy,
   FaEllipsisH,
   FaMapMarkerAlt,
+  FaPlus,
+  FaMinus,
 } from "react-icons/fa";
 import { BsClipboardCheck, BsEmojiSmile } from "react-icons/bs";
 import { MdLocalActivity } from "react-icons/md";
@@ -17,7 +19,6 @@ import {
   BaseCard,
   StatusPill,
   ProgressBar,
-  Sparkline,
   BadgeItem,
 } from "../ui";
 import Loading from "../shared/Loading";
@@ -25,38 +26,48 @@ import EmptyState from "../shared/EmptyState";
 import EventMap from "../shared/EventMap";
 import TodayCard from "./TodayCard";
 
-// TODO(required-hours): hardcoded target until a `requiredServiceHours` field
-// is added to the Student/User schema. Add `requiredServiceHours: Number,
-// default: 40` to backend/models/User.js and fetch it from the account/API.
-const REQUIRED_HOURS = 40;
+// The goal is set exactly by organizers/admins ("Set goal" box) and stays fixed;
+// late/absent marks add to the student's community service hours instead.
 const EVENTS_BADGE = 5;
-const CS_TIERS = [10, 20, 30, 40];
 
 const DashboardHome = () => {
   const navigate = useNavigate();
   usePageMeta("Student Overview", "Your attendance and service activity at a glance.");
-  const [stats, setStats] = useState({ totalHours: 0, totalAttended: 0, breakdown: [] });
+  const [stats, setStats] = useState({ totalHours: 0, completedHours: 0, totalAttended: 0, breakdown: [] });
   const [upcoming, setUpcoming] = useState(0);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [selectedUpcoming, setSelectedUpcoming] = useState(0);
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [penaltyRange, setPenaltyRange] = useState("year");
 
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
       setError("");
       try {
-        const [csRes, eventsRes] = await Promise.all([
+        // Fetch stats and events independently — a stats failure must never
+        // hide the upcoming events list (or vice versa).
+        const [csResult, eventsResult] = await Promise.allSettled([
           api.get("/student/community-service"),
           api.get("/events"),
         ]);
 
-        const breakdown = csRes.data.breakdown || [];
+        const csData = csResult.status === "fulfilled" ? csResult.value.data : null;
+        const eventsData = eventsResult.status === "fulfilled" ? eventsResult.value.data : [];
+
+        if (!csData && eventsResult.status !== "fulfilled") {
+          setError(csResult.reason?.message || "Could not load dashboard data");
+          return;
+        }
+
+        const breakdown = (csData && csData.breakdown) || [];
         setStats({
-          totalHours: csRes.data.totalHours || 0,
-          totalAttended: csRes.data.totalAttended || 0,
+          totalHours: (csData && csData.totalHours) || 0,
+          completedHours: (csData && csData.completedHours) || 0,
+          totalAttended: (csData && csData.totalAttended) || 0,
+          requiredHours: (csData && csData.requiredHours) ?? 0,
           breakdown,
         });
 
@@ -66,16 +77,21 @@ const DashboardHome = () => {
         );
         setActivity(sortedActivity.slice(0, 6));
 
-        // Upcoming events = events dated today or later.
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const upcomingList = (eventsRes.data || [])
-          .filter((e) => {
-            const d = new Date(e.date);
-            d.setHours(0, 0, 0, 0);
-            return d >= today;
-          })
-          .sort((a, b) => new Date(a.date) - new Date(b.date));
+        // Show every created event — past, present or future. The section reads all
+        // non-closed events, prioritizing upcoming ones (soonest first) then
+        // present, then the most recent past events.
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const upcomingList = eventsData
+          .filter((e) => e.date)
+          .sort((a, b) => {
+            const A = new Date(a.date);
+            const B = new Date(b.date);
+            const aFuture = A >= todayStart;
+            const bFuture = B >= todayStart;
+            if (aFuture !== bFuture) return aFuture ? -1 : 1;
+            return aFuture ? A - B : B - A;
+          });
         setUpcoming(upcomingList.length);
         setUpcomingEvents(upcomingList.slice(0, 4));
         setSelectedUpcoming(0);
@@ -90,12 +106,34 @@ const DashboardHome = () => {
     fetchAll();
   }, []);
 
-  // TODO(weekly-hours): replace with a real MongoDB aggregation. The backend
-  // does not yet return per-week hours; using placeholder spread for the trend.
-  const serviceTrend = useMemo(
-    () => [2, 3, 1.5, 4, 3.5, Math.min(5, Math.max(1, stats.totalHours))],
-    [stats.totalHours]
-  );
+// Aggregate community-service log entries within the selected day/week/year
+// window so students can track their hours. Logs recorded without a timestamp
+// are treated as "now" so they always count. Pass a status to sum penalties
+// from only absent or only late records (for the 0→8 / 0→4 meters).
+const windowCutoff = () => {
+    const ranges = {
+      day: 1 * 24 * 60 * 60 * 1000,
+      week: 7 * 24 * 60 * 60 * 1000,
+      year: 365 * 24 * 60 * 60 * 1000,
+    };
+    return Date.now() - ranges[penaltyRange];
+  };
+
+  const inWindow = (l) => {
+    const t = new Date(l.at).getTime();
+    const ts = Number.isFinite(t) ? t : Date.now();
+    return ts >= windowCutoff();
+  };
+
+  const sumLog = (action, status) =>
+    (stats.breakdown || [])
+      .filter((rec) => !status || rec.status === status)
+      .reduce((sum, rec) => {
+        const logs = (rec.communityServiceLog || []).filter(
+          (l) => l.action === action && inWindow(l)
+        );
+        return sum + logs.reduce((s, l) => s + (l.hours || 0), 0);
+      }, 0);
 
   const badges = useMemo(
     () => [
@@ -125,21 +163,21 @@ const DashboardHome = () => {
         earned: activity.length > 0 && activity.every((r) => r.status !== "absent"),
       },
       ...(() => {
-        const nextTier = CS_TIERS.find((t) => stats.totalHours < t) || REQUIRED_HOURS;
-        const allDone = stats.totalHours >= REQUIRED_HOURS;
+        const goal = stats.requiredHours || 0;
+        const allDone = goal > 0 && stats.completedHours >= goal;
         return [
           {
             icon: allDone ? <FaTrophy /> : <FaClock />,
-            label: allDone ? "Service hours complete!" : `${nextTier}+ service hours`,
-            current: stats.totalHours,
-            target: nextTier,
+            label: allDone ? "Service hours complete!" : `${goal}+ service hours`,
+            current: stats.completedHours,
+            target: goal,
             unit: "hrs",
             earned: allDone,
           },
         ];
       })(),
     ],
-    [stats.totalAttended, stats.totalHours, activity]
+    [stats.totalAttended, stats.completedHours, stats.requiredHours, activity]
   );
 
   if (loading) return <Loading label="Loading your dashboard..." />;
@@ -351,23 +389,94 @@ const DashboardHome = () => {
           <span className="text-2xl font-bold text-on">{stats.totalAttended}</span>
         </div>
 
-        {/* Service Hours + Sparkline + Progress */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2 text-sm text-on-dim">
-              <span className="text-yellow-400"><FaClock /></span> Service Hours
+        {/* Community Service tracking — CS hours ↔ added ↔ removed vs fixed goal */}
+        <div className="mb-4 rounded-xl border border-line p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-on-dim">
+              <span className="text-yellow-400"><FaClock /></span> Community Service tracking
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-yellow-400">{stats.totalHours}</span>
-              <span className="text-sm text-on-muted">hrs</span>
-              <Sparkline data={serviceTrend} color="#facc15" />
-            </div>
+            <select
+              value={penaltyRange}
+              onChange={(e) => setPenaltyRange(e.target.value)}
+              className="shrink-0 bg-card border border-line rounded-lg px-2 py-1 text-xs text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+            >
+              <option value="day">This day</option>
+              <option value="week">This week</option>
+              <option value="year">This year</option>
+            </select>
           </div>
-          <ProgressBar current={stats.totalHours} target={REQUIRED_HOURS} />
+
+          {/* CS hours — the student's accumulated (added/removed) hours */}
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-xs text-on-muted">Community service hours</span>
+            <span className="text-2xl font-bold text-indigo-500 dark:text-indigo-400">
+              {stats.totalHours} <span className="text-sm text-on-muted">hrs</span>
+            </span>
+          </div>
+          <ProgressBar
+            current={Math.min(stats.totalHours, stats.requiredHours)}
+            target={stats.requiredHours}
+            label={`${stats.totalHours} of the ${stats.requiredHours} hr goal currently assigned`}
+          />
+
+          {/* Goal — the fixed requirement set by the organizer/admin */}
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-xs text-on-muted">Set goal (fixed)</span>
+            <span className="text-lg font-bold text-yellow-400">
+              {stats.requiredHours} <span className="text-sm text-on-muted">hrs</span>
+            </span>
+          </div>
+
+          {/* Added vs removed — the two flows that move the CS hours */}
+          <div className="mt-3 space-y-3 border-t border-line pt-3">
+            <p className="text-xs font-medium text-on-muted">
+              Penalty meters ({penaltyRange === "day" ? "today" : penaltyRange === "week" ? "this week" : "this year"})
+            </p>
+            <div className="space-y-2">
+              <div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5 text-on-muted">
+                    <span className="text-red-400"><FaPlus /></span> Absent penalty
+                  </span>
+                  <span className="font-semibold text-red-400">{sumLog("penalty", "absent")} hrs</span>
+                </div>
+                <ProgressBar
+                  current={Math.min(sumLog("penalty", "absent"), 8)}
+                  target={8}
+                  label="0–8 hrs per absent mark"
+                  barClassName="bg-red-500"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5 text-on-muted">
+                    <span className="text-amber-400"><FaPlus /></span> Late penalty
+                  </span>
+                  <span className="font-semibold text-amber-500">{sumLog("penalty", "late")} hrs</span>
+                </div>
+                <ProgressBar
+                  current={Math.min(sumLog("penalty", "late"), 4)}
+                  target={4}
+                  label="0–4 hrs per late mark"
+                  barClassName="bg-amber-500"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs text-on-muted">
+                <span className="text-green-400"><FaMinus /></span> Removed (excuse / admin)
+              </span>
+              <span className="text-sm font-semibold text-green-400">−{sumLog("removed")} hrs</span>
+            </div>
+            <p className="flex items-center justify-between border-t border-line pt-2">
+              <span className="flex items-center gap-1.5 text-xs text-on-muted">
+                <span className="text-red-400"><FaPlus /></span> Added total (late / absent)
+              </span>
+              <span className="text-sm font-semibold text-red-400">+{sumLog("penalty")} hrs</span>
+            </p>
+          </div>
           <p className="text-xs text-on-muted mt-2">
-            {stats.totalHours > 0
-              ? `Total: ${stats.totalHours} community service hours`
-              : "No community service hours yet"}
+            Your community service goal is set by the organizer and stays fixed. Late marks add 4 hrs and absent marks add 8 hrs to your community service hours; approved excuses and removals take hours off. The event organizer and admin may modify your community service hours according to your behavior.
           </p>
         </div>
 

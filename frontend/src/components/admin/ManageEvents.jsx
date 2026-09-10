@@ -8,6 +8,9 @@ import Button from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { TableSkeleton } from "../ui";
+import MapPicker from "../shared/MapPicker";
+import { FaPlus } from "react-icons/fa";
+import { MdClose } from "react-icons/md";
 
 const ManageEvents = () => {
   const [events, setEvents] = useState([]);
@@ -18,6 +21,20 @@ const ManageEvents = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createMsg, setCreateMsg] = useState("");
+  const [createForm, setCreateForm] = useState({
+    title: "",
+    description: "",
+    location: "",
+    mapQuery: "",
+    date: "",
+    time: "",
+    endDate: "",
+    endTime: "",
+    attendanceStartTime: "",
+    attendanceEndTime: "",
+  });
 
   usePageMeta("Manage Events", "Every event across the institution.");
 
@@ -76,6 +93,36 @@ const ManageEvents = () => {
     }
   };
 
+  const handleCreateChange = (e) =>
+    setCreateForm({ ...createForm, [e.target.name]: e.target.value });
+
+  const handleCreateMapPick = (v) =>
+    setCreateForm({ ...createForm, location: v, mapQuery: v });
+
+  const handleCreateSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.post("/events", createForm);
+      setEvents((prev) => [res.data, ...prev]);
+      setCreateForm({
+        title: "",
+        description: "",
+        location: "",
+        mapQuery: "",
+        date: "",
+        time: "",
+        endDate: "",
+        endTime: "",
+        attendanceStartTime: "",
+        attendanceEndTime: "",
+      });
+      setShowCreate(false);
+      setCreateMsg("");
+    } catch (err) {
+      setCreateMsg(err.response?.data?.error || "Failed to create event");
+    }
+  };
+
   const updateAttendeeStatus = async (eventId, studentId, newStatus) => {
     try {
       await api.patch(`/events/${eventId}/attendees/${studentId}`, { status: newStatus });
@@ -102,7 +149,15 @@ const ManageEvents = () => {
         <p className="text-sm text-on-dim">
           {filteredEvents.length} of {events.length} events
         </p>
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button
+            onClick={() => setShowCreate(!showCreate)}
+            variant={showCreate ? "secondary" : "primary"}
+            size="sm"
+          >
+            {showCreate ? <MdClose /> : <FaPlus className="text-xs" />}
+            {showCreate ? "Cancel" : "Create Event"}
+          </Button>
           <input
             type="text"
             placeholder="Search events..."
@@ -122,6 +177,150 @@ const ManageEvents = () => {
           </select>
         </div>
       </div>
+
+      {/* Create Event Form */}
+      {showCreate && (
+        <form
+          onSubmit={handleCreateSubmit}
+          className="space-y-5 rounded-xl border border-line bg-card p-6"
+        >
+          <h2 className="text-lg font-semibold text-on">Create New Event</h2>
+
+          {createMsg && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-600 dark:text-red-400">
+              {createMsg}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <input
+                type="text"
+                name="title"
+                placeholder="Event Title"
+                value={createForm.title}
+                onChange={handleCreateChange}
+                required
+                className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <textarea
+                name="description"
+                placeholder="Description"
+                value={createForm.description}
+                onChange={handleCreateChange}
+                rows={3}
+                className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <input
+                type="text"
+                name="location"
+                placeholder="Location"
+                value={createForm.location}
+                onChange={handleCreateChange}
+                className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <MapPicker
+                value={createForm.mapQuery}
+                onChange={handleCreateMapPick}
+                className="h-64"
+              />
+            </div>
+            <div>
+              <input
+                type="date"
+                name="date"
+                value={createForm.date}
+                onChange={handleCreateChange}
+                required
+                className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+              />
+            </div>
+            <div>
+              <input
+                type="time"
+                name="time"
+                value={createForm.time}
+                onChange={handleCreateChange}
+                required
+                className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-line pt-4">
+            <h3 className="text-sm font-semibold text-on-dim mb-3">Event Ends</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-on-muted block mb-1">End Date</label>
+                <input
+                  type="date"
+                  name="endDate"
+                  value={createForm.endDate}
+                  onChange={handleCreateChange}
+                  className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-on-muted block mb-1">End Time</label>
+                <input
+                  type="time"
+                  name="endTime"
+                  value={createForm.endTime}
+                  onChange={handleCreateChange}
+                  className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-on-muted mt-2">
+              This event ends on{" "}
+              <span className="font-medium text-on-dim">
+                {createForm.endDate || createForm.date || "—"} at{" "}
+                {createForm.endTime || createForm.attendanceEndTime || "—"}
+              </span>
+              . Leave blank to default to the event date and attendance end time.
+            </p>
+          </div>
+
+          <div className="border-t border-line pt-4">
+            <h3 className="text-sm font-semibold text-on-dim mb-3">Attendance Window</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-on-muted block mb-1">Start Time</label>
+                <input
+                  type="time"
+                  name="attendanceStartTime"
+                  value={createForm.attendanceStartTime}
+                  onChange={handleCreateChange}
+                  required
+                  className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-on-muted block mb-1">End Time</label>
+                <input
+                  type="time"
+                  name="attendanceEndTime"
+                  value={createForm.attendanceEndTime}
+                  onChange={handleCreateChange}
+                  required
+                  className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-on-muted mt-2">Students can only mark attendance within this time window.</p>
+          </div>
+
+          <Button type="submit" className="w-full py-2.5">
+            Create Event
+          </Button>
+        </form>
+      )}
 
       {loading ? (
         <TableSkeleton rows={5} />
@@ -161,6 +360,13 @@ const ManageEvents = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                       {event.organizer?.name || "Unknown"}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Ends: {new Date(event.endDate || event.date).toLocaleDateString()} at{" "}
+                      {event.endTime || event.attendanceEndTime}
                     </span>
                   </div>
                 </div>

@@ -1,7 +1,6 @@
 export { default as BaseCard } from "./BaseCard";
 export { default as StatusPill } from "./StatusPill";
 export { default as ProgressBar } from "./ProgressBar";
-export { default as Sparkline } from "./Sparkline";
 export { default as BadgeItem } from "./BadgeItem";
 export { default as Button } from "./Button";
 export { default as KpiCard } from "./KpiCard";

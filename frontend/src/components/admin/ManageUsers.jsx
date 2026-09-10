@@ -44,16 +44,21 @@ const ManageUsers = () => {
     }
   };
 
+  const loadAttendance = async (user) => {
+    const res = await api.get("/reports/attendance");
+    const userRecords = res.data.records.filter(
+      (r) => r.student?._id === user._id || r.student === user._id
+    );
+    setUserAttendance(userRecords);
+    setCsDrafts({});
+  };
+
   const openUserDetails = async (user) => {
     setSelectedUser(user);
     setShowModal(true);
     setCsDrafts({});
     try {
-      const res = await api.get("/reports/attendance");
-      const userRecords = res.data.records.filter(
-        (r) => r.student?._id === user._id || r.student === user._id
-      );
-      setUserAttendance(userRecords);
+      await loadAttendance(user);
     } catch (err) {
       console.error(err);
       setUserAttendance([]);
@@ -71,8 +76,22 @@ const ManageUsers = () => {
         hours: value,
       });
       setUserAttendance(userAttendance.map((r) => (r._id === res.data._id ? res.data : r)));
+      alert(`Service goal set to ${value} hrs`);
     } catch (err) {
       alert(err.response?.data?.message || "Failed to update community service");
+    }
+  };
+
+  const handleRemoveCS = async (record) => {
+    const studentId = record.student?._id || record.student;
+    try {
+      await api.patch(`/admin/attendance/${record._id}/community-service/remove`, {});
+      if (selectedUser && selectedUser._id === studentId) {
+        await loadAttendance(selectedUser);
+      }
+      alert("Community service removed — the student's goal has been cleared");
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to remove community service");
     }
   };
 
@@ -269,6 +288,9 @@ const ManageUsers = () => {
                               {" "}• {record.communityServiceHours} hrs CS
                             </span>
                           )}
+                          <span className="text-on-muted">
+                            {" "}• Goal: {record.requiredServiceHours ?? record.student?.requiredServiceHours ?? 0} hrs
+                          </span>
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -277,35 +299,30 @@ const ManageUsers = () => {
                           <input
                             type="number"
                             min="0"
-                            value={csDrafts[record._id] ?? String(record.communityServiceHours)}
+                            value={csDrafts[record._id] ?? String(record.requiredServiceHours ?? record.student?.requiredServiceHours ?? 0)}
                             onChange={(e) =>
                               setCsDrafts({ ...csDrafts, [record._id]: e.target.value })
                             }
                             className="w-16 bg-card border border-line rounded-lg px-2 py-1.5 text-sm text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                            title="Set community service hours"
+                            title="Set the student's community service goal"
                           />
                           <button
                             onClick={() =>
                               handleUpdateCS(
                                 record,
-                                csDrafts[record._id] ?? record.communityServiceHours
+                                csDrafts[record._id] ?? record.requiredServiceHours ?? record.student?.requiredServiceHours ?? 0
                               )
                             }
                             className="bg-green-500 hover:bg-green-600 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
                           >
-                            Set
+                            Set goal
                           </button>
-                          {record.communityServiceHours > 0 && (
-                            <button
-                              onClick={() => {
-                                setCsDrafts({ ...csDrafts, [record._id]: "0" });
-                                handleUpdateCS(record, 0);
-                              }}
-                              className="bg-card hover:bg-red-900/50 border border-line hover:border-red-500 dark:text-red-400 text-red-600 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
+                          <button
+                              onClick={() => handleRemoveCS(record)}
+                              className="bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
                             >
-                              Remove
+                              Remove CS
                             </button>
-                          )}
                         </div>
                       </div>
                     </div>

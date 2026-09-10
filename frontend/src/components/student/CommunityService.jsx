@@ -31,8 +31,22 @@ const CommunityService = () => {
     return <Loading label="Loading records..." />;
   }
 
+  const removedHours = (data?.breakdown || []).reduce(
+    (sum, rec) =>
+      sum +
+      (rec.communityServiceLog || [])
+        .filter((l) => l.action === "removed")
+        .reduce((s, l) => s + (l.hours || 0), 0),
+    0
+  );
+
   return (
     <div className="space-y-6">
+      {/* Note to students about CS adjustments */}
+      <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 text-sm text-on-dim">
+        Note: The event organizer and admin may modify your community service hours according to your behavior.
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-linear-to-br from-yellow-500/10 to-yellow-500/5 backdrop-blur-sm border border-yellow-500/20 rounded-2xl p-6">
@@ -40,9 +54,10 @@ const CommunityService = () => {
             <div className="p-2 bg-yellow-500/20 rounded-lg">
               <span className="text-xl"><FaClock /></span>
             </div>
-            <span className="dark:text-yellow-400 text-yellow-600 text-sm font-medium">Total Hours</span>
+            <span className="dark:text-yellow-400 text-yellow-600 text-sm font-medium">Goal Hours</span>
           </div>
-          <p className="text-4xl font-bold dark:text-yellow-400 text-yellow-600">{data?.totalHours || 0} <span className="text-lg font-normal text-on-dim">hrs</span></p>
+          <p className="text-4xl font-bold dark:text-yellow-400 text-yellow-600">{data?.requiredHours || 0} <span className="text-lg font-normal text-on-dim">hrs</span></p>
+          <p className="text-xs text-on-muted mt-1">Set by organizers/admins — stays fixed</p>
         </div>
 
         <div className="bg-linear-to-br from-green-500/10 to-green-500/5 backdrop-blur-sm border border-green-500/20 rounded-2xl p-6">
@@ -60,11 +75,25 @@ const CommunityService = () => {
             <div className="p-2 bg-red-500/20 rounded-lg">
               <span className="text-xl"><FaTimes /></span>
             </div>
-            <span className="dark:text-red-400 text-red-600 text-sm font-medium">Pending Hours</span>
+            <span className="dark:text-red-400 text-red-600 text-sm font-medium">Penalty Hours</span>
           </div>
           <p className="text-4xl font-bold dark:text-red-400 text-red-600">
-            {data?.breakdown?.filter(a => a.status === "absent").length * 8 || 0} <span className="text-lg font-normal text-on-dim">hrs</span>
+            {data?.totalHours || 0} <span className="text-lg font-normal text-on-dim">hrs</span>
           </p>
+          <p className="text-xs text-on-muted mt-1">Current balance from late (4) &amp; absent (8) marks</p>
+        </div>
+
+        <div className="bg-linear-to-br from-green-500/10 to-green-500/5 backdrop-blur-sm border border-green-500/20 rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-green-500/20 rounded-lg">
+              <span className="text-xl"><FaTimes /></span>
+            </div>
+            <span className="dark:text-green-400 text-green-600 text-sm font-medium">Removed Hours</span>
+          </div>
+          <p className="text-4xl font-bold dark:text-green-400 text-green-600">
+            {removedHours} <span className="text-lg font-normal text-on-dim">hrs</span>
+          </p>
+          <p className="text-xs text-on-muted mt-1">Forgiven via excuses, status changes &amp; Remove CS</p>
         </div>
       </div>
 

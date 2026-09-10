@@ -19,11 +19,16 @@ router.post("/", protect, async (req, res) => {
       return res.status(400).json({ error: "Attendance window (start and end time) is required" });
     }
 
+    const endDate = req.body.endDate || date;
+    const endTime = req.body.endTime || attendanceEndTime;
+
     const event = new Event({
       title,
       description,
       date,
       time,
+      endDate,
+      endTime,
       location,
       mapQuery,
       attendanceStartTime,
@@ -195,6 +200,13 @@ router.post("/:id/attendance", protect, async (req, res) => {
       attendance.attendedAt = now;
       attendance.status = status;
       attendance.communityServiceHours = communityServiceHours;
+      if (communityServiceHours > 0) {
+        attendance.communityServiceLog.push({
+          action: "penalty",
+          hours: communityServiceHours,
+          note: "Marked late",
+        });
+      }
       await attendance.save();
     } else {
       attendance = new Attendance({
@@ -203,6 +215,10 @@ router.post("/:id/attendance", protect, async (req, res) => {
         attendedAt: now,
         status,
         communityServiceHours,
+        communityServiceLog:
+          communityServiceHours > 0
+            ? [{ action: "penalty", hours: communityServiceHours, note: "Marked late" }]
+            : [],
       });
 
       await attendance.save();
@@ -213,7 +229,7 @@ router.post("/:id/attendance", protect, async (req, res) => {
         user: req.user._id,
         type: "attendance",
         title: "Marked Late",
-        message: `You were late for event "${event.title}".${replacedExcuse ? " Your approved excuse was replaced since you attended." : ""} 4 community service hours have been added to your record.`,
+        message: `You were late for event "${event.title}".${replacedExcuse ? " Your approved excuse was replaced since you attended." : ""} 4 community service hours have been added to your community service hours.`,
         relatedEvent: event._id,
       });
       await notification.save();
@@ -250,7 +266,7 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
       return res.status(403).json({ error: "You are not the organizer of this event" });
     }
 
-    const student = await require("../models/User").findById(studentId);
+    const student = await User.findById(studentId);
     if (!student) return res.status(404).json({ error: "Student not found" });
     if (student.role !== "student") return res.status(400).json({ error: "This user is not a student" });
 
@@ -284,6 +300,13 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
       attendance.attendedAt = now;
       attendance.status = status;
       attendance.communityServiceHours = communityServiceHours;
+      if (communityServiceHours > 0) {
+        attendance.communityServiceLog.push({
+          action: "penalty",
+          hours: communityServiceHours,
+          note: "Marked late (scanned)",
+        });
+      }
       await attendance.save();
     } else {
       attendance = new Attendance({
@@ -292,6 +315,10 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
         attendedAt: now,
         status,
         communityServiceHours,
+        communityServiceLog:
+          communityServiceHours > 0
+            ? [{ action: "penalty", hours: communityServiceHours, note: "Marked late (scanned)" }]
+            : [],
       });
 
       await attendance.save();
@@ -302,7 +329,7 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
         user: studentId,
         type: "attendance",
         title: "Marked Late",
-        message: `You were marked as late for event "${event.title}" by the organizer. 4 community service hours have been added to your record.`,
+        message: `You were marked as late for event "${event.title}" by the organizer. 4 community service hours have been added to your community service hours.`,
         relatedEvent: event._id,
       });
       await notification.save();
@@ -332,7 +359,7 @@ router.get("/:id/attendees", protect, async (req, res) => {
     if (!event) return res.status(404).json({ error: "Event not found" });
 
     const attendees = await Attendance.find({ event: req.params.id })
-      .populate("student", "name email")
+      .populate("student", "name email requiredServiceHours")
       .sort({ attendedAt: -1 });
 
     res.json(attendees);
@@ -360,21 +387,69 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
       communityServiceHours = 8;
     }
 
-    const attendance = await Attendance.findOneAndUpdate(
-      { event: req.params.id, student: req.params.studentId },
-      { status, communityServiceHours },
-      { new: true }
-    ).populate("student", "name email");
+    let attendance = await Attendance.findOne({
+      event: req.params.id,
+      student: req.params.studentId,
+    });
 
-    if (!attendance) return res.status(404).json({ error: "Attendance not found" });
+    if (!attendance) {
+      // No attendance row yet — create one so marking someone absent/late
+      // always distributes community service hours instead of failing.
+      attendance = new Attendance({
+        event: req.params.id,
+        student: req.params.studentId,
+        attendedAt: new Date(),
+        status,
+        communityServiceHours,
+        communityServiceLog:
+          communityServiceHours > 0
+            ? [{ action: "penalty", hours: communityServiceHours, note: `Marked ${status} (organizer)` }]
+            : [],
+      });
+      await attendance.save();
+    } else {
+      const previousHours = attendance.communityServiceHours || 0;
+      attendance.status = status;
+      attendance.communityServiceHours = communityServiceHours;
 
-    res.json(attendance);
+      const delta = communityServiceHours - previousHours;
+      if (delta > 0) {
+        attendance.communityServiceLog.push({
+          action: "penalty",
+          hours: delta,
+          note: `Marked ${status}`,
+        });
+      } else if (delta < 0) {
+        attendance.communityServiceLog.push({
+          action: "removed",
+          hours: -delta,
+          note: `Status set to ${status}`,
+        });
+      }
+      await attendance.save();
+    }
+
+    if (status === "late" || status === "absent") {
+      const notification = new Notification({
+        user: req.params.studentId,
+        type: status === "late" ? "attendance" : "penalty",
+        title: status === "late" ? "Marked Late" : "Marked Absent",
+        message: `You were marked as ${status} for event "${event.title}" by the organizer. ${communityServiceHours} community service hours have been added to your community service hours.`,
+        relatedEvent: event._id,
+      });
+      await notification.save();
+    }
+
+    const populated = await Attendance.findById(attendance._id)
+      .populate("student", "name email requiredServiceHours");
+
+    res.json(populated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// MANUALLY ADJUST COMMUNITY SERVICE HOURS (organizers/admins)
+// SET A STUDENT'S COMMUNITY SERVICE GOAL (organizers/admins)
 router.patch("/:id/attendees/:studentId/community-service", protect, async (req, res) => {
   try {
     if (req.user.role !== "organizer" && req.user.role !== "admin") {
@@ -392,30 +467,122 @@ router.patch("/:id/attendees/:studentId/community-service", protect, async (req,
     const attendance = await Attendance.findOne({ event: req.params.id, student: req.params.studentId });
     if (!attendance) return res.status(404).json({ error: "Attendance not found" });
 
-    const previousHours = attendance.communityServiceHours || 0;
-    attendance.communityServiceHours = hours;
-    await attendance.save();
+    // Goal-only: the hours an organizer/admin gives become the student's required
+    // service goal. The student's accumulated total stays driven by auto-penalties.
+    const student = await User.findByIdAndUpdate(
+      attendance.student,
+      { requiredServiceHours: hours },
+      { new: true }
+    );
+    if (!student) return res.status(404).json({ error: "Student not found" });
 
-    let message;
-    if (hours === 0 && previousHours > 0) {
-      message = `Your community service hours for "${event.title}" have been removed by the organizer.`;
-    } else if (hours > previousHours) {
-      message = `${hours - previousHours} community service hour(s) were added to your record for "${event.title}". You now have ${hours} hour(s) for this event.`;
-    } else {
-      message = `Your community service hours for "${event.title}" were updated to ${hours} hour(s).`;
+    let message = `Your community service goal has been set to ${hours} hour(s) by the organizer.`;
+    if (hours === 0) {
+      message = `Your community service requirement has been cleared by the organizer.`;
     }
 
     const notification = new Notification({
       user: attendance.student,
       type: "penalty",
-      title: "Community Service Updated",
+      title: "Community Service Goal Updated",
       message,
       relatedEvent: event._id,
     });
     await notification.save();
 
-    const populated = await Attendance.findById(attendance._id).populate("student", "name email");
-    res.json(populated);
+    const populated = await Attendance.findById(attendance._id).populate("student", "name email requiredServiceHours");
+    res.json({ ...populated.toObject(), requiredServiceHours: student.requiredServiceHours });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// REMOVE A STUDENT'S COMMUNITY SERVICE HOURS (organizers/admins)
+// No `hours` in body = full forgiveness: clears the student's stored goal AND
+// all accumulated penalty hours across every attendance record.
+// With `hours` = remove that many hours from this event's record only.
+router.patch("/:id/attendees/:studentId/community-service/remove", protect, async (req, res) => {
+  try {
+    if (req.user.role !== "organizer" && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const attendance = await Attendance.findOne({ event: req.params.id, student: req.params.studentId });
+    if (!attendance) return res.status(404).json({ error: "Attendance not found" });
+
+    const studentId = attendance.student;
+    let student = await User.findById(studentId);
+
+    // --- Full forgiveness (all admin/organizer UI buttons hit this path) ---
+    if (req.body.hours === undefined) {
+      const penalized = await Attendance.find({ student: studentId, communityServiceHours: { $gt: 0 } });
+      for (const rec of penalized) {
+        rec.communityServiceLog.push({
+          action: "removed",
+          hours: rec.communityServiceHours || 0,
+          note: "Community service hours removed manually",
+        });
+        rec.communityServiceHours = 0;
+        await rec.save();
+      }
+
+      if (student && student.requiredServiceHours > 0) {
+        student.requiredServiceHours = 0;
+        await student.save();
+      }
+
+      const notification = new Notification({
+        user: studentId,
+        type: "penalty",
+        title: "Community Service Removed",
+        message: "Your community service requirement has been cleared by the organizer.",
+        relatedEvent: event._id,
+      });
+      await notification.save();
+
+      const populated = await Attendance.findById(attendance._id).populate("student", "name email requiredServiceHours");
+      return res.json({
+        ...populated.toObject(),
+        requiredServiceHours: student ? student.requiredServiceHours : 0,
+      });
+    }
+
+    // --- Partial removal (direct API use): removes penalty hours from THIS record only ---
+    const hoursToRemove = Number(req.body.hours);
+    if (!Number.isFinite(hoursToRemove) || hoursToRemove < 0) {
+      return res.status(400).json({ error: "Hours must be a number greater than or equal to 0" });
+    }
+
+    const previousHours = attendance.communityServiceHours || 0;
+    const removed = Math.min(hoursToRemove, previousHours);
+
+    if (removed > 0) {
+      attendance.communityServiceHours = previousHours - removed;
+      attendance.communityServiceLog.push({
+        action: "removed",
+        hours: removed,
+        note: "Community service hours removed manually",
+      });
+      await attendance.save();
+    }
+
+    const notification = new Notification({
+      user: studentId,
+      type: "penalty",
+      title: "Community Service Hours Removed",
+      message: `${removed} community service hour(s) have been removed from your record by the organizer.`,
+      relatedEvent: event._id,
+    });
+    await notification.save();
+
+    const populated = await Attendance.findById(attendance._id).populate("student", "name email requiredServiceHours");
+    res.json({
+      ...populated.toObject(),
+      requiredServiceHours: student ? student.requiredServiceHours : 0,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -461,18 +628,21 @@ router.post("/:id/attendees/manual", protect, async (req, res) => {
       attendedAt: new Date(),
       status: status || "present",
       communityServiceHours,
+      communityServiceLog:
+        communityServiceHours > 0
+          ? [{ action: "penalty", hours: communityServiceHours, note: `Marked ${status} (manual)` }]
+          : [],
     });
 
     await attendance.save();
 
     if (status === "late" || status === "absent") {
-      const Notification = require("../models/Notification");
       const hours = status === "late" ? 4 : 8;
       const notification = new Notification({
         user: studentId,
         type: status === "late" ? "attendance" : "penalty",
         title: status === "late" ? "Marked Late" : "Marked Absent",
-        message: `You were marked as ${status} for event "${event.title}" by the organizer. ${hours} community service hours have been added to your record.`,
+        message: `You were marked as ${status} for event "${event.title}" by the organizer. ${hours} community service hours have been added to your community service goal.`,
         relatedEvent: event._id,
       });
       await notification.save();
@@ -494,10 +664,10 @@ router.put("/:id", protect, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const { title, description, date, time, location, mapQuery, status, attendanceStartTime, attendanceEndTime } = req.body;
+    const { title, description, date, time, endDate, endTime, location, mapQuery, status, attendanceStartTime, attendanceEndTime } = req.body;
     const event = await Event.findByIdAndUpdate(
       req.params.id,
-      { title, description, date, time, location, mapQuery, status, attendanceStartTime, attendanceEndTime },
+      { title, description, date, time, endDate, endTime, location, mapQuery, status, attendanceStartTime, attendanceEndTime },
       { new: true }
     ).populate("organizer", "name email");
 
