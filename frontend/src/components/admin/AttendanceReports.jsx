@@ -247,7 +247,7 @@ const AttendanceReports = () => {
                 <tbody>
                   {attendanceData.records.slice(0, 10).map((r, i) => (
                     <tr key={i} className="border-b border-line">
-                      <td className="p-2">{r.event?.title || "N/A"}</td>
+                      <td className="p-2">{r.event?.title || r.eventTitle || "N/A"}</td>
                       <td className="p-2">{r.student?.name || "N/A"}</td>
                       <td className="p-2">
                         <StatusChip status={r.status} />

@@ -351,7 +351,7 @@ const OrgManageEvents = () => {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete this event?"
-        message="This will permanently delete the event and all of its attendance records. This action cannot be undone."
+        message="This deletes the event, but students keep the community service hours they have accumulated from it. This action cannot be undone."
         confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"

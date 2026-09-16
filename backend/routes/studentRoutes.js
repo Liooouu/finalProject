@@ -14,11 +14,12 @@ const storage = multer.diskStorage({
     cb(null, "uploads/");
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
+    const unique = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    cb(null, unique + path.extname(file.originalname));
   },
 });
 
-const upload = multer({ storage });
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 router.get("/community-service", protect, async (req, res) => {
   try {
@@ -64,7 +65,7 @@ router.get("/excuses", protect, async (req, res) => {
   }
 });
 
-router.post("/excuses", protect, upload.single("attachment"), async (req, res) => {
+router.post("/excuses", protect, upload.array("attachments", 5), async (req, res) => {
   try {
     if (req.user.role !== "student") {
       return res.status(403).json({ error: "Only students can submit excuses" });
@@ -122,7 +123,8 @@ router.post("/excuses", protect, upload.single("attachment"), async (req, res) =
       student: req.user._id,
       event: eventId,
       excuseText,
-      attachmentUrl: req.file ? `/uploads/${req.file.filename}` : null,
+      attachmentUrl: req.files && req.files.length ? `/uploads/${req.files[0].filename}` : null,
+      attachments: req.files ? req.files.map((f) => `/uploads/${f.filename}`) : [],
       type,
     });
 
@@ -167,6 +169,15 @@ router.get("/absent-events", protect, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+router.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({
+      error: err.code === "LIMIT_FILE_SIZE" ? "Each file must be less than 5MB" : err.message,
+    });
+  }
+  next(err);
 });
 
 module.exports = router;

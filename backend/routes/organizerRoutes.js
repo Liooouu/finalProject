@@ -6,26 +6,43 @@ const Event = require("../models/Event");
 const Attendance = require("../models/Attendance");
 const Notification = require("../models/Notification");
 
-// Spreads a flat hour removal across a student's other penalty records so the
-// "Remove 16 hrs" approval option reduces their total CS hours.
-async function removeAcrossRecords(studentId, excludeAttendanceId, amount, note) {
+// Removes a flat number of hours from a student's CS balance. The excuse
+// event's own record (priorityAttendanceId) is consumed first, then any
+// remaining amount is spread across the student's other penalty records, so
+// the "Remove 16 hrs" option never takes more than the requested amount.
+async function removeFlatHours(studentId, priorityAttendanceId, amount, note) {
   if (amount <= 0) return 0;
   let remaining = amount;
-  const records = await Attendance.find({
-    student: studentId,
-    _id: { $ne: excludeAttendanceId },
-    communityServiceHours: { $gt: 0 },
-  }).sort({ attendedAt: 1 });
 
-  for (const rec of records) {
-    if (remaining <= 0) break;
-    const take = Math.min(remaining, rec.communityServiceHours || 0);
-    if (take <= 0) continue;
-    rec.communityServiceHours = (rec.communityServiceHours || 0) - take;
-    rec.communityServiceLog.push({ action: "removed", hours: take, note });
-    await rec.save();
-    remaining -= take;
+  if (priorityAttendanceId) {
+    const priority = await Attendance.findById(priorityAttendanceId);
+    if (priority && (priority.communityServiceHours || 0) > 0) {
+      const take = Math.min(remaining, priority.communityServiceHours || 0);
+      priority.communityServiceHours = (priority.communityServiceHours || 0) - take;
+      priority.communityServiceLog.push({ action: "removed", hours: take, note });
+      await priority.save();
+      remaining -= take;
+    }
   }
+
+  if (remaining > 0) {
+    const records = await Attendance.find({
+      student: studentId,
+      _id: { $ne: priorityAttendanceId },
+      communityServiceHours: { $gt: 0 },
+    }).sort({ attendedAt: 1 });
+
+    for (const rec of records) {
+      if (remaining <= 0) break;
+      const take = Math.min(remaining, rec.communityServiceHours || 0);
+      if (take <= 0) continue;
+      rec.communityServiceHours = (rec.communityServiceHours || 0) - take;
+      rec.communityServiceLog.push({ action: "removed", hours: take, note });
+      await rec.save();
+      remaining -= take;
+    }
+  }
+
   return amount - remaining;
 }
 
@@ -97,9 +114,9 @@ router.patch("/excuses/:id", protect, async (req, res) => {
     }
 
     if (status === "approved") {
-      // Approved excuses clear the event's CS penalty from the student's
-      // community service hours. removal "16" additionally removes a flat
-      // 16 hours spread across the student's other penalty records.
+      // Approved excuses set the event's attendance to excused. removal
+      // "16" deducts exactly 16 hours from the student's balance; removal
+      // "complete" forgives this event's penalty entirely.
       if (excuse.type === "advance") {
         // Pre-create the attendance as excused BEFORE the event happens,
         // so the auto-absent background job never penalizes this student.
@@ -110,23 +127,26 @@ router.patch("/excuses/:id", protect, async (req, res) => {
         const previousAdvanceHours =
           (existingAdvance && existingAdvance.communityServiceHours) || 0;
 
+        const advanceUpdate = { status: "excused" };
+        if (removal === "complete") advanceUpdate.communityServiceHours = 0;
+
         const attendance = await Attendance.findOneAndUpdate(
           { event: excuse.event._id, student: excuse.student._id },
-          { status: "excused", communityServiceHours: 0 },
+          advanceUpdate,
           { new: true, upsert: true, setDefaultsOnInsert: true }
         );
 
-        if (previousAdvanceHours > 0 && attendance) {
-          attendance.communityServiceLog.push({
-            action: "removed",
-            hours: previousAdvanceHours,
-            note: "Excuse approved (advance)",
-          });
-          await attendance.save();
-        }
-
-        if (removal === "16") {
-          await removeAcrossRecords(
+        if (removal === "complete") {
+          if (previousAdvanceHours > 0 && attendance) {
+            attendance.communityServiceLog.push({
+              action: "removed",
+              hours: previousAdvanceHours,
+              note: "Excuse approved (advance)",
+            });
+            await attendance.save();
+          }
+        } else {
+          await removeFlatHours(
             excuse.student._id,
             attendance._id,
             16,
@@ -149,30 +169,45 @@ router.patch("/excuses/:id", protect, async (req, res) => {
           event: excuse.event._id,
           student: excuse.student._id,
         });
-        const previousHours = (existing && existing.communityServiceHours) || 0;
-
-        const attendance = await Attendance.findOneAndUpdate(
-          { event: excuse.event._id, student: excuse.student._id },
-          { status: "excused", communityServiceHours: 0 },
-          { new: true }
-        );
-
-        if (previousHours > 0 && attendance) {
-          attendance.communityServiceLog.push({
-            action: "removed",
-            hours: previousHours,
-            note: "Excuse approved",
-          });
-          await attendance.save();
-        }
 
         if (removal === "16") {
-          await removeAcrossRecords(
+          // Exactly 16 hours come off the student's balance. The excuse
+          // event's own record is consumed first, then any remaining amount
+          // is taken from the student's other penalty records.
+          const attendance = await Attendance.findOneAndUpdate(
+            { event: excuse.event._id, student: excuse.student._id },
+            { status: "excused" },
+            { new: true }
+          );
+
+          if (!attendance) {
+            return res.status(404).json({ error: "Attendance record not found" });
+          }
+
+          await removeFlatHours(
             excuse.student._id,
             attendance._id,
             16,
             "Excuse approved (16 hrs removed from CS)"
           );
+        } else {
+          // "complete" — forgive this event's penalty entirely.
+          const previousHours = (existing && existing.communityServiceHours) || 0;
+
+          const attendance = await Attendance.findOneAndUpdate(
+            { event: excuse.event._id, student: excuse.student._id },
+            { status: "excused", communityServiceHours: 0 },
+            { new: true }
+          );
+
+          if (previousHours > 0 && attendance) {
+            attendance.communityServiceLog.push({
+              action: "removed",
+              hours: previousHours,
+              note: "Excuse approved",
+            });
+            await attendance.save();
+          }
         }
 
         const notification = new Notification({
@@ -181,7 +216,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
           title: "Excuse Approved",
           message:
             removal === "16"
-              ? `Your excuse for "${excuse.event.title}" was approved. The community service hours for this event were removed, plus an additional 16 hours were removed from your community service hours.`
+              ? `Your excuse for "${excuse.event.title}" was approved. 16 hours were removed from your community service hours.`
               : `Your excuse for "${excuse.event.title}" was approved. Any community service hours for this event have been removed.`,
           relatedEvent: excuse.event._id,
         });

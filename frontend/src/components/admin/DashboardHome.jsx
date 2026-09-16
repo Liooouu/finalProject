@@ -204,9 +204,9 @@ const DashboardHome = () => {
                 {attendance.slice(0, 8).map((record, index) => (
                   <tr key={index} className="border-b border-line last:border-0 hover:bg-card-alt/60">
                     <td className="px-4 py-3">
-                      <p className="text-sm font-medium text-on">{record.event?.title || "Event"}</p>
-                      {record.event?.date && (
-                        <p className="text-xs text-on-muted">{new Date(record.event.date).toLocaleDateString()}</p>
+                      <p className="text-sm font-medium text-on">{record.event?.title || record.eventTitle || "Event"}</p>
+                      {(record.event?.date || record.eventDate) && (
+                        <p className="text-xs text-on-muted">{new Date(record.event?.date || record.eventDate).toLocaleDateString()}</p>
                       )}
                     </td>
                     <td className="px-4 py-3">

@@ -21,6 +21,8 @@ const ManageEvents = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("success");
   const [showCreate, setShowCreate] = useState(false);
   const [createMsg, setCreateMsg] = useState("");
   const [createForm, setCreateForm] = useState({
@@ -76,9 +78,12 @@ const ManageEvents = () => {
       if (selectedEvent?._id === eventId) {
         setSelectedEvent((prev) => ({ ...prev, status: newStatus }));
       }
+      setMessage(`Event status updated to ${newStatus}`);
+      setMessageType("success");
     } catch (err) {
       console.error(err);
-      alert("Failed to update status");
+      setMessage("Failed to update status");
+      setMessageType("error");
     }
   };
 
@@ -87,9 +92,12 @@ const ManageEvents = () => {
       await api.delete(`/events/${eventId}`);
       setEvents(events.filter((e) => e._id !== eventId));
       setShowModal(false);
+      setMessage("Event deleted successfully");
+      setMessageType("success");
     } catch (err) {
       console.error(err);
-      alert("Failed to delete event");
+      setMessage("Failed to delete event");
+      setMessageType("error");
     }
   };
 
@@ -127,9 +135,12 @@ const ManageEvents = () => {
     try {
       await api.patch(`/events/${eventId}/attendees/${studentId}`, { status: newStatus });
       fetchAttendees(eventId);
+      setMessage("Attendee status updated");
+      setMessageType("success");
     } catch (err) {
       console.error(err);
-      alert("Failed to update attendee status");
+      setMessage("Failed to update attendee status");
+      setMessageType("error");
     }
   };
 
@@ -145,6 +156,11 @@ const ManageEvents = () => {
 
   return (
     <div className="space-y-6">
+      {message && (
+        <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${messageType === "error" ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
+          {message}
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-on-dim">
           {filteredEvents.length} of {events.length} events
@@ -467,7 +483,7 @@ const ManageEvents = () => {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete this event?"
-        message="This will permanently delete the event and all of its attendance records, including community service credits. This action cannot be undone."
+        message="This deletes the event, but students keep the community service hours they have accumulated from it. This action cannot be undone."
         confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"

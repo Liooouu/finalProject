@@ -194,17 +194,41 @@ const ManageExcuses = () => {
                   <p className="text-on">{excuse.excuseText}</p>
                 </div>
 
-                {/* Attachment */}
-                {excuse.attachmentUrl && (
+                {/* Attachments */}
+                {(excuse.attachments?.length || excuse.attachmentUrl) && (
                   <div className="mb-4">
-                    <a
-                      href={`http://localhost:5000${excuse.attachmentUrl}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors"
-                    >
-                      <span><FaFileAlt /></span> View Attachment
-                    </a>
+                    <p className="text-sm text-on-dim mb-2">Attachments:</p>
+                    <div className="flex flex-wrap gap-3">
+                      {(excuse.attachments?.length ? excuse.attachments : [excuse.attachmentUrl]).map((url, idx) => {
+                        const isImage = /\.(jpe?g|png|gif|webp)$/i.test(url);
+                        return isImage ? (
+                          <a
+                            key={idx}
+                            href={`http://localhost:5000${url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group block"
+                          >
+                            <img
+                              src={`http://localhost:5000${url}`}
+                              alt={`Attachment ${idx + 1}`}
+                              className="h-24 w-24 rounded-lg object-cover ring-1 ring-line transition-all group-hover:ring-2 group-hover:ring-indigo-500/50"
+                            />
+                          </a>
+                        ) : (
+                          <a
+                            key={idx}
+                            href={`http://localhost:5000${url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors"
+                          >
+                            <span><FaFileAlt /></span>
+                            {excuse.attachments?.length > 1 ? `Attachment ${idx + 1}` : "View Attachment"}
+                          </a>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 

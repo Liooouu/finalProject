@@ -15,6 +15,8 @@ const attendanceSchema = new mongoose.Schema({
   status: { type: String, enum: ["present", "late", "absent", "pending", "excused"], default: "pending" },
   communityServiceHours: { type: Number, default: 0 },
   communityServiceLog: [communityServiceLogSchema],
+  eventTitle: { type: String },
+  eventDate: { type: Date },
 }, { timestamps: true });
 
 attendanceSchema.index({ event: 1, student: 1 }, { unique: true });

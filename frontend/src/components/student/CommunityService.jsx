@@ -114,9 +114,9 @@ const CommunityService = () => {
                 {data.breakdown.map((record, index) => {
                   return (
                     <tr key={index} className="hover:bg-card transition-colors">
-                      <td className="px-6 py-4 text-on font-medium">{record.event?.title || "Unknown Event"}</td>
+                      <td className="px-6 py-4 text-on font-medium">{record.event?.title || record.eventTitle || "Unknown Event"}</td>
                       <td className="px-6 py-4 text-on-dim">
-                        {record.event?.date ? new Date(record.event.date).toLocaleDateString() : "-"}
+                        {record.event?.date ? new Date(record.event.date).toLocaleDateString() : record.eventDate ? new Date(record.eventDate).toLocaleDateString() : "-"}
                       </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={record.status} />

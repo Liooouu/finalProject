@@ -13,7 +13,7 @@ const SubmitExcuse = () => {
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState("");
   const [excuseText, setExcuseText] = useState("");
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
@@ -37,7 +37,7 @@ const SubmitExcuse = () => {
             .map((e) => e.event?._id || e.event)
         );
 
-        setAbsentEvents(absentRes.data.filter((r) => !excusedEventIds.has(r.event._id)));
+        setAbsentEvents(absentRes.data.filter((r) => r.event && !excusedEventIds.has(r.event._id)));
 
         const attendedEventIds = new Set(
           myAttendanceRes.data.map((a) => a.event?._id || a.event)
@@ -66,14 +66,24 @@ const SubmitExcuse = () => {
   };
 
   const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      if (selectedFile.size > 5 * 1024 * 1024) {
-        setMessage("File size must be less than 5MB");
-        return;
-      }
-      setFile(selectedFile);
+    const selected = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (selected.length === 0) return;
+    const overSize = selected.find((f) => f.size > 5 * 1024 * 1024);
+    if (overSize) {
+      setMessage("Each file must be less than 5MB");
+      return;
     }
+    if (files.length + selected.length > 5) {
+      setMessage("You can attach up to 5 files total");
+      return;
+    }
+    setFiles([...files, ...selected]);
+    setMessage("");
+  };
+
+  const removeFile = (index) => {
+    setFiles(files.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e) => {
@@ -95,9 +105,7 @@ const SubmitExcuse = () => {
       formData.append("eventId", selectedEvent);
       formData.append("excuseText", excuseText);
       formData.append("type", mode);
-      if (file) {
-        formData.append("attachment", file);
-      }
+      files.forEach((f) => formData.append("attachments", f));
 
       await api.post("/student/excuses", formData, {
         headers: {
@@ -262,31 +270,50 @@ const SubmitExcuse = () => {
 
         {/* File Upload */}
         <div>
-          <label className="block text-sm font-semibold text-on mb-2">Attach Document (Optional)</label>
-          <div className="border-2 border-dashed border-line rounded-xl p-8 text-center hover:border-indigo-500/40 transition-colors">
+          <label className="block text-sm font-semibold text-on mb-2">
+            Attach Documents (Optional) <span className="text-on-muted font-normal">- up to 5 files</span>
+          </label>
+          <div className="border-2 border-dashed border-line rounded-xl p-6 text-center hover:border-indigo-500/40 transition-colors">
             <input
               type="file"
+              multiple
               onChange={handleFileChange}
               className="hidden"
               id="file-upload"
               accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
             />
-            <label htmlFor="file-upload" className="cursor-pointer">
-              {file ? (
-                <div className="space-y-2">
-                  <span className="text-4xl"><FaCheck /></span>
-                  <p className="dark:text-green-400 text-green-600 font-medium">{file.name}</p>
-                  <p className="text-sm text-on-dim">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <span className="text-4xl"><FaFileAlt /></span>
-                  <p className="text-on-dim">Click to upload or drag and drop</p>
-                  <p className="text-xs text-on-muted">PDF, DOC, JPG, PNG (max 5MB)</p>
-                </div>
-              )}
+            <label htmlFor="file-upload" className="cursor-pointer block">
+              <span className="text-4xl"><FaFileAlt /></span>
+              <p className="text-on-dim mt-2">Click to upload or drag and drop</p>
+              <p className="text-xs text-on-muted">PDF, DOC, JPG, PNG (max 5MB each)</p>
             </label>
           </div>
+
+          {files.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {files.map((f, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 rounded-lg border border-line bg-card-alt px-3.5 py-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="dark:text-green-400 text-green-600"><FaCheck /></span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-on truncate">{f.name}</p>
+                      <p className="text-xs text-on-dim">{(f.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeFile(i)}
+                    className="shrink-0 text-sm font-medium text-red-600 transition-colors hover:text-red-500 dark:text-red-400"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {files.length === 0 && (
+            <p className="text-xs text-on-muted mt-2">No files selected</p>
+          )}
         </div>
 
         {/* Buttons */}

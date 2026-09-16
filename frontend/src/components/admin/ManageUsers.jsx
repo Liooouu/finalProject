@@ -15,6 +15,8 @@ const ManageUsers = () => {
   const [showModal, setShowModal] = useState(false);
   const [csDrafts, setCsDrafts] = useState({});
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("success");
 
   usePageMeta("Manage Users", "Search, inspect, and manage all accounts.");
 
@@ -38,9 +40,12 @@ const ManageUsers = () => {
     try {
       await api.delete(`/admin/users/${userId}`);
       setUsers(users.filter((u) => u._id !== userId));
+      setMessage("User deleted successfully");
+      setMessageType("success");
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || "Failed to delete user");
+      setMessage(err.response?.data?.message || "Failed to delete user");
+      setMessageType("error");
     }
   };
 
@@ -68,7 +73,8 @@ const ManageUsers = () => {
   const handleUpdateCS = async (record, hours) => {
     const value = Number(hours);
     if (!Number.isFinite(value) || value < 0) {
-      alert("Please enter a valid number of hours (0 or more)");
+      setMessage("Please enter a valid number of hours (0 or more)");
+      setMessageType("error");
       return;
     }
     try {
@@ -76,9 +82,11 @@ const ManageUsers = () => {
         hours: value,
       });
       setUserAttendance(userAttendance.map((r) => (r._id === res.data._id ? res.data : r)));
-      alert(`Community service hours set to ${value} hrs`);
+      setMessage(`Community service hours set to ${value} hrs`);
+      setMessageType("success");
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to update community service");
+      setMessage(err.response?.data?.message || "Failed to update community service");
+      setMessageType("error");
     }
   };
 
@@ -89,9 +97,11 @@ const ManageUsers = () => {
       if (selectedUser && selectedUser._id === studentId) {
         await loadAttendance(selectedUser);
       }
-      alert("Community service hours removed");
+      setMessage("Community service hours removed");
+      setMessageType("success");
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to remove community service");
+      setMessage(err.response?.data?.message || "Failed to remove community service");
+      setMessageType("error");
     }
   };
 
@@ -128,6 +138,11 @@ const ManageUsers = () => {
 
   return (
     <div className="space-y-6">
+      {message && (
+        <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${messageType === "error" ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
+          {message}
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-on-dim">
           {filteredUsers.length} of {users.length} accounts
@@ -280,9 +295,9 @@ const ManageUsers = () => {
                       className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-card-alt rounded-lg"
                     >
                       <div>
-                        <p className="font-medium">{record.event?.title || "Event"}</p>
+                        <p className="font-medium">{record.event?.title || record.eventTitle || "Event"}</p>
                         <p className="text-sm text-on-dim">
-                          {record.event?.date && new Date(record.event.date).toLocaleDateString()}
+                          {(record.event?.date || record.eventDate) && new Date(record.event?.date || record.eventDate).toLocaleDateString()}
                           {record.communityServiceHours > 0 && (
                             <span className="dark:text-yellow-400 text-yellow-600 font-medium">
                               {" "}• {record.communityServiceHours} hrs CS

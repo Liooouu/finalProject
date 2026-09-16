@@ -308,9 +308,9 @@ const windowCutoff = () => {
                       {record.status === "absent" ? <FaClock /> : <BsClipboardCheck />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-on font-medium truncate">{record.event?.title || "Unknown Event"}</p>
+                      <p className="text-on font-medium truncate">{record.event?.title || record.eventTitle || "Unknown Event"}</p>
                       <p className="text-xs text-on-muted">
-                        {record.event?.date ? new Date(record.event.date).toLocaleDateString() : "-"}
+                        {record.event?.date ? new Date(record.event.date).toLocaleDateString() : record.eventDate ? new Date(record.eventDate).toLocaleDateString() : "-"}
                       </p>
                     </div>
                     <StatusPill

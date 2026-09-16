@@ -734,13 +734,27 @@ router.delete("/:id", protect, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const event = await Event.findByIdAndDelete(req.params.id);
+    const event = await Event.findById(req.params.id);
 
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    await Attendance.deleteMany({ event: req.params.id });
+    // Preserve community service hours: keep the attendance records and
+    // snapshot the event's name/date onto them. The event reference is kept
+    // (now dangling) so the unique { event, student } index stays intact —
+    // nulling it would make two deleted events collide for the same student.
+    await Attendance.updateMany(
+      { event: req.params.id },
+      {
+        $set: {
+          eventTitle: event.title,
+          eventDate: event.date,
+        },
+      }
+    );
 
-    res.json({ message: "Event deleted successfully" });
+    await Event.findByIdAndDelete(req.params.id);
+
+    res.json({ message: "Event deleted successfully. Community service hours were preserved." });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
