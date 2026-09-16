@@ -95,7 +95,7 @@ const OrgManageAttendees = () => {
         { hours: value }
       );
       setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
-      setMessage(`Service goal set to ${value} hrs`);
+      setMessage(`Community service hours set to ${value} hrs`);
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to update community service");
     }
@@ -108,9 +108,9 @@ const OrgManageAttendees = () => {
         `/events/${eventId}/attendees/${studentId}/community-service/remove`,
         {}
       );
-      const newGoal = res.data.requiredServiceHours ?? res.data.student?.requiredServiceHours ?? 0;
+      const remaining = res.data.communityServiceHours || 0;
       setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
-      setCsDrafts((d) => ({ ...d, [attendance._id]: String(newGoal) }));
+      setCsDrafts((d) => ({ ...d, [attendance._id]: String(remaining) }));
       setMessage("Community service removed");
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to remove community service");
@@ -317,31 +317,28 @@ const OrgManageAttendees = () => {
                     <p className="text-on-dim text-sm mt-1">
                       {attendance.communityServiceHours} hrs CS
                     </p>
-                    <p className="text-on-muted text-xs mt-0.5">
-                      Goal: {attendance.requiredServiceHours ?? attendance.student?.requiredServiceHours ?? 0} hrs
-                    </p>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <input
                       type="number"
                       min="0"
-                      value={csDrafts[attendance._id] ?? String(attendance.requiredServiceHours ?? attendance.student?.requiredServiceHours ?? 0)}
+                      value={csDrafts[attendance._id] ?? String(attendance.communityServiceHours)}
                       onChange={(e) =>
                         setCsDrafts({ ...csDrafts, [attendance._id]: e.target.value })
                       }
                       className="w-16 bg-card-alt border border-line rounded-lg px-2 py-1.5 text-sm text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                      title="Set the student's community service goal"
+                      title="Set this student's community service hours for this event"
                     />
                     <button
                       onClick={() =>
                         handleUpdateCS(
                           attendance,
-                          csDrafts[attendance._id] ?? attendance.requiredServiceHours ?? attendance.student?.requiredServiceHours ?? 0
+                          csDrafts[attendance._id] ?? attendance.communityServiceHours
                         )
                       }
                       className="bg-green-500 hover:bg-green-600 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
                     >
-                      Set goal
+                      Set hrs
                     </button>
                     <button
                       onClick={() => handleRemoveCS(attendance)}

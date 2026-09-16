@@ -26,8 +26,8 @@ import EmptyState from "../shared/EmptyState";
 import EventMap from "../shared/EventMap";
 import TodayCard from "./TodayCard";
 
-// The goal is set exactly by organizers/admins ("Set goal" box) and stays fixed;
-// late/absent marks add to the student's community service hours instead.
+// Late/absent marks add 8/4 to the student's community service hours; excuses
+// and removals take them off. Organizers/admin can adjust the hours manually.
 const EVENTS_BADGE = 5;
 
 const DashboardHome = () => {
@@ -67,7 +67,6 @@ const DashboardHome = () => {
           totalHours: (csData && csData.totalHours) || 0,
           completedHours: (csData && csData.completedHours) || 0,
           totalAttended: (csData && csData.totalAttended) || 0,
-          requiredHours: (csData && csData.requiredHours) ?? 0,
           breakdown,
         });
 
@@ -162,22 +161,8 @@ const windowCutoff = () => {
         binary: true,
         earned: activity.length > 0 && activity.every((r) => r.status !== "absent"),
       },
-      ...(() => {
-        const goal = stats.requiredHours || 0;
-        const allDone = goal > 0 && stats.completedHours >= goal;
-        return [
-          {
-            icon: allDone ? <FaTrophy /> : <FaClock />,
-            label: allDone ? "Service hours complete!" : `${goal}+ service hours`,
-            current: stats.completedHours,
-            target: goal,
-            unit: "hrs",
-            earned: allDone,
-          },
-        ];
-      })(),
     ],
-    [stats.totalAttended, stats.completedHours, stats.requiredHours, activity]
+    [stats.totalAttended, activity]
   );
 
   if (loading) return <Loading label="Loading your dashboard..." />;
@@ -389,7 +374,7 @@ const windowCutoff = () => {
           <span className="text-2xl font-bold text-on">{stats.totalAttended}</span>
         </div>
 
-        {/* Community Service tracking — CS hours ↔ added ↔ removed vs fixed goal */}
+        {/* Community Service tracking — CS hours ↔ added ↔ removed */}
         <div className="mb-4 rounded-xl border border-line p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm font-medium text-on-dim">
@@ -411,19 +396,6 @@ const windowCutoff = () => {
             <span className="text-xs text-on-muted">Community service hours</span>
             <span className="text-2xl font-bold text-indigo-500 dark:text-indigo-400">
               {stats.totalHours} <span className="text-sm text-on-muted">hrs</span>
-            </span>
-          </div>
-          <ProgressBar
-            current={Math.min(stats.totalHours, stats.requiredHours)}
-            target={stats.requiredHours}
-            label={`${stats.totalHours} of the ${stats.requiredHours} hr goal currently assigned`}
-          />
-
-          {/* Goal — the fixed requirement set by the organizer/admin */}
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-xs text-on-muted">Set goal (fixed)</span>
-            <span className="text-lg font-bold text-yellow-400">
-              {stats.requiredHours} <span className="text-sm text-on-muted">hrs</span>
             </span>
           </div>
 
@@ -476,7 +448,7 @@ const windowCutoff = () => {
             </p>
           </div>
           <p className="text-xs text-on-muted mt-2">
-            Your community service goal is set by the organizer and stays fixed. Late marks add 4 hrs and absent marks add 8 hrs to your community service hours; approved excuses and removals take hours off. The event organizer and admin may modify your community service hours according to your behavior.
+            Late marks add 4 hrs and absent marks add 8 hrs to your community service hours; approved excuses and removals take hours off. The event organizer and admin may modify your community service hours according to your behavior.
           </p>
         </div>
 

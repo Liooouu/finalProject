@@ -113,7 +113,7 @@ const EventDetails = () => {
       const res = await api.patch(`/events/${id}/attendees/${stdId}/community-service`, { hours });
       setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
       setCsDrafts((d) => ({ ...d, [stdId]: hours }));
-      setMessage(`Service goal set to ${hours} hrs`);
+      setMessage(`Community service hours set to ${hours} hrs`);
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to update service hours");
     }
@@ -123,9 +123,9 @@ const EventDetails = () => {
     const stdId = attendance.student?._id || attendance.student;
     try {
       const res = await api.patch(`/events/${id}/attendees/${stdId}/community-service/remove`, {});
-      const newGoal = res.data.requiredServiceHours ?? res.data.student?.requiredServiceHours ?? 0;
+      const remaining = res.data.communityServiceHours || 0;
       setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
-      setCsDrafts((d) => ({ ...d, [stdId]: String(newGoal) }));
+      setCsDrafts((d) => ({ ...d, [stdId]: String(remaining) }));
       setMessage("Community service removed");
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to remove service hours");
@@ -539,9 +539,6 @@ const EventDetails = () => {
                           <FaExclamationTriangle /> Community Service: {attendance.communityServiceHours} hours
                         </p>
                       )}
-                      <p className="text-xs text-on-muted mt-1">
-                        Service goal: {attendance.requiredServiceHours ?? attendance.student?.requiredServiceHours ?? 0} hrs
-                      </p>
                     </div>
                     <div className="flex flex-col gap-2">
                       <select
@@ -557,21 +554,21 @@ const EventDetails = () => {
                         <input
                           type="number"
                           min="0"
-                          value={csDrafts[attendance.student._id] ?? attendance.requiredServiceHours ?? attendance.student?.requiredServiceHours ?? 0}
+                          value={csDrafts[attendance.student._id] ?? attendance.communityServiceHours}
                           onChange={(e) =>
                             setCsDrafts((d) => ({ ...d, [attendance.student._id]: e.target.value }))
                           }
                           className="w-20 bg-card border border-line rounded-lg px-3 py-2 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                          title="Set the student's community service goal"
+                          title="Set this student's community service hours for this event"
                         />
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() =>
-                            handleUpdateCS(attendance.student._id, csDrafts[attendance.student._id] ?? attendance.requiredServiceHours ?? attendance.student?.requiredServiceHours ?? 0)
+                            handleUpdateCS(attendance.student._id, csDrafts[attendance.student._id] ?? attendance.communityServiceHours)
                           }
                         >
-                          Set goal
+                          Set hrs
                         </Button>
                         <Button
                           variant="ghost"

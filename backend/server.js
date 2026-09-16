@@ -93,6 +93,8 @@ connectDB()
         for (const event of candidateEvents) {
           const endDate = new Date(event.endDate || event.date);
           const endTime = event.endTime || event.attendanceEndTime;
+          if (Number.isNaN(endDate.getTime()) || !endTime) continue;
+
           const dayOver =
             endDate < today || (isSameDay(endDate) && currentTime >= endTime);
 

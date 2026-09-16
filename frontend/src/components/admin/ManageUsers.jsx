@@ -76,7 +76,7 @@ const ManageUsers = () => {
         hours: value,
       });
       setUserAttendance(userAttendance.map((r) => (r._id === res.data._id ? res.data : r)));
-      alert(`Service goal set to ${value} hrs`);
+      alert(`Community service hours set to ${value} hrs`);
     } catch (err) {
       alert(err.response?.data?.message || "Failed to update community service");
     }
@@ -89,7 +89,7 @@ const ManageUsers = () => {
       if (selectedUser && selectedUser._id === studentId) {
         await loadAttendance(selectedUser);
       }
-      alert("Community service removed — the student's goal has been cleared");
+      alert("Community service hours removed");
     } catch (err) {
       alert(err.response?.data?.message || "Failed to remove community service");
     }
@@ -288,9 +288,6 @@ const ManageUsers = () => {
                               {" "}• {record.communityServiceHours} hrs CS
                             </span>
                           )}
-                          <span className="text-on-muted">
-                            {" "}• Goal: {record.requiredServiceHours ?? record.student?.requiredServiceHours ?? 0} hrs
-                          </span>
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -299,23 +296,23 @@ const ManageUsers = () => {
                           <input
                             type="number"
                             min="0"
-                            value={csDrafts[record._id] ?? String(record.requiredServiceHours ?? record.student?.requiredServiceHours ?? 0)}
+                            value={csDrafts[record._id] ?? String(record.communityServiceHours)}
                             onChange={(e) =>
                               setCsDrafts({ ...csDrafts, [record._id]: e.target.value })
                             }
                             className="w-16 bg-card border border-line rounded-lg px-2 py-1.5 text-sm text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                            title="Set the student's community service goal"
+                            title="Set this student's community service hours"
                           />
                           <button
                             onClick={() =>
                               handleUpdateCS(
                                 record,
-                                csDrafts[record._id] ?? record.requiredServiceHours ?? record.student?.requiredServiceHours ?? 0
+                                csDrafts[record._id] ?? record.communityServiceHours
                               )
                             }
                             className="bg-green-500 hover:bg-green-600 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
                           >
-                            Set goal
+                            Set hrs
                           </button>
                           <button
                               onClick={() => handleRemoveCS(record)}

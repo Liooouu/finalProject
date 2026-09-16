@@ -119,7 +119,7 @@ router.get("/attendance/export", async (req, res) => {
 
     const attendance = await Attendance.find(match)
       .populate("event", "title date")
-      .populate("student", "name email requiredServiceHours")
+      .populate("student", "name email")
       .sort({ attendedAt: -1 });
 
     const csv = [

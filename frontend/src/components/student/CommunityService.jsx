@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
-import { FaCheck, FaTimes, FaClock, FaBook } from "react-icons/fa";
+import { FaCheck, FaTimes, FaBook } from "react-icons/fa";
 import { BsClipboardCheck } from "react-icons/bs";
 import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
@@ -49,17 +49,6 @@ const CommunityService = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-linear-to-br from-yellow-500/10 to-yellow-500/5 backdrop-blur-sm border border-yellow-500/20 rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-yellow-500/20 rounded-lg">
-              <span className="text-xl"><FaClock /></span>
-            </div>
-            <span className="dark:text-yellow-400 text-yellow-600 text-sm font-medium">Goal Hours</span>
-          </div>
-          <p className="text-4xl font-bold dark:text-yellow-400 text-yellow-600">{data?.requiredHours || 0} <span className="text-lg font-normal text-on-dim">hrs</span></p>
-          <p className="text-xs text-on-muted mt-1">Set by organizers/admins — stays fixed</p>
-        </div>
-
         <div className="bg-linear-to-br from-green-500/10 to-green-500/5 backdrop-blur-sm border border-green-500/20 rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-3">
             <div className="p-2 bg-green-500/20 rounded-lg">

@@ -85,6 +85,8 @@ router.delete(
 );
 
 // MANUALLY ADJUST COMMUNITY SERVICE HOURS (admin)
+// Overwrites the hours this attendance record contributes to the student's CS
+// balance (e.g. correcting the automatic 8 absent / 4 late).
 router.patch(
   "/attendance/:id/community-service",
   protect,
@@ -101,38 +103,39 @@ router.patch(
         return res.status(404).json({ message: "Attendance record not found" });
       }
 
-      // Goal-only: the hours an admin gives become the student's required service
-      // goal. The accumulated total stays driven by automatic penalties.
-      const student = await User.findByIdAndUpdate(
-        attendance.student,
-        { requiredServiceHours: hours },
-        { new: true }
-      );
-      if (!student) {
-        return res.status(404).json({ message: "Student not found" });
-      }
+      const previousHours = attendance.communityServiceHours || 0;
+      const delta = hours - previousHours;
 
-      let message;
-      if (hours === 0) {
-        message = `Your community service requirement has been cleared by an admin.`;
-      } else {
-        message = `Your community service goal has been set to ${hours} hour(s) by an admin.`;
+      if (delta > 0) {
+        attendance.communityServiceLog.push({
+          action: "penalty",
+          hours: delta,
+          note: "Adjusted manually",
+        });
+      } else if (delta < 0) {
+        attendance.communityServiceLog.push({
+          action: "removed",
+          hours: -delta,
+          note: "Adjusted manually",
+        });
       }
+      attendance.communityServiceHours = hours;
+      await attendance.save();
 
       const notification = new Notification({
         user: attendance.student,
         type: "penalty",
-        title: "Community Service Goal Updated",
-        message,
-        relatedEvent: attendance.event._id,
+        title: "Community Service Hours Updated",
+        message: `Your community service hours for "${attendance.event?.title || "an event"}" have been set to ${hours} hour(s) by an admin.`,
+        relatedEvent: attendance.event ? attendance.event._id : undefined,
       });
       await notification.save();
 
       const populated = await Attendance.findById(attendance._id)
-        .populate("student", "name email requiredServiceHours")
+        .populate("student", "name email")
         .populate("event", "title date");
 
-      res.json({ ...populated.toObject(), requiredServiceHours: student.requiredServiceHours });
+      res.json(populated);
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Server error" });
@@ -141,8 +144,8 @@ router.patch(
 );
 
 // REMOVE COMMUNITY SERVICE HOURS (admin)
-// No `hours` in body = full forgiveness: clears the student's stored goal AND
-// all accumulated penalty hours across every attendance record.
+// No `hours` in body = full forgiveness: clears all accumulated penalty hours
+// across every attendance record.
 // With `hours` = remove that many hours from this record only.
 router.patch(
   "/attendance/:id/community-service/remove",
@@ -156,7 +159,6 @@ router.patch(
       }
 
       const studentId = attendance.student;
-      let student = await User.findById(studentId);
 
       // --- Full forgiveness (all admin UI buttons hit this path) ---
       if (req.body.hours === undefined) {
@@ -171,27 +173,19 @@ router.patch(
           await rec.save();
         }
 
-        if (student && student.requiredServiceHours > 0) {
-          student.requiredServiceHours = 0;
-          await student.save();
-        }
-
         const notification = new Notification({
           user: studentId,
           type: "penalty",
           title: "Community Service Removed",
-          message: "Your community service requirement has been cleared by an admin.",
+          message: "Your community service hours have been removed by an admin.",
           relatedEvent: attendance.event ? attendance.event._id : undefined,
         });
         await notification.save();
 
         const populated = await Attendance.findById(attendance._id)
-          .populate("student", "name email requiredServiceHours")
+          .populate("student", "name email")
           .populate("event", "title date");
-        return res.json({
-          ...populated.toObject(),
-          requiredServiceHours: student ? student.requiredServiceHours : 0,
-        });
+        return res.json(populated);
       }
 
       // --- Partial removal (direct API use): removes penalty hours from THIS record only ---
@@ -223,13 +217,10 @@ router.patch(
       await notification.save();
 
       const populated = await Attendance.findById(attendance._id)
-        .populate("student", "name email requiredServiceHours")
+        .populate("student", "name email")
         .populate("event", "title date");
 
-      res.json({
-        ...populated.toObject(),
-        requiredServiceHours: student ? student.requiredServiceHours : 0,
-      });
+      res.json(populated);
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Server error" });

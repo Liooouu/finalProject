@@ -7,7 +7,7 @@ const Attendance = require("../models/Attendance");
 const Notification = require("../models/Notification");
 
 // Spreads a flat hour removal across a student's other penalty records so the
-// "Remove 16 hrs" approval option reduces their total CS hours, not the goal.
+// "Remove 16 hrs" approval option reduces their total CS hours.
 async function removeAcrossRecords(studentId, excludeAttendanceId, amount, note) {
   if (amount <= 0) return 0;
   let remaining = amount;
@@ -99,17 +99,31 @@ router.patch("/excuses/:id", protect, async (req, res) => {
     if (status === "approved") {
       // Approved excuses clear the event's CS penalty from the student's
       // community service hours. removal "16" additionally removes a flat
-      // 16 hours spread across the student's other penalty records. The goal
-      // (requiredServiceHours) is never touched — it stays fixed at the value
-      // the organizer/admin set.
+      // 16 hours spread across the student's other penalty records.
       if (excuse.type === "advance") {
         // Pre-create the attendance as excused BEFORE the event happens,
         // so the auto-absent background job never penalizes this student.
+        const existingAdvance = await Attendance.findOne({
+          event: excuse.event._id,
+          student: excuse.student._id,
+        });
+        const previousAdvanceHours =
+          (existingAdvance && existingAdvance.communityServiceHours) || 0;
+
         const attendance = await Attendance.findOneAndUpdate(
           { event: excuse.event._id, student: excuse.student._id },
           { status: "excused", communityServiceHours: 0 },
           { new: true, upsert: true, setDefaultsOnInsert: true }
         );
+
+        if (previousAdvanceHours > 0 && attendance) {
+          attendance.communityServiceLog.push({
+            action: "removed",
+            hours: previousAdvanceHours,
+            note: "Excuse approved (advance)",
+          });
+          await attendance.save();
+        }
 
         if (removal === "16") {
           await removeAcrossRecords(
