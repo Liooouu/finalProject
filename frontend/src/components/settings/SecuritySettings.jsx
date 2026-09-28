@@ -6,13 +6,19 @@ import {
   FaKey,
   FaExclamationTriangle,
   FaCheck,
+  FaEye,
+  FaEyeSlash,
+  FaCameraRetro,
 } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { BaseCard } from "../ui";
 import Button from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Loading from "../shared/Loading";
+import FaceCapture from "../auth/FaceCapture";
 import { getDeviceId } from "../../utils/device";
+
+const API_BASE = api.defaults.baseURL.replace(/\/api$/, "");
 
 const SecuritySettings = () => {
   const [devices, setDevices] = useState([]);
@@ -21,7 +27,11 @@ const SecuritySettings = () => {
   const [messageType, setMessageType] = useState("success");
   const [revokeTarget, setRevokeTarget] = useState(null);
   const [rotating, setRotating] = useState(false);
-  const [newPin, setNewPin] = useState(null);
+  const [currentPin, setCurrentPin] = useState(null);
+  const [showPin, setShowPin] = useState(false);
+  const [facePhoto, setFacePhoto] = useState(null);
+  const [enrollingFace, setEnrollingFace] = useState(false);
+  const [faceUploading, setFaceUploading] = useState(false);
 
   usePageMeta("Security", "Manage your trusted devices and security PIN.");
 
@@ -30,7 +40,11 @@ const SecuritySettings = () => {
     (async () => {
       try {
         const res = await api.get("/auth/devices");
-        if (active) setDevices(res.data || []);
+        if (active) {
+          setDevices(res.data.devices || []);
+          setCurrentPin(res.data.pin || null);
+          setFacePhoto(res.data.facePhoto || null);
+        }
       } catch (err) {
         if (active) {
           setMessage(err.response?.data?.message || "Failed to load devices");
@@ -63,16 +77,36 @@ const SecuritySettings = () => {
 
   const rotatePin = async () => {
     setRotating(true);
-    setNewPin(null);
     try {
       const res = await api.post("/auth/rotate-pin");
-      setNewPin(res.data.pin);
+      setCurrentPin(res.data.pin);
+      setShowPin(true);
       showMessage(res.data.message || "Your security PIN has changed.");
     } catch (err) {
       console.error(err);
       showMessage(err.response?.data?.message || "Failed to rotate PIN", "error");
     } finally {
       setRotating(false);
+    }
+  };
+
+  const handleFaceUpload = async (blob) => {
+    setFaceUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("face", blob, "face.jpg");
+      const res = await api.post("/account/face", fd);
+      setFacePhoto(res.data.facePhoto);
+      setEnrollingFace(false);
+      showMessage("Face photo saved. You can now recover your PIN with a face scan.");
+    } catch (err) {
+      console.error(err);
+      showMessage(
+        err.response?.data?.error || err.response?.data?.message || "Failed to save face photo",
+        "error"
+      );
+    } finally {
+      setFaceUploading(false);
     }
   };
 
@@ -116,16 +150,26 @@ const SecuritySettings = () => {
           </Button>
         </div>
 
-        {newPin && (
+        {currentPin && (
           <div className="animate-fade-up rounded-xl border border-dashed border-indigo-400/50 bg-indigo-500/5 px-4 py-5">
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-              <FaCheck /> Your new security PIN
+              <FaCheck /> Your current security PIN
             </p>
-            <p className="mt-2 text-center text-2xl font-bold tracking-[0.45em] text-on sm:text-3xl">
-              {newPin}
-            </p>
+            <div className="mt-2 flex items-center justify-center gap-3">
+              <p className="text-center text-2xl font-bold tracking-[0.45em] text-on sm:text-3xl">
+                {showPin ? currentPin : "••••••"}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowPin((v) => !v)}
+                aria-label={showPin ? "Hide PIN" : "Show PIN"}
+                className="text-on-dim transition-colors hover:text-on"
+              >
+                {showPin ? <FaEyeSlash /> : <FaEye />}
+              </button>
+            </div>
             <p className="mt-2 text-center text-xs text-on-dim">
-              Save this now — the old PIN no longer works.
+              You'll need this PIN the next time you sign in from a new device.
             </p>
           </div>
         )}
@@ -179,6 +223,52 @@ const SecuritySettings = () => {
               </div>
             );
           })
+        )}
+      </BaseCard>
+
+      <BaseCard
+        icon={<FaCameraRetro />}
+        title="Face verification"
+        bodyClassName="space-y-4"
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            {facePhoto ? (
+              <img
+                src={`${API_BASE}${facePhoto}`}
+                alt="Enrolled face"
+                className="h-16 w-16 rounded-xl border border-line object-cover"
+              />
+            ) : (
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-500 ring-1 ring-inset ring-indigo-500/20">
+                <FaCameraRetro />
+              </span>
+            )}
+            <div>
+              <p className="font-medium text-on">
+                {facePhoto ? "Face photo enrolled" : "No face photo yet"}
+              </p>
+              <p className="mt-0.5 max-w-sm text-sm text-on-dim">
+                {facePhoto
+                  ? "If you forget your security PIN, you can recover it with a quick face scan."
+                  : "Enroll a face photo now so you can recover your security PIN with a face scan if you ever forget it."}
+              </p>
+            </div>
+          </div>
+          <Button onClick={() => setEnrollingFace(true)} disabled={faceUploading} className="shrink-0">
+            {facePhoto ? "Update face photo" : "Add face photo"}
+          </Button>
+        </div>
+
+        {enrollingFace && (
+          <div className="rounded-xl border border-line bg-card-alt/50 p-4">
+            <FaceCapture
+              title="Save my face"
+              onCapture={handleFaceUpload}
+              onCancel={() => setEnrollingFace(false)}
+              loading={faceUploading}
+            />
+          </div>
         )}
       </BaseCard>
 

@@ -7,17 +7,18 @@ import {
   FaEye,
   FaEyeSlash,
   FaArrowRight,
-  FaCheckCircle,
   FaQrcode,
   FaClock,
   FaBell,
   FaChartBar,
   FaShieldAlt,
   FaKey,
+  FaCamera,
 } from "react-icons/fa";
 import TrackMark from "../../components/shared/TrackMark";
 import AppBackground from "../../components/shared/AppBackground";
 import Button from "../../components/ui/Button";
+import FaceCapture from "../../components/auth/FaceCapture";
 import { useTheme } from "../../context/ThemeContext";
 import techDark from "../../assets/images/tech-bg-dark.jpg";
 import techLight from "../../assets/images/tech-bg-light.jpg";
@@ -115,11 +116,15 @@ const AuthPage = () => {
   });
 
   // Extra auth steps introduced by the rotating security PIN
-  const [flow, setFlow] = useState("form"); // "form" | "verifyPin" | "pinPanel"
+  const [flow, setFlow] = useState("form"); // "form" | "verifyPin" | "pinPanel" | "forgot" | "enrollFace"
   const [verifyEmail, setVerifyEmail] = useState("");
   const [verifyPin, setVerifyPin] = useState("");
   const [pinInfo, setPinInfo] = useState(null); // { pin, isRotated, message }
-  const [pendingAuth, setPendingAuth] = useState(null); // { token, role }
+  const [pendingAuth, setPendingAuth] = useState(null); // { token, role, next }
+  const [forgotStage, setForgotStage] = useState("form"); // "form" | "capture"
+  const [forgotPassword, setForgotPassword] = useState("");
+  const [forgotInfo, setForgotInfo] = useState(null); // response of /forgot-pin check
+  const [enrolling, setEnrolling] = useState(false);
 
   const navigate = useNavigate();
   const { isDark } = useTheme();
@@ -174,7 +179,7 @@ const AuthPage = () => {
           isRotated: false,
           message: "Your account is ready. This PIN unlocks future sign-ins from new devices.",
         });
-        setPendingAuth(null);
+        setPendingAuth({ token: res.data.token, role: res.data.role, next: "enroll" });
         setFlow("pinPanel");
         setFormData({ ...formData, name: "", password: "", email: "" });
       }
@@ -198,18 +203,9 @@ const AuthPage = () => {
         deviceLabel: getDeviceLabel(),
       });
 
-      if (res.data.pin) {
-        setPinInfo({
-          pin: res.data.pin,
-          isRotated: true,
-          message: res.data.message,
-        });
-        setPendingAuth({ token: res.data.token, role: res.data.role });
-        setVerifyPin("");
-        setFlow("pinPanel");
-      } else {
-        finishAuth(res.data.token, res.data.role);
-      }
+      // Verification succeeds silently — the PIN rotates in the background, and
+      // the student can view the current PIN on the Security settings page.
+      finishAuth(res.data.token, res.data.role);
     } catch (err) {
       setError(err.response?.data?.message || "Something went wrong.");
     } finally {
@@ -219,11 +215,88 @@ const AuthPage = () => {
 
   const handlePinPanelContinue = () => {
     if (pendingAuth) {
-      finishAuth(pendingAuth.token, pendingAuth.role);
+      if (pendingAuth.next === "enroll") {
+        // Store the token now so the face enrollment call authenticates, but
+        // don't navigate until enrollment is done.
+        setAuth(pendingAuth.token, pendingAuth.role);
+        setFlow("enrollFace");
+      } else {
+        finishAuth(pendingAuth.token, pendingAuth.role);
+      }
     } else {
       setPinInfo(null);
       setIsLogin(true);
       setFlow("form");
+    }
+  };
+
+  const openForgot = () => {
+    setForgotStage("form");
+    setForgotInfo(null);
+    setVerifyEmail(formData.email.trim() || verifyEmail);
+    setForgotPassword(formData.password.trim() || forgotPassword);
+    setError("");
+    setFlow("forgot");
+  };
+
+  const handleForgotCheck = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api.post("/auth/forgot-pin", {
+        email: verifyEmail.trim(),
+        password: forgotPassword,
+      });
+      setForgotInfo(res.data);
+      if (res.data.enrolled && !res.data.locked) setForgotStage("capture");
+    } catch (err) {
+      setError(err.response?.data?.message || "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRecoveryPhoto = async (blob) => {
+    setEnrolling(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("email", verifyEmail.trim());
+      fd.append("password", forgotPassword);
+      fd.append("deviceId", getDeviceId());
+      fd.append("deviceLabel", getDeviceLabel());
+      fd.append("photo", blob, "selfie.jpg");
+
+      const res = await api.post("/auth/forgot-pin/verify", fd);
+      setPinInfo({
+        pin: res.data.pin,
+        isRotated: false,
+        message: res.data.message,
+      });
+      setPendingAuth({ token: res.data.token, role: res.data.role, next: "dashboard" });
+      setFlow("pinPanel");
+    } catch (err) {
+      setError(err.response?.data?.message || "Face verification failed. Try again.");
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  const handleEnrollPhoto = async (blob) => {
+    setEnrolling(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("face", blob, "face.jpg");
+      await api.post("/account/face", fd);
+      if (pendingAuth) {
+        finishAuth(pendingAuth.token, pendingAuth.role);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || err.response?.data?.error || "Failed to save face photo.");
+    } finally {
+      setEnrolling(false);
     }
   };
 
@@ -309,6 +382,146 @@ const AuthPage = () => {
                 onContinue={handlePinPanelContinue}
                 loading={false}
               />
+            ) : flow === "forgot" ? (
+              <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
+                <div className="mb-6 flex items-start gap-3.5">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 ring-1 ring-inset ring-amber-500/20 dark:text-amber-400">
+                    <FaCamera />
+                  </span>
+                  <div>
+                    <h1 className="text-xl font-bold tracking-tight text-on">
+                      Forgot your security PIN?
+                    </h1>
+                    <p className="mt-1.5 text-sm text-on-dim">
+                      Prove it&apos;s really you with a live face scan and we&apos;ll mint a brand-new
+                      security PIN.
+                    </p>
+                  </div>
+                </div>
+
+                {error && (
+                  <div
+                    role="alert"
+                    className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
+                  >
+                    {error}
+                  </div>
+                )}
+
+                {forgotStage === "capture" ? (
+                  <FaceCapture
+                    title="Scan my face"
+                    onCapture={handleRecoveryPhoto}
+                    onCancel={() => {
+                      setForgotStage("form");
+                      setError("");
+                    }}
+                  />
+                ) : (
+                  <>
+                    {forgotInfo && (
+                      <div
+                        role="status"
+                        className={`mb-5 rounded-lg border px-3.5 py-2.5 text-sm ${
+                          forgotInfo.enrolled
+                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                            : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                        }`}
+                      >
+                        {forgotInfo.locked
+                          ? "Too many face attempts recently. Wait a few minutes and try again."
+                          : forgotInfo.enrolled
+                            ? "Face verification is set up for this account. Take a selfie to confirm your identity."
+                            : "You don't have a face photo enrolled on this account yet. Ask an admin to reset your security PIN."}
+                      </div>
+                    )}
+
+                    <form onSubmit={handleForgotCheck} className="space-y-4">
+                      <div className="space-y-1.5">
+                        <label htmlFor="forgot-email" className="text-sm font-medium text-on">
+                          Email Address
+                        </label>
+                        <input
+                          id="forgot-email"
+                          type="email"
+                          value={verifyEmail}
+                          onChange={(e) => setVerifyEmail(e.target.value)}
+                          placeholder="you@university.edu"
+                          autoComplete="email"
+                          className={inputClasses}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label htmlFor="forgot-password" className="text-sm font-medium text-on">
+                          Password
+                        </label>
+                        <input
+                          id="forgot-password"
+                          type="password"
+                          value={forgotPassword}
+                          onChange={(e) => setForgotPassword(e.target.value)}
+                          placeholder="••••••••"
+                          autoComplete="current-password"
+                          className={inputClasses}
+                          required
+                        />
+                      </div>
+                      <Button type="submit" disabled={loading} className="w-full py-2.5">
+                        {loading ? "Checking..." : "Check my identity"}
+                      </Button>
+                    </form>
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFlow("verifyPin");
+                    setForgotStage("form");
+                    setForgotInfo(null);
+                    setError("");
+                  }}
+                  className="mt-4 text-sm font-medium text-on-dim hover:text-on"
+                >
+                  ← Back to new device verification
+                </button>
+              </div>
+            ) : flow === "enrollFace" ? (
+              <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
+                <div className="mb-6 flex items-start gap-3.5">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
+                    <FaShieldAlt />
+                  </span>
+                  <div>
+                    <h1 className="text-xl font-bold tracking-tight text-on">
+                      Set up face verification
+                    </h1>
+                    <p className="mt-1.5 text-sm text-on-dim">
+                      One quick selfie lets you recover your security PIN with a face scan if you
+                      ever forget it.
+                    </p>
+                  </div>
+                </div>
+
+                {error && (
+                  <div
+                    role="alert"
+                    className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
+                  >
+                    {error}
+                  </div>
+                )}
+
+                <FaceCapture
+                  title="Save my face"
+                  onCapture={handleEnrollPhoto}
+                  loading={enrolling}
+                  onCancel={() => {
+                    if (pendingAuth) finishAuth(pendingAuth.token, pendingAuth.role);
+                  }}
+                />
+              </div>
             ) : flow === "verifyPin" ? (
               <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
                 <div className="mb-6 flex items-start gap-3.5">
@@ -378,6 +591,14 @@ const AuthPage = () => {
                 >
                   ← Use a different account
                 </button>
+
+                <button
+                  type="button"
+                  onClick={openForgot}
+                  className="mt-2 text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                >
+                  Forgot your security PIN?
+                </button>
               </div>
             ) : (
               <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
@@ -444,8 +665,12 @@ const AuthPage = () => {
                         Password
                       </label>
                       {isLogin && (
-                        <button type="button" className="text-xs font-medium text-on-dim hover:text-on">
-                          Forgot password?
+                        <button
+                          type="button"
+                          onClick={openForgot}
+                          className="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                        >
+                          Forgot your security PIN?
                         </button>
                       )}
                     </div>

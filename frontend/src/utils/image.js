@@ -1,0 +1,8 @@
+export const dataUrlToBlob = (dataUrl) => {
+  const [meta, b64] = dataUrl.split(",");
+  const mime = meta.match(/:(.*?);/)[1];
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+};

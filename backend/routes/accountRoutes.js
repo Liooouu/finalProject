@@ -2,10 +2,12 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
-const { protect } = require("../middleware/authMiddleware");
+const faceMatcher = require("../services/faceMatcher");
+const { protect, authorize } = require("../middleware/authMiddleware");
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -13,7 +15,8 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, `profile-${uniqueSuffix}${path.extname(file.originalname)}`);
+    const prefix = file.fieldname === "face" ? "face" : "profile";
+    cb(null, `${prefix}-${uniqueSuffix}${path.extname(file.originalname)}`);
   },
 });
 
@@ -118,6 +121,58 @@ router.post("/picture", protect, upload.single("picture"), async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// =======================
+// ENROLL / UPDATE FACE PHOTO (student)
+// =======================
+// Stores a webcam-captured photo used as the face-match baseline for the
+// "forgot PIN" recovery flow. Rejects uploads that don't contain a detectable
+// face so a random photo can't be enrolled.
+router.post(
+  "/face",
+  protect,
+  authorize("student"),
+  upload.single("face"),
+  async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: "No face photo uploaded" });
+    }
+
+    const filePath = `uploads/${req.file.filename}`;
+    try {
+      const has = await faceMatcher.hasFace(filePath);
+      if (!has) {
+        fs.unlinkSync(filePath);
+        return res
+          .status(400)
+          .json({ error: "No face detected in the photo. Please look directly at the camera and retake." });
+      }
+
+      const user = await User.findById(req.user._id);
+
+      // Remove the old face photo to avoid growing storage with stale files.
+      if (user.facePhoto) {
+        const oldPath = path.join(__dirname, "..", user.facePhoto.replace(/^\//, ""));
+        try {
+          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        } catch (e) {
+          console.error("face cleanup error:", e.message);
+        }
+      }
+
+      user.facePhoto = `/uploads/${req.file.filename}`;
+      await user.save();
+
+      res.json({ facePhoto: user.facePhoto });
+    } catch (err) {
+      try {
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      } catch (e) {}
+      console.error("FACE ENROLL ERROR:", err.message);
+      res.status(500).json({ error: "Failed to process face photo. Please try again." });
+    }
+  }
+);
 
 // =======================
 // DELETE USER ACCOUNT (Admin only)

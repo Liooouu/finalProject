@@ -41,6 +41,13 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // Plaintext copy of the current PIN — needed so the student can view their
+    // rotating PIN on the Security settings page. Hash (`pinHash`) is still used
+    // for verification; this is only for display.
+    pinPlain: {
+      type: String,
+      default: "",
+    },
     trustedDevices: {
       type: [trustedDeviceSchema],
       default: [],
@@ -50,6 +57,20 @@ const userSchema = new mongoose.Schema(
       default: 0,
     },
     pinLockUntil: {
+      type: Date,
+      default: null,
+    },
+    // Webcam-captured reference face photo used for "forgot PIN" recovery and,
+    // later, check-in face verification.
+    facePhoto: {
+      type: String,
+      default: "",
+    },
+    faceAttempts: {
+      type: Number,
+      default: 0,
+    },
+    faceLockUntil: {
       type: Date,
       default: null,
     },
@@ -79,6 +100,7 @@ userSchema.statics.generatePin = function () {
 userSchema.methods.setPin = async function (pin) {
   const salt = await bcrypt.genSalt(10);
   this.pinHash = await bcrypt.hash(pin, salt);
+  this.pinPlain = pin;
 };
 
 // ✅ COMPARE AN ENTERED PIN

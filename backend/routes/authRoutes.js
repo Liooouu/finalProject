@@ -2,13 +2,42 @@
 const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+
 const User = require("../models/User");
+const faceMatcher = require("../services/faceMatcher");
 const { protect, authorize } = require("../middleware/authMiddleware");
 
 const LOCK_ATTEMPTS = 5;
 const LOCK_MINUTES = 5;
+const FACE_LOCK_ATTEMPTS = 3;
+const FACE_LOCK_MINUTES = 5;
 
 const getDeviceId = (req) => req.headers["x-device-id"] || req.body.deviceId || "";
+
+// Temporary upload for recovery selfies (deleted right after processing).
+const recoveryStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, `recovery-${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
+});
+const recoveryUpload = multer({
+  storage: recoveryStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (
+      /jpeg|jpg|png|gif/.test(path.extname(file.originalname).toLowerCase()) &&
+      /jpeg|jpg|png|gif/.test(file.mimetype)
+    ) {
+      return cb(null, true);
+    }
+    cb(new Error("Only image files are allowed (jpeg, jpg, png, gif)"));
+  },
+});
 
 const signToken = (user) =>
   jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
@@ -63,6 +92,8 @@ router.post("/register", async (req, res) => {
 
     res.status(201).json({
       message: "User registered successfully",
+      token: signToken(user),
+      role: user.role,
       pin,
       deviceTrusted: !!deviceId,
     });
@@ -131,7 +162,8 @@ router.post("/login", async (req, res) => {
 });
 
 // -------------------- VERIFY DEVICE (STUDENT, NEW DEVICE) --------------------
-// On success the system rotates the security PIN and shows the new value once.
+// Verifies the entering PIN, signs the student in, and silently rotates the PIN
+// for the next new device. The current PIN is only shown on the Security page.
 router.post("/verify-device", async (req, res) => {
   const { email, pin, deviceId, deviceLabel } = req.body;
 
@@ -169,26 +201,16 @@ router.post("/verify-device", async (req, res) => {
     user.pinAttempts = 0;
     user.pinLockUntil = null;
     user.trustDevice(deviceId, deviceLabel);
-    await user.save();
 
-    // Already-trusted device re-verifying doesn't rotate anything
-    if (!isNew) {
-      return res.json({ token: signToken(user), role: user.role });
+    // Rotate silently only when a genuinely new device is verified. The new PIN
+    // is never shown here — students view it on the Security settings page.
+    if (isNew) {
+      await user.setPin(User.generatePin());
+      console.log("New device verified:", email, "| PIN rotated (silent)");
     }
 
-    // Rotate the security PIN after a successful new-device verification
-    const newPin = User.generatePin();
-    await user.setPin(newPin);
     await user.save();
-    console.log("New device verified:", email, "| PIN rotated");
-
-    res.json({
-      token: signToken(user),
-      role: user.role,
-      pin: newPin,
-      message:
-        "Device verified. Your security PIN has changed — save the new one for next time.",
-    });
+    res.json({ token: signToken(user), role: user.role });
   } catch (err) {
     console.error("VERIFY DEVICE ERROR:", err);
     res.status(500).json({ message: err.message });
@@ -209,12 +231,12 @@ router.post("/rotate-pin", protect, authorize("student"), async (req, res) => {
   }
 });
 
-// -------------------- TRUSTED DEVICE LIST (STUDENT) --------------------
+// -------------------- TRUSTED DEVICE LIST + CURRENT PIN (STUDENT) --------------------
 router.get("/devices", protect, authorize("student"), (req, res) => {
   const devices = [...req.user.trustedDevices].sort(
     (a, b) => new Date(b.lastUsedAt) - new Date(a.lastUsedAt)
   );
-  res.json(devices);
+  res.json({ devices, pin: req.user.pinPlain || null, facePhoto: req.user.facePhoto || null });
 });
 
 // -------------------- REVOKE DEVICE (STUDENT) --------------------
@@ -230,5 +252,143 @@ router.delete("/devices/:deviceId", protect, authorize("student"), async (req, r
     res.status(500).json({ message: err.message });
   }
 });
+
+// -------------------- FACE-BASED PIN RECOVERY --------------------
+// Students who forgot their security PIN can prove their identity with a live
+// face scan (compared server-side against their enrolled face photo). On a
+// match the system mints a NEW PIN and signs them in.
+
+const faceLockRemaining = (user) => {
+  if (!user.faceLockUntil || user.faceLockUntil <= new Date()) return 0;
+  return Math.ceil((user.faceLockUntil - new Date()) / 60000);
+};
+
+// STEP 1 — is face recovery available for this account? (password-gated)
+router.post("/forgot-pin", async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    if (!email || !password) {
+      return res.status(400).json({ message: "Please fill all fields" });
+    }
+    const user = await User.findOne({ email });
+    if (!user || user.role !== "student") {
+      return res.status(400).json({ message: "Invalid email or password" });
+    }
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid email or password" });
+    }
+    res.json({ enrolled: !!user.facePhoto, locked: faceLockRemaining(user) > 0 });
+  } catch (err) {
+    console.error("FORGOT-PIN CHECK ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// STEP 2 — upload the live selfie; the server compares it to the enrolled face.
+router.post(
+  "/forgot-pin/verify",
+  recoveryUpload.single("photo"),
+  async (req, res) => {
+    const tempPath = req.file ? req.file.path : null;
+    const cleanup = () => {
+      try {
+        if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+      } catch (e) {}
+    };
+
+    try {
+      const { email, password, deviceId, deviceLabel } = req.body;
+      if (!email || !password || !req.file || !getDeviceId(req)) {
+        cleanup();
+        return res.status(400).json({ message: "Please fill all fields" });
+      }
+
+      const user = await User.findOne({ email });
+      if (!user || user.role !== "student") {
+        cleanup();
+        return res.status(400).json({ message: "Invalid email or password" });
+      }
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        cleanup();
+        return res.status(400).json({ message: "Invalid email or password" });
+      }
+
+      const mins = faceLockRemaining(user);
+      if (mins > 0) {
+        cleanup();
+        return res
+          .status(429)
+          .json({ message: `Too many face attempts. Try again in ${mins} minute(s).` });
+      }
+
+      if (!user.facePhoto) {
+        cleanup();
+        return res
+          .status(400)
+          .json({ message: "You have no face photo enrolled. Ask an admin to reset your security PIN." });
+      }
+
+      const refPath = path.join(__dirname, "..", user.facePhoto.replace(/^\//, ""));
+      if (!fs.existsSync(refPath)) {
+        cleanup();
+        return res
+          .status(400)
+          .json({ message: "Your enrolled face photo is missing. Ask an admin to reset your security PIN." });
+      }
+
+      let live;
+      try {
+        live = await faceMatcher.detectFaceDescriptor(tempPath);
+      } catch (err) {
+        cleanup();
+        return res
+          .status(400)
+          .json({ message: err.message || "No face detected. Please look directly at the camera and retake." });
+      }
+      const ref = await faceMatcher.detectFaceDescriptor(refPath);
+      const matched = faceMatcher.descriptorsMatch(live.descriptor, ref.descriptor);
+
+      if (!matched) {
+        user.faceAttempts = (user.faceAttempts || 0) + 1;
+        let status = 403;
+        let message = `Face does not match the enrolled photo (${FACE_LOCK_ATTEMPTS - user.faceAttempts} attempt(s) left).`;
+        if (user.faceAttempts >= FACE_LOCK_ATTEMPTS) {
+          user.faceLockUntil = new Date(Date.now() + FACE_LOCK_MINUTES * 60000);
+          user.faceAttempts = 0;
+          status = 429;
+          message = `Too many face attempts. Try again in ${FACE_LOCK_MINUTES} minutes.`;
+        }
+        await user.save();
+        cleanup();
+        return res.status(status).json({ message });
+      }
+
+      // Success — mint a fresh PIN, trust this device, clear all lockouts.
+      user.faceAttempts = 0;
+      user.faceLockUntil = null;
+      user.pinAttempts = 0;
+      user.pinLockUntil = null;
+      const newPin = User.generatePin();
+      await user.setPin(newPin);
+      user.trustDevice(getDeviceId(req), deviceLabel);
+      await user.save();
+      cleanup();
+      console.log("Face-based PIN recovery succeeded:", email);
+
+      res.json({
+        token: signToken(user),
+        role: user.role,
+        pin: newPin,
+        message: "Identity verified by face scan. This is your new security PIN.",
+      });
+    } catch (err) {
+      cleanup();
+      console.error("FORGOT-PIN VERIFY ERROR:", err);
+      res.status(500).json({ message: "Face verification failed. Please try again." });
+    }
+  }
+);
 
 module.exports = router;
