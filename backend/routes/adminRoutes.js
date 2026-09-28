@@ -84,6 +84,48 @@ router.delete(
   }
 );
 
+// RESET STUDENT SECURITY (admin)
+// Mints a fresh security PIN and returns it so the admin can relay it (student
+// forgot their PIN, lost every device, or got locked out). Optionally clears
+// all trusted devices too.
+router.post(
+  "/users/:id/reset-security",
+  protect,
+  authorize("admin"),
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.params.id);
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      if (user.role !== "student") {
+        return res.status(400).json({ message: "Only student accounts have a security PIN" });
+      }
+
+      const pin = User.generatePin();
+      await user.setPin(pin);
+      user.pinAttempts = 0;
+      user.pinLockUntil = null;
+      if (req.body.clearDevices) {
+        user.trustedDevices = [];
+      }
+      await user.save();
+
+      console.log("Admin reset security for", user.email);
+
+      res.json({
+        message: "Student security reset",
+        pin,
+        devicesCleared: !!req.body.clearDevices,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
 // MANUALLY ADJUST COMMUNITY SERVICE HOURS (admin)
 // Overwrites the hours this attendance record contributes to the student's CS
 // balance (e.g. correcting the automatic 8 absent / 4 late).

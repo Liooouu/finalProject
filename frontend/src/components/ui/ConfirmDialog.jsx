@@ -17,6 +17,7 @@ const ConfirmDialog = ({
   onConfirm,
   onCancel,
   icon,
+  children,
 }) => {
   const confirmRef = useRef(null);
 
@@ -73,6 +74,7 @@ const ConfirmDialog = ({
                 {message}
               </p>
             )}
+            {children}
           </div>
         </div>
 

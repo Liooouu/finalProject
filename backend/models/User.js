@@ -1,6 +1,17 @@
 // backend/models/User.js
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+
+const trustedDeviceSchema = new mongoose.Schema(
+  {
+    deviceId: { type: String, required: true, unique: true },
+    label: { type: String, default: "Unknown device" },
+    verifiedAt: { type: Date, default: Date.now },
+    lastUsedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
 
 const userSchema = new mongoose.Schema(
   {
@@ -26,6 +37,22 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    pinHash: {
+      type: String,
+      default: "",
+    },
+    trustedDevices: {
+      type: [trustedDeviceSchema],
+      default: [],
+    },
+    pinAttempts: {
+      type: Number,
+      default: 0,
+    },
+    pinLockUntil: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
@@ -41,6 +68,43 @@ userSchema.pre("save", async function () {
 // ✅ COMPARE PASSWORD
 userSchema.methods.comparePassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+// ✅ GENERATE A RANDOM 6-DIGIT SECURITY PIN (system-assigned, never user-chosen)
+userSchema.statics.generatePin = function () {
+  return crypto.randomInt(0, 1000000).toString().padStart(6, "0");
+};
+
+// ✅ HASH + STORE THE CURRENT SECURITY PIN
+userSchema.methods.setPin = async function (pin) {
+  const salt = await bcrypt.genSalt(10);
+  this.pinHash = await bcrypt.hash(pin, salt);
+};
+
+// ✅ COMPARE AN ENTERED PIN
+userSchema.methods.comparePin = async function (enteredPin) {
+  if (!this.pinHash) return false;
+  return await bcrypt.compare(enteredPin, this.pinHash);
+};
+
+// ✅ IS THIS DEVICE ALREADY TRUSTED?
+userSchema.methods.isDeviceTrusted = function (deviceId) {
+  return this.trustedDevices.some((d) => d.deviceId === deviceId);
+};
+
+// ✅ TRUST A DEVICE (or refresh its last-used time)
+userSchema.methods.trustDevice = function (deviceId, label = "") {
+  const existing = this.trustedDevices.find((d) => d.deviceId === deviceId);
+  if (existing) {
+    existing.lastUsedAt = new Date();
+  } else {
+    this.trustedDevices.push({
+      deviceId,
+      label: label || "Unknown device",
+      verifiedAt: new Date(),
+      lastUsedAt: new Date(),
+    });
+  }
 };
 
 module.exports = mongoose.model("User", userSchema);

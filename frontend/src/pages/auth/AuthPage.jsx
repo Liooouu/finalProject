@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { setAuth } from "../../utils/auth";
+import { getDeviceId, getDeviceLabel } from "../../utils/device";
 import {
   FaEye,
   FaEyeSlash,
@@ -11,6 +12,8 @@ import {
   FaClock,
   FaBell,
   FaChartBar,
+  FaShieldAlt,
+  FaKey,
 } from "react-icons/fa";
 import TrackMark from "../../components/shared/TrackMark";
 import AppBackground from "../../components/shared/AppBackground";
@@ -57,20 +60,74 @@ const BrandMark = ({ onLight = false }) => (
   </div>
 );
 
+const PinPanel = ({ pin, isRotated, message, onContinue, loading }) => (
+  <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
+    <div className="mb-5 flex items-start gap-3.5">
+      <span
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg ${
+          isRotated
+            ? "bg-amber-500/10 text-amber-600 ring-1 ring-inset ring-amber-500/20 dark:text-amber-400"
+            : "bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400"
+        }`}
+      >
+        <FaKey />
+      </span>
+      <div>
+        <h1 className="text-lg font-bold tracking-tight text-on">
+          {isRotated ? "Your security PIN changed" : "Save your security PIN"}
+        </h1>
+        <p className="mt-1 text-sm text-on-dim">
+          {message ||
+            (isRotated
+              ? "This is now your security PIN. Record it somewhere safe."
+              : "The system assigned this PIN. You'll need it the first time you sign in from a new device in the computer lab.")}
+        </p>
+      </div>
+    </div>
+
+    <div className="rounded-xl border border-dashed border-indigo-400/50 bg-indigo-500/5 px-4 py-5 text-center">
+      <p className="text-2xl font-bold tracking-[0.45em] text-on sm:text-3xl">{pin}</p>
+    </div>
+
+    <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-line bg-card-alt/60 px-3.5 py-3 text-sm text-on-dim">
+      <FaShieldAlt className="mt-0.5 shrink-0 text-indigo-500" />
+      <p>
+        Do not share your PIN. A friend with your login credentials will be locked out the moment
+        your PIN rotates.
+      </p>
+    </div>
+
+    <Button onClick={onContinue} disabled={loading} className="mt-6 w-full py-2.5">
+      {isRotated ? "Got it, continue" : "I've saved it, continue"}
+    </Button>
+  </div>
+);
+
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
   });
 
+  // Extra auth steps introduced by the rotating security PIN
+  const [flow, setFlow] = useState("form"); // "form" | "verifyPin" | "pinPanel"
+  const [verifyEmail, setVerifyEmail] = useState("");
+  const [verifyPin, setVerifyPin] = useState("");
+  const [pinInfo, setPinInfo] = useState(null); // { pin, isRotated, message }
+  const [pendingAuth, setPendingAuth] = useState(null); // { token, role }
+
   const navigate = useNavigate();
   const { isDark } = useTheme();
+
+  const finishAuth = (token, role) => {
+    setAuth(token, role);
+    navigate(`/${role}/dashboard`);
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -81,7 +138,6 @@ const AuthPage = () => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    setSuccess("");
 
     try {
       if (isLogin) {
@@ -90,30 +146,84 @@ const AuthPage = () => {
           password: formData.password.trim(),
         });
 
-        const token = res.data.token;
-        const userRole = res.data.role;
-
-        setAuth(token, userRole);
-        navigate(`/${userRole}/dashboard`);
+        if (res.data.requiresPin) {
+          setVerifyEmail(res.data.email || formData.email.trim());
+          setVerifyPin("");
+          setFlow("verifyPin");
+        } else if (res.data.token && res.data.pin) {
+          setPinInfo({
+            pin: res.data.pin,
+            isRotated: false,
+            message: res.data.message,
+          });
+          setPendingAuth({ token: res.data.token, role: res.data.role });
+          setFlow("pinPanel");
+        } else {
+          finishAuth(res.data.token, res.data.role);
+        }
       } else {
-        await api.post("/auth/register", {
+        const res = await api.post("/auth/register", {
           name: formData.name.trim(),
           email: formData.email.trim(),
           password: formData.password.trim(),
           role: "student",
         });
 
-        setSuccess("Account created! Please sign in.");
-        setFormData({ ...formData, name: "", password: "" });
-        setTimeout(() => {
-          setIsLogin(true);
-          setSuccess("");
-        }, 1200);
+        setPinInfo({
+          pin: res.data.pin,
+          isRotated: false,
+          message: "Your account is ready. This PIN unlocks future sign-ins from new devices.",
+        });
+        setPendingAuth(null);
+        setFlow("pinPanel");
+        setFormData({ ...formData, name: "", password: "", email: "" });
       }
     } catch (err) {
       setError(err.response?.data?.message || "Something went wrong.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerifyPin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await api.post("/auth/verify-device", {
+        email: verifyEmail,
+        pin: verifyPin.trim(),
+        deviceId: getDeviceId(),
+        deviceLabel: getDeviceLabel(),
+      });
+
+      if (res.data.pin) {
+        setPinInfo({
+          pin: res.data.pin,
+          isRotated: true,
+          message: res.data.message,
+        });
+        setPendingAuth({ token: res.data.token, role: res.data.role });
+        setVerifyPin("");
+        setFlow("pinPanel");
+      } else {
+        finishAuth(res.data.token, res.data.role);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePinPanelContinue = () => {
+    if (pendingAuth) {
+      finishAuth(pendingAuth.token, pendingAuth.role);
+    } else {
+      setPinInfo(null);
+      setIsLogin(true);
+      setFlow("form");
     }
   };
 
@@ -183,7 +293,7 @@ const AuthPage = () => {
           </div>
         </div>
 
-        {/* Right — authentication form */}
+        {/* Right — authentication */}
         <div className="flex min-h-screen w-full flex-1 items-center justify-center p-4 sm:p-8">
           <div className="w-full max-w-md">
             {/* Brand (mobile / tablet, since the photo panel is hidden below lg) */}
@@ -191,159 +301,229 @@ const AuthPage = () => {
               <BrandMark />
             </div>
 
-            <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
-              <div className="mb-6">
-                <h1 className="text-2xl font-bold tracking-tight text-on">
-                  {isLogin ? "Sign in to your account" : "Create your account"}
-                </h1>
-                <p className="mt-1.5 text-sm text-on-dim">
-                  {isLogin
-                    ? "Welcome back! Please enter your details."
-                    : "Register to track your event attendance."}
-                </p>
-              </div>
-
-              {error && (
-                <div
-                  role="alert"
-                  className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
-                >
-                  {error}
+            {flow === "pinPanel" && pinInfo ? (
+              <PinPanel
+                pin={pinInfo.pin}
+                isRotated={pinInfo.isRotated}
+                message={pinInfo.message}
+                onContinue={handlePinPanelContinue}
+                loading={false}
+              />
+            ) : flow === "verifyPin" ? (
+              <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
+                <div className="mb-6 flex items-start gap-3.5">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
+                    <FaShieldAlt />
+                  </span>
+                  <div>
+                    <h1 className="text-xl font-bold tracking-tight text-on">
+                      New device detected
+                    </h1>
+                    <p className="mt-1.5 text-sm text-on-dim">
+                      Signing in on <span className="font-semibold text-on">{getDeviceLabel()}</span>.
+                      Enter your 6-digit security PIN to verify this device.
+                    </p>
+                  </div>
                 </div>
-              )}
 
-              {success && (
-                <div
-                  role="status"
-                  className="mb-5 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300"
-                >
-                  <FaCheckCircle className="animate-pop" />
-                  {success}
-                </div>
-              )}
+                {error && (
+                  <div
+                    role="alert"
+                    className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
+                  >
+                    {error}
+                  </div>
+                )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {!isLogin && (
+                <form onSubmit={handleVerifyPin} className="space-y-4">
                   <div className="space-y-1.5">
-                    <label htmlFor="name" className="text-sm font-medium text-on">
-                      Full Name
+                    <label htmlFor="verify-pin" className="text-sm font-medium text-on">
+                      Security PIN
                     </label>
                     <input
-                      id="name"
-                      type="text"
-                      name="name"
-                      value={formData.name}
+                      id="verify-pin"
+                      type="password"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      pattern="\d{6}"
+                      value={verifyPin}
+                      onChange={(e) => {
+                        setVerifyPin(e.target.value.replace(/\D/g, ""));
+                        setError("");
+                      }}
+                      placeholder="••••••"
+                      className={`${inputClasses} text-center text-xl tracking-[0.4em]`}
+                      required
+                    />
+                    <p className="flex items-center gap-1.5 text-xs text-on-muted">
+                      <FaKey className="shrink-0" />
+                      Signing in as <span className="font-semibold text-on-dim">{verifyEmail}</span>
+                    </p>
+                  </div>
+
+                  <Button type="submit" disabled={loading} className="w-full py-2.5">
+                    {loading ? "Verifying..." : "Verify this device"}
+                  </Button>
+                </form>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFlow("form");
+                    setVerifyPin("");
+                    setError("");
+                  }}
+                  className="mt-4 text-sm font-medium text-on-dim hover:text-on"
+                >
+                  ← Use a different account
+                </button>
+              </div>
+            ) : (
+              <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
+                <div className="mb-6">
+                  <h1 className="text-2xl font-bold tracking-tight text-on">
+                    {isLogin ? "Sign in to your account" : "Create your account"}
+                  </h1>
+                  <p className="mt-1.5 text-sm text-on-dim">
+                    {isLogin
+                      ? "Welcome back! Please enter your details."
+                      : "Register to track your event attendance."}
+                  </p>
+                </div>
+
+                {error && (
+                  <div
+                    role="alert"
+                    className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
+                  >
+                    {error}
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {!isLogin && (
+                    <div className="space-y-1.5">
+                      <label htmlFor="name" className="text-sm font-medium text-on">
+                        Full Name
+                      </label>
+                      <input
+                        id="name"
+                        type="text"
+                        name="name"
+                        value={formData.name}
+                        onChange={handleChange}
+                        placeholder="John Doe"
+                        autoComplete="name"
+                        className={inputClasses}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="email" className="text-sm font-medium text-on">
+                      Email Address
+                    </label>
+                    <input
+                      id="email"
+                      type="email"
+                      name="email"
+                      value={formData.email}
                       onChange={handleChange}
-                      placeholder="John Doe"
-                      autoComplete="name"
+                      placeholder="you@university.edu"
+                      autoComplete="email"
                       className={inputClasses}
                       required
                     />
                   </div>
-                )}
 
-                <div className="space-y-1.5">
-                  <label htmlFor="email" className="text-sm font-medium text-on">
-                    Email Address
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="you@university.edu"
-                    autoComplete="email"
-                    className={inputClasses}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="password" className="text-sm font-medium text-on">
-                      Password
-                    </label>
-                    {isLogin && (
-                      <button type="button" className="text-xs font-medium text-on-dim hover:text-on">
-                        Forgot password?
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="password" className="text-sm font-medium text-on">
+                        Password
+                      </label>
+                      {isLogin && (
+                        <button type="button" className="text-xs font-medium text-on-dim hover:text-on">
+                          Forgot password?
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        placeholder="••••••••"
+                        autoComplete={isLogin ? "current-password" : "new-password"}
+                        className={`${inputClasses} pr-11`}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-on-muted hover:text-on"
+                      >
+                        {showPassword ? <FaEyeSlash /> : <FaEye />}
                       </button>
-                    )}
+                    </div>
                   </div>
-                  <div className="relative">
-                    <input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      placeholder="••••••••"
-                      autoComplete={isLogin ? "current-password" : "new-password"}
-                      className={`${inputClasses} pr-11`}
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-on-muted hover:text-on"
-                    >
-                      {showPassword ? <FaEyeSlash /> : <FaEye />}
-                    </button>
-                  </div>
-                </div>
 
-                <Button type="submit" disabled={loading} className="w-full py-2.5">
-                  {loading ? (
-                    <span className="flex items-center gap-2">
-                      <span className="skeleton h-4 w-4 rounded-full" />
-                      Please wait...
-                    </span>
+                  <Button type="submit" disabled={loading} className="w-full py-2.5">
+                    {loading ? (
+                      <span className="flex items-center gap-2">
+                        <span className="skeleton h-4 w-4 rounded-full" />
+                        Please wait...
+                      </span>
+                    ) : (
+                      <>
+                        {isLogin ? "Sign In" : "Create Account"}
+                        <FaArrowRight className="text-xs" />
+                      </>
+                    )}
+                  </Button>
+                </form>
+
+                <p className="mt-6 text-center text-sm text-on-dim">
+                  {isLogin ? (
+                    <>
+                      Don&apos;t have an account?{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsLogin(false);
+                          setError("");
+                        }}
+                        className="font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+                      >
+                        Sign up
+                      </button>
+                    </>
                   ) : (
                     <>
-                      {isLogin ? "Sign In" : "Create Account"}
-                      <FaArrowRight className="text-xs" />
+                      Already have an account?{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsLogin(true);
+                          setError("");
+                        }}
+                        className="font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+                      >
+                        Sign in
+                      </button>
                     </>
                   )}
-                </Button>
-              </form>
+                </p>
 
-              <p className="mt-6 text-center text-sm text-on-dim">
-                {isLogin ? (
-                  <>
-                    Don&apos;t have an account?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsLogin(false);
-                        setError("");
-                      }}
-                      className="font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
-                    >
-                      Sign up
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    Already have an account?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsLogin(true);
-                        setError("");
-                      }}
-                      className="font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
-                    >
-                      Sign in
-                    </button>
-                  </>
-                )}
-              </p>
-
-              <p className="mt-5 border-t border-line pt-4 text-center text-xs text-on-muted">
-                For organizer or admin access, contact your department.
-              </p>
-            </div>
+                <p className="mt-5 border-t border-line pt-4 text-center text-xs text-on-muted">
+                  For organizer or admin access, contact your department.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

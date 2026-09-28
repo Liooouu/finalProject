@@ -10,6 +10,7 @@ import {
   FaEdit,
   FaClock,
   FaTimes,
+  FaShieldAlt,
 } from "react-icons/fa";
 import TrackMark from "./shared/TrackMark";
 import { portalName } from "../utils/nav";
@@ -35,6 +36,7 @@ const menuItems = {
     { name: "Community Service", path: "/student/dashboard/community-service", icon: <FaClock /> },
     { name: "Submit Excuse", path: "/student/dashboard/submit-excuse", icon: <FaEdit /> },
     { name: "Notifications", path: "/student/dashboard/notifications", icon: <FaBell /> },
+    { name: "Security", path: "/student/dashboard/security", icon: <FaShieldAlt /> },
   ],
 };
 

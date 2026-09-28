@@ -1,5 +1,6 @@
 import axios from "axios";
 import { getToken, clearAuth } from "../utils/auth";
+import { getDeviceId } from "../utils/device";
 
 const api = axios.create({
   baseURL: "http://localhost:5000/api",
@@ -10,6 +11,7 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  config.headers["X-Device-Id"] = getDeviceId();
   return config;
 });
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
+import { FaKey } from "react-icons/fa";
 import StatusBadge from "../shared/StatusBadge";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { TableSkeleton } from "../ui";
@@ -15,6 +16,9 @@ const ManageUsers = () => {
   const [showModal, setShowModal] = useState(false);
   const [csDrafts, setCsDrafts] = useState({});
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resetClearDevices, setResetClearDevices] = useState(false);
+  const [resetPin, setResetPin] = useState(null);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
 
@@ -45,6 +49,20 @@ const ManageUsers = () => {
     } catch (err) {
       console.error(err);
       setMessage(err.response?.data?.message || "Failed to delete user");
+      setMessageType("error");
+    }
+  };
+
+  const resetSecurity = async (userId, clearDevices) => {
+    try {
+      const res = await api.post(`/admin/users/${userId}/reset-security`, {
+        clearDevices,
+      });
+      setResetPin(res.data.pin);
+    } catch (err) {
+      console.error(err);
+      setResetTarget(null);
+      setMessage(err.response?.data?.message || "Failed to reset security");
       setMessageType("error");
     }
   };
@@ -233,6 +251,18 @@ const ManageUsers = () => {
                         >
                           View
                         </button>
+                        {user.role === "student" && (
+                          <button
+                            onClick={() => {
+                              setResetClearDevices(false);
+                              setResetPin(null);
+                              setResetTarget(user);
+                            }}
+                            className="px-3 py-1 dark:bg-indigo-900/30 bg-indigo-50 dark:hover:bg-indigo-900/50 hover:bg-indigo-100 dark:text-indigo-400 text-indigo-600 dark:border-indigo-900 border-indigo-300 border rounded text-sm transition-colors"
+                          >
+                            Reset PIN
+                          </button>
+                        )}
                         {user.role !== "admin" && (
                           <button
                             onClick={() => setDeleteTarget(user._id)}
@@ -345,6 +375,53 @@ const ManageUsers = () => {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!resetTarget}
+        title={resetPin ? "New security PIN assigned" : "Reset this student's security PIN?"}
+        message={
+          resetPin
+            ? "Give this PIN to the student in person. It replaces their previous PIN, and any failed-attempt lockout is cleared."
+            : resetTarget
+              ? `A brand-new PIN will be generated for "${resetTarget.name}". Only an admin can recover it — relay it to the student directly.`
+              : ""
+        }
+        confirmLabel={resetPin ? "Done" : "Reset PIN"}
+        cancelLabel={resetPin ? "Close" : "Cancel"}
+        variant={resetPin ? "default" : "danger"}
+        icon={resetPin ? <FaKey /> : undefined}
+        onConfirm={() => {
+          if (resetPin) {
+            setResetTarget(null);
+            setResetPin(null);
+            setMessage("Student security PIN reset");
+            setMessageType("success");
+          } else {
+            const target = resetTarget;
+            resetSecurity(target._id, resetClearDevices);
+          }
+        }}
+        onCancel={() => {
+          setResetTarget(null);
+          setResetPin(null);
+        }}
+      >
+        {resetPin ? (
+          <p className="mt-3 rounded-xl border border-dashed border-indigo-400/50 bg-indigo-500/5 px-4 py-3 text-center text-2xl font-bold tracking-[0.4em] text-on">
+            {resetPin}
+          </p>
+        ) : (
+          <label className="mt-3 flex items-center gap-2 text-sm text-on-dim">
+            <input
+              type="checkbox"
+              checked={resetClearDevices}
+              onChange={(e) => setResetClearDevices(e.target.checked)}
+              className="accent-indigo-600"
+            />
+            Also remove all trusted devices (student lost every browser)
+          </label>
+        )}
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={!!deleteTarget}
