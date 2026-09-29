@@ -125,6 +125,12 @@ const AuthPage = () => {
   const [forgotPassword, setForgotPassword] = useState("");
   const [forgotInfo, setForgotInfo] = useState(null); // response of /forgot-pin check
   const [enrolling, setEnrolling] = useState(false);
+  // Unauthenticated fallback: prove identity by email+password leg, then submit
+  // a proof photo so an admin can unlock you.
+  const [forgotAppealOpen, setForgotAppealOpen] = useState(false);
+  const [forgotAppealNote, setForgotAppealNote] = useState("");
+  const [appealSubmitting, setAppealSubmitting] = useState(false);
+  const [appealDone, setAppealDone] = useState(false);
 
   const navigate = useNavigate();
   const { isDark } = useTheme();
@@ -235,6 +241,9 @@ const AuthPage = () => {
     setForgotInfo(null);
     setVerifyEmail(formData.email.trim() || verifyEmail);
     setForgotPassword(formData.password.trim() || forgotPassword);
+    setForgotAppealOpen(false);
+    setForgotAppealNote("");
+    setAppealDone(false);
     setError("");
     setFlow("forgot");
   };
@@ -277,11 +286,57 @@ const AuthPage = () => {
       setPendingAuth({ token: res.data.token, role: res.data.role, next: "dashboard" });
       setFlow("pinPanel");
     } catch (err) {
+      if (err.response?.status === 429) {
+        // Locked out mid-flow — surface the appeal option.
+        setForgotInfo({ enrolled: true, locked: true });
+      }
       setError(err.response?.data?.message || "Face verification failed. Try again.");
     } finally {
       setEnrolling(false);
     }
   };
+
+  const submitForgotAppeal = async (blob) => {
+    setAppealSubmitting(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("email", verifyEmail.trim());
+      fd.append("password", forgotPassword);
+      fd.append("note", forgotAppealNote.trim());
+      fd.append("photo", blob, "proof.jpg");
+      await api.post("/auth/forgot-pin/appeal", fd);
+      setAppealDone(true);
+      setForgotAppealOpen(false);
+      setForgotAppealNote("");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to submit appeal. Try again.");
+    } finally {
+      setAppealSubmitting(false);
+    }
+  };
+
+  const renderAppealBox = () => (
+    <div className="rounded-xl border border-line bg-card-alt/50 p-4">
+      <p className="mb-3 text-sm text-on-dim">
+        Take a clear photo of yourself as proof, then submit. An admin will review it and unlock
+        you.
+      </p>
+      <FaceCapture
+        title="Take proof photo"
+        onCapture={submitForgotAppeal}
+        onCancel={() => setForgotAppealOpen(false)}
+        loading={appealSubmitting}
+      />
+      <textarea
+        value={forgotAppealNote}
+        onChange={(e) => setForgotAppealNote(e.target.value)}
+        placeholder="Optional note for the admin (e.g. new phone, camera broken, changed appearance)..."
+        rows={2}
+        className={inputClasses}
+      />
+    </div>
+  );
 
   const handleEnrollPhoto = async (blob) => {
     setEnrolling(true);
@@ -409,14 +464,29 @@ const AuthPage = () => {
                 )}
 
                 {forgotStage === "capture" ? (
-                  <FaceCapture
-                    title="Scan my face"
-                    onCapture={handleRecoveryPhoto}
-                    onCancel={() => {
-                      setForgotStage("form");
-                      setError("");
-                    }}
-                  />
+                  <>
+                    {forgotAppealOpen ? (
+                      renderAppealBox()
+                    ) : (
+                      <>
+                        <FaceCapture
+                          title="Scan my face"
+                          onCapture={handleRecoveryPhoto}
+                          onCancel={() => {
+                            setForgotStage("form");
+                            setError("");
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setForgotAppealOpen(true)}
+                          className="mt-4 text-sm font-medium text-on-dim hover:text-on"
+                        >
+                          Face not matching? Submit an appeal instead
+                        </button>
+                      </>
+                    )}
+                  </>
                 ) : (
                   <>
                     {forgotInfo && (
@@ -471,6 +541,51 @@ const AuthPage = () => {
                         {loading ? "Checking..." : "Check my identity"}
                       </Button>
                     </form>
+
+                    {forgotInfo?.locked && (
+                      <div className="mt-5 border-t border-line pt-5">
+                        {appealDone ? (
+                          <div
+                            role="status"
+                            className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-600 dark:text-emerald-400"
+                          >
+                            Appeal submitted. An admin will review your proof photo and unlock your
+                            face verification.
+                          </div>
+                        ) : forgotAppealOpen ? (
+                          renderAppealBox()
+                        ) : (
+                          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                            <p className="text-sm text-amber-700 dark:text-amber-400">
+                              Camera not working while you wait? Submit an appeal with a proof photo
+                              and an admin will review it, then unlock you.
+                            </p>
+                            <Button
+                              type="button"
+                              onClick={() => setForgotAppealOpen(true)}
+                              className="mt-3 w-full py-2"
+                            >
+                              Submit an appeal
+                            </Button>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsLogin(true);
+                            setFlow("form");
+                            setForgotStage("form");
+                            setForgotInfo(null);
+                            setForgotAppealOpen(false);
+                            setAppealDone(false);
+                            setError("");
+                          }}
+                          className="mt-4 text-sm font-medium text-on-dim hover:text-on"
+                        >
+                          {appealDone ? "Back to sign in" : "Wait and try again instead"}
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
 

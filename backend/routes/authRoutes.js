@@ -7,6 +7,7 @@ const path = require("path");
 const fs = require("fs");
 
 const User = require("../models/User");
+const FaceAppeal = require("../models/FaceAppeal");
 const faceMatcher = require("../services/faceMatcher");
 const { notifyAdmins } = require("../services/notifyAdmins");
 const { protect, authorize } = require("../middleware/authMiddleware");
@@ -28,6 +29,29 @@ const recoveryStorage = multer.diskStorage({
 });
 const recoveryUpload = multer({
   storage: recoveryStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (
+      /jpeg|jpg|png|gif/.test(path.extname(file.originalname).toLowerCase()) &&
+      /jpeg|jpg|png|gif/.test(file.mimetype)
+    ) {
+      return cb(null, true);
+    }
+    cb(new Error("Only image files are allowed (jpeg, jpg, png, gif)"));
+  },
+});
+
+// Persistent upload for appeal proof photos (kept on disk like face photos, so
+// admins can review them side-by-side with the enrolled face photo).
+const appealStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, `appeal-${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
+});
+const appealUpload = multer({
+  storage: appealStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (
@@ -400,6 +424,75 @@ router.post(
       cleanup();
       console.error("FORGOT-PIN VERIFY ERROR:", err);
       res.status(500).json({ message: "Face verification failed. Please try again." });
+    }
+  }
+);
+
+// STEP 3 (fallback) — locked out / camera won't verify you? Submit an appeal.
+// Unauthenticated by design: a locked student has no token. Identity is proven
+// with email + password (already required by STEP 1), and the proof photo lets
+// the admin compare against the enrolled face later.
+router.post(
+  "/forgot-pin/appeal",
+  appealUpload.single("photo"),
+  async (req, res) => {
+    const cleanup = () => {
+      try {
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      } catch (e) {}
+    };
+
+    try {
+      const { email, password } = req.body;
+      const note = (req.body.note || "").trim();
+      if (!email || !password || !req.file) {
+        cleanup();
+        return res.status(400).json({ message: "Please fill all fields and attach a proof photo" });
+      }
+
+      const user = await User.findOne({ email });
+      if (!user || user.role !== "student") {
+        cleanup();
+        return res.status(400).json({ message: "Invalid email or password" });
+      }
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        cleanup();
+        return res.status(400).json({ message: "Invalid email or password" });
+      }
+      if (!user.facePhoto) {
+        cleanup();
+        return res
+          .status(400)
+          .json({ message: "You have no face photo enrolled. Ask an admin to reset your security PIN." });
+      }
+
+      const pending = await FaceAppeal.findOne({ student: user._id, status: "pending" });
+      if (pending) {
+        cleanup();
+        return res.status(400).json({ message: "You already have a pending appeal awaiting review" });
+      }
+
+      const appeal = new FaceAppeal({
+        student: user._id,
+        note,
+        photoUrl: `/uploads/${req.file.filename}`,
+      });
+      await appeal.save();
+
+      await notifyAdmins(
+        "New face verification appeal",
+        `${user.name} (${user.email}) submitted a face verification appeal. Review their proof photo in Manage Users.`
+      );
+
+      res.status(201).json({
+        message: "Appeal submitted. An admin will review your proof photo.",
+        appeal,
+      });
+    } catch (err) {
+      cleanup();
+      console.error("FORGOT-PIN APPEAL ERROR:", err);
+      res.status(500).json({ message: "Failed to submit appeal. Please try again." });
     }
   }
 );
