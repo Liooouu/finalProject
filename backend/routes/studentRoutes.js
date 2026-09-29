@@ -2,12 +2,15 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 const { protect } = require("../middleware/authMiddleware");
 const Attendance = require("../models/Attendance");
 const Excuse = require("../models/Excuse");
 const Event = require("../models/Event");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
+const FaceAppeal = require("../models/FaceAppeal");
+const { notifyAdmins } = require("../services/notifyAdmins");
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -167,6 +170,75 @@ router.get("/absent-events", protect, async (req, res) => {
 
     res.json(attendances);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// MY FACE VERIFICATION APPEALS (student)
+router.get("/security/face-appeals", protect, async (req, res) => {
+  try {
+    if (req.user.role !== "student") {
+      return res.status(403).json({ error: "Only students can access this" });
+    }
+    const appeals = await FaceAppeal.find({ student: req.user._id }).sort({ createdAt: -1 });
+    res.json(appeals);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// SUBMIT A FACE VERIFICATION APPEAL (student)
+// "The camera won't verify me" -> upload a proof photo + a short note. The
+// admin compares the proof against the enrolled face photo and either unlocks
+// the student or rejects the appeal.
+router.post("/security/face-appeals", protect, upload.single("photo"), async (req, res) => {
+  try {
+    if (req.user.role !== "student") {
+      if (req.file) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (e) {}
+      }
+      return res.status(403).json({ error: "Only students can submit an appeal" });
+    }
+
+    const note = (req.body.note || "").trim();
+    if (!req.file) {
+      return res.status(400).json({ error: "A proof photo is required" });
+    }
+
+    const pending = await FaceAppeal.findOne({
+      student: req.user._id,
+      status: "pending",
+    });
+    if (pending) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (e) {}
+      return res.status(400).json({ error: "You already have a pending appeal awaiting review" });
+    }
+
+    const appeal = new FaceAppeal({
+      student: req.user._id,
+      note,
+      photoUrl: `/uploads/${req.file.filename}`,
+    });
+    await appeal.save();
+
+    // Alert every admin — the message includes the student's name + email so
+    // the admin does not have to search for who needs help.
+    await notifyAdmins(
+      "New face verification appeal",
+      `${req.user.name} (${req.user.email}) submitted a face verification appeal. Review their proof photo in Manage Users.`
+    );
+
+    res.status(201).json(appeal);
+  } catch (err) {
+    if (req.file) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (e) {}
+    }
     res.status(500).json({ error: err.message });
   }
 });

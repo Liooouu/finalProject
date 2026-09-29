@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require("../models/User");
 const Attendance = require("../models/Attendance");
 const Notification = require("../models/Notification");
+const FaceAppeal = require("../models/FaceAppeal");
 const { protect, authorize } = require("../middleware/authMiddleware");
 
 // Admin creates organizer
@@ -107,6 +108,11 @@ router.post(
       await user.setPin(pin);
       user.pinAttempts = 0;
       user.pinLockUntil = null;
+      // A security reset must also unlock face verification — otherwise a
+      // student locked out of the face scanner stays locked even after their
+      // PIN is reset.
+      user.faceAttempts = 0;
+      user.faceLockUntil = null;
       if (req.body.clearDevices) {
         user.trustedDevices = [];
       }
@@ -119,6 +125,123 @@ router.post(
         pin,
         devicesCleared: !!req.body.clearDevices,
       });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+// UNLOCK FACE VERIFICATION (admin)
+// Clears the failed-attempt counter and face lock so the student can retry
+// face verification immediately (e.g. they are physically present and were
+// falsely rejected by the camera).
+router.post(
+  "/users/:id/unlock-face",
+  protect,
+  authorize("admin"),
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.params.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      if (user.role !== "student") {
+        return res.status(400).json({ message: "Only student accounts have face verification" });
+      }
+
+      user.faceAttempts = 0;
+      user.faceLockUntil = null;
+      await user.save();
+
+      const notification = new Notification({
+        user: user._id,
+        type: "system",
+        title: "Face verification unlocked",
+        message: "An admin unlocked your face verification. You can try again now.",
+      });
+      await notification.save();
+
+      res.json({ message: "Face verification unlocked for " + user.email });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+// LIST FACE VERIFICATION APPEALS (admin)
+// Includes the student's enrolled face photo so the admin can compare it with
+// the submitted proof photo without leaving the page.
+router.get(
+  "/security/face-appeals",
+  protect,
+  authorize("admin"),
+  async (req, res) => {
+    try {
+      const filter = {};
+      if (req.query.status) filter.status = req.query.status;
+      const appeals = await FaceAppeal.find(filter)
+        .populate("student", "name email facePhoto faceAttempts faceLockUntil")
+        .sort({ createdAt: -1 });
+      res.json(appeals);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+// REVIEW A FACE VERIFICATION APPEAL (admin)
+// Approve -> clears the face lock and notifies the student they can retry.
+// Reject -> records the response note and notifies the student.
+router.post(
+  "/security/face-appeals/:id/review",
+  protect,
+  authorize("admin"),
+  async (req, res) => {
+    try {
+      const { action, note } = req.body;
+      if (!["approved", "rejected"].includes(action)) {
+        return res.status(400).json({ message: "action must be 'approved' or 'rejected'" });
+      }
+
+      const appeal = await FaceAppeal.findById(req.params.id).populate("student", "name email");
+      if (!appeal) {
+        return res.status(404).json({ message: "Appeal not found" });
+      }
+      if (appeal.status !== "pending") {
+        return res.status(400).json({ message: `This appeal was already ${appeal.status}` });
+      }
+
+      appeal.status = action;
+      appeal.reviewedBy = req.user._id;
+      appeal.responseNote = (note || "").trim();
+      await appeal.save();
+
+      if (action === "approved") {
+        appeal.student.faceAttempts = 0;
+        appeal.student.faceLockUntil = null;
+        await appeal.student.save();
+      }
+
+      const notification = new Notification({
+        user: appeal.student._id,
+        type: "system",
+        title:
+          action === "approved"
+            ? "Face verification appeal approved"
+            : "Face verification appeal rejected",
+        message:
+          action === "approved"
+            ? "An admin verified your appeal. You can try face verification again now."
+            : `Your face verification appeal was rejected.${appeal.responseNote ? ` Reason: ${appeal.responseNote}` : ""} Ask an admin if you need help.`,
+      });
+      await notification.save();
+
+      console.log(`Admin ${action} appeal of`, appeal.student.email);
+
+      res.json({ appeal, message: `Appeal ${action}` });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Server error" });

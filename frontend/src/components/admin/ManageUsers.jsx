@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
-import { FaKey } from "react-icons/fa";
+import { FaKey, FaCheck, FaTimes, FaShieldAlt } from "react-icons/fa";
 import StatusBadge from "../shared/StatusBadge";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { TableSkeleton } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import Button from "../ui/Button";
+
+const API_BASE = api.defaults.baseURL.replace(/\/api$/, "");
 
 const ManageUsers = () => {
   const [users, setUsers] = useState([]);
@@ -21,6 +24,12 @@ const ManageUsers = () => {
   const [resetPin, setResetPin] = useState(null);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
+  const [activeTab, setActiveTab] = useState("users");
+  const [appeals, setAppeals] = useState([]);
+  const [appealsLoading, setAppealsLoading] = useState(false);
+  const [reviewTarget, setReviewTarget] = useState(null);
+  const [reviewNote, setReviewNote] = useState("");
+  const [unlockTarget, setUnlockTarget] = useState(null);
 
   usePageMeta("Manage Users", "Search, inspect, and manage all accounts.");
 
@@ -36,9 +45,71 @@ const ManageUsers = () => {
     }
   };
 
+  const fetchAppeals = async () => {
+    setAppealsLoading(true);
+    try {
+      const res = await api.get("/admin/security/face-appeals");
+      setAppeals(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAppealsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchAppeals();
   }, []);
+
+  const isFaceLocked = (u) =>
+    !!u && !!u.faceLockUntil && new Date(u.faceLockUntil) > new Date();
+
+  const unlockFace = async (target) => {
+    try {
+      const res = await api.post(`/admin/users/${target._id}/unlock-face`);
+      setUsers(
+        users.map((u) =>
+          u._id === target._id ? { ...u, faceLockUntil: null, faceAttempts: 0 } : u
+        )
+      );
+      setUnlockTarget(null);
+      setMessage(res.data.message || "Face verification unlocked");
+      setMessageType("success");
+    } catch (err) {
+      console.error(err);
+      setUnlockTarget(null);
+      setMessage(err.response?.data?.message || "Failed to unlock face verification");
+      setMessageType("error");
+    }
+  };
+
+  const handleReview = async (appeal, action) => {
+    try {
+      const res = await api.post(`/admin/security/face-appeals/${appeal._id}/review`, {
+        action,
+        note: action === "rejected" ? reviewNote : "",
+      });
+      setAppeals(appeals.map((a) => (a._id === appeal._id ? res.data.appeal : a)));
+      setReviewTarget(null);
+      setReviewNote("");
+      setMessage(res.data.message || `Appeal ${action}`);
+      setMessageType("success");
+      if (action === "approved" && appeal.student?._id) {
+        setUsers(
+          users.map((u) =>
+            u._id === appeal.student._id
+              ? { ...u, faceLockUntil: null, faceAttempts: 0 }
+              : u
+          )
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.data?.message || "Failed to review appeal");
+      setMessageType("error");
+    }
+  };
 
   const deleteUser = async (userId) => {
     try {
@@ -151,6 +222,8 @@ const ManageUsers = () => {
     student: users.filter((u) => u.role === "student").length,
   };
 
+  const pendingCount = appeals.filter((a) => a.status === "pending").length;
+
   const inputClasses =
     "px-3.5 py-2 bg-card rounded-lg border border-line text-sm text-on placeholder-on-muted focus:outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500/40 transition-colors";
 
@@ -161,6 +234,38 @@ const ManageUsers = () => {
           {message}
         </div>
       )}
+      <div className="flex flex-wrap items-center gap-2 border-b border-line pb-4">
+        <button
+          type="button"
+          onClick={() => setActiveTab("users")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === "users"
+              ? "bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/30 dark:text-indigo-400"
+              : "text-on-dim hover:text-on"
+          }`}
+        >
+          Users
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("appeals")}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === "appeals"
+              ? "bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/30 dark:text-indigo-400"
+              : "text-on-dim hover:text-on"
+          }`}
+        >
+          Face appeals
+          {pendingCount > 0 && (
+            <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
+              {pendingCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === "users" ? (
+        <>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-on-dim">
           {filteredUsers.length} of {users.length} accounts
@@ -235,7 +340,14 @@ const ManageUsers = () => {
                         <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-500 to-indigo-800 flex items-center justify-center text-white font-bold">
                           {user.name.charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-medium">{user.name}</span>
+                        <div>
+                          <span className="font-medium">{user.name}</span>
+                          {user.role === "student" && isFaceLocked(user) && (
+                            <span className="ml-2 inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">
+                              Face locked
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="p-4 text-on-dim">{user.email}</td>
@@ -263,6 +375,15 @@ const ManageUsers = () => {
                             Reset PIN
                           </button>
                         )}
+                        {user.role === "student" && isFaceLocked(user) && (
+                          <button
+                            onClick={() => setUnlockTarget(user)}
+                            className="px-3 py-1 dark:bg-red-900/30 bg-red-50 dark:hover:bg-red-900/50 hover:bg-red-100 dark:text-red-400 text-red-600 dark:border-red-900 border-red-300 border rounded text-sm transition-colors"
+                            title="Clear face-verification lockout"
+                          >
+                            Unlock
+                          </button>
+                        )}
                         {user.role !== "admin" && (
                           <button
                             onClick={() => setDeleteTarget(user._id)}
@@ -273,11 +394,111 @@ const ManageUsers = () => {
                         )}
                       </div>
                     </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
+        )}
+        </>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-sm text-on-dim">
+            {pendingCount} pending &middot; {appeals.length} total appeals
+          </p>
+          {appealsLoading ? (
+            <TableSkeleton rows={4} />
+          ) : appeals.length === 0 ? (
+            <div className="rounded-xl border border-line bg-card py-12 text-center text-sm text-on-dim">
+              No face verification appeals
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {appeals.map((appeal) => (
+                <div key={appeal._id} className="rounded-xl border border-line bg-card p-5">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{appeal.student?.name || "Unknown student"}</p>
+                      <p className="text-sm text-on-dim">{appeal.student?.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isFaceLocked(appeal.student) && (
+                        <span className="rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">
+                          Face locked
+                        </span>
+                      )}
+                      <StatusBadge status={appeal.status} />
+                    </div>
+                  </div>
+
+                  {appeal.note && (
+                    <p className="mb-4 text-sm text-on-dim">&quot;{appeal.note}&quot;</p>
+                  )}
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-on-muted">Proof photo (submitted)</p>
+                      <img
+                        src={`${API_BASE}${appeal.photoUrl}`}
+                        alt="Proof"
+                        className="aspect-[4/3] w-full rounded-lg border border-line object-cover"
+                      />
+                    </div>
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-on-muted">Enrolled face photo</p>
+                      {appeal.student?.facePhoto ? (
+                        <img
+                          src={`${API_BASE}${appeal.student.facePhoto}`}
+                          alt="Enrolled face"
+                          className="aspect-[4/3] w-full rounded-lg border border-line object-cover"
+                        />
+                      ) : (
+                        <div className="flex aspect-[4/3] w-full items-center justify-center rounded-lg border border-line bg-card-alt text-sm text-on-muted">
+                          No face enrolled
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-xs text-on-muted">
+                    Submitted {new Date(appeal.createdAt).toLocaleString()}
+                  </p>
+
+                  {appeal.status === "pending" && (
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReviewNote("");
+                          setReviewTarget({ appeal, action: "approved" });
+                        }}
+                        className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
+                      >
+                        <FaCheck className="text-xs" /> Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReviewNote("");
+                          setReviewTarget({ appeal, action: "rejected" });
+                        }}
+                        className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/20 dark:text-red-400"
+                      >
+                        <FaTimes className="text-xs" /> Reject
+                      </button>
+                    </div>
+                  )}
+
+                  {appeal.status !== "pending" && appeal.responseNote && (
+                    <p className="mt-3 text-sm text-on-dim">
+                      <span className="font-medium text-on">Admin note:</span> {appeal.responseNote}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -311,6 +532,45 @@ const ManageUsers = () => {
                   Joined: {new Date(selectedUser.createdAt).toLocaleDateString()}
                 </span>
               </div>
+
+              {selectedUser.role === "student" && (
+                <div className="mb-6 flex flex-col gap-4 rounded-xl border border-line bg-card-alt/50 p-4 sm:flex-row sm:items-center">
+                  <div className="flex items-center gap-3">
+                    <FaShieldAlt className="text-lg text-indigo-500" />
+                    <div>
+                      <p className="font-medium text-on">Face verification</p>
+                      {selectedUser.facePhoto ? (
+                        <p className="text-sm text-on-dim">Face photo enrolled</p>
+                      ) : (
+                        <p className="text-sm text-on-dim">No face photo enrolled</p>
+                      )}
+                      {isFaceLocked(selectedUser) ? (
+                        <p className="mt-0.5 text-sm font-medium text-red-600 dark:text-red-400">
+                          Locked until {new Date(selectedUser.faceLockUntil).toLocaleString()}
+                        </p>
+                      ) : (
+                        <p className="mt-0.5 text-sm text-on-muted">Not locked</p>
+                      )}
+                    </div>
+                  </div>
+                  {selectedUser.facePhoto && (
+                    <img
+                      src={`${API_BASE}${selectedUser.facePhoto}`}
+                      alt="Enrolled face"
+                      className="h-20 w-20 rounded-xl border border-line object-cover sm:ml-auto"
+                    />
+                  )}
+                  {isFaceLocked(selectedUser) && (
+                    <Button
+                      variant="secondary"
+                      className="border border-line"
+                      onClick={() => setUnlockTarget(selectedUser)}
+                    >
+                      Unlock face verification
+                    </Button>
+                  )}
+                </div>
+              )}
 
               <h4 className="text-lg font-semibold mb-4">
                 Attendance History ({userAttendance.length})
@@ -437,6 +697,58 @@ const ManageUsers = () => {
         }}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      <ConfirmDialog
+        open={!!unlockTarget}
+        title="Unlock face verification?"
+        message={
+          unlockTarget
+            ? `"${unlockTarget.name}" will be able to retry face verification immediately.`
+            : ""
+        }
+        confirmLabel="Unlock"
+        cancelLabel="Cancel"
+        variant="default"
+        icon={<FaShieldAlt />}
+        onConfirm={() => unlockTarget && unlockFace(unlockTarget)}
+        onCancel={() => setUnlockTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!reviewTarget}
+        title={
+          reviewTarget?.action === "approved"
+            ? "Approve this appeal?"
+            : "Reject this appeal?"
+        }
+        message={
+          reviewTarget?.action === "approved"
+            ? "Approving unlocks the student's face verification so they can retry immediately."
+            : "Rejecting notifies the student that their appeal was declined. Add a reason below."
+        }
+        confirmLabel={
+          reviewTarget?.action === "approved" ? "Approve" : "Reject"
+        }
+        cancelLabel="Cancel"
+        variant={reviewTarget?.action === "approved" ? "default" : "danger"}
+        onConfirm={() =>
+          reviewTarget && handleReview(reviewTarget.appeal, reviewTarget.action)
+        }
+        onCancel={() => {
+          setReviewTarget(null);
+          setReviewNote("");
+        }}
+      >
+        {reviewTarget?.action === "rejected" && (
+          <textarea
+            value={reviewNote}
+            onChange={(e) => setReviewNote(e.target.value)}
+            placeholder="Optional reason for rejection (shown to the student)..."
+            rows={2}
+            className="mt-3 w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+          />
+        )}
+      </ConfirmDialog>
     </div>
   );
 };

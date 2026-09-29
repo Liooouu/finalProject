@@ -8,6 +8,7 @@ const fs = require("fs");
 
 const User = require("../models/User");
 const faceMatcher = require("../services/faceMatcher");
+const { notifyAdmins } = require("../services/notifyAdmins");
 const { protect, authorize } = require("../middleware/authMiddleware");
 
 const LOCK_ATTEMPTS = 5;
@@ -359,6 +360,12 @@ router.post(
           user.faceAttempts = 0;
           status = 429;
           message = `Too many face attempts. Try again in ${FACE_LOCK_MINUTES} minutes.`;
+          // Three failed matches is a red flag — likely a classmate trying to
+          // impersonate this student. Alert every admin automatically.
+          await notifyAdmins(
+            "Possible impersonation attempt",
+            `${user.name} (${user.email}) failed face verification ${FACE_LOCK_ATTEMPTS} times and is now locked out for ${FACE_LOCK_MINUTES} minutes. A classmate may be trying to impersonate them.`
+          );
         }
         await user.save();
         cleanup();
@@ -376,6 +383,12 @@ router.post(
       await user.save();
       cleanup();
       console.log("Face-based PIN recovery succeeded:", email);
+
+      // Informative security alert for the admins (no action required).
+      await notifyAdmins(
+        "Security PIN recovered via face scan",
+        `${user.name} (${user.email}) recovered their security PIN by face verification.`
+      );
 
       res.json({
         token: signToken(user),

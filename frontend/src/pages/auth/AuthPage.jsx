@@ -580,25 +580,27 @@ const AuthPage = () => {
                   </Button>
                 </form>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFlow("form");
-                    setVerifyPin("");
-                    setError("");
-                  }}
-                  className="mt-4 text-sm font-medium text-on-dim hover:text-on"
-                >
-                  ← Use a different account
-                </button>
+                <div className="mt-4 flex flex-col items-center gap-2 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFlow("form");
+                      setVerifyPin("");
+                      setError("");
+                    }}
+                    className="font-medium text-on-dim hover:text-on"
+                  >
+                    ← Use a different account
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={openForgot}
-                  className="mt-2 text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
-                >
-                  Forgot your security PIN?
-                </button>
+                  <button
+                    type="button"
+                    onClick={openForgot}
+                    className="font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                  >
+                    Forgot your security PIN?
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">

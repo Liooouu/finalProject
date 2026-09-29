@@ -9,6 +9,7 @@ import {
   FaEye,
   FaEyeSlash,
   FaCameraRetro,
+  FaHeadset,
 } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { BaseCard } from "../ui";
@@ -32,6 +33,10 @@ const SecuritySettings = () => {
   const [facePhoto, setFacePhoto] = useState(null);
   const [enrollingFace, setEnrollingFace] = useState(false);
   const [faceUploading, setFaceUploading] = useState(false);
+  const [appeals, setAppeals] = useState([]);
+  const [showAppealForm, setShowAppealForm] = useState(false);
+  const [appealNote, setAppealNote] = useState("");
+  const [appealSubmitting, setAppealSubmitting] = useState(false);
 
   usePageMeta("Security", "Manage your trusted devices and security PIN.");
 
@@ -39,15 +44,19 @@ const SecuritySettings = () => {
     let active = true;
     (async () => {
       try {
-        const res = await api.get("/auth/devices");
+        const [devRes, appealsRes] = await Promise.all([
+          api.get("/auth/devices"),
+          api.get("/student/security/face-appeals"),
+        ]);
         if (active) {
-          setDevices(res.data.devices || []);
-          setCurrentPin(res.data.pin || null);
-          setFacePhoto(res.data.facePhoto || null);
+          setDevices(devRes.data.devices || []);
+          setCurrentPin(devRes.data.pin || null);
+          setFacePhoto(devRes.data.facePhoto || null);
+          setAppeals(appealsRes.data || []);
         }
       } catch (err) {
         if (active) {
-          setMessage(err.response?.data?.message || "Failed to load devices");
+          setMessage(err.response?.data?.message || "Failed to load security settings");
           setMessageType("error");
         }
       } finally {
@@ -58,6 +67,28 @@ const SecuritySettings = () => {
       active = false;
     };
   }, []);
+
+  const submitAppeal = async (blob) => {
+    setAppealSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.append("photo", blob, "proof.jpg");
+      fd.append("note", appealNote.trim());
+      const res = await api.post("/student/security/face-appeals", fd);
+      setAppeals([res.data, ...appeals]);
+      setShowAppealForm(false);
+      setAppealNote("");
+      showMessage("Appeal submitted. An admin will review your proof photo.");
+    } catch (err) {
+      console.error(err);
+      showMessage(
+        err.response?.data?.error || err.response?.data?.message || "Failed to submit appeal",
+        "error"
+      );
+    } finally {
+      setAppealSubmitting(false);
+    }
+  };
 
   const showMessage = (text, type = "success") => {
     setMessage(text);
@@ -269,6 +300,75 @@ const SecuritySettings = () => {
               loading={faceUploading}
             />
           </div>
+        )}
+      </BaseCard>
+
+      <BaseCard
+        icon={<FaHeadset />}
+        title="Face verification not working?"
+        bodyClassName="space-y-4"
+      >
+        <p className="text-sm text-on-dim">
+          Camera refusing to recognize you? Submit a proof photo and an admin will compare it to
+          your enrolled face photo, then unlock your face verification.
+        </p>
+
+        {appeals.length > 0 && (
+          <div className="space-y-2">
+            {appeals.map((appeal) => (
+              <div
+                key={appeal._id}
+                className="flex flex-col gap-2 rounded-lg border border-line bg-card-alt/50 p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-on">
+                    Appeal {(appeal.status).charAt(0).toUpperCase() + appeal.status.slice(1)}
+                  </p>
+                  <p className="text-xs text-on-muted">
+                    Submitted {new Date(appeal.createdAt).toLocaleString()}
+                  </p>
+                  {appeal.responseNote && (
+                    <p className="mt-0.5 text-xs text-on-dim">
+                      Admin note: {appeal.responseNote}
+                    </p>
+                  )}
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    appeal.status === "approved"
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                      : appeal.status === "rejected"
+                        ? "bg-red-500/15 text-red-600 dark:text-red-400"
+                        : "bg-gray-500/15 text-gray-600 dark:text-gray-400"
+                  }`}
+                >
+                  {appeal.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {showAppealForm ? (
+          <div className="rounded-xl border border-line bg-card-alt/50 p-4">
+            <FaceCapture
+              title="Take proof photo"
+              onCapture={submitAppeal}
+              onCancel={() => setShowAppealForm(false)}
+              loading={appealSubmitting}
+            />
+            <textarea
+              value={appealNote}
+              onChange={(e) => setAppealNote(e.target.value)}
+              placeholder="Optional note for the admin (e.g. camera kept failing, lighting too dark)..."
+              rows={2}
+              className="mt-3 w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+            />
+          </div>
+        ) : (
+          <Button onClick={() => setShowAppealForm(true)} disabled={appealSubmitting}>
+            Submit an appeal
+          </Button>
         )}
       </BaseCard>
 
