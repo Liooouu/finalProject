@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import api from "../../api/axios";
 import { FaCamera, FaTimes, FaCheck, FaExclamationTriangle } from "react-icons/fa";
+import { describeCameraError } from "../../utils/camera";
 
 const QRScanner = ({ eventId, onScanSuccess }) => {
   const [isScanning, setIsScanning] = useState(false);
@@ -58,8 +59,8 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
       );
 
       setIsScanning(true);
-    } catch {
-      setError("Failed to start camera. Please allow camera access.");
+    } catch (err) {
+      setError(describeCameraError(err));
     }
   };
 

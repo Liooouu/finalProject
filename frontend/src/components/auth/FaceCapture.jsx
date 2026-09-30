@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { FaCamera, FaRedo, FaCheck, FaExclamationTriangle } from "react-icons/fa";
 import Button from "../ui/Button";
 import { dataUrlToBlob } from "../../utils/image";
+import { describeCameraError } from "../../utils/camera";
 
 const FaceCapture = ({ onCapture, onCancel, title = "Face photo", loading = false }) => {
   const videoRef = useRef(null);
@@ -16,6 +17,7 @@ const FaceCapture = ({ onCapture, onCancel, title = "Face photo", loading = fals
 
   const startCamera = useCallback(async () => {
     stopCamera();
+    setError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
@@ -28,15 +30,21 @@ const FaceCapture = ({ onCapture, onCancel, title = "Face photo", loading = fals
       }
       setPreview(null);
       setError("");
-    } catch {
-      setError("Camera access was denied or unavailable. Allow camera access and try again.");
+    } catch (err) {
+      setError(describeCameraError(err));
     }
   }, [stopCamera]);
 
   const handleVideoRef = useCallback(
     (node) => {
       videoRef.current = node;
-      if (node && !streamRef.current) startCamera();
+      if (!node) return;
+      if (streamRef.current) {
+        node.srcObject = streamRef.current;
+        node.play().catch(() => {});
+        return;
+      }
+      startCamera();
     },
     [startCamera]
   );
@@ -110,6 +118,11 @@ const FaceCapture = ({ onCapture, onCancel, title = "Face photo", loading = fals
           <span />
         )}
         <div className="flex gap-2">
+          {error && !preview && (
+            <Button variant="ghost" onClick={startCamera} className="border border-line">
+              <FaRedo className="text-xs" /> Try again
+            </Button>
+          )}
           {preview && (
             <Button variant="ghost" onClick={startCamera} className="border border-line">
               <FaRedo className="text-xs" /> Retake
