@@ -250,8 +250,21 @@ connectDB()
       }
     }, 60000); // Run every 60 seconds
 
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
+    });
+
+    server.on("error", (err) => {
+      if (err.code === "EADDRINUSE") {
+        console.error(`\nPort ${PORT} is already in use.`);
+        console.error("Free it and try again:");
+        console.error(`  Windows (PowerShell): Get-NetTCPConnection -LocalPort ${PORT} -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`);
+        console.error(`  Windows (Git Bash):  netstat -ano | grep :${PORT} && taskkill //F //PID <pid>`);
+        console.error(`  macOS/Linux:         lsof -ti tcp:${PORT} | xargs kill -9`);
+        console.error(`\nOr just use "npm run dev" / "npm run start" — those free the port automatically.`);
+        process.exit(1);
+      }
+      throw err;
     });
   })
   .catch((err) => {
