@@ -454,7 +454,7 @@ const AuthPage = () => {
                   </div>
                 </div>
 
-                {error && (
+                {error && forgotStage !== "capture" && (
                   <div
                     role="alert"
                     className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
@@ -472,6 +472,9 @@ const AuthPage = () => {
                         <FaceCapture
                           title="Scan my face"
                           onCapture={handleRecoveryPhoto}
+                          loading={enrolling}
+                          loadingLabel="Verifying your face..."
+                          error={error}
                           onCancel={() => {
                             setForgotStage("form");
                             setError("");
@@ -619,19 +622,12 @@ const AuthPage = () => {
                   </div>
                 </div>
 
-                {error && (
-                  <div
-                    role="alert"
-                    className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
-                  >
-                    {error}
-                  </div>
-                )}
-
                 <FaceCapture
                   title="Save my face"
                   onCapture={handleEnrollPhoto}
                   loading={enrolling}
+                  loadingLabel="Saving..."
+                  error={error}
                   onCancel={() => {
                     if (pendingAuth) finishAuth(pendingAuth.token, pendingAuth.role);
                   }}

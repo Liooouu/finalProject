@@ -8,13 +8,21 @@ const releaseStream = (stream) => {
   stream?.getTracks().forEach((t) => t.stop());
 };
 
-const FaceCapture = ({ onCapture, onCancel, title = "Face photo", loading = false }) => {
+const FaceCapture = ({
+  onCapture,
+  onCancel,
+  title = "Face photo",
+  loading = false,
+  loadingLabel = "Checking...",
+  error: externalError = "",
+}) => {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const requestIdRef = useRef(0);
   const mountedRef = useRef(true);
-  const [error, setError] = useState("");
+  const [cameraError, setCameraError] = useState("");
   const [preview, setPreview] = useState(null);
+  const error = externalError || cameraError;
 
   const stopCamera = useCallback(() => {
     requestIdRef.current += 1;
@@ -32,7 +40,7 @@ const FaceCapture = ({ onCapture, onCancel, title = "Face photo", loading = fals
 
   const startCamera = useCallback(async () => {
     stopCamera();
-    setError("");
+    setCameraError("");
     const id = requestIdRef.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -50,10 +58,10 @@ const FaceCapture = ({ onCapture, onCancel, title = "Face photo", loading = fals
         await videoRef.current.play();
       }
       setPreview(null);
-      setError("");
+      setCameraError("");
     } catch (err) {
       if (mountedRef.current && id === requestIdRef.current) {
-        setError(describeCameraError(err));
+        setCameraError(describeCameraError(err));
       }
     }
   }, [stopCamera]);
@@ -75,7 +83,7 @@ const FaceCapture = ({ onCapture, onCancel, title = "Face photo", loading = fals
   const capture = () => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) {
-      setError("Camera isn't ready yet. Try again.");
+      setCameraError("Camera isn't ready yet. Try again.");
       return;
     }
     const canvas = document.createElement("canvas");
@@ -151,7 +159,7 @@ const FaceCapture = ({ onCapture, onCancel, title = "Face photo", loading = fals
           )}
           {preview ? (
             <Button onClick={usePhoto} disabled={loading}>
-              {loading ? "Uploading..." : "Use this photo"}
+              {loading ? loadingLabel : "Use this photo"}
             </Button>
           ) : (
             <Button onClick={capture} disabled={!!error || loading}>
