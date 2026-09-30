@@ -11,11 +11,23 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
   const [success, setSuccess] = useState("");
   const scannerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      if (html5QrCodeRef.current) {
-        html5QrCodeRef.current.stop().catch(() => {});
+      mountedRef.current = false;
+      const scanner = html5QrCodeRef.current;
+      if (scanner) {
+        Promise.resolve(scanner.stop())
+          .catch(() => {})
+          .then(() => {
+            try {
+              scanner.clear();
+            } catch {
+              // scanner may not have started
+            }
+          });
       }
     };
   }, []);
@@ -58,9 +70,19 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
         () => {}
       );
 
+      if (!mountedRef.current) {
+        await html5QrCode.stop().catch(() => {});
+        try {
+          html5QrCode.clear();
+        } catch {
+          // nothing rendered to clear
+        }
+        return;
+      }
+
       setIsScanning(true);
     } catch (err) {
-      setError(describeCameraError(err));
+      if (mountedRef.current) setError(describeCameraError(err));
     }
   };
 

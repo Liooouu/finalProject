@@ -4,25 +4,46 @@ import Button from "../ui/Button";
 import { dataUrlToBlob } from "../../utils/image";
 import { describeCameraError } from "../../utils/camera";
 
+const releaseStream = (stream) => {
+  stream?.getTracks().forEach((t) => t.stop());
+};
+
 const FaceCapture = ({ onCapture, onCancel, title = "Face photo", loading = false }) => {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const requestIdRef = useRef(0);
+  const mountedRef = useRef(true);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState(null);
 
   const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    requestIdRef.current += 1;
+    releaseStream(streamRef.current);
     streamRef.current = null;
   }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopCamera();
+    };
+  }, [stopCamera]);
 
   const startCamera = useCallback(async () => {
     stopCamera();
     setError("");
+    const id = requestIdRef.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false,
       });
+      if (!mountedRef.current || id !== requestIdRef.current) {
+        releaseStream(stream);
+        return;
+      }
+      releaseStream(streamRef.current);
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -31,7 +52,9 @@ const FaceCapture = ({ onCapture, onCancel, title = "Face photo", loading = fals
       setPreview(null);
       setError("");
     } catch (err) {
-      setError(describeCameraError(err));
+      if (mountedRef.current && id === requestIdRef.current) {
+        setError(describeCameraError(err));
+      }
     }
   }, [stopCamera]);
 
@@ -48,8 +71,6 @@ const FaceCapture = ({ onCapture, onCancel, title = "Face photo", loading = fals
     },
     [startCamera]
   );
-
-  useEffect(() => stopCamera, [stopCamera]);
 
   const capture = () => {
     const video = videoRef.current;
