@@ -140,8 +140,11 @@ router.post(
 
     const filePath = `uploads/${req.file.filename}`;
     try {
-      const has = await faceMatcher.hasFace(filePath);
-      if (!has) {
+      // Validates the photo and caches its descriptor in the same pass, so the
+      // student's first PIN recovery doesn't have to re-analyse the reference.
+      try {
+        await faceMatcher.detectFaceDescriptorCached(filePath);
+      } catch {
         fs.unlinkSync(filePath);
         return res
           .status(400)

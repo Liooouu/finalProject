@@ -363,6 +363,7 @@ router.post(
           .json({ message: "Your enrolled face photo is missing. Ask an admin to reset your security PIN." });
       }
 
+      const startedAt = Date.now();
       let live;
       try {
         live = await faceMatcher.detectFaceDescriptor(tempPath);
@@ -372,8 +373,12 @@ router.post(
           .status(400)
           .json({ message: err.message || "No face detected. Please look directly at the camera and retake." });
       }
-      const ref = await faceMatcher.detectFaceDescriptor(refPath);
+      const liveMs = Date.now() - startedAt;
+      const ref = await faceMatcher.detectFaceDescriptorCached(refPath);
       const matched = faceMatcher.descriptorsMatch(live.descriptor, ref.descriptor);
+      console.log(
+        `[face-verify] ${email}: selfie ${liveMs}ms, total ${Date.now() - startedAt}ms, matched=${matched}`
+      );
 
       if (!matched) {
         user.faceAttempts = (user.faceAttempts || 0) + 1;

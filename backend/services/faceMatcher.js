@@ -22,6 +22,7 @@ const DEFAULT_SCORE_THRESHOLD = 0.4;
 
 let faceapi = null;
 let readyPromise = null;
+let modelsLoaded = false;
 
 async function init() {
   if (faceapi) return faceapi;
@@ -37,20 +38,18 @@ async function init() {
   return readyPromise;
 }
 
-// Load all three model files (tiny detector + tiny landmarks + recognition).
+// Load all three model files (tiny detector + full landmarks + recognition).
+// Guarded by an explicit flag: checking net.loaded names was unreliable and
+// caused the weights to be re-read from disk on every single match (~1s each).
 async function loadModels(force = false) {
   const fa = await init();
-  if (!force) {
-    const allLoaded = ["tinyFaceDetector", "faceLandmark68TinyNet", "faceRecognitionNet"].every(
-      (n) => fa.nets[n].loaded
-    );
-    if (allLoaded) return fa;
-  }
+  if (modelsLoaded && !force) return fa;
   await Promise.all([
     fa.nets.tinyFaceDetector.loadFromDisk(MODEL_PATH),
     fa.nets.faceLandmark68Net.loadFromDisk(MODEL_PATH),
     fa.nets.faceRecognitionNet.loadFromDisk(MODEL_PATH),
   ]);
+  modelsLoaded = true;
   console.log("[faceMatcher] models loaded from", MODEL_PATH);
   return fa;
 }
@@ -113,15 +112,53 @@ async function detectFaceDescriptor(imagePath) {
   }
 }
 
-// Verify that an image actually contains a face (used on enrollment uploads).
-async function hasFace(imagePath) {
+// Enrolled reference photos never change unless the student re-enrolls (which
+// writes a new filename), so their descriptor is cached in memory. Re-analysing
+// the reference on every attempt doubled the cost of each match (~3.5s each pass
+// on the pure-JS backend). Keyed by path + mtime + size so a replaced file is
+// never served stale.
+const descriptorCache = new Map();
+const descriptorInFlight = new Map();
+const DESCRIPTOR_CACHE_MAX = 200;
+
+async function detectFaceDescriptorCached(imagePath) {
+  const key = path.resolve(imagePath);
+  let stat = null;
   try {
-    await loadModels();
-    const desc = await detectFaceDescriptor(imagePath);
-    return !!desc;
-  } catch (err) {
-    return false;
+    stat = fs.statSync(imagePath);
+  } catch {
+    stat = null;
   }
+
+  if (stat) {
+    const hit = descriptorCache.get(key);
+    if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) {
+      return hit.value;
+    }
+    const pending = descriptorInFlight.get(key);
+    if (pending) return pending;
+  }
+
+  const promise = detectFaceDescriptor(imagePath)
+    .then((value) => {
+      if (stat) {
+        if (descriptorCache.size >= DESCRIPTOR_CACHE_MAX) {
+          descriptorCache.delete(descriptorCache.keys().next().value);
+        }
+        descriptorCache.set(key, { mtimeMs: stat.mtimeMs, size: stat.size, value });
+      }
+      return value;
+    })
+    .finally(() => {
+      descriptorInFlight.delete(key);
+    });
+
+  if (stat) descriptorInFlight.set(key, promise);
+  return promise;
+}
+
+function clearDescriptorCache() {
+  descriptorCache.clear();
 }
 
 // Compare two descriptors; returns true when they likely belong to the same person.
@@ -142,7 +179,8 @@ module.exports = {
   init,
   loadModels,
   detectFaceDescriptor,
-  hasFace,
+  detectFaceDescriptorCached,
+  clearDescriptorCache,
   descriptorsMatch,
   distance: faceEuclideanDistance,
 };
