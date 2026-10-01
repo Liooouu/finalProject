@@ -3,7 +3,7 @@ import {
   FaCheck,
   FaClock,
   FaTimes,
-  FaArchive,
+  FaBan,
   FaCalendarAlt,
   FaDotCircle,
   FaCheckCircle,
@@ -32,7 +32,9 @@ const configs = {
 
   upcoming: { label: "Upcoming", icon: <FaCalendarAlt />, cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-blue-500/25" },
   live: { label: "Live", icon: <FaDotCircle />, cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/25" },
-  closed: { label: "Closed", icon: <FaArchive />, cls: "bg-slate-500/10 text-slate-600 dark:text-slate-300 ring-slate-500/25" },
+  // finished = ran to its end time; closed = a person ended it early.
+  finished: { label: "Finished", icon: <FaCheckCircle />, cls: "bg-slate-500/10 text-slate-600 dark:text-slate-300 ring-slate-500/25" },
+  closed: { label: "Closed", icon: <FaBan />, cls: "bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-rose-500/25" },
 
   info: { label: "Info", icon: <FaInfoCircle />, cls: "bg-slate-500/10 text-slate-600 dark:text-slate-300 ring-slate-500/25" },
 };

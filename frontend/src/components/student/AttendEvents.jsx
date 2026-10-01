@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { formatTime12Hour } from "../../utils/helpers";
+import { formatTime12Hour, splitEventsByLifecycle } from "../../utils/helpers";
 import { FaCalendarAlt, FaMapMarkerAlt, FaClock, FaArrowRight } from "react-icons/fa";
 import { BsClipboardCheck } from "react-icons/bs";
 import { usePageMeta } from "../../context/PageMetaContext";
@@ -10,12 +10,18 @@ import Loading from "../shared/Loading";
 import EmptyState from "../shared/EmptyState";
 import EventMap from "../shared/EventMap";
 
+const TABS = [
+  { key: "active", label: "Upcoming" },
+  { key: "past", label: "Past events" },
+];
+
 const AttendEvents = () => {
   const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("active");
 
-  usePageMeta("Upcoming Events", "Browse and attend events.");
+  usePageMeta("Events", "Browse and attend events.");
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -31,87 +37,114 @@ const AttendEvents = () => {
     fetchEvents();
   }, []);
 
+  const { active, past } = useMemo(() => splitEventsByLifecycle(events), [events]);
+  const visible = tab === "active" ? active : past;
+
   if (loading) {
     return <Loading label="Loading events..." />;
   }
 
-  if (events.length === 0) {
-    return (
-      <EmptyState
-        icon={<FaCalendarAlt />}
-        title="No upcoming events"
-        description="Check back soon — new events will show up here."
-      />
-    );
-  }
-
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-      {events.map((event) => (
-        <div
-          key={event._id}
-          onClick={() => navigate(`/student/dashboard/events/${event._id}`)}
-          className="group flex cursor-pointer flex-col rounded-xl border border-line bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-indigo-500/40 hover:shadow-lg hover:shadow-indigo-900/10"
-        >
-          <div className="mb-4 flex items-start justify-between">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 transition-colors group-hover:bg-indigo-500/15 dark:text-indigo-400">
-              <FaCalendarAlt className="text-lg" />
-            </div>
-            <StatusChip status={event.status} />
-          </div>
+    <div>
+      <div className="mb-6 flex flex-wrap items-center gap-2 border-b border-line">
+        {TABS.map((item) => {
+          const count = item.key === "active" ? active.length : past.length;
+          const selected = tab === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setTab(item.key)}
+              className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                selected
+                  ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
+                  : "border-transparent text-on-dim hover:text-on"
+              }`}
+            >
+              {item.label}
+              <span className="ml-2 rounded-full bg-black/5 px-2 py-0.5 text-xs dark:bg-white/10">
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
-          <h3 className="mb-2 text-lg font-bold text-on transition-colors group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
-            {event.title}
-          </h3>
-          <p className="mb-4 line-clamp-2 text-sm text-on-dim">
-            {event.description || "No description provided"}
-          </p>
+      {visible.length === 0 ? (
+        <EmptyState
+          icon={<FaCalendarAlt />}
+          title={tab === "active" ? "No upcoming events" : "No past events"}
+          description={
+            tab === "active"
+              ? "Check back soon — new events will show up here."
+              : "Events you have already attended or missed will be listed here."
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {visible.map((event) => (
+            <div
+              key={event._id}
+              onClick={() => navigate(`/student/dashboard/events/${event._id}`)}
+              className="group flex cursor-pointer flex-col rounded-xl border border-line bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-indigo-500/40 hover:shadow-lg hover:shadow-indigo-900/10"
+            >
+              <div className="mb-4 flex items-start justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 transition-colors group-hover:bg-indigo-500/15 dark:text-indigo-400">
+                  <FaCalendarAlt className="text-lg" />
+                </div>
+                <StatusChip status={event.status} />
+              </div>
 
-          <div className="mb-4 space-y-2 text-sm text-on-dim">
-            <div className="flex items-center gap-2">
-              <FaCalendarAlt className="text-xs text-on-muted" />
-              <span>{new Date(event.date).toLocaleDateString()}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <FaClock className="text-xs text-on-muted" />
-              <span>{formatTime12Hour(event.time)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <FaMapMarkerAlt className="text-xs text-on-muted" />
-              <span>{event.location || "TBA"}</span>
-            </div>
-          </div>
-
-          {event.attendanceStartTime && event.attendanceEndTime && (
-            <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2.5">
-              <p className="flex items-center gap-2 text-xs font-medium text-amber-600 dark:text-amber-400">
-                <BsClipboardCheck />
-                Attendance: {formatTime12Hour(event.attendanceStartTime)} -{" "}
-                {formatTime12Hour(event.attendanceEndTime)}
+              <h3 className="mb-2 text-lg font-bold text-on transition-colors group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                {event.title}
+              </h3>
+              <p className="mb-4 line-clamp-2 text-sm text-on-dim">
+                {event.description || "No description provided"}
               </p>
+
+              <div className="mb-4 space-y-2 text-sm text-on-dim">
+                <div className="flex items-center gap-2">
+                  <FaCalendarAlt className="text-xs text-on-muted" />
+                  <span>{new Date(event.date).toLocaleDateString()}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <FaClock className="text-xs text-on-muted" />
+                  <span>{formatTime12Hour(event.time)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <FaMapMarkerAlt className="text-xs text-on-muted" />
+                  <span>{event.location || "TBA"}</span>
+                </div>
+              </div>
+
+              {event.attendanceStartTime && event.attendanceEndTime && (
+                <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2.5">
+                  <p className="flex items-center gap-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+                    <BsClipboardCheck />
+                    Attendance: {formatTime12Hour(event.attendanceStartTime)} -{" "}
+                    {formatTime12Hour(event.attendanceEndTime)}
+                  </p>
+                </div>
+              )}
+
+              <EventMap event={event} className="mb-4 h-36 w-full" placeholder={false} />
+
+              {event.organizer && (
+                <div className="pt-4 border-t border-line mt-auto">
+                  <p className="text-xs text-on-muted">
+                    Organized by <span className="text-on-dim">{event.organizer.name}</span>
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-4 flex items-center gap-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                View Details
+                <FaArrowRight className="text-[10px] transition-transform group-hover:translate-x-0.5" />
+              </div>
             </div>
-          )}
-
-          <EventMap
-            event={event}
-            className="mb-4 h-36 w-full"
-            placeholder={false}
-          />
-
-          {event.organizer && (
-            <div className="pt-4 border-t border-line mt-auto">
-              <p className="text-xs text-on-muted">
-                Organized by <span className="text-on-dim">{event.organizer.name}</span>
-              </p>
-            </div>
-          )}
-
-          <div className="mt-4 flex items-center gap-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400">
-            View Details
-            <FaArrowRight className="text-[10px] transition-transform group-hover:translate-x-0.5" />
-          </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 };

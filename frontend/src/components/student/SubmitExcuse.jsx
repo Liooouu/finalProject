@@ -4,6 +4,7 @@ import api from "../../api/axios";
 import { FaBook, FaCheck, FaFileAlt, FaCalendarTimes, FaCalendarPlus } from "react-icons/fa";
 import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
+import { isTerminalStatus } from "../../utils/helpers";
 import Button from "../ui/Button";
 
 const SubmitExcuse = () => {
@@ -43,8 +44,11 @@ const SubmitExcuse = () => {
           myAttendanceRes.data.map((a) => a.event?._id || a.event)
         );
         const now = new Date();
+        // An "advance" excuse is for something still to come, so anything the
+        // system has already finished or that has been closed is not offered.
         const upcoming = eventsRes.data.filter((e) => {
           if (attendedEventIds.has(e._id) || excusedEventIds.has(e._id)) return false;
+          if (isTerminalStatus(e.status)) return false;
           const dayEnd = new Date(e.date);
           dayEnd.setHours(23, 59, 59, 999);
           return dayEnd >= now || e.status === "live";

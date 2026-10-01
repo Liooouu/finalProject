@@ -17,6 +17,9 @@ const variants = {
   rejected: "bg-red-500/20 text-red-400",
   closed: "bg-red-500/20 text-red-400",
 
+  // Ran to its end time — distinct from a manual close above.
+  finished: "bg-gray-500/20 text-gray-300",
+
   late: "bg-yellow-500/20 text-yellow-400",
   pending: "bg-yellow-500/20 text-yellow-400",
   excused: "bg-yellow-500/20 text-yellow-400",

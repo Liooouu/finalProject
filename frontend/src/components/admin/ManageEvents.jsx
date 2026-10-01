@@ -7,6 +7,7 @@ import StatusChip from "../ui/StatusChip";
 import Button from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { usePageMeta } from "../../context/PageMetaContext";
+import { isTerminalStatus, describeEventLifecycle, formatTime12Hour } from "../../utils/helpers";
 import { TableSkeleton } from "../ui";
 import MapPicker from "../shared/MapPicker";
 import { FaPlus } from "react-icons/fa";
@@ -144,12 +145,24 @@ const ManageEvents = () => {
     }
   };
 
-  const filteredEvents = events.filter((event) => {
-    const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      event.organizer?.name?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || event.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredEvents = events
+    .filter((event) => {
+      const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        event.organizer?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" ? !isTerminalStatus(event.status) : event.status === statusFilter);
+      return matchesSearch && matchesStatus;
+    })
+    // Finished/closed events sink to the bottom of the list.
+    .sort((a, b) => {
+      const aDone = isTerminalStatus(a.status) ? 1 : 0;
+      const bDone = isTerminalStatus(b.status) ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+      return aDone
+        ? new Date(b.date) - new Date(a.date)
+        : new Date(a.date) - new Date(b.date);
+    });
 
   const inputClasses =
     "px-3.5 py-2 bg-card rounded-lg border border-line text-sm text-on placeholder-on-muted focus:outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500/40 transition-colors";
@@ -187,8 +200,10 @@ const ManageEvents = () => {
             className={inputClasses}
           >
             <option value="all">All Status</option>
+            <option value="active">Active</option>
             <option value="upcoming">Upcoming</option>
             <option value="live">Live</option>
+            <option value="finished">Finished</option>
             <option value="closed">Closed</option>
           </select>
         </div>
@@ -355,12 +370,15 @@ const ManageEvents = () => {
                     <h3 className="text-lg font-semibold">{event.title}</h3>
                     <StatusChip status={event.status} />
                   </div>
+                  {describeEventLifecycle(event) && (
+                    <p className="mb-2 text-xs text-on-muted">{describeEventLifecycle(event)}</p>
+                  )}
                   <div className="flex flex-wrap gap-4 text-sm text-on-dim">
                     <span className="flex items-center gap-1">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      {new Date(event.date).toLocaleDateString()} at {event.time}
+                      {new Date(event.date).toLocaleDateString()} at {formatTime12Hour(event.time)}
                     </span>
                     {event.location && (
                       <span className="flex items-center gap-1">
@@ -382,7 +400,7 @@ const ManageEvents = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       Ends: {new Date(event.endDate || event.date).toLocaleDateString()} at{" "}
-                      {event.endTime || event.attendanceEndTime}
+                      {formatTime12Hour(event.endTime || event.attendanceEndTime)}
                     </span>
                   </div>
                 </div>
@@ -394,6 +412,7 @@ const ManageEvents = () => {
                   >
                     <option value="upcoming">Upcoming</option>
                     <option value="live">Live</option>
+                    <option value="finished">Finished</option>
                     <option value="closed">Closed</option>
                   </select>
                   <Button

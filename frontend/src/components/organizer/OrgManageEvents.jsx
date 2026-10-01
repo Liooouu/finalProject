@@ -1,8 +1,12 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { formatTime12Hour } from "../../utils/helpers";
-import { FaPlus, FaCalendarAlt, FaMapMarkerAlt, FaClock, FaTrash } from "react-icons/fa";
+import {
+  formatTime12Hour,
+  isTerminalStatus,
+  describeEventLifecycle,
+} from "../../utils/helpers";
+import { FaPlus, FaCalendarAlt, FaMapMarkerAlt, FaClock, FaTrash, FaUndo } from "react-icons/fa";
 import { MdClose } from "react-icons/md";
 import { BsClipboardCheck } from "react-icons/bs";
 import { usePageMeta } from "../../context/PageMetaContext";
@@ -12,12 +16,25 @@ import EmptyState from "../shared/EmptyState";
 import MapPicker from "../shared/MapPicker";
 import ConfirmDialog from "../ui/ConfirmDialog";
 
+const STATUS_FILTERS = [
+  { key: "all", label: "All statuses" },
+  { key: "active", label: "Active" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "live", label: "Live" },
+  { key: "finished", label: "Finished" },
+  { key: "closed", label: "Closed" },
+];
+
+const inputClasses =
+  "rounded-lg border border-line bg-card px-3 py-2 text-sm text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40";
+
 const OrgManageEvents = () => {
   const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState("");
   const [viewMode, setViewMode] = useState("my");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [form, setForm] = useState({
     title: "",
@@ -86,6 +103,35 @@ const OrgManageEvents = () => {
     }
   };
 
+  // Put a finished/closed event back in play. Reopening hands the event back to
+  // the clock, so it finishes again within a minute unless its end time moves.
+  const handleReopen = async (id) => {
+    try {
+      await api.patch(`/events/${id}/status`, { status: "upcoming" });
+      setMessage(
+        "Event reopened. It will finish again at its end time — extend the schedule to keep it running."
+      );
+      fetchEvents();
+    } catch (err) {
+      setMessage(err.response?.data?.error || "Failed to reopen event.");
+    }
+  };
+
+  // Finished events sink to the bottom so the live work stays on top.
+  const visibleEvents = useMemo(() => {
+    const matches = events.filter((event) => {
+      if (statusFilter === "all") return true;
+      if (statusFilter === "active") return !isTerminalStatus(event.status);
+      return event.status === statusFilter;
+    });
+    return matches.sort((a, b) => {
+      const aDone = isTerminalStatus(a.status) ? 1 : 0;
+      const bDone = isTerminalStatus(b.status) ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+      return aDone ? new Date(b.date) - new Date(a.date) : new Date(a.date) - new Date(b.date);
+    });
+  }, [events, statusFilter]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -103,7 +149,7 @@ const OrgManageEvents = () => {
       </div>
 
       {/* View Toggle */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={() => setViewMode("my")}
           className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
@@ -124,6 +170,18 @@ const OrgManageEvents = () => {
         >
           All Events
         </button>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          aria-label="Filter by status"
+          className={`${inputClasses} ml-auto`}
+        >
+          {STATUS_FILTERS.map((filter) => (
+            <option key={filter.key} value={filter.key}>
+              {filter.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Message */}
@@ -275,7 +333,7 @@ const OrgManageEvents = () => {
       )}
 
       {/* Events List */}
-      {events.length === 0 ? (
+      {visibleEvents.length === 0 ? (
         <EmptyState
           icon={<FaCalendarAlt />}
           title={viewMode === "my" ? "No events yet" : "No events found"}
@@ -287,7 +345,9 @@ const OrgManageEvents = () => {
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {events.map((event) => {
+          {visibleEvents.map((event) => {
+            const lifecycleNote = describeEventLifecycle(event);
+            const canReopen = isTerminalStatus(event.status);
             return (
               <div
                 key={event._id}
@@ -303,7 +363,24 @@ const OrgManageEvents = () => {
                       <h3 className="text-lg font-bold text-on transition-colors group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
                         {event.title}
                       </h3>
-                      <StatusChip status={event.status} className="mt-1" />
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <StatusChip status={event.status} />
+                        {canReopen && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReopen(event._id);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-500/10 dark:text-indigo-400"
+                          >
+                            <FaUndo className="text-[10px]" />
+                            Reopen
+                          </button>
+                        )}
+                      </div>
+                      {lifecycleNote && (
+                        <p className="mt-1 text-xs text-on-muted">{lifecycleNote}</p>
+                      )}
                     </div>
                   </div>
                   <button

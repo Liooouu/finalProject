@@ -2,8 +2,19 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { getUserRole, getUserFromToken } from "../utils/auth";
-import { formatTime12Hour } from "../utils/helpers";
-import { FaCheck, FaEdit, FaTrash, FaExclamationTriangle, FaUsers } from "react-icons/fa";
+import {
+  formatTime12Hour,
+  isTerminalStatus,
+  describeEventLifecycle,
+} from "../utils/helpers";
+import {
+  FaCheck,
+  FaEdit,
+  FaTrash,
+  FaUndo,
+  FaExclamationTriangle,
+  FaUsers,
+} from "react-icons/fa";
 import Loading from "./shared/Loading";
 import { BsClipboardCheck } from "react-icons/bs";
 import { QRCodeSVG } from "qrcode.react";
@@ -155,10 +166,30 @@ const EventDetails = () => {
   const handleStatusChange = async (newStatus) => {
     try {
       const res = await api.patch(`/events/${id}/status`, { status: newStatus });
-      setEvent({ ...event, status: res.data.status });
-      setMessage("Status updated!");
+      setEvent({
+        ...event,
+        status: res.data.status,
+        manualOverride: res.data.manualOverride,
+        autoFinishedAt: res.data.autoFinishedAt,
+      });
+      setMessage(
+        newStatus === "upcoming"
+          ? "Event reopened. It will finish again at its end time."
+          : "Status updated! Automatic status changes are paused for this event."
+      );
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to update status");
+    }
+  };
+
+  // Hands the event back to the background job without touching the status.
+  const handleResumeAuto = async () => {
+    try {
+      const res = await api.patch(`/events/${id}/automation`, { enabled: true });
+      setEvent({ ...event, manualOverride: res.data.manualOverride });
+      setMessage("Automatic status changes are back on for this event.");
+    } catch (err) {
+      setMessage(err.response?.data?.error || "Failed to resume automatic status");
     }
   };
 
@@ -486,6 +517,7 @@ const EventDetails = () => {
                 >
                   <option value="upcoming">Upcoming</option>
                   <option value="live">Live</option>
+                  <option value="finished">Finished</option>
                   <option value="closed">Closed</option>
                 </select>
                 <div className="flex gap-3">
@@ -504,17 +536,49 @@ const EventDetails = () => {
                 </div>
               </form>
             ) : (
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <span className="text-on-dim">Quick Status:</span>
-                <select
-                  value={event.status}
-                  onChange={(e) => handleStatusChange(e.target.value)}
-                  className="bg-card border border-line rounded-lg px-4 py-2 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                >
-                  <option value="upcoming">Upcoming</option>
-                  <option value="live">Live</option>
-                  <option value="closed">Closed</option>
-                </select>
+              <div className="flex flex-col gap-3">
+                {isTerminalStatus(event.status) && (
+                  <p className="text-xs text-on-muted">
+                    This event has ended. Attendance can no longer be marked.
+                  </p>
+                )}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <span className="text-on-dim">Quick Status:</span>
+                  <select
+                    value={event.status}
+                    onChange={(e) => handleStatusChange(e.target.value)}
+                    className="bg-card border border-line rounded-lg px-4 py-2 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  >
+                    <option value="upcoming">Upcoming</option>
+                    <option value="live">Live</option>
+                    <option value="finished">Finished</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                  {isTerminalStatus(event.status) && (
+                    <button
+                      type="button"
+                      onClick={() => handleStatusChange("upcoming")}
+                      className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-500 dark:text-indigo-400"
+                    >
+                      <FaUndo className="text-xs" />
+                      Reopen event
+                    </button>
+                  )}
+                </div>
+                {describeEventLifecycle(event) && (
+                  <p className="text-xs text-on-muted">
+                    {describeEventLifecycle(event)}
+                    {event.manualOverride && (
+                      <button
+                        type="button"
+                        onClick={handleResumeAuto}
+                        className="ml-2 font-medium text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400"
+                      >
+                        Resume auto-close
+                      </button>
+                    )}
+                  </p>
+                )}
               </div>
             )}
           </div>

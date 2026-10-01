@@ -145,12 +145,17 @@ const AttendanceReports = () => {
 
   const eventStatusData = eventsData
     ? {
-        labels: ["Upcoming", "Live", "Closed"],
+        labels: ["Upcoming", "Live", "Finished", "Closed"],
         datasets: [
           {
-            data: [eventsData.stats.upcoming, eventsData.stats.live, eventsData.stats.closed],
-            backgroundColor: ["#3b82f6", "#22c55e", "#6b7280"],
-            borderColor: ["#2563eb", "#16a34a", "#4b5563"],
+            data: [
+              eventsData.stats.upcoming,
+              eventsData.stats.live,
+              eventsData.stats.finished,
+              eventsData.stats.closed,
+            ],
+            backgroundColor: ["#3b82f6", "#22c55e", "#64748b", "#6b7280"],
+            borderColor: ["#2563eb", "#16a34a", "#475569", "#4b5563"],
             borderWidth: 1,
           },
         ],
@@ -264,10 +269,11 @@ const AttendanceReports = () => {
 
       {activeTab === "events" && eventsData && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <StatCard label="Total Events" value={eventsData.stats.total} color="blue" />
             <StatCard label="Upcoming" value={eventsData.stats.upcoming} color="blue" />
             <StatCard label="Live" value={eventsData.stats.live} color="green" />
+            <StatCard label="Finished" value={eventsData.stats.finished ?? 0} color="gray" />
             <StatCard label="Closed" value={eventsData.stats.closed} color="gray" />
           </div>
 

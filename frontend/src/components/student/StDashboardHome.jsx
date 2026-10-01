@@ -15,6 +15,7 @@ import {
 import { BsClipboardCheck, BsEmojiSmile } from "react-icons/bs";
 import { MdLocalActivity } from "react-icons/md";
 import { usePageMeta } from "../../context/PageMetaContext";
+import { splitEventsByLifecycle } from "../../utils/helpers";
 import {
   BaseCard,
   StatusPill,
@@ -76,21 +77,10 @@ const DashboardHome = () => {
         );
         setActivity(sortedActivity.slice(0, 6));
 
-        // Show every created event — past, present or future. The section reads all
-        // non-closed events, prioritizing upcoming ones (soonest first) then
-        // present, then the most recent past events.
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        const upcomingList = eventsData
-          .filter((e) => e.date)
-          .sort((a, b) => {
-            const A = new Date(a.date);
-            const B = new Date(b.date);
-            const aFuture = A >= todayStart;
-            const bFuture = B >= todayStart;
-            if (aFuture !== bFuture) return aFuture ? -1 : 1;
-            return aFuture ? A - B : B - A;
-          });
+        // "Upcoming" means what a student can still act on. The backend finishes
+        // an event when its end time passes, so the status — not the date — is
+        // what separates an upcoming event from history.
+        const upcomingList = splitEventsByLifecycle(eventsData).active.filter((e) => e.date);
         setUpcoming(upcomingList.length);
         setUpcomingEvents(upcomingList.slice(0, 4));
         setSelectedUpcoming(0);
