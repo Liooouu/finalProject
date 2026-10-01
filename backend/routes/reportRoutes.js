@@ -179,6 +179,7 @@ router.get("/events", async (req, res) => {
     const statusCounts = {
       upcoming: events.filter((e) => e.status === "upcoming").length,
       live: events.filter((e) => e.status === "live").length,
+      finished: events.filter((e) => e.status === "finished").length,
       closed: events.filter((e) => e.status === "closed").length,
     };
 

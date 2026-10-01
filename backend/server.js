@@ -10,6 +10,14 @@ const Event = require("./models/Event");
 const User = require("./models/User");
 const Attendance = require("./models/Attendance");
 const Notification = require("./models/Notification");
+const {
+  STATUS,
+  OPEN_STATUS_FILTER,
+  eventEndAt,
+  shouldAutoGoLive,
+  shouldAutoFinish,
+  eventLiveNotification,
+} = require("./services/eventLifecycle");
 
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
@@ -59,8 +67,16 @@ connectDB()
   .then(() => {
     console.log("MongoDB Connected ✅");
 
-    // ✅ BACKGROUND JOB: Auto-mark absent students every minute
-    setInterval(async () => {
+    // ✅ BACKGROUND JOB — keeps event statuses honest and handles attendance.
+    //
+    // Step 1  upcoming -> live    when the event's start time arrives
+    // Step 2  absence marking + attendance-window notices
+    // Step 3  -> finished          when the event's end time arrives
+    //
+    // Step 2 must run before step 3: an event leaves the "still open" query the
+    // moment it finishes, so the absences for its last day would never be
+    // written otherwise.
+    const runLifecycleJob = async () => {
       try {
         const now = new Date();
         const today = new Date();
@@ -71,35 +87,47 @@ connectDB()
           ":" +
           now.getMinutes().toString().padStart(2, "0");
 
-        // Find events whose day is over (past date, or today once the event's
-        // end time has passed). Reconcile every run so students registered
-        // after an earlier pass still get their absent record + hours.
         const todayEnd = new Date(today);
         todayEnd.setHours(23, 59, 59, 999);
 
-        const candidateEvents = await Event.find({
+        // ── STEP 1: go live automatically at the start time ──────────────
+        const toGoLive = await Event.find({
+          status: STATUS.UPCOMING,
           date: { $lte: todayEnd },
-          status: { $ne: "closed" },
         });
 
-        const isSameDay = (d) => {
-          const v = new Date(d);
-          return (
-            v.getFullYear() === today.getFullYear() &&
-            v.getMonth() === today.getMonth() &&
-            v.getDate() === today.getDate()
-          );
-        };
+        for (const event of toGoLive) {
+          if (!shouldAutoGoLive(event, now)) continue;
+
+          await Event.findByIdAndUpdate(event._id, { status: STATUS.LIVE });
+
+          const recipients = await User.find({ role: { $in: ["student", "admin"] } }).select("_id");
+          if (recipients.length > 0) {
+            const { type, title, message } = eventLiveNotification(event);
+            await Notification.insertMany(
+              recipients.map((u) => ({
+                user: u._id,
+                type,
+                title,
+                message,
+                relatedEvent: event._id,
+              }))
+            );
+          }
+          console.log(`[lifecycle] "${event.title}" is now live (auto)`);
+        }
+
+        // ── STEP 2: absence marking for events that are over ─────────────
+        // Reconcile every run so students registered after an earlier pass
+        // still get their absent record + hours.
+        const candidateEvents = await Event.find({
+          date: { $lte: todayEnd },
+          ...OPEN_STATUS_FILTER,
+        });
 
         for (const event of candidateEvents) {
-          const endDate = new Date(event.endDate || event.date);
-          const endTime = event.endTime || event.attendanceEndTime;
-          if (Number.isNaN(endDate.getTime()) || !endTime) continue;
-
-          const dayOver =
-            endDate < today || (isSameDay(endDate) && currentTime >= endTime);
-
-          if (!dayOver) continue;
+          const endsAt = eventEndAt(event);
+          if (!endsAt || now < endsAt) continue;
 
           // Get all students
           const students = await User.find({ role: "student" });
@@ -142,7 +170,7 @@ connectDB()
 
         const todaysEvents = await Event.find({
           date: { $gte: today, $lte: todayEnd },
-          status: { $ne: "closed" },
+          ...OPEN_STATUS_FILTER,
         });
 
         for (const event of todaysEvents) {
@@ -226,7 +254,7 @@ connectDB()
         const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
         const upcomingEvents = await Event.find({
           date: { $gte: now, $lte: in24h },
-          status: { $ne: "closed" },
+          ...OPEN_STATUS_FILTER,
           upcomingNotified: false,
         });
 
@@ -246,10 +274,31 @@ connectDB()
           event.upcomingNotified = true;
           await event.save();
         }
+
+        // ── STEP 3: finish automatically at the end time ─────────────────
+        // Silent on purpose: the status label in the UI already tells the story,
+        // and these events are in the past, so there is nothing to act on.
+        const toFinish = await Event.find({
+          ...OPEN_STATUS_FILTER,
+          manualOverride: { $ne: true },
+        });
+
+        for (const event of toFinish) {
+          if (!shouldAutoFinish(event, now)) continue;
+          await Event.findByIdAndUpdate(event._id, {
+            status: STATUS.FINISHED,
+            autoFinishedAt: now,
+          });
+          console.log(`[lifecycle] "${event.title}" finished (auto)`);
+        }
       } catch (err) {
         console.error("Error in attendance processing job:", err.message);
       }
-    }, 60000); // Run every 60 seconds
+    };
+
+    // Run once at boot so a restart immediately repairs statuses, then every minute.
+    runLifecycleJob();
+    setInterval(runLifecycleJob, 60000);
 
     // A stale TrackED backend on this port should never block startup: free it
     // and bind again. This is what makes "node server.js" behave like

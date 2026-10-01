@@ -5,6 +5,45 @@ const Attendance = require("../models/Attendance");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const { protect } = require("../middleware/authMiddleware");
+const {
+  STATUS,
+  EVENT_STATUSES,
+  isTerminal,
+  eventStartsAt,
+  eventEndAt,
+  resolveAutomation,
+  eventLiveNotification,
+} = require("../services/eventLifecycle");
+
+// Rejects a schedule the system could never make sense of: unparseable dates,
+// an attendance window that runs backwards, or an event that ends before it
+// starts. Only the fields present in the payload are checked, so a partial
+// update is still validated against the stored values.
+function validateSchedule(schedule) {
+  const startsAt = eventStartsAt(schedule);
+  if (!startsAt) {
+    return "A valid event date is required";
+  }
+
+  const { attendanceStartTime, attendanceEndTime } = schedule;
+  if (attendanceStartTime && attendanceEndTime) {
+    const [startH, startM] = attendanceStartTime.split(":").map(Number);
+    const [endH, endM] = attendanceEndTime.split(":").map(Number);
+    if ([startH, startM, endH, endM].some(Number.isNaN)) {
+      return "Attendance window times must be in HH:mm format";
+    }
+    if (startH * 60 + startM >= endH * 60 + endM) {
+      return "The attendance window must end after it starts";
+    }
+  }
+
+  const endsAt = eventEndAt(schedule);
+  if (endsAt && endsAt <= startsAt) {
+    return "The event must end after it starts";
+  }
+
+  return null;
+}
 
 // CREATE EVENT (organizer/admin only)
 router.post("/", protect, async (req, res) => {
@@ -21,6 +60,18 @@ router.post("/", protect, async (req, res) => {
 
     const endDate = req.body.endDate || date;
     const endTime = req.body.endTime || attendanceEndTime;
+
+    const scheduleError = validateSchedule({
+      date,
+      time,
+      endDate,
+      endTime,
+      attendanceStartTime,
+      attendanceEndTime,
+    });
+    if (scheduleError) {
+      return res.status(400).json({ error: scheduleError });
+    }
 
     const event = new Event({
       title,
@@ -84,6 +135,10 @@ router.get("/all", protect, async (req, res) => {
 });
 
 // UPDATE EVENT STATUS
+//
+// A status chosen here is a human decision, so it also pins the event: the
+// background job will not move it again until the schedule is edited (or
+// someone hits "Resume auto-close").
 router.patch("/:id/status", protect, async (req, res) => {
   try {
     if (req.user.role !== "organizer" && req.user.role !== "admin") {
@@ -91,34 +146,35 @@ router.patch("/:id/status", protect, async (req, res) => {
     }
 
     const { status } = req.body;
-    const validEventStatuses = ["upcoming", "live", "closed"];
-    if (!validEventStatuses.includes(status)) {
+    if (!EVENT_STATUSES.includes(status)) {
       return res.status(400).json({ error: "Invalid event status" });
     }
     const oldEvent = await Event.findById(req.params.id);
-    
+
     if (!oldEvent) return res.status(404).json({ error: "Event not found" });
 
-    const event = await Event.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
+    const update = { status };
+    // Reopening an event means it is no longer sitting finished.
+    if (status !== STATUS.FINISHED) update.autoFinishedAt = null;
 
-    if (status === "closed" && oldEvent.status !== "closed") {
-      // Absent marking handled by background job at end of day — not on close
-    }
+    // Reopening hands the event back to the clock; every other status chosen
+    // here is a human decision that pins it.
+    const pinned = resolveAutomation({ currentStatus: oldEvent.status, nextStatus: status });
+    if (pinned !== undefined) update.manualOverride = pinned;
+
+    const event = await Event.findByIdAndUpdate(req.params.id, update, { new: true });
 
     // Announce when an event goes live
-    if (status === "live" && oldEvent.status !== "live") {
+    if (status === STATUS.LIVE && oldEvent.status !== STATUS.LIVE) {
       const recipients = await User.find({ role: { $in: ["student", "admin"] } }).select("_id");
       if (recipients.length > 0) {
+        const { type, title, message } = eventLiveNotification(event);
         await Notification.insertMany(
           recipients.map((u) => ({
             user: u._id,
-            type: "info",
-            title: "Event Live Now",
-            message: `"${event.title}" is now live! Attendance closes at ${event.attendanceEndTime}.`,
+            type,
+            title,
+            message,
             relatedEvent: event._id,
           }))
         );
@@ -131,12 +187,47 @@ router.patch("/:id/status", protect, async (req, res) => {
   }
 });
 
+// RESUME / PAUSE AUTOMATIC STATUS CHANGES
+// The counterpart to the manual override: gives an event back to the background
+// job, or holds it still without pretending the status was chosen by hand.
+router.patch("/:id/automation", protect, async (req, res) => {
+  try {
+    if (req.user.role !== "organizer" && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const { enabled } = req.body;
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ error: "Send { enabled: true|false }" });
+    }
+
+    const event = await Event.findByIdAndUpdate(
+      req.params.id,
+      { manualOverride: !enabled },
+      { new: true }
+    );
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET ALL EVENTS (for students)
+// Everything is returned — an event never silently disappears — with the ones
+// still worth acting on first. The client splits them into Upcoming / Past.
 router.get("/", protect, async (req, res) => {
   try {
-    const events = await Event.find({ status: { $ne: "closed" } })
+    const events = await Event.find()
       .populate("organizer", "name")
       .sort({ date: 1 });
+
+    const rank = (event) => (isTerminal(event.status) ? 1 : 0);
+    events.sort(
+      (a, b) => rank(a) - rank(b) || new Date(a.date) - new Date(b.date)
+    );
+
     res.json(events);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -178,8 +269,9 @@ router.post("/:id/attendance", protect, async (req, res) => {
 
     const now = new Date();
 
-    if (event.status === "closed") {
-      return res.status(400).json({ error: "Event is closed — attendance can no longer be marked" });
+    if (isTerminal(event.status)) {
+      const label = event.status === STATUS.CLOSED ? "closed" : "already finished";
+      return res.status(400).json({ error: `This event is ${label} — attendance can no longer be marked` });
     }
 
     const eventDay = new Date(event.date);
@@ -698,12 +790,65 @@ router.put("/:id", protect, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
+    const existing = await Event.findById(req.params.id);
+    if (!existing) return res.status(404).json({ error: "Event not found" });
+
     const { title, description, date, time, endDate, endTime, location, mapQuery, status, attendanceStartTime, attendanceEndTime } = req.body;
-    const event = await Event.findByIdAndUpdate(
-      req.params.id,
-      { title, description, date, time, endDate, endTime, location, mapQuery, status, attendanceStartTime, attendanceEndTime },
-      { new: true }
-    ).populate("organizer", "name email");
+
+    // This route writes the status straight from the body, so it needs the same
+    // allow-list as PATCH /:id/status — otherwise any string reaches the database.
+    if (status !== undefined && !EVENT_STATUSES.includes(status)) {
+      return res.status(400).json({ error: "Invalid event status" });
+    }
+
+    // Validate the schedule that would result from this edit.
+    const nextSchedule = {
+      date: date ?? existing.date,
+      time: time ?? existing.time,
+      endDate: endDate ?? existing.endDate,
+      endTime: endTime ?? existing.endTime,
+      attendanceStartTime: attendanceStartTime ?? existing.attendanceStartTime,
+      attendanceEndTime: attendanceEndTime ?? existing.attendanceEndTime,
+    };
+    const scheduleError = validateSchedule(nextSchedule);
+    if (scheduleError) {
+      return res.status(400).json({ error: scheduleError });
+    }
+
+    const update = {
+      title,
+      description,
+      date,
+      time,
+      endDate,
+      endTime,
+      location,
+      mapQuery,
+      status,
+      attendanceStartTime,
+      attendanceEndTime,
+    };
+
+    // Moving the schedule is how an organizer says "this is still running", so
+    // it hands the event back to the background job — unless the request also
+    // carries a status the client genuinely changed, which pins it instead.
+    const scheduleTouched = ["date", "time", "endDate", "endTime", "attendanceStartTime", "attendanceEndTime"].some(
+      (field) => req.body[field] !== undefined
+    );
+    const pinned = resolveAutomation({
+      currentStatus: existing.status,
+      nextStatus: status,
+      scheduleTouched,
+    });
+    if (pinned !== undefined) update.manualOverride = pinned;
+
+    if (status !== undefined && status !== STATUS.FINISHED) {
+      update.autoFinishedAt = null;
+    }
+
+    const event = await Event.findByIdAndUpdate(req.params.id, update, {
+      new: true,
+    }).populate("organizer", "name email");
 
     if (!event) return res.status(404).json({ error: "Event not found" });
 
