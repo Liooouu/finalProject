@@ -5,6 +5,7 @@ const fs = require("fs");
 require("dotenv").config();
 
 const connectDB = require("./config/db");
+const { freePort } = require("./scripts/free-port");
 const Event = require("./models/Event");
 const User = require("./models/User");
 const Attendance = require("./models/Attendance");
@@ -250,22 +251,41 @@ connectDB()
       }
     }, 60000); // Run every 60 seconds
 
-    const server = app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
+    // A stale TrackED backend on this port should never block startup: free it
+    // and bind again. This is what makes "node server.js" behave like
+    // "npm run dev" / "npm run start".
+    let attempt = 0;
+    const listen = () => {
+      const server = app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+      });
 
-    server.on("error", (err) => {
-      if (err.code === "EADDRINUSE") {
+      server.on("error", (err) => {
+        if (err.code !== "EADDRINUSE") throw err;
+
+        if (attempt < 1 && process.env.TRACKED_NO_AUTO_FREE !== "1") {
+          attempt += 1;
+          console.warn(`Port ${PORT} is already in use — freeing it and retrying...`);
+          try {
+            freePort(PORT);
+          } catch (freeErr) {
+            console.error(`Could not free port ${PORT}: ${freeErr.message}`);
+          }
+          setTimeout(listen, 500);
+          return;
+        }
+
         console.error(`\nPort ${PORT} is already in use.`);
         console.error("Free it and try again:");
         console.error(`  Windows (PowerShell): Get-NetTCPConnection -LocalPort ${PORT} -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`);
         console.error(`  Windows (Git Bash):  netstat -ano | grep :${PORT} && taskkill //F //PID <pid>`);
         console.error(`  macOS/Linux:         lsof -ti tcp:${PORT} | xargs kill -9`);
-        console.error(`\nOr just use "npm run dev" / "npm run start" — those free the port automatically.`);
+        console.error(`\nOr set TRACKED_NO_AUTO_FREE=1 to skip the automatic stop.`);
         process.exit(1);
-      }
-      throw err;
-    });
+      });
+    };
+
+    listen();
   })
   .catch((err) => {
     console.error("DB CONNECTION FAILED ❌", err);
