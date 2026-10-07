@@ -8,13 +8,18 @@ import {
   FaBolt,
   FaCircleQuestion,
 } from "react-icons/fa6";
-import { FaArrowRight } from "react-icons/fa";
+import { FaArrowRight, FaClipboardCheck } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { KpiCard, PageHeader, BaseCard } from "../ui";
 import Button from "../ui/Button";
 
 const OrganizerHome = () => {
-  const [stats, setStats] = useState({ totalEvents: 0, totalAttendees: 0, pendingExcuses: 0 });
+  const [stats, setStats] = useState({
+    totalEvents: 0,
+    totalAttendees: 0,
+    pendingExcuses: 0,
+    attendeesPerEvent: [],
+  });
 
   usePageMeta("Organizer Overview", "Manage your events and track attendance.");
 
@@ -22,7 +27,12 @@ const OrganizerHome = () => {
     const fetchStats = async () => {
       try {
         const res = await api.get("/organizer/stats");
-        setStats(res.data);
+        setStats({
+          totalEvents: res.data.totalEvents ?? 0,
+          totalAttendees: res.data.totalAttendees ?? 0,
+          pendingExcuses: res.data.pendingExcuses ?? 0,
+          attendeesPerEvent: res.data.attendeesPerEvent ?? [],
+        });
       } catch (err) {
         console.error(err.response?.data || err.message);
       }
@@ -98,6 +108,51 @@ const OrganizerHome = () => {
           </BaseCard>
         ))}
       </div>
+
+      <BaseCard
+        title="Attendees per Event"
+        icon={<FaUsers />}
+        menu={
+          <Link
+            to="/organizer/dashboard/events"
+            className="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+          >
+            View all
+          </Link>
+        }
+      >
+        {stats.attendeesPerEvent.length === 0 ? (
+          <p className="py-8 text-center text-sm text-on-dim">
+            No events with attendees yet.
+          </p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {stats.attendeesPerEvent.map((event) => (
+              <li
+                key={event._id}
+                className="flex items-center justify-between gap-3 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-on">
+                    {event.title}
+                  </p>
+                  <p className="truncate text-xs text-on-dim">
+                    {new Date(event.date).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </p>
+                </div>
+                <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-indigo-600 dark:text-indigo-400">
+                  <FaClipboardCheck className="text-xs" />
+                  {event.attendeeCount}+ attendees
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </BaseCard>
     </div>
   );
 };

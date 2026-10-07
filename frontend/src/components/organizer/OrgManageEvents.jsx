@@ -6,7 +6,7 @@ import {
   isTerminalStatus,
   describeEventLifecycle,
 } from "../../utils/helpers";
-import { FaPlus, FaCalendarAlt, FaMapMarkerAlt, FaClock, FaTrash, FaUndo } from "react-icons/fa";
+import { FaPlus, FaCalendarAlt, FaMapMarkerAlt, FaClock, FaTrash, FaUndo, FaChevronDown, FaChevronRight } from "react-icons/fa";
 import { MdClose } from "react-icons/md";
 import { BsClipboardCheck } from "react-icons/bs";
 import { usePageMeta } from "../../context/PageMetaContext";
@@ -36,6 +36,9 @@ const OrgManageEvents = () => {
   const [viewMode, setViewMode] = useState("my");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [expandedEvent, setExpandedEvent] = useState(null);
+  const [eventGroups, setEventGroups] = useState({});
+  const [loadingGroups, setLoadingGroups] = useState({});
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -58,6 +61,26 @@ const OrgManageEvents = () => {
       .then((res) => setEvents(res.data))
       .catch((err) => console.error(err.response?.data || err.message));
   }, [viewMode]);
+
+  const toggleGroups = async (eventId) => {
+    if (expandedEvent === eventId) {
+      setExpandedEvent(null);
+      return;
+    }
+    setExpandedEvent(eventId);
+    if (!eventGroups[eventId]) {
+      setLoadingGroups((prev) => ({ ...prev, [eventId]: true }));
+      try {
+        const res = await api.get(`/events/${eventId}/attendees/groups`);
+        setEventGroups((prev) => ({ ...prev, [eventId]: res.data || [] }));
+      } catch (err) {
+        console.error(err.response?.data || err.message);
+        setEventGroups((prev) => ({ ...prev, [eventId]: [] }));
+      } finally {
+        setLoadingGroups((prev) => ({ ...prev, [eventId]: false }));
+      }
+    }
+  };
 
   useEffect(() => {
     fetchEvents();
@@ -136,7 +159,8 @@ const OrgManageEvents = () => {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-on-dim">
-          {events.length} {events.length === 1 ? "event" : "events"}
+          {events.length} {events.length === 1 ? "event" : "events"} •{" "}
+          {events.reduce((sum, e) => sum + (e.attendeeCount || 0), 0)} total {events.reduce((sum, e) => sum + (e.attendeeCount || 0), 0) === 1 ? "attendee" : "attendees"}
         </p>
         <Button
           onClick={() => setShowForm(!showForm)}
@@ -403,6 +427,7 @@ const OrgManageEvents = () => {
                   <span className="flex items-center gap-1"><FaMapMarkerAlt /> {event.location || "TBA"}</span>
                   <span className="flex items-center gap-1"><FaCalendarAlt /> {new Date(event.date).toLocaleDateString()}</span>
                   <span className="flex items-center gap-1"><FaClock /> {formatTime12Hour(event.time)}</span>
+                  <span className="flex items-center gap-1"><BsClipboardCheck /> {event.attendeeCount ?? 0}+ {event.attendeeCount === 1 ? "attendee" : "attendees"}</span>
                 </div>
                 <p className="text-xs text-on-muted mb-4">
                   Ends: {new Date(event.endDate || event.date).toLocaleDateString()} at {formatTime12Hour(event.endTime || event.attendanceEndTime)}
@@ -412,6 +437,36 @@ const OrgManageEvents = () => {
                   <p className="text-yellow-400 text-xs">
                     <BsClipboardCheck /> Attendance: {formatTime12Hour(event.attendanceStartTime)} - {formatTime12Hour(event.attendanceEndTime)}
                   </p>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-line">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleGroups(event._id);
+                    }}
+                    className="flex items-center gap-2 text-sm text-on-dim hover:text-on transition-colors"
+                  >
+                    {expandedEvent === event._id ? <FaChevronDown /> : <FaChevronRight />}
+                    Attendees with filtered groups
+                  </button>
+                  {expandedEvent === event._id && (
+                    <div className="mt-3 space-y-2">
+                      {loadingGroups[event._id] ? (
+                        <p className="text-xs text-on-muted">Loading...</p>
+                      ) : (eventGroups[event._id] || []).length > 0 ? (
+                        (eventGroups[event._id] || []).map((g) => (
+                          <div key={g.key || g.label} className="flex items-center justify-between rounded-lg bg-card-alt/40 border border-line px-3 py-2 text-sm">
+                            <span className="text-on-dim">{g.label || "Unassigned"}</span>
+                            <span className="text-on">{g.attended || 0} {g.attended === 1 ? "student" : "students"} have attended</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-on-muted">No groups found.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {viewMode === "all" && event.organizer && (

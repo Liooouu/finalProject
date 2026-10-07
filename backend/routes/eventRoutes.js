@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
 const Event = require("../models/Event");
 const Attendance = require("../models/Attendance");
 const Notification = require("../models/Notification");
@@ -483,7 +484,7 @@ router.get("/:id/attendees", protect, async (req, res) => {
     if (!event) return res.status(404).json({ error: "Event not found" });
 
     const attendees = await Attendance.find({ event: req.params.id })
-      .populate("student", "name email")
+      .populate("student", "name email program yearLevel section")
       .sort({ attendedAt: -1 });
 
     res.json(attendees);

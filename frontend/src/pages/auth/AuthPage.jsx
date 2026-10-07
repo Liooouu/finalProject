@@ -562,10 +562,7 @@ const AuthPage = () => {
                           <option value="">Select Program</option>
                           <option value="BSIT">BSIT</option>
                           <option value="BSCS">BSCS</option>
-                          <option value="IT">IT</option>
-                          <option value="BSIS">BSIS</option>
                           <option value="BSEMC">BSEMC</option>
-                          <option value="OTHER">OTHER</option>
                         </select>
                       </div>
                       <div className="grid grid-cols-2 gap-3">

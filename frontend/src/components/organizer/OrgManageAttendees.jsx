@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { FaUserPlus, FaSearch, FaCheck, FaTimes, FaClock, FaArrowLeft } from "react-icons/fa";
+import { FaUserPlus, FaSearch, FaCheck, FaTimes, FaClock, FaArrowLeft, FaUsers } from "react-icons/fa";
 import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { getUserRole } from "../../utils/auth";
 import Button from "../ui/Button";
+
+const fieldClasses =
+  "w-full rounded-lg border border-line bg-card-alt/60 px-3 py-2 text-sm text-on focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/40";
 
 const OrgManageAttendees = () => {
   const { id: eventId } = useParams();
@@ -20,13 +23,16 @@ const OrgManageAttendees = () => {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [csDrafts, setCsDrafts] = useState({});
+  const [program, setProgram] = useState("");
+  const [yearLevel, setYearLevel] = useState("");
+  const [section, setSection] = useState("");
 
   usePageMeta("Manage Attendees", "Manually add or scan student attendance.");
 
   const fetchData = useCallback(async () => {
     try {
       const [studentsRes, attendeesRes] = await Promise.all([
-        api.get("/admin/users?role=student"),
+        api.get("/admin/users?role=student").catch(() => ({ data: [] })),
         api.get(`/events/${eventId}/attendees`),
       ]);
       setStudents(studentsRes.data || []);
@@ -42,11 +48,39 @@ const OrgManageAttendees = () => {
     fetchData();
   }, [fetchData]);
 
-  const filteredStudents = students.filter(
-    (s) =>
+  const getStudentKey = (s) => {
+    if (!s) return "unassigned";
+    const p = String(s.program || "").trim().toUpperCase();
+    const y = s.yearLevel != null ? String(s.yearLevel) : "";
+    const sec = String(s.section || "").trim().toUpperCase();
+    if (p && y && sec) return `${p}-${y}${sec}`;
+    if (p || y || sec) return "partial";
+    return "unassigned";
+  };
+
+  // The class the organizer is inspecting: built from the program dropdown plus
+  // the year and section inputs (e.g. BSIT + 1 + A -> "BSIT-1A"). Empty until
+  // all three are filled, so no student info shows before a class is chosen.
+  const selectedGroup =
+    program && yearLevel && section.trim()
+      ? `${program}-${yearLevel}${section.trim().toUpperCase()}`
+      : "";
+
+  const filteredByGroupAttendees = attendees.filter((a) => {
+    if (!selectedGroup) return true;
+    const s = a.student;
+    const key = getStudentKey(s);
+    return key === selectedGroup;
+  });
+
+  const filteredStudents = students.filter((s) => {
+    const matchesSearch =
       s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      s.email.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
+    if (!selectedGroup) return true;
+    return getStudentKey(s) === selectedGroup;
+  });
 
   const alreadyAttended = attendees.map((a) => a.student?._id || a.student);
   const availableStudents = filteredStudents.filter(
@@ -137,22 +171,88 @@ const OrgManageAttendees = () => {
         </Button>
       </div>
 
-      <p className="text-sm text-on-dim">
-        {attendees.length} {attendees.length === 1 ? "student" : "students"} checked in
-      </p>
-
       {message && (
         <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${message.includes("success") ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"}`}>
           {message}
         </div>
       )}
 
-      {/* Manual Attendance Section */}
+      {/* Attendees — program/year/section form first; student details only render once a class is chosen */}
       <div className="rounded-xl border border-line bg-card p-6">
         <h2 className="text-xl font-bold text-on mb-4 flex items-center gap-2">
-          <FaUserPlus className="text-indigo-500" />
-          Add Attendance Manually
+          <FaUsers className="text-indigo-500" />
+          Attendees
         </h2>
+
+        <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-on-dim">
+              Program
+            </label>
+            <select
+              value={program}
+              onChange={(e) => setProgram(e.target.value)}
+              className={fieldClasses}
+            >
+              <option value="" disabled hidden />
+              <option value="BSIT">BSIT</option>
+              <option value="BSCS">BSCS</option>
+              <option value="BSEMC">BSEMC</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-on-dim">
+              Year
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={4}
+              placeholder="1 – 4"
+              value={yearLevel}
+              onChange={(e) => setYearLevel(e.target.value)}
+              className={fieldClasses}
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-on-dim">
+              Section
+            </label>
+            <input
+              type="text"
+              maxLength={2}
+              placeholder="A – D"
+              value={section}
+              onChange={(e) =>
+                setSection(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))
+              }
+              className={fieldClasses}
+            />
+          </div>
+        </div>
+
+        {selectedGroup ? (
+          <p className="mt-4 text-sm text-on-dim">
+            Showing students for{" "}
+            <span className="font-semibold text-on">{selectedGroup}</span>
+          </p>
+        ) : (
+          <p className="mt-4 text-sm text-on-muted">
+            Pick a program, year and section to view its students.
+          </p>
+        )}
+      </div>
+
+      {selectedGroup && (
+        <>
+          {/* Manual Attendance Section */}
+          <div className="rounded-xl border border-line bg-card p-6">
+            <h2 className="text-xl font-bold text-on mb-4 flex items-center gap-2">
+              <FaUserPlus className="text-indigo-500" />
+              Add Attendance Manually
+            </h2>
 
         <div className="space-y-4">
           <div>
@@ -288,17 +388,17 @@ const OrgManageAttendees = () => {
         </div>
       </div>
 
-      {/* Current Attendees List */}
-      <div className="rounded-xl border border-line bg-card p-6">
-        <h2 className="text-xl font-bold text-on mb-4">
-          Current Attendees ({attendees.length})
-        </h2>
+{/* Checked-in students of the selected class */}
+          <div className="rounded-xl border border-line bg-card p-6">
+            <h2 className="text-xl font-bold text-on mb-4">
+              Checked-in students ({filteredByGroupAttendees.length})
+            </h2>
 
-        {attendees.length === 0 ? (
-          <EmptyState icon={<FaUserPlus />} title="No attendees yet" description="Students marked present, absent, or late for this event will appear here." />
-        ) : (
+            {filteredByGroupAttendees.length === 0 ? (
+              <EmptyState icon={<FaUsers />} title="No attendees in this class" description="No students checked in for this class yet." />
+            ) : (
           <div className="space-y-3">
-            {attendees.map((attendance) => (
+            {filteredByGroupAttendees.map((attendance) => (
               <div
                 key={attendance._id}
                 className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-card rounded-xl border border-line"
@@ -352,7 +452,9 @@ const OrgManageAttendees = () => {
             ))}
           </div>
         )}
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

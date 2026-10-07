@@ -26,6 +26,9 @@ import EventMap from "./shared/EventMap";
 import MapPicker from "./shared/MapPicker";
 import ConfirmDialog from "./ui/ConfirmDialog";
 
+const fieldClasses =
+  "w-full rounded-lg border border-line bg-card-alt/60 px-3 py-2 text-sm text-on focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/40";
+
 const EventDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -41,6 +44,16 @@ const EventDetails = () => {
   const [studentId, setStudentId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [csDrafts, setCsDrafts] = useState({});
+  const [program, setProgram] = useState("");
+  const [yearLevel, setYearLevel] = useState("");
+  const [section, setSection] = useState("");
+  // Class filter: built from the program dropdown plus the year and section
+  // inputs (e.g. BSIT + 1 + A -> "BSIT-1A"). Stays "all" until all three are
+  // filled, so the full attendee list shows before a class is picked.
+  const selectedGroup =
+    program && yearLevel && section.trim()
+      ? `${program}-${yearLevel}${section.trim().toUpperCase()}`
+      : "all";
 
   usePageMeta(event?.title || "Event", event?.date
     ? new Date(event.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
@@ -142,6 +155,23 @@ const EventDetails = () => {
       setMessage(err.response?.data?.error || "Failed to remove service hours");
     }
   };
+
+  const getStudentKey = (s) => {
+    if (!s) return "unassigned";
+    const p = String(s.program || "").trim().toUpperCase();
+    const y = s.yearLevel != null ? String(s.yearLevel) : "";
+    const sec = String(s.section || "").trim().toUpperCase();
+    if (p && y && sec) return `${p}-${y}${sec}`;
+    if (p || y || sec) return "partial";
+    return "unassigned";
+  };
+
+  const filteredAttendees = (role === "organizer" || role === "admin")
+    ? attendees.filter((a) => {
+        if (selectedGroup === "all") return true;
+        return getStudentKey(a.student) === selectedGroup;
+      })
+    : attendees;
 
   const handleEditChange = (e) => {
     setEditForm({ ...editForm, [e.target.name]: e.target.value });
@@ -585,12 +615,75 @@ const EventDetails = () => {
 
           {/* Attendees Card */}
           <div className="rounded-xl border border-line bg-card p-6">
-            <h2 className="text-xl font-bold text-on mb-6">Attendees ({attendees.length})</h2>
-            {attendees.length === 0 ? (
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-xl font-bold text-on">
+                Attendees with filtered groups
+                {selectedGroup !== "all" && ` (${filteredAttendees.length})`}
+              </h2>
+              <p className="text-xs text-on-muted">
+                {selectedGroup === "all"
+                  ? "Select a program, year level and section to view students"
+                  : `Showing ${selectedGroup}`}
+              </p>
+            </div>
+
+            <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-on-dim">
+                  Program
+                </label>
+                <select
+                  value={program}
+                  onChange={(e) => setProgram(e.target.value)}
+                  className={fieldClasses}
+                >
+                  <option value="" disabled hidden />
+                  <option value="BSIT">BSIT</option>
+                  <option value="BSCS">BSCS</option>
+                  <option value="BSEMC">BSEMC</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-on-dim">
+                  Year level
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={4}
+                  placeholder="1 – 4"
+                  value={yearLevel}
+                  onChange={(e) => setYearLevel(e.target.value)}
+                  className={fieldClasses}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-on-dim">
+                  Section
+                </label>
+                <input
+                  type="text"
+                  maxLength={2}
+                  placeholder="A – D"
+                  value={section}
+                  onChange={(e) =>
+                    setSection(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))
+                  }
+                  className={fieldClasses}
+                />
+              </div>
+            </div>
+            {selectedGroup === "all" ? (
+              <p className="text-on-muted text-center py-8">
+                Fill in the program, year level and section above — student information stays hidden until a class is selected.
+              </p>
+            ) : filteredAttendees.length === 0 ? (
               <p className="text-on-dim text-center py-8">No attendees yet. Scan student QR codes to mark attendance.</p>
             ) : (
               <div className="space-y-3">
-                {attendees.map((attendance) => (
+                {filteredAttendees.map((attendance) => (
                   <div key={attendance._id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-4 bg-card rounded-xl gap-4">
                     <div>
                       <p className="font-medium text-on">{attendance.student?.name}</p>

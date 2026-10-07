@@ -65,6 +65,17 @@ const ManageUsers = () => {
   const isFaceLocked = (u) =>
     !!u && !!u.faceLockUntil && new Date(u.faceLockUntil) > new Date();
 
+  const getGroupLabel = (u) => {
+    if (!u || u.role !== "student") return "-";
+    const p = String(u.program || "").trim().toUpperCase();
+    const y = u.yearLevel != null ? String(u.yearLevel) : "";
+    const sec = String(u.section || "").trim().toUpperCase();
+    if (p && y && sec) return `${p}-${y}${sec}`;
+    return "Unassigned";
+  };
+
+  const PROGRAMS = ["BSIT", "BSCS", "IT", "BSIS", "BSEMC", "OTHER"];
+
   const unlockFace = async (target) => {
     try {
       const res = await api.post(`/admin/users/${target._id}/unlock-face`);
@@ -325,6 +336,7 @@ const ManageUsers = () => {
                   <th className="text-left p-4 font-medium text-on-dim">Name</th>
                   <th className="text-left p-4 font-medium text-on-dim">Email</th>
                   <th className="text-left p-4 font-medium text-on-dim">Role</th>
+                  <th className="text-left p-4 font-medium text-on-dim">Program/Year/Section</th>
                   <th className="text-left p-4 font-medium text-on-dim">Created</th>
                   <th className="text-left p-4 font-medium text-on-dim">Actions</th>
                 </tr>
@@ -352,6 +364,22 @@ const ManageUsers = () => {
                     </td>
                     <td className="p-4 text-on-dim">{user.email}</td>
                     <td className="p-4">{getRoleBadge(user.role)}</td>
+                    <td className="p-4 text-on-dim text-sm">
+                      {user.role === "student" ? (
+                        <div>
+                          <p>{getGroupLabel(user)}</p>
+                          {(user.program || user.yearLevel || user.section) ? (
+                            <p className="text-xs text-on-muted">
+                              {user.program || "?"}-{user.yearLevel ?? "?"}-{user.section || "?"}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-on-muted">Unassigned</p>
+                          )}
+                        </div>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
                     <td className="p-4 text-on-dim text-sm">
                       {new Date(user.createdAt).toLocaleDateString()}
                     </td>
@@ -525,12 +553,17 @@ const ManageUsers = () => {
               </button>
             </div>
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <div className="flex items-center gap-3 mb-6">
+              <div className="flex flex-wrap items-center gap-3 mb-6">
                 <span className="text-sm text-on-dim">Role:</span>
                 {getRoleBadge(selectedUser.role)}
                 <span className="text-sm text-on-dim">
                   Joined: {new Date(selectedUser.createdAt).toLocaleDateString()}
                 </span>
+                {selectedUser.role === "student" && (
+                  <span className="text-sm text-on-dim">
+                    Group: <span className="text-on font-medium">{getGroupLabel(selectedUser)}</span>
+                  </span>
+                )}
               </div>
 
               {selectedUser.role === "student" && (

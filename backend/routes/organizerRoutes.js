@@ -78,14 +78,33 @@ router.get("/stats", protect, async (req, res) => {
     }
 
     const eventIds = events.map(e => e._id);
-    const totalAttendees = await Attendance.countDocuments({ event: { $in: eventIds } });
+    const counts = await Attendance.aggregate([
+      { $match: { event: { $in: eventIds } } },
+      { $group: { _id: "$event", count: { $sum: 1 } } },
+    ]);
+    const countMap = Object.fromEntries(
+      counts.map(c => [c._id.toString(), c.count])
+    );
+
+    const totalAttendees = counts.reduce((sum, c) => sum + c.count, 0);
     const pendingExcuses = await Excuse.countDocuments({ status: "pending" });
     const totalEvents = events.length;
+
+    const attendeesPerEvent = events
+      .map(e => ({
+        _id: e._id,
+        title: e.title,
+        date: e.date,
+        status: e.status,
+        attendeeCount: countMap[e._id.toString()] || 0,
+      }))
+      .sort((a, b) => b.attendeeCount - a.attendeeCount);
 
     res.json({
       totalEvents,
       totalAttendees,
       pendingExcuses,
+      attendeesPerEvent,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
