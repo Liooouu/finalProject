@@ -113,7 +113,14 @@ router.post("/", protect, async (req, res) => {
 router.get("/my-events", protect, async (req, res) => {
   try {
     const events = await Event.find({ organizer: req.user._id });
-    res.json(events);
+    const eventIds = events.map((e) => e._id);
+    const counts = await Attendance.aggregate([
+      { $match: { event: { $in: eventIds } } },
+      { $group: { _id: "$event", count: { $sum: 1 } } },
+    ]);
+    const map = Object.fromEntries(counts.map((c) => [c._id.toString(), c.count]));
+    const withCounts = events.map((e) => ({ ...e.toObject(), attendeeCount: map[e._id.toString()] || 0 }));
+    res.json(withCounts);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -128,7 +135,14 @@ router.get("/all", protect, async (req, res) => {
     const events = await Event.find()
       .populate("organizer", "name email")
       .sort({ createdAt: -1 });
-    res.json(events);
+    const eventIds = events.map((e) => e._id);
+    const counts = await Attendance.aggregate([
+      { $match: { event: { $in: eventIds } } },
+      { $group: { _id: "$event", count: { $sum: 1 } } },
+    ]);
+    const map = Object.fromEntries(counts.map((c) => [c._id.toString(), c.count]));
+    const withCounts = events.map((e) => ({ ...e.toObject(), attendeeCount: map[e._id.toString()] || 0 }));
+    res.json(withCounts);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -473,6 +487,72 @@ router.get("/:id/attendees", protect, async (req, res) => {
       .sort({ attendedAt: -1 });
 
     res.json(attendees);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET ATTENDEES GROUPED BY PROGRAM-YEAR-SECTION (organizer/admin)
+router.get("/:id/attendees/groups", protect, async (req, res) => {
+  try {
+    if (req.user.role !== "organizer" && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    if (req.user.role === "organizer" && event.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: "You are not the organizer of this event" });
+    }
+
+    const groups = await Attendance.aggregate([
+      { $match: { event: new mongoose.Types.ObjectId(req.params.id) } },
+      { $lookup: { from: "users", localField: "student", foreignField: "_id", as: "student" } },
+      { $unwind: "$student" },
+      {
+        $group: {
+          _id: {
+            program: { $ifNull: ["$student.program", ""] },
+            yearLevel: { $ifNull: ["$student.yearLevel", null] },
+            section: { $ifNull: ["$student.section", ""] },
+          },
+          count: { $sum: 1 },
+          present: { $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] } },
+          late: { $sum: { $cond: [{ $eq: ["$status", "late"] }, 1, 0] } },
+          absent: { $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] } },
+          excused: { $sum: { $cond: [{ $eq: ["$status", "excused"] }, 1, 0] } },
+          pending: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
+        },
+      },
+      { $sort: { "_id.program": 1, "_id.yearLevel": 1, "_id.section": 1 } },
+    ]);
+
+    const mapped = groups.map((g) => {
+      const p = g._id.program || "";
+      const yl = g._id.yearLevel;
+      const s = g._id.section || "";
+      const label = p && yl !== null && s ? `${p}-${yl}${s}` : "Unassigned";
+      const key = `${p}|${yl ?? "X"}|${s}`;
+      const attended = (g.present || 0) + (g.late || 0);
+      return {
+        key,
+        label,
+        program: p,
+        yearLevel: yl,
+        section: s,
+        count: g.count,
+        total: g.count,
+        present: g.present || 0,
+        late: g.late || 0,
+        absent: g.absent || 0,
+        excused: g.excused || 0,
+        pending: g.pending || 0,
+        attended,
+      };
+    });
+
+    res.json(mapped);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

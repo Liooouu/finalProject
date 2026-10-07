@@ -102,11 +102,39 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ message: "Email already exists" });
 
     const pin = User.generatePin();
+    let program = req.body.program;
+    let yearLevel = req.body.yearLevel;
+    let section = req.body.section;
+
+    if (!program || !yearLevel || !section) {
+      return res
+        .status(400)
+        .json({ message: "Please fill program, year level, and section" });
+    }
+
+    program = String(program).trim().toUpperCase();
+    section = String(section).trim().toUpperCase();
+    yearLevel = Number(yearLevel);
+
+    const allowedPrograms = ["BSIT", "BSCS", "IT", "BSIS", "BSEMC", "OTHER"];
+    if (!allowedPrograms.includes(program)) {
+      return res.status(400).json({ message: "Invalid program" });
+    }
+    if (!Number.isFinite(yearLevel) || yearLevel < 1 || yearLevel > 4) {
+      return res.status(400).json({ message: "Year level must be between 1 and 4" });
+    }
+    if (!/^[A-Z]{1,2}$/.test(section)) {
+      return res.status(400).json({ message: "Section must be 1–2 letters (e.g., A, B)" });
+    }
+
     const user = new User({
       name,
       email,
       password, // ✅ plain (model will hash)
       role: "student",
+      program,
+      yearLevel,
+      section,
     });
     await user.setPin(pin);
     if (deviceId) user.trustDevice(deviceId, req.body.deviceLabel);

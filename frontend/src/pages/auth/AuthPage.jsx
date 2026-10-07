@@ -113,6 +113,9 @@ const AuthPage = () => {
     name: "",
     email: "",
     password: "",
+    program: "",
+    yearLevel: "",
+    section: "",
   });
 
   // Extra auth steps introduced by the rotating security PIN
@@ -173,11 +176,22 @@ const AuthPage = () => {
           finishAuth(res.data.token, res.data.role);
         }
       } else {
+        const normalizedProgram = String(formData.program || "")
+          .trim()
+          .toUpperCase();
+        const normalizedSection = String(formData.section || "")
+          .trim()
+          .toUpperCase();
+        const yearNum = Number(formData.yearLevel);
+
         const res = await api.post("/auth/register", {
           name: formData.name.trim(),
           email: formData.email.trim(),
           password: formData.password.trim(),
           role: "student",
+          program: normalizedProgram,
+          yearLevel: yearNum,
+          section: normalizedSection,
         });
 
         setPinInfo({
@@ -540,7 +554,39 @@ const AuthPage = () => {
                           required
                         />
                       </div>
-                      <Button type="submit" disabled={loading} className="w-full py-2.5">
+                                        {!isLogin && (
+                    <>
+                      <div className="space-y-1.5">
+                        <label htmlFor="program" className="text-sm font-medium text-on">Program</label>
+                        <select id="program" name="program" value={formData.program} onChange={handleChange} className={inputClasses} required>
+                          <option value="">Select Program</option>
+                          <option value="BSIT">BSIT</option>
+                          <option value="BSCS">BSCS</option>
+                          <option value="IT">IT</option>
+                          <option value="BSIS">BSIS</option>
+                          <option value="BSEMC">BSEMC</option>
+                          <option value="OTHER">OTHER</option>
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label htmlFor="yearLevel" className="text-sm font-medium text-on">Year Level</label>
+                          <select id="yearLevel" name="yearLevel" value={formData.yearLevel} onChange={handleChange} className={inputClasses} required>
+                            <option value="">Select Year</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label htmlFor="section" className="text-sm font-medium text-on">Section</label>
+                          <input id="section" type="text" name="section" value={formData.section} onChange={(e)=>setFormData({...formData,section:e.target.value.toUpperCase()})} placeholder="A" maxLength={2} className={inputClasses} required />
+                        </div>
+                      </div>
+                    </>
+                  )}
+<Button type="submit" disabled={loading} className="w-full py-2.5">
                         {loading ? "Checking..." : "Check my identity"}
                       </Button>
                     </form>
@@ -686,7 +732,39 @@ const AuthPage = () => {
                     </p>
                   </div>
 
-                  <Button type="submit" disabled={loading} className="w-full py-2.5">
+                                    {!isLogin && (
+                    <>
+                      <div className="space-y-1.5">
+                        <label htmlFor="program" className="text-sm font-medium text-on">Program</label>
+                        <select id="program" name="program" value={formData.program} onChange={handleChange} className={inputClasses} required>
+                          <option value="">Select Program</option>
+                          <option value="BSIT">BSIT</option>
+                          <option value="BSCS">BSCS</option>
+                          <option value="IT">IT</option>
+                          <option value="BSIS">BSIS</option>
+                          <option value="BSEMC">BSEMC</option>
+                          <option value="OTHER">OTHER</option>
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label htmlFor="yearLevel" className="text-sm font-medium text-on">Year Level</label>
+                          <select id="yearLevel" name="yearLevel" value={formData.yearLevel} onChange={handleChange} className={inputClasses} required>
+                            <option value="">Select Year</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label htmlFor="section" className="text-sm font-medium text-on">Section</label>
+                          <input id="section" type="text" name="section" value={formData.section} onChange={(e)=>setFormData({...formData,section:e.target.value.toUpperCase()})} placeholder="A" maxLength={2} className={inputClasses} required />
+                        </div>
+                      </div>
+                    </>
+                  )}
+<Button type="submit" disabled={loading} className="w-full py-2.5">
                     {loading ? "Verifying..." : "Verify this device"}
                   </Button>
                 </form>
@@ -810,7 +888,39 @@ const AuthPage = () => {
                     </div>
                   </div>
 
-                  <Button type="submit" disabled={loading} className="w-full py-2.5">
+                                    {!isLogin && (
+                    <>
+                      <div className="space-y-1.5">
+                        <label htmlFor="program" className="text-sm font-medium text-on">Program</label>
+                        <select id="program" name="program" value={formData.program} onChange={handleChange} className={inputClasses} required>
+                          <option value="">Select Program</option>
+                          <option value="BSIT">BSIT</option>
+                          <option value="BSCS">BSCS</option>
+                          <option value="IT">IT</option>
+                          <option value="BSIS">BSIS</option>
+                          <option value="BSEMC">BSEMC</option>
+                          <option value="OTHER">OTHER</option>
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label htmlFor="yearLevel" className="text-sm font-medium text-on">Year Level</label>
+                          <select id="yearLevel" name="yearLevel" value={formData.yearLevel} onChange={handleChange} className={inputClasses} required>
+                            <option value="">Select Year</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label htmlFor="section" className="text-sm font-medium text-on">Section</label>
+                          <input id="section" type="text" name="section" value={formData.section} onChange={(e)=>setFormData({...formData,section:e.target.value.toUpperCase()})} placeholder="A" maxLength={2} className={inputClasses} required />
+                        </div>
+                      </div>
+                    </>
+                  )}
+<Button type="submit" disabled={loading} className="w-full py-2.5">
                     {loading ? (
                       <span className="flex items-center gap-2">
                         <span className="skeleton h-4 w-4 rounded-full" />

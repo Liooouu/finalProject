@@ -74,6 +74,32 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    program: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      enum: ["BSIT", "BSCS", "IT", "BSIS", "BSEMC", "OTHER"],
+      required: function () {
+        return this.role === "student";
+      },
+    },
+    yearLevel: {
+      type: Number,
+      min: 1,
+      max: 4,
+      required: function () {
+        return this.role === "student";
+      },
+    },
+    section: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      required: function () {
+        return this.role === "student";
+      },
+      match: [/^[A-Z]{1,2}$/, "Section must be 1–2 letters (e.g., A, B)"],
+    },
   },
   { timestamps: true }
 );
