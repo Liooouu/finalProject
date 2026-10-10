@@ -120,6 +120,43 @@ const EventDetails = () => {
     fetchData();
   }, [id]);
 
+  // Student: while the QR is showing, keep checking whether the organizer has
+  // scanned it. When attendance is recorded (present/late), return to the
+  // dashboard automatically with a confirmation toast.
+  useEffect(() => {
+    if (role !== "student" || !id || !event || myAttendance) return;
+    let cancelled = false;
+    let intervalId = null;
+
+    const checkAttendance = async () => {
+      try {
+        const res = await api.get("/events/my-attendance");
+        if (cancelled) return;
+        const found = res.data.find(
+          (a) => a.event?._id === id || a.event === id
+        );
+        if (found && (found.status === "present" || found.status === "late")) {
+          setMyAttendance(found);
+          if (intervalId) clearInterval(intervalId);
+          navigate("/student/dashboard", {
+            replace: true,
+            state: { trackedToast: "Attendance successfully recorded!" },
+          });
+        }
+      } catch {
+        // transient blip – keep polling
+      }
+    };
+
+    checkAttendance();
+    intervalId = setInterval(checkAttendance, 4000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [role, id, event, myAttendance, navigate]);
+
   const handleUpdateStatus = async (stdId, status) => {
     try {
       const res = await api.patch(`/events/${id}/attendees/${stdId}`, { status });
@@ -381,13 +418,14 @@ const EventDetails = () => {
                 <p className="text-on font-medium mb-4">Show this QR code to the organizer to scan your attendance</p>
                 <div className="flex justify-center mb-4">
                   {getQRData() && (
-                    <div className="p-4 bg-white rounded-xl">
+                    <div className="w-full max-w-[300px] p-4 bg-white rounded-xl">
                       <QRCodeSVG
                         key={qrRefreshKey}
                         value={getQRData()}
-                        size={200}
+                        size={300}
                         level="M"
                         includeMargin={false}
+                        className="w-full h-auto"
                       />
                     </div>
                   )}
