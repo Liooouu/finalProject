@@ -6,12 +6,18 @@ import { describeCameraError } from "../../utils/camera";
 
 const QRScanner = ({ eventId, onScanSuccess }) => {
   const [isScanning, setIsScanning] = useState(false);
+  // True between clicking Start Scanner and the scanner actually running.
+  // The #qr-reader element must be in the DOM before Html5Qrcode is
+  // constructed, so we render the container first and start on the next render.
+  const [isStarting, setIsStarting] = useState(false);
   const [lastScan, setLastScan] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const scannerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
   const mountedRef = useRef(true);
+
+  const showReader = isScanning || isStarting;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -32,59 +38,77 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
     };
   }, []);
 
-  const startScanner = async () => {
+  const startScanner = () => {
     setError("");
     setSuccess("");
-
-    try {
-      const html5QrCode = new Html5Qrcode("qr-reader");
-      html5QrCodeRef.current = html5QrCode;
-
-      await html5QrCode.start(
-        { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-        },
-        async (decodedText) => {
-          try {
-            const qrData = JSON.parse(decodedText);
-            
-            if (!qrData.eventId || !qrData.studentId) {
-              setError("Invalid QR code format");
-              return;
-            }
-
-            if (qrData.eventId !== eventId) {
-              setError("QR code is not for this event");
-              return;
-            }
-
-            await handleScan(qrData.studentId);
-
-            html5QrCode.pause(true);
-          } catch {
-            setError("Invalid QR code format");
-          }
-        },
-        () => {}
-      );
-
-      if (!mountedRef.current) {
-        await html5QrCode.stop().catch(() => {});
-        try {
-          html5QrCode.clear();
-        } catch {
-          // nothing rendered to clear
-        }
-        return;
-      }
-
-      setIsScanning(true);
-    } catch (err) {
-      if (mountedRef.current) setError(describeCameraError(err));
-    }
+    // Render #qr-reader first; the effect below starts the scanner once it exists.
+    setIsStarting(true);
   };
+
+  useEffect(() => {
+    if (!isStarting) return;
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        const html5QrCode = new Html5Qrcode("qr-reader");
+        html5QrCodeRef.current = html5QrCode;
+
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+          },
+          async (decodedText) => {
+            try {
+              const qrData = JSON.parse(decodedText);
+
+              if (!qrData.eventId || !qrData.studentId) {
+                setError("Invalid QR code format");
+                return;
+              }
+
+              if (qrData.eventId !== eventId) {
+                setError("QR code is not for this event");
+                return;
+              }
+
+              await handleScan(qrData.studentId);
+
+              html5QrCode.pause(true);
+            } catch {
+              setError("Invalid QR code format");
+            }
+          },
+          () => {}
+        );
+
+        if (cancelled || !mountedRef.current) {
+          await html5QrCode.stop().catch(() => {});
+          try {
+            html5QrCode.clear();
+          } catch {
+            // nothing rendered to clear
+          }
+          return;
+        }
+
+        setIsScanning(true);
+      } catch (err) {
+        if (!cancelled && mountedRef.current) setError(describeCameraError(err));
+      } finally {
+        if (!cancelled) setIsStarting(false);
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStarting]);
 
   const stopScanner = async () => {
     if (html5QrCodeRef.current) {
@@ -97,6 +121,7 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
       }
     }
     setIsScanning(false);
+    setIsStarting(false);
   };
 
   const handleScan = async (studentId) => {
@@ -154,7 +179,7 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
         )}
       </div>
 
-      {!isScanning ? (
+      {!showReader ? (
         <button
           onClick={startScanner}
           className="w-full rounded-lg bg-indigo-600 py-2.5 text-white shadow-sm transition-colors hover:bg-indigo-700 active:bg-indigo-800 inline-flex items-center justify-center gap-2 font-medium"

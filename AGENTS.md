@@ -86,13 +86,21 @@ project**: `backend/` and `frontend/`, each built from its own Dockerfile.
   `/app/uploads`; that volume is the only persistent state outside MongoDB.
 - `ADMIN_EMAIL` + `ADMIN_PASSWORD` create the first admin on boot, only when no
   admin exists.
-- **Deploys are manual:** `npm run deploy` (root `scripts/deploy.mjs`) triggers the
-  Coolify build and waits for it, printing each status change; deploy the app whose
-  directory changed. The two GitHub Actions workflows in `.github/workflows/` are
-  **disabled** — Cloudflare's bot protection answers GitHub's datacenter runners with
-  error 1010, so they cannot reach Coolify. The Coolify-side Git webhook is configured
-  and works from a signed local request, but a delivery coming from GitHub is still
-  unverified; check the repository webhook's Recent Deliveries before relying on it.
+- **Deploys are manual.** Redeploy the app whose directory changed — two
+  equivalent paths, both driving the Coolify CLI (which reads its own stored
+  context token, so no token lives in the repo):
+  - `npm run deploy` (root `scripts/deploy.mjs`) — one command that triggers the
+    build and waits: `npm run deploy [-- api|web|both] [--dry-run]` (default
+    both, api first).
+  - `coolify deploy uuid <app-uuid>`, then `coolify deploy get <deployment-uuid>`
+    to watch. UUIDs: `tracked-web` = `wch2xf2obvaazogtim1advqu`,
+    `tracked-api` = `eflvv8s2turwoceyhqwidt5z`.
+- **Pushing to `main` does not deploy.** The two GitHub Actions workflows
+  (`.github/workflows/deploy-*.yml`) are disabled manually, and when run they are
+  blocked by Cloudflare's bot protection — GitHub's datacenter runners get an
+  HTML block page (Cloudflare error 1010) instead of reaching Coolify, which
+  surfaces as `jq: parse error`. GitHub's Git webhook is subject to the same
+  block. Do not rely on push-to-`main`.
 - **`docker compose up --build`** at the repo root runs the whole stack locally
   (web on :8080, api on :5000) for testing the real images.
 

@@ -134,16 +134,46 @@ HTTPS is not optional here — the attendance and face-enrolment screens use
 
 ## Redeploying
 
-Pushing to `main` deploys automatically (see below). You can also press Redeploy
-in the Coolify UI.
+Deploys are **manual**. Redeploy the application whose directory changed — two
+equivalent paths, both driving the Coolify CLI (it reads its own stored context
+token, so no token lives in this repository):
 
-The database and the uploads volume are untouched by a rebuild.
+```bash
+# Option 1 — the deploy script (triggers and waits for the result)
+npm run deploy                 # both, api first
+npm run deploy -- web          # tracked-web  (frontend/ changes)
+npm run deploy -- api          # tracked-api  (backend/ changes)
 
-## Automatic deployment on push to `main`
+# Option 2 — the CLI directly
+coolify deploy uuid wch2xf2obvaazogtim1advqu   # tracked-web
+coolify deploy uuid eflvv8s2turwoceyhqwidt5z   # tracked-api
+coolify deploy get <deployment-uuid>           # watch until status is "finished"
+```
 
-A **manual Git webhook** from GitHub to Coolify is the trigger. One webhook
-serves both applications: Coolify matches a delivery by repository and branch, so
-a push to `main` redeploys `tracked-api` and `tracked-web` together.
+The CLI context is `coolify` → `http://192.168.0.125:8000`; check it with
+`coolify context list`. The Coolify UI's **Deploy** button and the deploy API
+(below) work too. The database and the uploads volume are untouched by a rebuild.
+
+## Push-to-deploy (configured, currently not working)
+
+As of 2026-10-10, **pushing to `main` does not deploy.** Two independent triggers
+are configured, and the same obstacle defeats both: Cloudflare's bot protection
+answers GitHub's datacenter runners with an HTML block page (**Cloudflare error
+1010**) instead of forwarding the request to Coolify.
+
+1. **GitHub Actions workflows** — `.github/workflows/deploy-api.yml` and
+   `deploy-web.yml` each deploy only the app whose directory changed, using the
+   `COOLIFY_URL` and `COOLIFY_TOKEN` repository secrets. They are currently
+   **disabled manually**, and when dispatched they fail with `jq: parse error`
+   (the HTML block page). Re-enabling them changes nothing until a runner can
+   actually reach Coolify (a self-hosted runner, or a tailnet route).
+2. **A manual Git webhook** from GitHub to Coolify — described below. One webhook
+   serves both applications: Coolify matches a delivery by repository and branch,
+   so a push to `main` would redeploy `tracked-api` and `tracked-web` together.
+   It is configured and works from a signed request on the LAN, but a delivery
+   coming from GitHub is subject to the same Cloudflare block.
+
+Until this is resolved, use the manual path in **Redeploying** above.
 
 | Setting | Value |
 |---|---|
@@ -162,6 +192,9 @@ app's rebuild — the same webhook handles it.
 
 ### If a push does not deploy
 
+This is the expected outcome today — both triggers above are blocked; use the
+manual path in **Redeploying** first. To diagnose the webhook itself:
+
 1. **GitHub → Settings → Webhooks → Recent Deliveries.** A 2xx response means
    delivery worked, so look at Coolify's deployment history next. A Cloudflare
    block page (403, or `error code: 1010`) means Cloudflare's bot protection is
@@ -178,24 +211,33 @@ app's rebuild — the same webhook handles it.
 
 ### Deploying by hand
 
+**Option 1 — the deploy script.** `npm run deploy` (root `scripts/deploy.mjs`)
+triggers the build(s) and waits, printing each status change:
+
 ```bash
-npm run deploy                 # both applications
+npm run deploy                 # both applications, api first
 npm run deploy -- api          # tracked-api only  (backend/)
 npm run deploy -- web          # tracked-web only  (frontend/)
 npm run deploy -- --dry-run    # preflight checks only
 ```
 
-`scripts/deploy.mjs` (run through the root `package.json`) drives the `coolify`
-CLI, which uses its own stored context — so no token lives in this repository.
-It refuses to run while you have unpushed commits, because Coolify builds the
-remote branch; it prints each status change, exits non-zero if a deployment
-fails, and points at the deployment page in the Coolify UI.
+It drives the `coolify` CLI (which uses its own stored context, so no token lives
+in this repository), refuses to run while you have unpushed commits — Coolify
+builds the remote branch — exits non-zero when a deployment fails, and points at
+the deployment page in the Coolify UI.
+
+**Option 2 — the `coolify` CLI directly.** Same mechanism, no repo tooling:
+
+```bash
+coolify deploy uuid wch2xf2obvaazogtim1advqu   # tracked-web
+coolify deploy uuid eflvv8s2turwoceyhqwidt5z   # tracked-api
+coolify deploy get <deployment-uuid>           # queued → in_progress → finished
+```
 
 Deploy only the application whose directory changed: they are independent builds,
 and a frontend change never requires rebuilding the API.
 
-The Coolify UI's Deploy button works too, and the deploy webhook is available
-where there is no shell:
+You can also press **Deploy** in the Coolify UI, or call the deploy API directly:
 
 ```bash
 # queues a deployment; poll /api/v1/deployments/<deployment-uuid> for its status
