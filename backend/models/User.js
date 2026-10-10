@@ -3,9 +3,16 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 
+// NOTE: `deviceId` must not be `unique: true`. On a subdocument path Mongoose
+// builds a COLLECTION-WIDE unique index, so every user with no trusted device
+// indexed as `null` and only one such user could exist at all — creating a
+// second account of any role failed with E11000. Uniqueness within a user is
+// enforced in application code by the model's trustDevice()/isDeviceTrusted()
+// helpers. Databases created before this fix get the stale index dropped at
+// boot by services/repairUserIndexes.js.
 const trustedDeviceSchema = new mongoose.Schema(
   {
-    deviceId: { type: String, required: true, unique: true },
+    deviceId: { type: String, required: true },
     label: { type: String, default: "Unknown device" },
     verifiedAt: { type: Date, default: Date.now },
     lastUsedAt: { type: Date, default: Date.now },

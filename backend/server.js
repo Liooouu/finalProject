@@ -8,6 +8,7 @@ require("dotenv").config();
 const connectDB = require("./config/db");
 const { freePort } = require("./scripts/free-port");
 const { ensureAdmin } = require("./seedAdmin");
+const { repairUserIndexes } = require("./services/repairUserIndexes");
 const Event = require("./models/Event");
 const User = require("./models/User");
 const Attendance = require("./models/Attendance");
@@ -80,6 +81,12 @@ app.use((err, req, res, next) => {
 connectDB()
   .then(async () => {
     console.log("MongoDB Connected ✅");
+
+    // ✅ INDEX REPAIRS — a database that ran an older schema keeps indexes whose
+    // definition has since been corrected. Dropping them here means a deploy
+    // heals the database without a manual migration step. Runs before accounts
+    // are created so a first-run admin is never the only account that can exist.
+    await repairUserIndexes();
 
     // ✅ FIRST-RUN ADMIN — only when explicitly configured (Coolify sets
     // ADMIN_EMAIL/ADMIN_PASSWORD). Idempotent: it never touches an existing
