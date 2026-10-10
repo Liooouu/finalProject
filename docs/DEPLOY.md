@@ -166,8 +166,14 @@ Contributors need no credential of their own: the token lives in the repository
 secret, which only the workflow reads. Anyone who can push to `main` therefore
 deploys.
 
-Create a **dedicated** deploy token (Coolify → Keys & Tokens) instead of reusing
-a personal one — its blast radius should be "can deploy", nothing more.
+Create a **dedicated deploy token** (Coolify → Keys & Tokens → API tokens) instead of
+reusing a personal one. Select the **`deploy`** permission only: Coolify's own
+docs describe it as deploying "restarts, stops, cancellations, and deploy
+webhooks", and choosing it creates a deploy-only token. `root` is unnecessary,
+and `read:sensitive` is not needed because the workflow never reads logs or
+secrets. The token is bound to the team that created it, and its owner must be a
+team administrator or owner — create it while logged in as an admin of the team
+that owns this project. Copy the whole value, including the `1|` prefix.
 
 While the secrets are absent, the job prints a warning and skips, so an
 unconfigured repository cannot produce failing builds.
@@ -188,6 +194,12 @@ Application UUIDs: `tracked-api` = `eflvv8s2turwoceyhqwidt5z`,
 Deployment **logs** are only visible in the Coolify UI unless the token also
 carries `read:sensitive`; the workflow prints a link to the deployment page when
 one fails.
+
+Cloudflare fronts `coolify.vispo.me` and filters by client: `curl` and browser
+user agents are served, while e.g. `Python-urllib` receives a Cloudflare 403.
+The workflow uses `curl`. If a run is ever blocked at the Cloudflare layer
+rather than by Coolify, exempt `/api/v1/deploy` from the managed rules for that
+hostname — those are the only API paths the workflow touches.
 
 ### Why not let Coolify watch the repository instead?
 
