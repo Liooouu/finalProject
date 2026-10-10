@@ -3,7 +3,11 @@ import { getToken, clearAuth } from "../utils/auth";
 import { getDeviceId } from "../utils/device";
 
 const api = axios.create({
-  baseURL: "http://localhost:5000/api",
+  // Relative on purpose: in production nginx serves this SPA and proxies /api
+  // to the API container, so the browser only ever talks to one origin. In
+  // development the Vite dev server proxies /api to localhost:5000 (see
+  // vite.config.js). Both mean no build-time API URL and no CORS.
+  baseURL: "/api",
 });
 
 api.interceptors.request.use((config) => {

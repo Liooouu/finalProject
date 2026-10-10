@@ -1,0 +1,13 @@
+# Lockfiles and manifest are copied explicitly by the Dockerfile.
+node_modules
+
+# Runtime user data — never baked into an image. The Dockerfile recreates an
+# empty /app/uploads that the Coolify volume is mounted over.
+uploads
+
+# Secrets are injected by Coolify/Compose at runtime, never copied in.
+.env
+
+cleanup.js
+*.log
+.git

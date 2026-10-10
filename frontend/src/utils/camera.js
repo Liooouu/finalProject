@@ -5,7 +5,9 @@ export const cameraUnavailable = () =>
 
 export const describeCameraError = (err) => {
   if (cameraUnavailable()) {
-    return "This browser can't reach a camera on this page. Open the app at http://localhost:5173 (or over HTTPS) and reload.";
+    // Browsers only expose getUserMedia on a secure context: HTTPS, or
+    // localhost. Say so without hardcoding a host that is wrong in production.
+    return "This browser can't reach a camera on an insecure origin. Open the app over HTTPS (or on localhost during development) and reload.";
   }
 
   const name = (err && err.name) || "";

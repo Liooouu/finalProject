@@ -6,13 +6,13 @@
     "prestart": "node scripts/free-port.js",
     "start": "node server.js",
     "predev": "node scripts/free-port.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "seed:admin": "node seedAdmin.js"
   },
   "dependencies": {
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-node": "npm:@tensorflow/tfjs@^4.22.0",
     "@vladmandic/face-api": "^1.7.15",
-    "bcrypt": "^5.1.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
