@@ -1,7 +1,7 @@
 # Deploys the API to Coolify when backend/ changes on main.
 #
 # Requires two repository secrets (Settings → Secrets and variables → Actions):
-#   COOLIFY_URL    Coolify base URL, e.g. https://coolify.example.com (no trailing slash)
+#   COOLIFY_URL    Coolify base URL, e.g. https://coolify.vispo.me (no trailing slash)
 #   COOLIFY_TOKEN  Coolify API token with the deploy ability
 #
 # Contributors need neither: the token stays in the repository secret, so anyone

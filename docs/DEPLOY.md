@@ -159,7 +159,7 @@ also be started by hand from the Actions tab.
 
 | Secret | Value |
 |---|---|
-| `COOLIFY_URL` | the Coolify base URL, e.g. `https://coolify.example.com` — no trailing slash |
+| `COOLIFY_URL` | the Coolify base URL, e.g. `https://coolify.vispo.me` — no trailing slash |
 | `COOLIFY_TOKEN` | a Coolify API token with the **deploy** ability |
 
 Contributors need no credential of their own: the token lives in the repository
