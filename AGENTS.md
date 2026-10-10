@@ -85,6 +85,10 @@ project**: `backend/` and `frontend/`, each built from its own Dockerfile.
   `/app/uploads`; that volume is the only persistent state outside MongoDB.
 - `ADMIN_EMAIL` + `ADMIN_PASSWORD` create the first admin on boot, only when no
   admin exists.
+- **Pushing to `main` deploys automatically.** GitHub Actions workflows deploy
+  the app whose directory changed (`.github/workflows/deploy-*.yml`); they need
+  `COOLIFY_URL` and `COOLIFY_TOKEN` repository secrets, and skip with a warning
+  when those are unset.
 - **`docker compose up --build`** at the repo root runs the whole stack locally
   (web on :8080, api on :5000) for testing the real images.
 

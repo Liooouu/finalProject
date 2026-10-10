@@ -134,11 +134,81 @@ HTTPS is not optional here — the attendance and face-enrolment screens use
 
 ## Redeploying
 
-Pushing to `main` (or clicking Redeploy) rebuilds the affected application.
+Pushing to `main` deploys automatically (see below). You can also click Redeploy
+in Coolify, or run `scripts/deploy.sh` by hand.
+
 The database and the uploads volume are untouched by a rebuild.
 
 Both applications are independent: a frontend-only change still requires a
 frontend rebuild, because the SPA is baked into its image.
+
+## Continuous deployment on push to `main`
+
+Two workflows deploy the half of the repository that changed:
+
+| Workflow | Trigger | Deploys |
+|---|---|---|
+| `.github/workflows/deploy-api.yml` | push to `main` touching `backend/**` | `tracked-api` |
+| `.github/workflows/deploy-web.yml` | push to `main` touching `frontend/**` | `tracked-web` |
+
+Each triggers the Coolify deployment and polls until it finishes, so a failed
+deployment turns the workflow **red** rather than passing silently. Either can
+also be started by hand from the Actions tab.
+
+**Required repository secrets** (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+|---|---|
+| `COOLIFY_URL` | the Coolify base URL, e.g. `https://coolify.vispo.me` — no trailing slash |
+| `COOLIFY_TOKEN` | a Coolify API token with the **deploy** ability |
+
+Contributors need no credential of their own: the token lives in the repository
+secret, which only the workflow reads. Anyone who can push to `main` therefore
+deploys.
+
+Create a **dedicated deploy token** (Coolify → Keys & Tokens → API tokens) instead of
+reusing a personal one. Select the **`deploy`** permission only: Coolify's own
+docs describe it as deploying "restarts, stops, cancellations, and deploy
+webhooks", and choosing it creates a deploy-only token. `root` is unnecessary,
+and `read:sensitive` is not needed because the workflow never reads logs or
+secrets. The token is bound to the team that created it, and its owner must be a
+team administrator or owner — create it while logged in as an admin of the team
+that owns this project. Copy the whole value, including the `1|` prefix.
+
+While the secrets are absent, the job prints a warning and skips, so an
+unconfigured repository cannot produce failing builds.
+
+### Deploying by hand
+
+Use the Deploy button in Coolify, or the API directly:
+
+```bash
+# queue a deployment, then poll /api/v1/deployments/<deployment-uuid> for its status
+curl -X POST -H "Authorization: Bearer $COOLIFY_TOKEN" \
+  "$COOLIFY_URL/api/v1/deploy?uuid=<app-uuid>"
+```
+
+Application UUIDs: `tracked-api` = `eflvv8s2turwoceyhqwidt5z`,
+`tracked-web` = `wch2xf2obvaazogtim1advqu`.
+
+Deployment **logs** are only visible in the Coolify UI unless the token also
+carries `read:sensitive`; the workflow prints a link to the deployment page when
+one fails.
+
+Cloudflare fronts `coolify.vispo.me` and filters by client: `curl` and browser
+user agents are served, while e.g. `Python-urllib` receives a Cloudflare 403.
+The workflow uses `curl`. If a run is ever blocked at the Cloudflare layer
+rather than by Coolify, exempt `/api/v1/deploy` from the managed rules for that
+hostname — those are the only API paths the workflow touches.
+
+### Why not let Coolify watch the repository instead?
+
+Coolify can deploy on push through a GitHub App or a repository webhook, which
+needs no token in this repository and is tidier when the repository owner can
+install it. This repository is public with no GitHub App integration, and
+creating a webhook needs admin permission on the repository. The workflows above
+need only two secrets, and they show deploy status in the repository where the
+push happened.
 
 ## Troubleshooting
 
