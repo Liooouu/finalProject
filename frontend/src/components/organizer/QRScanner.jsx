@@ -4,6 +4,9 @@ import api from "../../api/axios";
 import { FaCamera, FaTimes, FaCheck, FaExclamationTriangle } from "react-icons/fa";
 import { describeCameraError } from "../../utils/camera";
 
+const statusLabel = (status) =>
+  status ? status.charAt(0).toUpperCase() + status.slice(1) : "";
+
 const QRScanner = ({ eventId, onScanSuccess }) => {
   const [isScanning, setIsScanning] = useState(false);
   // True between clicking Start Scanner and the scanner actually running.
@@ -11,11 +14,19 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
   // constructed, so we render the container first and start on the next render.
   const [isStarting, setIsStarting] = useState(false);
   const [lastScan, setLastScan] = useState(null);
+  const [sessionCount, setSessionCount] = useState(0);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  // Transient confirmation popup shown for every scanned QR (recorded or failed).
+  const [feedback, setFeedback] = useState(null);
   const scannerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
   const mountedRef = useRef(true);
+  // Guards against the camera firing several decodes for the same QR before it
+  // is paused — without this, scan #2 hits "already marked attendance" and the
+  // success message is replaced by an error.
+  const scanLockRef = useRef(false);
+  const resumeTimerRef = useRef(null);
+  const feedbackTimerRef = useRef(null);
 
   const showReader = isScanning || isStarting;
 
@@ -23,6 +34,8 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      clearTimeout(resumeTimerRef.current);
+      clearTimeout(feedbackTimerRef.current);
       const scanner = html5QrCodeRef.current;
       if (scanner) {
         Promise.resolve(scanner.stop())
@@ -38,9 +51,46 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
     };
   }, []);
 
+  const showFeedback = (payload) => {
+    setFeedback(payload);
+    clearTimeout(feedbackTimerRef.current);
+    feedbackTimerRef.current = setTimeout(() => {
+      if (mountedRef.current) setFeedback(null);
+    }, 2800);
+  };
+
+  const pauseScanner = () => {
+    const scanner = html5QrCodeRef.current;
+    if (!scanner) return;
+    try {
+      scanner.pause(true);
+    } catch {
+      // already paused or not running
+    }
+  };
+
+  // Unlock and resume the camera a moment after a decode so the organizer has
+  // time to read the confirmation and move to the next student.
+  const scheduleResume = () => {
+    clearTimeout(resumeTimerRef.current);
+    resumeTimerRef.current = setTimeout(() => {
+      scanLockRef.current = false;
+      const scanner = html5QrCodeRef.current;
+      if (scanner) {
+        try {
+          scanner.resume();
+        } catch {
+          // not paused
+        }
+      }
+    }, 1800);
+  };
+
   const startScanner = () => {
     setError("");
-    setSuccess("");
+    setFeedback(null);
+    setSessionCount(0);
+    scanLockRef.current = false;
     // Render #qr-reader first; the effect below starts the scanner once it exists.
     setIsStarting(true);
   };
@@ -61,25 +111,35 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
             qrbox: { width: 250, height: 250 },
           },
           async (decodedText) => {
+            // Ignore extra frames for the same QR while one is being processed.
+            if (scanLockRef.current) return;
+            scanLockRef.current = true;
+            // Pause the camera up-front so no other frame slips through before
+            // the network round-trip completes.
+            pauseScanner();
+
+            let qrData;
             try {
-              const qrData = JSON.parse(decodedText);
-
-              if (!qrData.eventId || !qrData.studentId) {
-                setError("Invalid QR code format");
-                return;
-              }
-
-              if (qrData.eventId !== eventId) {
-                setError("QR code is not for this event");
-                return;
-              }
-
-              await handleScan(qrData.studentId);
-
-              html5QrCode.pause(true);
+              qrData = JSON.parse(decodedText);
             } catch {
-              setError("Invalid QR code format");
+              showFeedback({ ok: false, message: "Invalid QR code format" });
+              scheduleResume();
+              return;
             }
+
+            if (!qrData.eventId || !qrData.studentId) {
+              showFeedback({ ok: false, message: "Invalid QR code format" });
+              scheduleResume();
+              return;
+            }
+
+            if (qrData.eventId !== eventId) {
+              showFeedback({ ok: false, message: "QR code is not for this event" });
+              scheduleResume();
+              return;
+            }
+
+            await handleScan(qrData.studentId);
           },
           () => {}
         );
@@ -111,6 +171,8 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
   }, [isStarting]);
 
   const stopScanner = async () => {
+    clearTimeout(resumeTimerRef.current);
+    scanLockRef.current = false;
     if (html5QrCodeRef.current) {
       try {
         await html5QrCodeRef.current.stop();
@@ -125,45 +187,69 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
   };
 
   const handleScan = async (studentId) => {
-    setError("");
-    setSuccess("");
-
     try {
       const res = await api.post(`/events/${eventId}/attendance/scan`, {
         studentId,
       });
 
-      const studentName = res.data.attendance.student.name;
-      const status = res.data.attendance.status;
+      const attendance = res.data?.attendance || {};
+      const studentName = attendance.student?.name || "Student";
+      const status = attendance.status || "present";
 
-      setSuccess("Attendance marked!");
       setLastScan({
         name: studentName,
-        status: status,
+        status,
         time: new Date().toLocaleTimeString(),
+      });
+      setSessionCount((c) => c + 1);
+      showFeedback({
+        ok: true,
+        name: studentName,
+        status,
+        message: res.data?.message,
       });
 
       if (onScanSuccess) {
-        onScanSuccess(res.data.attendance);
+        onScanSuccess(attendance);
       }
-
-      setTimeout(() => {
-        if (html5QrCodeRef.current) {
-          html5QrCodeRef.current.resume();
-        }
-      }, 2000);
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to mark attendance");
-      setTimeout(() => {
-        if (html5QrCodeRef.current) {
-          html5QrCodeRef.current.resume();
-        }
-      }, 2000);
+      showFeedback({
+        ok: false,
+        message: err.response?.data?.error || "Failed to mark attendance",
+      });
+    } finally {
+      scheduleResume();
     }
   };
 
   return (
     <div className="rounded-xl border border-line bg-card p-6">
+      {feedback && (
+        <div className="fixed inset-x-0 top-6 z-[100] flex justify-center px-4 pointer-events-none">
+          <div
+            className={`pointer-events-auto flex items-center gap-3 rounded-xl border px-5 py-4 shadow-2xl backdrop-blur ${
+              feedback.ok
+                ? "bg-green-600/95 border-green-400 text-white"
+                : "bg-red-600/95 border-red-400 text-white"
+            }`}
+          >
+            <span className="text-2xl shrink-0">
+              {feedback.ok ? <FaCheck /> : <FaExclamationTriangle />}
+            </span>
+            {feedback.ok ? (
+              <div>
+                <p className="font-bold leading-tight">Attendance recorded</p>
+                <p className="text-sm">
+                  {feedback.name} — {statusLabel(feedback.status)}
+                </p>
+              </div>
+            ) : (
+              <p className="font-semibold text-sm">{feedback.message}</p>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-on flex items-center gap-2">
           <FaCamera className="text-indigo-500" />
@@ -190,9 +276,22 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
       ) : (
         <div className="space-y-4">
           <div id="qr-reader" className="rounded-xl overflow-hidden bg-black" ref={scannerRef} />
-          <p className="text-sm dark:text-gray-400 text-on-muted text-center">
-            Point camera at student's QR code
-          </p>
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="flex items-center gap-2 dark:text-gray-400 text-on-muted">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
+              </span>
+              {isScanning
+                ? "Scanning — point camera at student's QR code"
+                : "Starting camera…"}
+            </span>
+            {sessionCount > 0 && (
+              <span className="shrink-0 text-on-dim font-medium">
+                {sessionCount} scanned this session
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -203,19 +302,22 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
         </div>
       )}
 
-      {success && (
-        <div className="mt-4 p-3 bg-green-500/20 border border-green-500/30 rounded-xl flex items-center gap-2 text-green-400">
-          <FaCheck />
-          <span className="text-sm">{success}</span>
-        </div>
-      )}
-
-      {lastScan && !error && (
-        <div className="mt-4 p-4 bg-green-500/20 border border-green-500/30 rounded-xl text-center">
-          <p className="text-lg font-bold dark:text-white text-on">{lastScan.name}</p>
-          <p className={`text-sm font-medium ${lastScan.status === "present" ? "text-green-400" : "text-yellow-400"}`}>
-            {lastScan.status.charAt(0).toUpperCase() + lastScan.status.slice(1)}
-          </p>
+      {lastScan && (
+        <div className="mt-4 p-4 bg-green-500/10 border border-green-500/30 rounded-xl flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-500/20 text-green-500 text-lg">
+            <FaCheck />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-wide text-on-muted">Last recorded</p>
+            <p className="font-bold text-on truncate">{lastScan.name}</p>
+            <p
+              className={`text-sm font-medium ${
+                lastScan.status === "present" ? "text-green-500" : "text-yellow-500"
+              }`}
+            >
+              {statusLabel(lastScan.status)} · {lastScan.time}
+            </p>
+          </div>
         </div>
       )}
     </div>

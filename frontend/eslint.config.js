@@ -26,4 +26,11 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  // Vite/ESLint config files run in Node, so they need Node globals (process, etc.).
+  {
+    files: ['**/*.config.{js,mjs,cjs}'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 ])
