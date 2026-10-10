@@ -131,10 +131,11 @@ There is no automated test runner in the repository; verification is manual.
 
 ## Deployment
 
-Deploys are **manual**. Redeploy the application whose directory changed with the
-Coolify CLI (or the Coolify UI):
+Deploys are **manual**. Redeploy the application whose directory changed — with
+the deploy script (waits for the result), or the Coolify CLI directly:
 
 ```bash
+npm run deploy                                 # both, api first  (also -- web | -- api)
 coolify deploy uuid wch2xf2obvaazogtim1advqu   # tracked-web  (frontend/)
 coolify deploy uuid eflvv8s2turwoceyhqwidt5z   # tracked-api  (backend/)
 ```

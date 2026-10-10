@@ -134,20 +134,25 @@ HTTPS is not optional here — the attendance and face-enrolment screens use
 
 ## Redeploying
 
-Deploys are **manual**. Redeploy the application whose directory changed with the
-Coolify CLI, which reads its own stored context token (check the target with
-`coolify context list` — this project uses the `coolify` context,
-`http://192.168.0.125:8000`):
+Deploys are **manual**. Redeploy the application whose directory changed — two
+equivalent paths, both driving the Coolify CLI (it reads its own stored context
+token, so no token lives in this repository):
 
 ```bash
-coolify deploy uuid wch2xf2obvaazogtim1advqu   # tracked-web  (frontend/ changes)
-coolify deploy uuid eflvv8s2turwoceyhqwidt5z   # tracked-api  (backend/ changes)
+# Option 1 — the deploy script (triggers and waits for the result)
+npm run deploy                 # both, api first
+npm run deploy -- web          # tracked-web  (frontend/ changes)
+npm run deploy -- api          # tracked-api  (backend/ changes)
 
+# Option 2 — the CLI directly
+coolify deploy uuid wch2xf2obvaazogtim1advqu   # tracked-web
+coolify deploy uuid eflvv8s2turwoceyhqwidt5z   # tracked-api
 coolify deploy get <deployment-uuid>           # watch until status is "finished"
 ```
 
-The Coolify UI's **Deploy** button and the deploy API (below) work too. The
-database and the uploads volume are untouched by a rebuild.
+The CLI context is `coolify` → `http://192.168.0.125:8000`; check it with
+`coolify context list`. The Coolify UI's **Deploy** button and the deploy API
+(below) work too. The database and the uploads volume are untouched by a rebuild.
 
 ## Push-to-deploy (configured, currently not working)
 
@@ -206,8 +211,22 @@ manual path in **Redeploying** first. To diagnose the webhook itself:
 
 ### Deploying by hand
 
-The verified path is the Coolify CLI, which uses its own stored context token so
-nothing needs to be pasted:
+**Option 1 — the deploy script.** `npm run deploy` (root `scripts/deploy.mjs`)
+triggers the build(s) and waits, printing each status change:
+
+```bash
+npm run deploy                 # both applications, api first
+npm run deploy -- api          # tracked-api only  (backend/)
+npm run deploy -- web          # tracked-web only  (frontend/)
+npm run deploy -- --dry-run    # preflight checks only
+```
+
+It drives the `coolify` CLI (which uses its own stored context, so no token lives
+in this repository), refuses to run while you have unpushed commits — Coolify
+builds the remote branch — exits non-zero when a deployment fails, and points at
+the deployment page in the Coolify UI.
+
+**Option 2 — the `coolify` CLI directly.** Same mechanism, no repo tooling:
 
 ```bash
 coolify deploy uuid wch2xf2obvaazogtim1advqu   # tracked-web
@@ -215,7 +234,10 @@ coolify deploy uuid eflvv8s2turwoceyhqwidt5z   # tracked-api
 coolify deploy get <deployment-uuid>           # queued → in_progress → finished
 ```
 
-You can also press **Deploy** in the Coolify UI, or use the deploy API directly:
+Deploy only the application whose directory changed: they are independent builds,
+and a frontend change never requires rebuilding the API.
+
+You can also press **Deploy** in the Coolify UI, or call the deploy API directly:
 
 ```bash
 # queues a deployment; poll /api/v1/deployments/<deployment-uuid> for its status
