@@ -40,7 +40,10 @@ The backend and frontend run as two dev servers. Use two terminals.
 
 ```bash
 cd backend
-npm install
+
+# Clean install from the lockfile. Use `npm ci` (not `npm install`): the repo
+# still tracks an incomplete node_modules, and `npm ci` replaces it wholesale.
+npm ci
 
 # Create the local environment file and fill in a real JWT secret.
 cp .env.example .env
@@ -118,6 +121,9 @@ There is no automated test runner in the repository; verification is manual.
   the automatic stop.
 - **API exits with a MongoDB connection error** — MongoDB is not running at
   `MONGO_URI` (default `mongodb://127.0.0.1:27017/TrackED`). Start it and retry.
+- **Backend crashes with `Cannot find module './connectionstate'`** (or a similar
+  missing-file error) — the repo tracks an incomplete `backend/node_modules`. Run
+  `npm ci` in `backend/` to replace it with a complete tree from the lockfile.
 - **Camera / QR scanner does nothing** — the page must be a secure context.
   `http://localhost` is fine; opening the app from a LAN IP or plain HTTP is not.
 - **Changes to the frontend don't reach the API** — make sure the backend is
