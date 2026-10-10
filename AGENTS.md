@@ -35,7 +35,8 @@ cd frontend && npm run dev
 | `npm run dev` | frontend/ | Start Vite dev server |
 | `npm run lint` | frontend/ | Run ESLint |
 | `npm run build` | frontend/ | Production build |
-| `node seedAdmin.js` | backend/ | Create admin@tracked.com / admin123 |
+| `npm run seed:admin` | backend/ | Create the first admin account |
+| `docker compose up --build` | repo root | Local smoke test of both deployment images |
 
 ## Tailwind CSS
 
@@ -70,4 +71,26 @@ Registration is **student-only**. Organizers must be created by admins.
 
 - MongoDB must be running at `127.0.0.1:27017`
 - Backend `.env` contains `MONGO_URI`, `PORT=5000`, `JWT_SECRET`, `JWT_EXPIRES_IN`
-- Run `node backend/seedAdmin.js` once to create the first admin account
+- Run `npm run seed:admin` once to create the first admin account
+
+## Deployment
+
+Deployed on Coolify as **two applications plus a MongoDB service in one
+project**: `backend/` and `frontend/`, each built from its own Dockerfile.
+
+- The frontend container serves the SPA with nginx and proxies `/api` and
+  `/uploads` to the API over the internal Docker network, so the SPA uses
+  **relative URLs** — no `VITE_*` API URL, no CORS.
+- The API runs on port 5000 as a non-root user with a volume at
+  `/app/uploads`; that volume is the only persistent state outside MongoDB.
+- `ADMIN_EMAIL` + `ADMIN_PASSWORD` create the first admin on boot, only when no
+  admin exists.
+- **`docker compose up --build`** at the repo root runs the whole stack locally
+  (web on :8080, api on :5000) for testing the real images.
+
+Full instructions, environment variables and troubleshooting:
+**`docs/DEPLOY.md`**.
+
+When changing anything that touches URLs or ports, verify it in the containers,
+not just with `npm run dev` — that is exactly how the hardcoded
+`http://localhost:5000` references in the frontend went unnoticed.

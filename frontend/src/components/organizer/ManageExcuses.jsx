@@ -204,13 +204,13 @@ const ManageExcuses = () => {
                         return isImage ? (
                           <a
                             key={idx}
-                            href={`http://localhost:5000${url}`}
+                            href={url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="group block"
                           >
                             <img
-                              src={`http://localhost:5000${url}`}
+                              src={url}
                               alt={`Attachment ${idx + 1}`}
                               className="h-24 w-24 rounded-lg object-cover ring-1 ring-line transition-all group-hover:ring-2 group-hover:ring-indigo-500/50"
                             />
@@ -218,7 +218,7 @@ const ManageExcuses = () => {
                         ) : (
                           <a
                             key={idx}
-                            href={`http://localhost:5000${url}`}
+                            href={url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors"

@@ -1,0 +1,55 @@
+# Local smoke test for the two deployment images. Coolify does not use this
+# file — there, each directory is a separate application (see docs/DEPLOY.md).
+#
+#   docker compose up --build
+#   web   → http://localhost:8080   (nginx: SPA fallback + /api and /uploads proxy)
+#   api   → http://localhost:5000   (direct, as Coolify exposes it)
+#   mongo → mongodb://127.0.0.1:27017
+#
+# The admin credentials below exist only for this throwaway stack.
+services:
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    ports:
+      - "27017:27017"
+
+  api:
+    build: ./backend
+    environment:
+      MONGO_URI: mongodb://mongo:27017/TrackED
+      PORT: "5000"
+      JWT_SECRET: local-smoke-test-only-secret
+      JWT_EXPIRES_IN: 30d
+      TRACKED_NO_AUTO_FREE: "1"
+      ADMIN_EMAIL: admin@tracked.com
+      ADMIN_PASSWORD: local-smoke-admin-password
+      ADMIN_NAME: System Admin
+    volumes:
+      - uploads:/app/uploads
+    # server.js exits when the database is unreachable, so wait for readiness
+    # rather than letting the container die on a cold start.
+    depends_on:
+      mongo:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+
+  web:
+    build: ./frontend
+    environment:
+      BACKEND_URL: http://api:5000
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  mongo-data:
+  uploads:

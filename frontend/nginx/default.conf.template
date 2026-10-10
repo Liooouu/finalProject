@@ -1,0 +1,57 @@
+# Rendered at container start by the nginx image's envsubst entrypoint, which
+# substitutes only real environment variable names — nginx variables such as
+# $uri, $host and $remote_addr are left untouched.
+#
+# BACKEND_URL must have no trailing slash; proxy_pass passes the original URI
+# through unchanged, so /api/... and /uploads/... arrive at the API intact.
+server {
+  listen 80;
+  server_name _;
+
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # multer rejects single files over 5 MB (see the route files); leave headroom
+  # for multipart framing so the API's own error is what the user sees.
+  client_max_body_size 10m;
+
+  gzip on;
+  gzip_vary on;
+  gzip_min_length 1024;
+  gzip_types text/css application/javascript application/json image/svg+xml;
+
+  # Vite emits content-hashed filenames here, so they can be cached forever.
+  location /assets/ {
+    add_header Cache-Control "public, immutable, max-age=31536000";
+  }
+
+  location /api/ {
+    proxy_pass ${BACKEND_URL};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    # Face verification is CPU-bound and can take a few seconds per attempt.
+    proxy_read_timeout 120s;
+  }
+
+  # User uploads: profile pictures, enrolled face photos, excuse attachments.
+  # Filenames are unique per upload and never reused, so they cache briefly.
+  location /uploads/ {
+    proxy_pass ${BACKEND_URL};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    expires 1h;
+  }
+
+  # SPA fallback: client-side routes such as /admin/dashboard/users are not
+  # files on disk, so anything that reaches here is served index.html and
+  # React Router renders the matching screen. API and uploads are matched by
+  # the prefixes above and never fall through to this block.
+  location / {
+    try_files $uri $uri/ /index.html;
+    add_header Cache-Control "no-cache";
+  }
+}

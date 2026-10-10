@@ -1,11 +1,13 @@
-const express = require("express");
 const cors = require("cors");
+const express = require("express");
+const mongoose = require("mongoose");
 const path = require("path");
 const fs = require("fs");
 require("dotenv").config();
 
 const connectDB = require("./config/db");
 const { freePort } = require("./scripts/free-port");
+const { ensureAdmin } = require("./seedAdmin");
 const Event = require("./models/Event");
 const User = require("./models/User");
 const Attendance = require("./models/Attendance");
@@ -54,6 +56,18 @@ app.get("/", (req, res) => {
   res.send("TrackED Backend Running");
 });
 
+// ✅ HEALTH CHECK — used by the container HEALTHCHECK and by Coolify's health
+// probe. Reports database state without failing on it: the process only starts
+// listening after a successful connect, so a failing probe here would only
+// produce restart loops around a database that is already coming back up.
+app.get("/api/health", (req, res) => {
+  res.json({
+    ok: true,
+    db: mongoose.connection.readyState === 1 ? "up" : "down",
+    uptime: Math.round(process.uptime()),
+  });
+});
+
 // ✅ GLOBAL ERROR HANDLER (VERY IMPORTANT)
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err.stack);
@@ -64,8 +78,26 @@ app.use((err, req, res, next) => {
 
 // ✅ CONNECT DB THEN START SERVER
 connectDB()
-  .then(() => {
+  .then(async () => {
     console.log("MongoDB Connected ✅");
+
+    // ✅ FIRST-RUN ADMIN — only when explicitly configured (Coolify sets
+    // ADMIN_EMAIL/ADMIN_PASSWORD). Idempotent: it never touches an existing
+    // admin, so restarts are harmless. Locally these vars are unset and the
+    // manual `npm run seed:admin` remains the way in.
+    if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
+      try {
+        await ensureAdmin({
+          email: process.env.ADMIN_EMAIL,
+          password: process.env.ADMIN_PASSWORD,
+          name: process.env.ADMIN_NAME,
+        });
+      } catch (err) {
+        // A bad seed must not take the API down: the app is still usable by
+        // existing accounts, and the error is visible in the logs.
+        console.error("[seed] Could not create the admin account:", err.message);
+      }
+    }
 
     // ✅ BACKGROUND JOB — keeps event statuses honest and handles attendance.
     //

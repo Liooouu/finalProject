@@ -145,7 +145,7 @@ const ProfileSettings = () => {
               <div className="relative shrink-0">
                 {profile?.profilePicture ? (
                   <img
-                    src={`http://localhost:5000${profile.profilePicture}`}
+                    src={profile.profilePicture}
                     alt="Profile"
                     className="h-20 w-20 rounded-full object-cover ring-4 ring-white/20"
                   />
