@@ -1,0 +1,32 @@
+# Deploys the API to Coolify when backend/ changes on main.
+#
+# Deliberately not triggered by changes to this file: a workflow-only change
+# alters no application code, so there is nothing to deploy.
+#
+# Also runnable by hand from the Actions tab (or with scripts/deploy.sh).
+name: Deploy API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+  workflow_dispatch:
+
+# Never run two deploys of the same app at once; let the running one finish.
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trigger Coolify deployment and wait
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        # api, not all: only this app's code changed.
+        run: ./scripts/deploy.sh api

@@ -134,11 +134,59 @@ HTTPS is not optional here — the attendance and face-enrolment screens use
 
 ## Redeploying
 
-Pushing to `main` (or clicking Redeploy) rebuilds the affected application.
+Pushing to `main` deploys automatically (see below). You can also click Redeploy
+in Coolify, or run `scripts/deploy.sh` by hand.
+
 The database and the uploads volume are untouched by a rebuild.
 
 Both applications are independent: a frontend-only change still requires a
 frontend rebuild, because the SPA is baked into its image.
+
+## Continuous deployment on push to `main`
+
+Two workflows deploy the half of the repository that changed:
+
+| Workflow | Trigger | Deploys |
+|---|---|---|
+| `.github/workflows/deploy-api.yml` | push to `main` touching `backend/**` | `tracked-api` |
+| `.github/workflows/deploy-web.yml` | push to `main` touching `frontend/**` | `tracked-web` |
+
+Both call `scripts/deploy.sh`, which triggers the Coolify deployment and polls
+until it finishes — so a failed deployment turns the workflow red instead of
+failing silently. Either can also be started by hand from the Actions tab.
+
+**Required repository secrets** (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+|---|---|
+| `COOLIFY_URL` | the Coolify base URL, e.g. `https://coolify.example.com` — no trailing slash |
+| `COOLIFY_TOKEN` | a Coolify API token with the **deploy** ability |
+
+Until those exist, nothing fails: `scripts/deploy.sh` detects that it is running
+in CI without credentials, prints a warning and skips the deployment.
+
+Create a **dedicated** token for this (Coolify → Keys & Tokens) instead of
+reusing a personal one. It lives in GitHub's encrypted secrets, but its blast
+radius should still be "can deploy", and nothing more.
+
+### Deploying by hand
+
+```bash
+COOLIFY_URL=https://coolify.example.com COOLIFY_TOKEN=... scripts/deploy.sh api
+COOLIFY_URL=https://coolify.example.com COOLIFY_TOKEN=... scripts/deploy.sh all
+```
+
+It prints each status change and exits non-zero on failure. Deployment **logs**
+are only available in the Coolify UI unless the token also carries
+`read:sensitive`; on failure the script prints a link to the right page.
+
+### Why not let Coolify watch the repository instead?
+
+Coolify can deploy on push through a GitHub App or a repository webhook, which
+is tidier when the repository owner can install it. This repository is public
+with no GitHub App integration, and creating a webhook needs admin permission on
+the repository. The workflows above need neither, and they keep the deploy logic
+in the repository where it can be reviewed.
 
 ## Troubleshooting
 

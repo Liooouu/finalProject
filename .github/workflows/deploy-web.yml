@@ -1,0 +1,32 @@
+# Deploys the web client to Coolify when frontend/ changes on main.
+#
+# The SPA is compiled into this image, so a frontend change always means a
+# rebuild and a new container.
+#
+# Also runnable by hand from the Actions tab (or with scripts/deploy.sh).
+name: Deploy Web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+  workflow_dispatch:
+
+# Never run two deploys of the same app at once; let the running one finish.
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trigger Coolify deployment and wait
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        # web, not all: only this app's code changed.
+        run: ./scripts/deploy.sh web

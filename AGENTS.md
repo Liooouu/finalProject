@@ -36,6 +36,7 @@ cd frontend && npm run dev
 | `npm run lint` | frontend/ | Run ESLint |
 | `npm run build` | frontend/ | Production build |
 | `npm run seed:admin` | backend/ | Create the first admin account |
+| `./scripts/deploy.sh [api\|web\|all]` | repo root | Deploy to Coolify and wait for the result |
 | `docker compose up --build` | repo root | Local smoke test of both deployment images |
 
 ## Tailwind CSS
