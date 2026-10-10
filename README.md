@@ -131,6 +131,14 @@ There is no automated test runner in the repository; verification is manual.
 
 ## Deployment
 
-Merging to `main` deploys automatically: GitHub Actions workflows rebuild only the
-application whose directory changed (see `.github/workflows/`). Full details,
-environment variables and troubleshooting are in `docs/DEPLOY.md`.
+Deploys are **manual**. Redeploy the application whose directory changed with the
+Coolify CLI (or the Coolify UI):
+
+```bash
+coolify deploy uuid wch2xf2obvaazogtim1advqu   # tracked-web  (frontend/)
+coolify deploy uuid eflvv8s2turwoceyhqwidt5z   # tracked-api  (backend/)
+```
+
+Pushing to `main` does **not** deploy: the GitHub Actions workflows are disabled
+and GitHub's datacenter runners are blocked by Cloudflare (error 1010). Full
+details, environment variables and troubleshooting are in `docs/DEPLOY.md`.
