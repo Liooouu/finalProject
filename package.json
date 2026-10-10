@@ -1,0 +1,8 @@
+{
+  "name": "tracked",
+  "private": true,
+  "description": "TrackED monorepo tooling. The applications live in backend/ (Express API) and frontend/ (React SPA); each has its own package.json and Dockerfile.",
+  "scripts": {
+    "deploy": "node scripts/deploy.mjs"
+  }
+}

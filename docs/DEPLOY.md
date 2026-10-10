@@ -178,7 +178,24 @@ app's rebuild — the same webhook handles it.
 
 ### Deploying by hand
 
-Press Deploy in the Coolify UI, or use the deploy webhook:
+```bash
+npm run deploy                 # both applications
+npm run deploy -- api          # tracked-api only  (backend/)
+npm run deploy -- web          # tracked-web only  (frontend/)
+npm run deploy -- --dry-run    # preflight checks only
+```
+
+`scripts/deploy.mjs` (run through the root `package.json`) drives the `coolify`
+CLI, which uses its own stored context — so no token lives in this repository.
+It refuses to run while you have unpushed commits, because Coolify builds the
+remote branch; it prints each status change, exits non-zero if a deployment
+fails, and points at the deployment page in the Coolify UI.
+
+Deploy only the application whose directory changed: they are independent builds,
+and a frontend change never requires rebuilding the API.
+
+The Coolify UI's Deploy button works too, and the deploy webhook is available
+where there is no shell:
 
 ```bash
 # queues a deployment; poll /api/v1/deployments/<deployment-uuid> for its status

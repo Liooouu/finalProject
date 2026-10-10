@@ -36,6 +36,7 @@ cd frontend && npm run dev
 | `npm run lint` | frontend/ | Run ESLint |
 | `npm run build` | frontend/ | Production build |
 | `npm run seed:admin` | backend/ | Create the first admin account |
+| `npm run deploy [-- api\|web\|both]` | repo root | Deploy to Coolify and wait for the result |
 | `docker compose up --build` | repo root | Local smoke test of both deployment images |
 
 ## Tailwind CSS
@@ -85,10 +86,13 @@ project**: `backend/` and `frontend/`, each built from its own Dockerfile.
   `/app/uploads`; that volume is the only persistent state outside MongoDB.
 - `ADMIN_EMAIL` + `ADMIN_PASSWORD` create the first admin on boot, only when no
   admin exists.
-- **Pushing to `main` deploys automatically.** GitHub Actions workflows deploy
-  the app whose directory changed (`.github/workflows/deploy-*.yml`); they need
-  `COOLIFY_URL` and `COOLIFY_TOKEN` repository secrets, and skip with a warning
-  when those are unset.
+- **Deploys are manual:** `npm run deploy` (root `scripts/deploy.mjs`) triggers the
+  Coolify build and waits for it, printing each status change; deploy the app whose
+  directory changed. The two GitHub Actions workflows in `.github/workflows/` are
+  **disabled** — Cloudflare's bot protection answers GitHub's datacenter runners with
+  error 1010, so they cannot reach Coolify. The Coolify-side Git webhook is configured
+  and works from a signed local request, but a delivery coming from GitHub is still
+  unverified; check the repository webhook's Recent Deliveries before relying on it.
 - **`docker compose up --build`** at the repo root runs the whole stack locally
   (web on :8080, api on :5000) for testing the real images.
 
