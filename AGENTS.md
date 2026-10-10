@@ -36,7 +36,6 @@ cd frontend && npm run dev
 | `npm run lint` | frontend/ | Run ESLint |
 | `npm run build` | frontend/ | Production build |
 | `npm run seed:admin` | backend/ | Create the first admin account |
-| `./scripts/deploy.sh [api\|web\|all]` | repo root | Deploy to Coolify and wait for the result |
 | `docker compose up --build` | repo root | Local smoke test of both deployment images |
 
 ## Tailwind CSS
@@ -86,6 +85,10 @@ project**: `backend/` and `frontend/`, each built from its own Dockerfile.
   `/app/uploads`; that volume is the only persistent state outside MongoDB.
 - `ADMIN_EMAIL` + `ADMIN_PASSWORD` create the first admin on boot, only when no
   admin exists.
+- **Pushing to `main` deploys automatically.** GitHub Actions workflows deploy
+  the app whose directory changed (`.github/workflows/deploy-*.yml`); they need
+  `COOLIFY_URL` and `COOLIFY_TOKEN` repository secrets, and skip with a warning
+  when those are unset.
 - **`docker compose up --build`** at the repo root runs the whole stack locally
   (web on :8080, api on :5000) for testing the real images.
 

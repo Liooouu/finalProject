@@ -151,9 +151,9 @@ Two workflows deploy the half of the repository that changed:
 | `.github/workflows/deploy-api.yml` | push to `main` touching `backend/**` | `tracked-api` |
 | `.github/workflows/deploy-web.yml` | push to `main` touching `frontend/**` | `tracked-web` |
 
-Both call `scripts/deploy.sh`, which triggers the Coolify deployment and polls
-until it finishes — so a failed deployment turns the workflow red instead of
-failing silently. Either can also be started by hand from the Actions tab.
+Each triggers the Coolify deployment and polls until it finishes, so a failed
+deployment turns the workflow **red** rather than passing silently. Either can
+also be started by hand from the Actions tab.
 
 **Required repository secrets** (Settings → Secrets and variables → Actions):
 
@@ -162,31 +162,41 @@ failing silently. Either can also be started by hand from the Actions tab.
 | `COOLIFY_URL` | the Coolify base URL, e.g. `https://coolify.example.com` — no trailing slash |
 | `COOLIFY_TOKEN` | a Coolify API token with the **deploy** ability |
 
-Until those exist, nothing fails: `scripts/deploy.sh` detects that it is running
-in CI without credentials, prints a warning and skips the deployment.
+Contributors need no credential of their own: the token lives in the repository
+secret, which only the workflow reads. Anyone who can push to `main` therefore
+deploys.
 
-Create a **dedicated** token for this (Coolify → Keys & Tokens) instead of
-reusing a personal one. It lives in GitHub's encrypted secrets, but its blast
-radius should still be "can deploy", and nothing more.
+Create a **dedicated** deploy token (Coolify → Keys & Tokens) instead of reusing
+a personal one — its blast radius should be "can deploy", nothing more.
+
+While the secrets are absent, the job prints a warning and skips, so an
+unconfigured repository cannot produce failing builds.
 
 ### Deploying by hand
 
+Use the Deploy button in Coolify, or the API directly:
+
 ```bash
-COOLIFY_URL=https://coolify.example.com COOLIFY_TOKEN=... scripts/deploy.sh api
-COOLIFY_URL=https://coolify.example.com COOLIFY_TOKEN=... scripts/deploy.sh all
+# queue a deployment, then poll /api/v1/deployments/<deployment-uuid> for its status
+curl -X POST -H "Authorization: Bearer $COOLIFY_TOKEN" \
+  "$COOLIFY_URL/api/v1/deploy?uuid=<app-uuid>"
 ```
 
-It prints each status change and exits non-zero on failure. Deployment **logs**
-are only available in the Coolify UI unless the token also carries
-`read:sensitive`; on failure the script prints a link to the right page.
+Application UUIDs: `tracked-api` = `eflvv8s2turwoceyhqwidt5z`,
+`tracked-web` = `wch2xf2obvaazogtim1advqu`.
+
+Deployment **logs** are only visible in the Coolify UI unless the token also
+carries `read:sensitive`; the workflow prints a link to the deployment page when
+one fails.
 
 ### Why not let Coolify watch the repository instead?
 
 Coolify can deploy on push through a GitHub App or a repository webhook, which
-is tidier when the repository owner can install it. This repository is public
-with no GitHub App integration, and creating a webhook needs admin permission on
-the repository. The workflows above need neither, and they keep the deploy logic
-in the repository where it can be reviewed.
+needs no token in this repository and is tidier when the repository owner can
+install it. This repository is public with no GitHub App integration, and
+creating a webhook needs admin permission on the repository. The workflows above
+need only two secrets, and they show deploy status in the repository where the
+push happened.
 
 ## Troubleshooting
 

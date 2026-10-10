@@ -1,9 +1,17 @@
 # Deploys the API to Coolify when backend/ changes on main.
 #
-# Deliberately not triggered by changes to this file: a workflow-only change
-# alters no application code, so there is nothing to deploy.
+# Requires two repository secrets (Settings → Secrets and variables → Actions):
+#   COOLIFY_URL    Coolify base URL, e.g. https://coolify.example.com (no trailing slash)
+#   COOLIFY_TOKEN  Coolify API token with the deploy ability
 #
-# Also runnable by hand from the Actions tab (or with scripts/deploy.sh).
+# Contributors need neither: the token stays in the repository secret, so anyone
+# who can push to main deploys without holding a credential of their own.
+#
+# While the secrets are missing the job warns and skips, so an unconfigured
+# repository cannot produce failing builds.
+#
+# Not triggered by changes to this file: a workflow-only change alters no
+# application code, so there is nothing to deploy.
 name: Deploy API
 
 on:
@@ -22,11 +30,53 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Trigger Coolify deployment and wait
+      - name: Trigger the Coolify deployment and wait for it
         env:
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
-        # api, not all: only this app's code changed.
-        run: ./scripts/deploy.sh api
+          APP_UUID: eflvv8s2turwoceyhqwidt5z # tracked-api in Coolify
+          APP_NAME: tracked-api
+        run: |
+          set -euo pipefail
+
+          if [ -z "${COOLIFY_URL:-}" ] || [ -z "${COOLIFY_TOKEN:-}" ]; then
+            echo "::warning::COOLIFY_URL and/or COOLIFY_TOKEN are not set — skipping the deployment."
+            echo "Add them under Settings → Secrets and variables → Actions."
+            exit 0
+          fi
+          COOLIFY_URL="${COOLIFY_URL%/}" # no trailing slash
+          auth=(-H "Authorization: Bearer ${COOLIFY_TOKEN}" -H "Accept: application/json")
+
+          deployment=$(curl -sS "${auth[@]}" -X POST \
+            "${COOLIFY_URL}/api/v1/deploy?uuid=${APP_UUID}" \
+            | jq -r '.deployments[0].deployment_uuid // empty')
+          if [ -z "${deployment}" ]; then
+            echo "::error::Coolify did not queue a deployment for ${APP_NAME}."
+            exit 1
+          fi
+          echo "${APP_NAME}: queued (deployment ${deployment})"
+
+          previous=""
+          for _ in $(seq 1 240); do # 240 × 10s = up to 40 minutes
+            sleep 10
+            body=$(curl -sS "${auth[@]}" "${COOLIFY_URL}/api/v1/deployments/${deployment}")
+            status=$(jq -r '.status // empty' <<<"${body}")
+            if [ "${status}" != "${previous}" ]; then
+              echo "${APP_NAME}: ${status}"
+              previous="${status}"
+            fi
+            case "${status}" in
+              finished)
+                exit 0
+                ;;
+              failed|cancelled)
+                # Deployment logs need the read:sensitive token ability, so link
+                # to the UI instead of trying to fetch them here.
+                echo "::error::Deployment ${status} — inspect at ${COOLIFY_URL}$(jq -r '.deployment_url // ""' <<<"${body}")"
+                exit 1
+                ;;
+            esac
+          done
+
+          echo "::error::${APP_NAME} did not finish within 40 minutes."
+          exit 1
