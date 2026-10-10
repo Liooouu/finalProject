@@ -85,10 +85,19 @@ project**: `backend/` and `frontend/`, each built from its own Dockerfile.
   `/app/uploads`; that volume is the only persistent state outside MongoDB.
 - `ADMIN_EMAIL` + `ADMIN_PASSWORD` create the first admin on boot, only when no
   admin exists.
-- **Pushing to `main` deploys automatically.** GitHub Actions workflows deploy
-  the app whose directory changed (`.github/workflows/deploy-*.yml`); they need
-  `COOLIFY_URL` and `COOLIFY_TOKEN` repository secrets, and skip with a warning
-  when those are unset.
+- **Deploys are manual.** Redeploy the app whose directory changed with the
+  Coolify CLI, which reads its own stored context token:
+  ```bash
+  coolify deploy uuid wch2xf2obvaazogtim1advqu   # tracked-web  (frontend/)
+  coolify deploy uuid eflvv8s2turwoceyhqwidt5z   # tracked-api  (backend/)
+  coolify deploy get <deployment-uuid>           # watch status
+  ```
+- **Pushing to `main` does not deploy.** The two GitHub Actions workflows
+  (`.github/workflows/deploy-*.yml`) are disabled manually, and when run they are
+  blocked by Cloudflare's bot protection — GitHub's datacenter runners get an
+  HTML block page (Cloudflare error 1010) instead of reaching Coolify, which
+  surfaces as `jq: parse error`. GitHub's Git webhook is subject to the same
+  block. Do not rely on push-to-`main`; the CLI path above is what works.
 - **`docker compose up --build`** at the repo root runs the whole stack locally
   (web on :8080, api on :5000) for testing the real images.
 
