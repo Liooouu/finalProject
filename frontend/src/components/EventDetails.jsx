@@ -351,7 +351,7 @@ const EventDetails = () => {
         <EventMap event={event} className="mb-6 h-56 w-full" />
 
         {/* Attendance Window */}
-        <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+        <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
           <p className="dark:text-yellow-400 text-yellow-600 flex items-center gap-2">
             <span><BsClipboardCheck /></span>
             <span className="font-semibold">Attendance Window:</span>{" "}
