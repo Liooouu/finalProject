@@ -81,6 +81,33 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Email verification. New student registrations set this explicitly
+    // (`false` when mail is configured, `true` when it isn't). It deliberately
+    // has NO schema default: Mongoose applies defaults when hydrating documents,
+    // so a default would make every legacy account read back as `false` and lock
+    // existing users out. With no default, docs created before this field existed
+    // stay `undefined`, and application code treats anything other than an
+    // explicit `false` as verified.
+    emailVerified: {
+      type: Boolean,
+      default: undefined,
+    },
+    emailVerificationCodeHash: {
+      type: String,
+      default: "",
+    },
+    emailVerificationExpires: {
+      type: Date,
+      default: null,
+    },
+    emailVerificationAttempts: {
+      type: Number,
+      default: 0,
+    },
+    emailVerificationLastSentAt: {
+      type: Date,
+      default: null,
+    },
     program: {
       type: String,
       trim: true,
@@ -140,6 +167,18 @@ userSchema.methods.setPin = async function (pin) {
 userSchema.methods.comparePin = async function (enteredPin) {
   if (!this.pinHash) return false;
   return await bcrypt.compare(enteredPin, this.pinHash);
+};
+
+// ✅ HASH + STORE THE EMAIL VERIFICATION CODE (same one-way scheme as the PIN)
+userSchema.methods.setEmailCode = async function (code) {
+  const salt = await bcrypt.genSalt(10);
+  this.emailVerificationCodeHash = await bcrypt.hash(String(code), salt);
+};
+
+// ✅ COMPARE AN ENTERED EMAIL VERIFICATION CODE
+userSchema.methods.compareEmailCode = async function (enteredCode) {
+  if (!this.emailVerificationCodeHash) return false;
+  return await bcrypt.compare(String(enteredCode), this.emailVerificationCodeHash);
 };
 
 // ✅ IS THIS DEVICE ALREADY TRUSTED?

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { setAuth } from "../../utils/auth";
@@ -113,17 +113,24 @@ const AuthPage = () => {
     name: "",
     email: "",
     password: "",
+    confirmPassword: "",
     program: "",
     yearLevel: "",
     section: "",
   });
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Extra auth steps introduced by the rotating security PIN
-  const [flow, setFlow] = useState("form"); // "form" | "verifyPin" | "pinPanel" | "forgot" | "enrollFace"
+  const [flow, setFlow] = useState("form"); // "form" | "verifyPin" | "verifyEmail" | "pinPanel" | "forgot" | "enrollFace"
   const [verifyEmail, setVerifyEmail] = useState("");
   const [verifyPin, setVerifyPin] = useState("");
   const [pinInfo, setPinInfo] = useState(null); // { pin, isRotated, message }
   const [pendingAuth, setPendingAuth] = useState(null); // { token, role, next }
+  // Email-verification step (signup only).
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [emailCode, setEmailCode] = useState("");
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
   const [forgotStage, setForgotStage] = useState("form"); // "form" | "capture"
   const [forgotPassword, setForgotPassword] = useState("");
   const [forgotInfo, setForgotInfo] = useState(null); // response of /forgot-pin check
@@ -146,6 +153,61 @@ const AuthPage = () => {
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setError("");
+  };
+
+  // Tick the "resend code" cooldown down once a second.
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
+
+  const startEmailVerification = (email) => {
+    setPendingEmail(email || formData.email.trim());
+    setEmailCode("");
+    setResendIn(60);
+    setError("");
+    setFlow("verifyEmail");
+  };
+
+  const handleVerifyEmail = async (e) => {
+    e.preventDefault();
+    setVerifyLoading(true);
+    setError("");
+    try {
+      const res = await api.post("/auth/verify-email", {
+        email: pendingEmail.trim(),
+        code: emailCode.trim(),
+        deviceId: getDeviceId(),
+        deviceLabel: getDeviceLabel(),
+      });
+
+      setPinInfo({
+        pin: res.data.pin,
+        isRotated: false,
+        message: "Your email is verified. This PIN unlocks future sign-ins from new devices.",
+      });
+      setPendingAuth({ token: res.data.token, role: res.data.role, next: "enroll" });
+      setFlow("pinPanel");
+    } catch (err) {
+      setError(err.response?.data?.message || "Something went wrong.");
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  const handleResendEmail = async () => {
+    if (resendIn > 0 || verifyLoading) return;
+    setVerifyLoading(true);
+    setError("");
+    try {
+      await api.post("/auth/resend-verification", { email: pendingEmail.trim() });
+      setResendIn(60);
+    } catch (err) {
+      setError(err.response?.data?.message || "Something went wrong.");
+    } finally {
+      setVerifyLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -184,6 +246,11 @@ const AuthPage = () => {
           .toUpperCase();
         const yearNum = Number(formData.yearLevel);
 
+        if (formData.password !== formData.confirmPassword) {
+          setError("Passwords do not match");
+          return;
+        }
+
         const res = await api.post("/auth/register", {
           name: formData.name.trim(),
           email: formData.email.trim(),
@@ -194,6 +261,14 @@ const AuthPage = () => {
           section: normalizedSection,
         });
 
+        // Email verification is enforced when the server can send mail.
+        if (res.data.requiresEmailVerification) {
+          startEmailVerification(res.data.email);
+          setFormData({ ...formData, name: "", password: "", confirmPassword: "", email: "" });
+          setShowConfirmPassword(false);
+          return;
+        }
+
         setPinInfo({
           pin: res.data.pin,
           isRotated: false,
@@ -201,10 +276,17 @@ const AuthPage = () => {
         });
         setPendingAuth({ token: res.data.token, role: res.data.role, next: "enroll" });
         setFlow("pinPanel");
-        setFormData({ ...formData, name: "", password: "", email: "" });
+        setFormData({ ...formData, name: "", password: "", confirmPassword: "", email: "" });
+        setShowConfirmPassword(false);
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Something went wrong.");
+      const data = err.response?.data;
+      // Logging in with an unverified account → send them to the code screen.
+      if (data?.requiresEmailVerification) {
+        startEmailVerification(data.email || formData.email.trim());
+        return;
+      }
+      setError(data?.message || "Something went wrong.");
     } finally {
       setLoading(false);
     }
@@ -451,6 +533,84 @@ const AuthPage = () => {
                 onContinue={handlePinPanelContinue}
                 loading={false}
               />
+            ) : flow === "verifyEmail" ? (
+              <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
+                <div className="mb-6 flex items-start gap-3.5">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
+                    <FaShieldAlt />
+                  </span>
+                  <div>
+                    <h1 className="text-xl font-bold tracking-tight text-on">
+                      Verify your email
+                    </h1>
+                    <p className="mt-1.5 text-sm text-on-dim">
+                      We sent a 6-digit code to{" "}
+                      <span className="font-semibold text-on">{pendingEmail}</span>. Enter it below
+                      to finish creating your account.
+                    </p>
+                  </div>
+                </div>
+
+                {error && (
+                  <div
+                    role="alert"
+                    className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
+                  >
+                    {error}
+                  </div>
+                )}
+
+                <form onSubmit={handleVerifyEmail} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label htmlFor="verify-email-code" className="text-sm font-medium text-on">
+                      Verification code
+                    </label>
+                    <input
+                      id="verify-email-code"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      pattern="\d{6}"
+                      value={emailCode}
+                      onChange={(e) => {
+                        setEmailCode(e.target.value.replace(/\D/g, ""));
+                        setError("");
+                      }}
+                      placeholder="••••••"
+                      className={`${inputClasses} text-center text-xl tracking-[0.4em]`}
+                      required
+                    />
+                  </div>
+
+                  <Button type="submit" disabled={verifyLoading} className="w-full py-2.5">
+                    {verifyLoading ? "Verifying..." : "Verify email"}
+                  </Button>
+                </form>
+
+                <div className="mt-4 flex flex-col items-center gap-2 text-sm">
+                  <button
+                    type="button"
+                    onClick={handleResendEmail}
+                    disabled={resendIn > 0 || verifyLoading}
+                    className="font-medium text-on-dim hover:text-on disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFlow("form");
+                      setEmailCode("");
+                      setError("");
+                      setIsLogin(true);
+                    }}
+                    className="font-medium text-on-dim hover:text-on"
+                  >
+                    ← Back to sign in
+                  </button>
+                </div>
+              </div>
             ) : flow === "forgot" ? (
               <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
                 <div className="mb-6 flex items-start gap-3.5">
@@ -884,6 +1044,35 @@ const AuthPage = () => {
                       </button>
                     </div>
                   </div>
+
+                  {!isLogin && (
+                    <div className="space-y-1.5">
+                      <label htmlFor="confirmPassword" className="text-sm font-medium text-on">
+                        Confirm Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="confirmPassword"
+                          type={showConfirmPassword ? "text" : "password"}
+                          name="confirmPassword"
+                          value={formData.confirmPassword}
+                          onChange={handleChange}
+                          placeholder="••••••••"
+                          autoComplete="new-password"
+                          className={`${inputClasses} pr-11`}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword((v) => !v)}
+                          aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-on-muted hover:text-on"
+                        >
+                          {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                                     {!isLogin && (
                     <>

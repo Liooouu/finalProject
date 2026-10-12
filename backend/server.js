@@ -12,7 +12,7 @@ const { repairUserIndexes } = require("./services/repairUserIndexes");
 const Event = require("./models/Event");
 const User = require("./models/User");
 const Attendance = require("./models/Attendance");
-const Notification = require("./models/Notification");
+const { notifyUsers, eventRecipients } = require("./services/notify");
 const {
   STATUS,
   OPEN_STATUS_FILTER,
@@ -140,18 +140,16 @@ connectDB()
 
           await Event.findByIdAndUpdate(event._id, { status: STATUS.LIVE });
 
-          const recipients = await User.find({ role: { $in: ["student", "admin"] } }).select("_id");
+          const recipients = await eventRecipients(event);
           if (recipients.length > 0) {
             const { type, title, message } = eventLiveNotification(event);
-            await Notification.insertMany(
-              recipients.map((u) => ({
-                user: u._id,
-                type,
-                title,
-                message,
-                relatedEvent: event._id,
-              }))
-            );
+            await notifyUsers(recipients, {
+              type,
+              title,
+              message,
+              relatedEvent: event._id,
+              event,
+            });
           }
           console.log(`[lifecycle] "${event.title}" is now live (auto)`);
         }
@@ -192,15 +190,14 @@ connectDB()
               });
               await attendance.save();
 
-              // Send notification to student
-              const notification = new Notification({
-                user: student._id,
+              // Notify the student (in-app + email)
+              await notifyUsers([student], {
                 type: "penalty",
                 title: "Marked Absent",
                 message: `You were marked as absent for event "${event.title}". 8 community service hours have been added to your community service hours.`,
                 relatedEvent: event._id,
+                event,
               });
-              await notification.save();
             }
           }
         }
@@ -215,7 +212,7 @@ connectDB()
         for (const event of todaysEvents) {
           let changed = false;
 
-          const allStudents = await User.find({ role: "student" }).select("_id");
+          const allStudents = await User.find({ role: "student" }).select("_id name email");
 
           const notifyNonAttendees = async (title, message, type) => {
             const attendeeIds = new Set(
@@ -227,29 +224,25 @@ connectDB()
               (s) => !attendeeIds.has(s._id.toString())
             );
             if (missing.length === 0) return;
-            await Notification.insertMany(
-              missing.map((s) => ({
-                user: s._id,
-                type,
-                title,
-                message,
-                relatedEvent: event._id,
-              }))
-            );
+            await notifyUsers(missing, {
+              type,
+              title,
+              message,
+              relatedEvent: event._id,
+              event,
+            });
           };
 
           // Attendance window just opened
           if (!event.openNotified && currentTime >= event.attendanceStartTime) {
             if (allStudents.length > 0) {
-              await Notification.insertMany(
-                allStudents.map((s) => ({
-                  user: s._id,
-                  type: "attendance",
-                  title: "Attendance Open",
-                  message: `Attendance is now open for "${event.title}". Mark your attendance before ${event.attendanceEndTime}.`,
-                  relatedEvent: event._id,
-                }))
-              );
+              await notifyUsers(allStudents, {
+                type: "attendance",
+                title: "Attendance Open",
+                message: `Attendance is now open for "${event.title}". Mark your attendance before ${event.attendanceEndTime}.`,
+                relatedEvent: event._id,
+                event,
+              });
             }
             event.openNotified = true;
             changed = true;
@@ -298,17 +291,15 @@ connectDB()
         });
 
         for (const event of upcomingEvents) {
-          const students = await User.find({ role: "student" }).select("_id");
+          const students = await User.find({ role: "student" }).select("_id name email");
           if (students.length > 0) {
-            await Notification.insertMany(
-              students.map((s) => ({
-                user: s._id,
-                type: "info",
-                title: "Upcoming Event Reminder",
-                message: `Don't forget: "${event.title}" is happening on ${new Date(event.date).toLocaleDateString()} at ${event.time}${event.location ? ` (${event.location})` : ""}.`,
-                relatedEvent: event._id,
-              }))
-            );
+            await notifyUsers(students, {
+              type: "info",
+              title: "Upcoming Event Reminder",
+              message: `Don't forget: "${event.title}" is happening on ${new Date(event.date).toLocaleDateString()} at ${event.time}${event.location ? ` (${event.location})` : ""}.`,
+              relatedEvent: event._id,
+              event,
+            });
           }
           event.upcomingNotified = true;
           await event.save();

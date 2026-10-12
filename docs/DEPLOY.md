@@ -78,6 +78,25 @@ uploads. If you must use a bind mount, `chown -R 1000:1000` the host directory.
 | `ADMIN_PASSWORD` | a strong, unique password |
 | `ADMIN_NAME` | e.g. `System Admin` |
 
+**Email notifications + signup verification (optional):**
+
+Set these to also email event notifications to the address each user registered
+with, and to make new students **verify their email with a 6-digit code** before
+their account is active. Use a Gmail account with **2-Step Verification on** and
+an **App Password** (Google Account → Security → App passwords). While they are
+unset, notifications stay in-app only, signups skip the verification step, and
+the API logs no mail.
+
+| Key | Value |
+|---|---|
+| `SMTP_HOST` | `smtp.gmail.com` |
+| `SMTP_PORT` | `465` |
+| `SMTP_SECURE` | `true` |
+| `SMTP_USER` | the sending Gmail address |
+| `SMTP_PASS` | its 16-character App Password |
+| `MAIL_FROM` | `TrackED <the sending Gmail address>` |
+| `APP_URL` | `https://track-ed.vispo.me` (used in the email's button) |
+
 The API creates the admin account on first boot **only when `ADMIN_EMAIL` and
 `ADMIN_PASSWORD` are both set**, and only if no admin exists yet. Restarts and
 redeploys are safe: it never touches an existing admin account, and it refuses

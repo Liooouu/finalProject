@@ -10,6 +10,8 @@ const User = require("../models/User");
 const FaceAppeal = require("../models/FaceAppeal");
 const faceMatcher = require("../services/faceMatcher");
 const { notifyAdmins } = require("../services/notifyAdmins");
+const { sendMail, isMailEnabled } = require("../services/mailer");
+const { renderVerificationEmail } = require("../services/emailTemplate");
 const { protect, authorize } = require("../middleware/authMiddleware");
 
 const LOCK_ATTEMPTS = 5;
@@ -17,7 +19,43 @@ const LOCK_MINUTES = 5;
 const FACE_LOCK_ATTEMPTS = 3;
 const FACE_LOCK_MINUTES = 5;
 
+// Email-verification policy.
+const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
+const EMAIL_CODE_MAX_ATTEMPTS = 5;
+const EMAIL_RESEND_COOLDOWN_MS = 60 * 1000;
+
 const getDeviceId = (req) => req.headers["x-device-id"] || req.body.deviceId || "";
+
+// Mint a fresh 6-digit code, store its hash + expiry, and email it. Any prior
+// code is replaced, so only the newest email can be used.
+async function issueEmailCode(user) {
+  const code = User.generatePin();
+  await user.setEmailCode(code);
+  user.emailVerificationExpires = new Date(Date.now() + EMAIL_CODE_TTL_MS);
+  user.emailVerificationAttempts = 0;
+  user.emailVerificationLastSentAt = new Date();
+  await user.save();
+
+  const { html, text } = renderVerificationEmail({ name: user.name, code });
+  const sent = await sendMail({
+    to: user.email,
+    subject: `Your TrackED verification code`,
+    html,
+    text,
+  });
+
+  // Mail is enabled but the send failed (bad credentials, provider outage).
+  // The student can't complete signup without the code, so outside production
+  // print it to the server console to keep the flow testable. Never do this in
+  // production — a verification code in the logs is a security leak.
+  if (!sent && process.env.NODE_ENV !== "production") {
+    console.warn(
+      `[mail] Verification email NOT sent to ${user.email}. DEV-ONLY code: ${code}`
+    );
+  }
+
+  return code;
+}
 
 // Temporary upload for recovery selfies (deleted right after processing).
 const recoveryStorage = multer.diskStorage({
@@ -87,7 +125,10 @@ const rejectIfLocked = (user, res) => {
 
 // -------------------- REGISTER (STUDENT ONLY) --------------------
 // The system mints the security PIN (students never choose it) and shows it
-// once in the response so the student can record it.
+// once in the response so the student can record it. When email sending is
+// configured the account stays inactive until the student enters the 6-digit
+// code we email them; when it isn't configured (e.g. local dev) the student is
+// auto-verified and signed in exactly as before.
 router.post("/register", async (req, res) => {
   const { name, email, password } = req.body;
   const deviceId = getDeviceId(req);
@@ -97,9 +138,22 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ message: "Please fill all fields" });
     }
 
+    const mailEnabled = isMailEnabled();
     const existingUser = await User.findOne({ email });
-    if (existingUser)
+
+    if (existingUser) {
+      // A student who started signup while verification was on but never
+      // finished can request a fresh code — we don't touch their password.
+      if (existingUser.emailVerified === false && mailEnabled) {
+        await issueEmailCode(existingUser);
+        return res.status(200).json({
+          message: "We re-sent your verification code. Check your inbox.",
+          requiresEmailVerification: true,
+          email: existingUser.email,
+        });
+      }
       return res.status(400).json({ message: "Email already exists" });
+    }
 
     const pin = User.generatePin();
     let program = req.body.program;
@@ -135,23 +189,146 @@ router.post("/register", async (req, res) => {
       program,
       yearLevel,
       section,
+      emailVerified: !mailEnabled,
     });
     await user.setPin(pin);
     if (deviceId) user.trustDevice(deviceId, req.body.deviceLabel);
 
     await user.save();
 
-    console.log("Registered student:", email, "| PIN assigned");
+    // No mail configured → keep the original instant-signup behaviour.
+    if (!mailEnabled) {
+      console.log("Registered student:", email, "| PIN assigned (email verification off)");
+      return res.status(201).json({
+        message: "User registered successfully",
+        token: signToken(user),
+        role: user.role,
+        pin,
+        deviceTrusted: !!deviceId,
+      });
+    }
+
+    await issueEmailCode(user);
+    console.log("Registered student (awaiting email verification):", email);
 
     res.status(201).json({
-      message: "User registered successfully",
+      message: "We emailed you a 6-digit code to finish creating your account.",
+      requiresEmailVerification: true,
+      email: user.email,
+    });
+  } catch (err) {
+    console.error("REGISTER ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// -------------------- VERIFY EMAIL (STUDENT, AFTER REGISTER) --------------------
+// Exchanges the emailed 6-digit code for a token + the security PIN, continuing
+// the normal onboarding flow (show PIN → enroll face).
+router.post("/verify-email", async (req, res) => {
+  const { email, code, deviceLabel } = req.body;
+  const deviceId = getDeviceId(req);
+
+  try {
+    if (!email || !code) {
+      return res.status(400).json({ message: "Please enter the code we emailed you." });
+    }
+    if (!/^\d{6}$/.test(String(code))) {
+      return res.status(400).json({ message: "Invalid verification code" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user || user.emailVerified !== false) {
+      return res.status(400).json({ message: "Invalid or expired verification code" });
+    }
+
+    if (
+      !user.emailVerificationCodeHash ||
+      !user.emailVerificationExpires ||
+      user.emailVerificationExpires <= new Date()
+    ) {
+      return res.status(400).json({ message: "That code has expired. Request a new one." });
+    }
+
+    const ok = await user.compareEmailCode(String(code));
+    if (!ok) {
+      user.emailVerificationAttempts = (user.emailVerificationAttempts || 0) + 1;
+      let message = "Incorrect verification code";
+      if (user.emailVerificationAttempts >= EMAIL_CODE_MAX_ATTEMPTS) {
+        user.emailVerificationCodeHash = "";
+        user.emailVerificationExpires = null;
+        user.emailVerificationAttempts = 0;
+        message = "Too many attempts. Request a new code.";
+      } else {
+        message += ` (${EMAIL_CODE_MAX_ATTEMPTS - user.emailVerificationAttempts} attempts left)`;
+      }
+      await user.save();
+      return res.status(400).json({ message });
+    }
+
+    // Success — activate the account and complete onboarding.
+    user.emailVerified = true;
+    user.emailVerificationCodeHash = "";
+    user.emailVerificationExpires = null;
+    user.emailVerificationAttempts = 0;
+
+    const pin = user.pinPlain || User.generatePin();
+    if (!user.pinPlain) await user.setPin(pin);
+    if (deviceId) user.trustDevice(deviceId, deviceLabel);
+
+    await user.save();
+    console.log("Email verified:", email);
+
+    res.json({
+      message: "Email verified successfully",
       token: signToken(user),
       role: user.role,
       pin,
       deviceTrusted: !!deviceId,
     });
   } catch (err) {
-    console.error("REGISTER ERROR:", err);
+    console.error("VERIFY EMAIL ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// -------------------- RESEND VERIFICATION CODE --------------------
+router.post("/resend-verification", async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    if (!email) return res.status(400).json({ message: "Email is required" });
+    if (!isMailEnabled()) {
+      return res.status(400).json({ message: "Email sending is not configured." });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user || user.emailVerified !== false) {
+      return res.status(400).json({ message: "No pending verification for this email." });
+    }
+
+    if (
+      user.emailVerificationLastSentAt &&
+      Date.now() - user.emailVerificationLastSentAt.getTime() < EMAIL_RESEND_COOLDOWN_MS
+    ) {
+      const wait = Math.ceil(
+        (EMAIL_RESEND_COOLDOWN_MS -
+          (Date.now() - user.emailVerificationLastSentAt.getTime())) /
+          1000
+      );
+      return res
+        .status(429)
+        .json({ message: `Please wait ${wait}s before requesting another code.` });
+    }
+
+    await issueEmailCode(user);
+    res.json({
+      message: "We sent a new verification code.",
+      requiresEmailVerification: true,
+      email: user.email,
+    });
+  } catch (err) {
+    console.error("RESEND VERIFICATION ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -171,6 +348,21 @@ router.post("/login", async (req, res) => {
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(400).json({ message: "Invalid password" });
+
+    // Email not verified yet. If mail is configured, block login and let the
+    // frontend route to the code screen; if mail is off, auto-verify so nobody
+    // gets stranded (this only happens when SMTP was disabled after signup).
+    if (user.emailVerified === false) {
+      if (isMailEnabled()) {
+        return res.status(403).json({
+          message: "Please verify your email to continue. We can send you a new code.",
+          requiresEmailVerification: true,
+          email: user.email,
+        });
+      }
+      user.emailVerified = true;
+      await user.save();
+    }
 
     // Non-students skip device verification entirely
     if (user.role !== "student") {

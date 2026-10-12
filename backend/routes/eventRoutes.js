@@ -3,8 +3,8 @@ const router = express.Router();
 const mongoose = require("mongoose");
 const Event = require("../models/Event");
 const Attendance = require("../models/Attendance");
-const Notification = require("../models/Notification");
 const User = require("../models/User");
+const { notifyUsers, eventRecipients } = require("../services/notify");
 const { protect } = require("../middleware/authMiddleware");
 const {
   STATUS,
@@ -90,19 +90,14 @@ router.post("/", protect, async (req, res) => {
 
     await event.save();
 
-    // Announce the new event to all students and admins
-    const recipients = await User.find({ role: { $in: ["student", "admin"] } }).select("_id");
-    if (recipients.length > 0) {
-      await Notification.insertMany(
-        recipients.map((u) => ({
-          user: u._id,
-          type: "info",
-          title: "New Event Posted",
-          message: `A new event "${event.title}" has been posted for ${new Date(event.date).toLocaleDateString()} at ${event.time}.`,
-          relatedEvent: event._id,
-        }))
-      );
-    }
+    // Announce the new event to students, admins and the organizer
+    await notifyUsers(await eventRecipients(event), {
+      type: "info",
+      title: "New Event Posted",
+      message: `A new event "${event.title}" has been posted for ${new Date(event.date).toLocaleDateString()} at ${event.time}.`,
+      relatedEvent: event._id,
+      event,
+    });
 
     res.status(201).json(event);
   } catch (err) {
@@ -181,19 +176,14 @@ router.patch("/:id/status", protect, async (req, res) => {
 
     // Announce when an event goes live
     if (status === STATUS.LIVE && oldEvent.status !== STATUS.LIVE) {
-      const recipients = await User.find({ role: { $in: ["student", "admin"] } }).select("_id");
-      if (recipients.length > 0) {
-        const { type, title, message } = eventLiveNotification(event);
-        await Notification.insertMany(
-          recipients.map((u) => ({
-            user: u._id,
-            type,
-            title,
-            message,
-            relatedEvent: event._id,
-          }))
-        );
-      }
+      const { type, title, message } = eventLiveNotification(event);
+      await notifyUsers(await eventRecipients(event), {
+        type,
+        title,
+        message,
+        relatedEvent: event._id,
+        event,
+      });
     }
 
     res.json(event);
@@ -350,14 +340,13 @@ router.post("/:id/attendance", protect, async (req, res) => {
     }
 
     if (status === "late") {
-      const notification = new Notification({
-        user: req.user._id,
+      await notifyUsers([req.user], {
         type: "attendance",
         title: "Marked Late",
         message: `You were late for event "${event.title}".${replacedExcuse ? " Your approved excuse was replaced since you attended." : ""} 4 community service hours have been added to your community service hours.`,
         relatedEvent: event._id,
+        event,
       });
-      await notification.save();
     }
 
     res.status(201).json({
@@ -450,14 +439,13 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
     }
 
     if (status === "late") {
-      const notification = new Notification({
-        user: studentId,
+      await notifyUsers([student], {
         type: "attendance",
         title: "Marked Late",
         message: `You were marked as late for event "${event.title}" by the organizer. 4 community service hours have been added to your community service hours.`,
         relatedEvent: event._id,
+        event,
       });
-      await notification.save();
     }
 
     const populatedAttendance = await Attendance.findById(attendance._id)
@@ -626,14 +614,13 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
     }
 
     if (status === "late" || status === "absent") {
-      const notification = new Notification({
-        user: req.params.studentId,
+      await notifyUsers([req.params.studentId], {
         type: status === "late" ? "attendance" : "penalty",
         title: status === "late" ? "Marked Late" : "Marked Absent",
         message: `You were marked as ${status} for event "${event.title}" by the organizer. ${communityServiceHours} community service hours have been added to your community service hours.`,
         relatedEvent: event._id,
+        event,
       });
-      await notification.save();
     }
 
     const populated = await Attendance.findById(attendance._id)
@@ -695,14 +682,13 @@ router.patch("/:id/attendees/:studentId/community-service", protect, async (req,
     attendance.communityServiceHours = hours;
     await attendance.save();
 
-    const notification = new Notification({
-      user: req.params.studentId,
+    await notifyUsers([req.params.studentId], {
       type: "penalty",
       title: "Community Service Hours Updated",
       message: `Your community service hours for "${event.title}" have been set to ${hours} hour(s) by the organizer.`,
       relatedEvent: event._id,
+      event,
     });
-    await notification.save();
 
     const populated = await Attendance.findById(attendance._id).populate("student", "name email");
     res.json(populated);
@@ -742,14 +728,13 @@ router.patch("/:id/attendees/:studentId/community-service/remove", protect, asyn
         await rec.save();
       }
 
-      const notification = new Notification({
-        user: studentId,
+      await notifyUsers([studentId], {
         type: "penalty",
         title: "Community Service Removed",
         message: "Your community service hours have been removed by the organizer.",
         relatedEvent: event._id,
+        event,
       });
-      await notification.save();
 
       const populated = await Attendance.findById(attendance._id).populate("student", "name email");
       return res.json(populated);
@@ -774,14 +759,13 @@ router.patch("/:id/attendees/:studentId/community-service/remove", protect, asyn
       await attendance.save();
     }
 
-    const notification = new Notification({
-      user: studentId,
+    await notifyUsers([studentId], {
       type: "penalty",
       title: "Community Service Hours Removed",
       message: `${removed} community service hour(s) have been removed from your record by the organizer.`,
       relatedEvent: event._id,
+      event,
     });
-    await notification.save();
 
     const populated = await Attendance.findById(attendance._id).populate("student", "name email");
     res.json(populated);
@@ -845,14 +829,13 @@ router.post("/:id/attendees/manual", protect, async (req, res) => {
 
     if (status === "late" || status === "absent") {
       const hours = status === "late" ? 4 : 8;
-      const notification = new Notification({
-        user: studentId,
+      await notifyUsers([student], {
         type: status === "late" ? "attendance" : "penalty",
         title: status === "late" ? "Marked Late" : "Marked Absent",
         message: `You were marked as ${status} for event "${event.title}" by the organizer. ${hours} community service hours have been added to your community service hours.`,
         relatedEvent: event._id,
+        event,
       });
-      await notification.save();
     }
 
     const populatedAttendance = await Attendance.findById(attendance._id)
@@ -933,19 +916,14 @@ router.put("/:id", protect, async (req, res) => {
 
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    // Notify students and admins that event details changed
-    const recipients = await User.find({ role: { $in: ["student", "admin"] } }).select("_id");
-    if (recipients.length > 0) {
-      await Notification.insertMany(
-        recipients.map((u) => ({
-          user: u._id,
-          type: "info",
-          title: "Event Updated",
-          message: `Details of "${event.title}" were updated. Check the latest schedule.`,
-          relatedEvent: event._id,
-        }))
-      );
-    }
+    // Notify students, admins and the organizer that event details changed
+    await notifyUsers(await eventRecipients(event), {
+      type: "info",
+      title: "Event Updated",
+      message: `Details of "${event.title}" were updated. Check the latest schedule.`,
+      relatedEvent: event._id,
+      event,
+    });
 
     res.json(event);
   } catch (err) {
