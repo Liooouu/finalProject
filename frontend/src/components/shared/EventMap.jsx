@@ -5,7 +5,7 @@ import { eventMapEmbedUrl, eventDirectionsUrl, eventStreetViewUrl } from "../../
 const linkClasses =
   "inline-flex items-center gap-2 rounded-lg border border-line bg-card px-3.5 py-2 text-sm font-medium text-on-dim transition-colors hover:bg-card-alt hover:text-on";
 
-const EventMap = ({ event, className = "h-56 w-full", placeholder = true, frame = true }) => {
+const EventMap = ({ event, className = "h-56 w-full", placeholder = true, frame = true, fill = false }) => {
   const url = eventMapEmbedUrl(event);
   const directionsUrl = eventDirectionsUrl(event);
   const streetViewUrl = eventStreetViewUrl(event);
@@ -14,7 +14,9 @@ const EventMap = ({ event, className = "h-56 w-full", placeholder = true, frame 
     if (!placeholder) return null;
     return (
       <div
-        className={`flex items-center justify-center overflow-hidden rounded-xl border border-dashed border-line px-4 text-center text-sm text-on-muted ${className}`}
+        className={`flex items-center justify-center overflow-hidden rounded-xl border border-dashed border-line px-4 text-center text-sm text-on-muted ${
+          fill ? "h-full" : ""
+        } ${className}`}
       >
         No map location set
       </div>
@@ -22,9 +24,11 @@ const EventMap = ({ event, className = "h-56 w-full", placeholder = true, frame 
   }
 
   return (
-    <div className="space-y-2">
+    <div className={fill ? "flex h-full min-h-0 flex-col gap-2" : "space-y-2"}>
       <div
-        className={`overflow-hidden ${frame ? "rounded-xl border border-line bg-card-alt" : ""} ${className}`}
+        className={`overflow-hidden ${fill ? "min-h-0 flex-1" : ""} ${
+          frame ? "rounded-xl border border-line bg-card-alt" : ""
+        } ${className}`}
       >
         <iframe
           title="Event location map"

@@ -251,11 +251,12 @@ const windowCutoff = () => {
                   ))}
                 </ul>
 
-                <div className="mt-5 flex w-auto flex-1 flex-col overflow-hidden rounded-xl border border-line p-2">
+                <div className="mt-5 flex min-h-[220px] w-auto flex-1 flex-col overflow-hidden rounded-xl border border-line p-2">
                   <EventMap
                     event={upcomingEvents[selectedUpcoming]}
                     frame={false}
-                    className="h-full w-full max-w-none rounded-lg"
+                    fill
+                    className="w-full rounded-lg"
                   />
                 </div>
               </div>
