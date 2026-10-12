@@ -42,7 +42,11 @@ services:
       - "5000:5000"
 
   web:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        # Public Maps Embed API key (optional); empty keeps maps keyless.
+        VITE_GOOGLE_MAPS_EMBED_KEY: ${VITE_GOOGLE_MAPS_EMBED_KEY:-}
     environment:
       BACKEND_URL: http://api:5000
     depends_on:

@@ -15,6 +15,14 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+
+# Public Google Maps Embed API key, inlined into the bundle by Vite at build
+# time. Supplied as a build arg (Coolify "build variable" / docker-compose
+# build args). Empty means the SPA keeps keyless maps and outbound Google Maps
+# links. See frontend/.env.example.
+ARG VITE_GOOGLE_MAPS_EMBED_KEY=
+ENV VITE_GOOGLE_MAPS_EMBED_KEY=$VITE_GOOGLE_MAPS_EMBED_KEY
+
 RUN npm run build
 
 FROM nginx:alpine

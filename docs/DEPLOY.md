@@ -119,14 +119,28 @@ to promote an unrelated account that happens to own that email address.
 | Key | Value |
 |---|---|
 | `BACKEND_URL` | `http://tracked-api:5000` |
+| `VITE_GOOGLE_MAPS_EMBED_KEY` | *(build-time, optional — see below)* |
 
-Set this to `http://` + the API application's **name** in Coolify + `:5000`. No
+`BACKEND_URL`: `http://` + the API application's **name** in Coolify + `:5000`. No
 trailing slash. If the name differs, this one variable is the only change
 needed — restart the container, no rebuild. If the API name ever changes,
 double-check here.
 
-No `VITE_*` variables exist on purpose: the SPA calls `/api` and `/uploads`
-relatively and nginx forwards them.
+`VITE_GOOGLE_MAPS_EMBED_KEY` is an **optional** build variable, not a runtime
+one: Vite inlines it during `npm run build`, so set it under the app's build
+settings and **rebuild** after changing it. The event map's *Get directions*
+and *Street View* buttons open in-app dialogs whether or not it is set: without
+it they use Google's keyless embed URLs (Street View's is unofficial), with it
+they use the official Maps Embed API, which is more reliable. It is the only
+`VITE_*` variable and it is public (baked into the bundle), so restrict it
+in Google Cloud: Application restriction = **HTTP referrers** (add
+`https://track-ed.vispo.me/*` and `http://localhost:5173/*`), API restriction =
+**Maps Embed API only**. Creating it needs a Google Cloud project with billing
+enabled, though Embed API usage itself is free and unlimited. See
+`frontend/.env.example`.
+
+Otherwise the SPA calls `/api` and `/uploads` relatively and nginx forwards them
+— no runtime `VITE_*` variables exist.
 
 ## 4. Cloudflare Tunnel
 
