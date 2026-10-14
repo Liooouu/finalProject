@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import { getUserFromToken, logout } from "../../utils/auth";
+import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
 import { FaUser, FaLock, FaImage, FaCheck, FaTimes, FaDoorOpen } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { BaseCard } from "../ui";
@@ -79,6 +80,10 @@ const ProfileSettings = () => {
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
+    if (!isStrongPassword(passwordForm.newPassword)) {
+      showMessage(PASSWORD_MESSAGE, "error");
+      return;
+    }
     try {
       await api.patch("/account/password", passwordForm);
       setPasswordForm({ currentPassword: "", newPassword: "" });
@@ -248,6 +253,7 @@ const ProfileSettings = () => {
                     className={inputClasses}
                     required
                   />
+                  <p className="text-xs text-on-muted">{PASSWORD_HINT}</p>
                 </div>
                 <div className="flex gap-3">
                   <Button type="submit">

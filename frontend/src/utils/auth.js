@@ -17,6 +17,33 @@ export const setAuth = (token, role) => {
   localStorage.setItem("token", token);
   if (role && ROLES.includes(role)) {
     localStorage.setItem(`token_${role}`, token);
+    localStorage.setItem("last_role", role);
+  }
+};
+
+// Remember which role the user is actually working with right now. The bare
+// "/" URL has no /student|/organizer|/admin prefix to tell tabs apart, and the
+// generic "token" is simply whoever logged in last — so without this, pasting
+// the base address bounced people into whichever dashboard happened to win the
+// last login (usually the organizer, when testing multiple roles).
+export const markRoleActive = (role) => {
+  if (role && ROLES.includes(role)) localStorage.setItem("last_role", role);
+};
+
+// Role of the account the user last *used* (not just last logged in), but only
+// if that account still has a live, unexpired token. Returns null otherwise so
+// callers can fall back.
+export const getLastActiveRole = () => {
+  const last = localStorage.getItem("last_role");
+  if (!last || !ROLES.includes(last)) return null;
+  const token = localStorage.getItem(`token_${last}`);
+  if (!token) return null;
+  try {
+    const payload = jwtDecode(token);
+    if (payload?.exp && payload.exp * 1000 <= Date.now()) return null;
+    return last;
+  } catch {
+    return null;
   }
 };
 
@@ -37,6 +64,7 @@ export const clearAuth = () => {
 
 export const clearAllAuth = () => {
   localStorage.removeItem("token");
+  localStorage.removeItem("last_role");
   ROLES.forEach((role) => localStorage.removeItem(`token_${role}`));
 };
 
@@ -45,7 +73,12 @@ export const getUserFromToken = () => {
   if (!token) return null;
 
   try {
-    return jwtDecode(token);
+    const payload = jwtDecode(token);
+    // An expired token is no different from no token: treat it as logged out
+    // so routes decide on the spot instead of loading a dashboard that can
+    // only answer 401.
+    if (payload?.exp && payload.exp * 1000 <= Date.now()) return null;
+    return payload;
   } catch {
     return null;
   }

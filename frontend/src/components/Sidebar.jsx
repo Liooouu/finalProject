@@ -11,6 +11,7 @@ import {
   FaClock,
   FaTimes,
   FaShieldAlt,
+  FaKey,
 } from "react-icons/fa";
 import TrackMark from "./shared/TrackMark";
 import { portalName } from "../utils/nav";
@@ -21,6 +22,7 @@ const menuItems = {
     { name: "Create Organizer", path: "/admin/dashboard/create-organizer", icon: <FaUserPlus /> },
     { name: "Manage Events", path: "/admin/dashboard/events", icon: <FaCalendarAlt /> },
     { name: "Manage Users", path: "/admin/dashboard/users", icon: <FaUsers /> },
+    { name: "PIN Reset Requests", path: "/admin/dashboard/pin-resets", icon: <FaKey /> },
     { name: "Attendance Report", path: "/admin/dashboard/reports", icon: <FaChartBar /> },
     { name: "Notifications", path: "/admin/dashboard/notifications", icon: <FaBell /> },
   ],
@@ -28,6 +30,7 @@ const menuItems = {
     { name: "Dashboard", path: "/organizer/dashboard", icon: <FaHome /> },
     { name: "Manage Events", path: "/organizer/dashboard/events", icon: <FaCalendarAlt /> },
     { name: "Manage Excuses", path: "/organizer/dashboard/excuses", icon: <FaEdit /> },
+    { name: "PIN Reset Requests", path: "/organizer/dashboard/pin-resets", icon: <FaKey /> },
     { name: "Notifications", path: "/organizer/dashboard/notifications", icon: <FaBell /> },
   ],
   student: [

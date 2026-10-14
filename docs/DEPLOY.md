@@ -157,7 +157,9 @@ HTTPS is not optional here — the attendance and face-enrolment screens use
 ## 5. First-deploy checklist
 
 1. Both applications report **Running / Healthy**.
-2. `https://track-ed-api.vispo.me/api/health` → `{"ok":true,"db":"up",...}`.
+2. `https://track-ed-api.vispo.me/api/health` → `{"ok":true,"db":"up",...}`. Its
+   `mail` field reads `"on"` once the SMTP variables below are set, `"off"`
+   otherwise — a quick way to confirm email is wired up on the API.
 3. `https://track-ed.vispo.me` → the login screen, no console errors.
 4. Log in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`, then change that password.
 5. Hard-refresh a deep link (`/admin/dashboard/users`) — it must render, not 404.

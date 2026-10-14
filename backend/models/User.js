@@ -108,6 +108,25 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Password reset ("Forgot Password?"). Same one-code-at-a-time scheme as
+    // email verification, kept on separate fields so a pending signup code is
+    // never clobbered by a reset request (and vice versa).
+    passwordResetCodeHash: {
+      type: String,
+      default: "",
+    },
+    passwordResetExpires: {
+      type: Date,
+      default: null,
+    },
+    passwordResetAttempts: {
+      type: Number,
+      default: 0,
+    },
+    passwordResetLastSentAt: {
+      type: Date,
+      default: null,
+    },
     program: {
       type: String,
       trim: true,
@@ -179,6 +198,18 @@ userSchema.methods.setEmailCode = async function (code) {
 userSchema.methods.compareEmailCode = async function (enteredCode) {
   if (!this.emailVerificationCodeHash) return false;
   return await bcrypt.compare(String(enteredCode), this.emailVerificationCodeHash);
+};
+
+// ✅ HASH + STORE THE PASSWORD RESET CODE (separate from the signup code)
+userSchema.methods.setPasswordCode = async function (code) {
+  const salt = await bcrypt.genSalt(10);
+  this.passwordResetCodeHash = await bcrypt.hash(String(code), salt);
+};
+
+// ✅ COMPARE AN ENTERED PASSWORD RESET CODE
+userSchema.methods.comparePasswordCode = async function (enteredCode) {
+  if (!this.passwordResetCodeHash) return false;
+  return await bcrypt.compare(String(enteredCode), this.passwordResetCodeHash);
 };
 
 // ✅ IS THIS DEVICE ALREADY TRUSTED?

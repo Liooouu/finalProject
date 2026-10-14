@@ -26,9 +26,6 @@ import EventMap from "./shared/EventMap";
 import MapPicker from "./shared/MapPicker";
 import ConfirmDialog from "./ui/ConfirmDialog";
 
-const fieldClasses =
-  "w-full rounded-lg border border-line bg-card-alt/60 px-3 py-2 text-sm text-on focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/40";
-
 const EventDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -517,22 +514,28 @@ const EventDetails = () => {
                   className="h-64"
                 />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <input
-                    type="date"
-                    name="date"
-                    value={editForm.date}
-                    onChange={handleEditChange}
-                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                    required
-                  />
-                  <input
-                    type="time"
-                    name="time"
-                    value={editForm.time}
-                    onChange={handleEditChange}
-                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                    required
-                  />
+                  <div>
+                    <label className="block text-xs text-on-muted mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      name="date"
+                      value={editForm.date}
+                      onChange={handleEditChange}
+                      className="field-datetime"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-on-muted mb-1">Start Time</label>
+                    <input
+                      type="time"
+                      name="time"
+                      value={editForm.time}
+                      onChange={handleEditChange}
+                      className="field-datetime"
+                      required
+                    />
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <input
@@ -540,7 +543,7 @@ const EventDetails = () => {
                     name="attendanceStartTime"
                     value={editForm.attendanceStartTime}
                     onChange={handleEditChange}
-                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                    className="field-datetime"
                     required
                   />
                   <input
@@ -548,7 +551,7 @@ const EventDetails = () => {
                     name="attendanceEndTime"
                     value={editForm.attendanceEndTime}
                     onChange={handleEditChange}
-                    className="bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                    className="field-datetime"
                     required
                   />
                 </div>
@@ -560,7 +563,7 @@ const EventDetails = () => {
                       name="endDate"
                       value={editForm.endDate || ""}
                       onChange={handleEditChange}
-                      className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                      className="field-datetime"
                     />
                   </div>
                   <div>
@@ -570,7 +573,7 @@ const EventDetails = () => {
                       name="endTime"
                       value={editForm.endTime || ""}
                       onChange={handleEditChange}
-                      className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                      className="field-datetime"
                     />
                   </div>
                   <p className="text-xs text-on-muted">
@@ -581,7 +584,7 @@ const EventDetails = () => {
                   name="status"
                   value={editForm.status}
                   onChange={handleEditChange}
-                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  className="field-select"
                 >
                   <option value="upcoming">Upcoming</option>
                   <option value="live">Live</option>
@@ -673,7 +676,7 @@ const EventDetails = () => {
                 <select
                   value={program}
                   onChange={(e) => setProgram(e.target.value)}
-                  className={fieldClasses}
+                  className="field-select"
                 >
                   <option value="" disabled hidden />
                   <option value="BSIT">BSIT</option>
@@ -693,7 +696,7 @@ const EventDetails = () => {
                   placeholder="1 – 4"
                   value={yearLevel}
                   onChange={(e) => setYearLevel(e.target.value)}
-                  className={fieldClasses}
+                  className="field-select"
                 />
               </div>
 
@@ -709,7 +712,7 @@ const EventDetails = () => {
                   onChange={(e) =>
                     setSection(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))
                   }
-                  className={fieldClasses}
+                  className="field-select"
                 />
               </div>
             </div>

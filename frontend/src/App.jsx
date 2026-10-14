@@ -1,7 +1,10 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
+import { getUserFromToken, getLastActiveRole } from "./utils/auth";
+import { ROLE_PATHS } from "./utils/nav";
 
+import LandingPage from "./pages/LandingPage";
 import AuthPage from "./pages/auth/AuthPage";
 import StudentDashboard from "./pages/StudentDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -23,13 +26,33 @@ import ManageExcuses from "./components/organizer/ManageExcuses";
 
 import ProfileSettings from "./components/settings/ProfileSettings";
 
+// Pre-login front page. Anyone with a live token skips the marketing and
+// lands on their own dashboard; a missing or expired token gets the landing.
+// "/" itself has no role prefix, so we can't use the contextual token here —
+// prefer the role the user was last actually working in (markRoleActive keeps
+// that fresh), and only fall back to the generic token's role. Otherwise
+// pasting the base URL randomly dumped people into the organizer dashboard
+// whenever an organizer login happened to be the most recent one.
+function LandingRoute() {
+  const lastRole = getLastActiveRole();
+  if (lastRole && ROLE_PATHS[lastRole]) {
+    return <Navigate to={ROLE_PATHS[lastRole]} replace />;
+  }
+  const user = getUserFromToken();
+  if (user?.role && ROLE_PATHS[user.role]) {
+    return <Navigate to={ROLE_PATHS[user.role]} replace />;
+  }
+  return <LandingPage />;
+}
+
 function App() {
   return (
     <ThemeProvider>
     <Routes>
-      <Route path="/" element={<Navigate to="/auth" />} />
+      <Route path="/" element={<LandingRoute />} />
 
-      <Route path="/auth" element={<AuthPage />} />
+        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/auth/signup" element={<AuthPage />} />
 
       <Route element={<ProtectedRoute allowedRoles={["student"]} />}>
         <Route path="/student/dashboard/*" element={<StudentDashboard />} />

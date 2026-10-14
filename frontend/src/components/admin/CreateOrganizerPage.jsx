@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import api from "../../api/axios";
 import { usePageMeta } from "../../context/PageMetaContext";
+import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
 import { FaUserPlus } from "react-icons/fa";
 import Button from "../ui/Button";
 
@@ -29,8 +30,8 @@ const CreateOrganizerPage = () => {
 
     if (!form.password) {
       newErrors.password = "Password is required";
-    } else if (form.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
+    } else if (!isStrongPassword(form.password)) {
+      newErrors.password = PASSWORD_MESSAGE;
     }
 
     setErrors(newErrors);
@@ -202,7 +203,7 @@ const CreateOrganizerPage = () => {
               <p className="mt-1 text-sm dark:text-red-400 text-red-600">{errors.password}</p>
             )}
             <p className="mt-1 text-xs text-on-muted">
-              Minimum 6 characters. Use "Generate" for a secure random password.
+              {PASSWORD_HINT}. Use &quot;Generate&quot; for a secure random password.
             </p>
           </div>
 

@@ -120,4 +120,42 @@ function renderVerificationEmail({ name, code }) {
   return { html, text };
 }
 
-module.exports = { renderNotificationEmail, renderVerificationEmail };
+// Password-reset email ("Forgot Password?"). Shares the code layout with the
+// verification email, but the copy tells the recipient this is a password
+// change and what to do if they didn't ask for it.
+function renderPasswordResetEmail({ name, code }) {
+  const url = appUrl();
+  const greeting = name ? `Hi ${escapeHtml(name)},` : "Hi,";
+  const safeCode = escapeHtml(code);
+
+  const ctaHtml = url
+    ? `<a href="${url}" style="display:inline-block;margin-top:22px;background:#4f46e5;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:11px 22px;border-radius:10px;">Open ${APP_NAME}</a>`
+    : "";
+
+  const html = `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <div style="max-width:520px;margin:0 auto;padding:28px 16px;">
+      <div style="background:#ffffff;border-radius:16px;padding:28px;border:1px solid #e5e7eb;">
+        <p style="margin:0 0 18px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#4f46e5;font-weight:700;">${APP_NAME}</p>
+        <h1 style="margin:0 0 12px;font-size:20px;color:#111827;">Reset your password</h1>
+        <p style="margin:0;font-size:15px;line-height:1.6;color:#374151;">${greeting} Use the code below to choose a new password for your ${APP_NAME} account.</p>
+        <div style="margin:22px 0;padding:16px;border-radius:12px;border:1px dashed #a5b4fc;background:#eef2ff;text-align:center;">
+          <span style="font-size:32px;font-weight:700;letter-spacing:.35em;color:#312e81;">${safeCode}</span>
+        </div>
+        <p style="margin:0;font-size:14px;line-height:1.6;color:#6b7280;">This code expires in 10 minutes. If you didn't try to reset your password, you can safely ignore this email — your password stays unchanged.</p>
+        ${ctaHtml}
+      </div>
+      <p style="margin:16px 0 0;text-align:center;font-size:12px;color:#9ca3af;">You are receiving this because a password reset was requested for this ${APP_NAME} account. Please do not reply to this email.</p>
+    </div>
+  </body>
+</html>`;
+
+  const text = `Reset your password\n\n${greeting} Use the code below to choose a new password for your ${APP_NAME} account.\n\n    ${code}\n\nThis code expires in 10 minutes. If you didn't try to reset your password, you can safely ignore this email — your password stays unchanged.${
+    url ? `\n\nOpen ${APP_NAME}: ${url}` : ""
+  }`;
+
+  return { html, text };
+}
+
+module.exports = { renderNotificationEmail, renderVerificationEmail, renderPasswordResetEmail };

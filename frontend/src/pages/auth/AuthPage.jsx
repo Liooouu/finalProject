@@ -1,68 +1,37 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import api from "../../api/axios";
 import { setAuth } from "../../utils/auth";
 import { getDeviceId, getDeviceLabel } from "../../utils/device";
+import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
 import {
   FaEye,
   FaEyeSlash,
   FaArrowRight,
-  FaQrcode,
-  FaClock,
-  FaBell,
-  FaChartBar,
   FaShieldAlt,
   FaKey,
   FaCamera,
+  FaArrowLeft,
 } from "react-icons/fa";
 import TrackMark from "../../components/shared/TrackMark";
 import AppBackground from "../../components/shared/AppBackground";
+import BrandMark from "../../components/shared/BrandMark";
+import features from "../../data/features";
 import Button from "../../components/ui/Button";
 import FaceCapture from "../../components/auth/FaceCapture";
 import { useTheme } from "../../context/ThemeContext";
 import techDark from "../../assets/images/tech-bg-dark.jpg";
 import techLight from "../../assets/images/tech-bg-light.jpg";
 
-const features = [
-  {
-    icon: <FaQrcode />,
-    title: "QR & map check-in",
-    desc: "Scan your code or mark attendance in one tap.",
-  },
-  {
-    icon: <FaClock />,
-    title: "Community service hours",
-    desc: "Earn and track every required hour.",
-  },
-  {
-    icon: <FaBell />,
-    title: "Real-time notifications",
-    desc: "Instant updates on events, excuses, and statuses.",
-  },
-  {
-    icon: <FaChartBar />,
-    title: "Live attendance reports",
-    desc: "Organizers and admins see everything at a glance.",
-  },
-];
-
-const BrandMark = ({ onLight = false }) => (
-  <div className={`flex flex-col items-center gap-2 lg:items-start ${onLight ? "" : ""}`}>
-    <span
-      className={`flex h-12 w-12 items-center justify-center rounded-2xl ring-1 ${
-        onLight ? "bg-white/10 ring-white/20" : "bg-indigo-500/10 ring-indigo-500/20"
-      }`}
-    >
-      <TrackMark className="h-9 w-9" />
-    </span>
-    <p className={`text-xl font-bold tracking-tight ${onLight ? "text-white" : "text-on"}`}>
-      Track<span className="text-indigo-400">ED</span>
-    </p>
-  </div>
-);
+// One card for every auth screen. On desktop it's the familiar bordered,
+// raised card; below `lg` it loses its box entirely so content sits straight
+// on the phone gradient backdrop (the mobile mockup look) without changing a
+// single flow or field.
+const panelClasses =
+  "animate-fade-up lg:rounded-2xl lg:border lg:border-line lg:bg-card lg:p-8 lg:shadow-xl lg:shadow-black/5";
 
 const PinPanel = ({ pin, isRotated, message, onContinue, loading }) => (
-  <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
+  <div className={panelClasses}>
     <div className="mb-5 flex items-start gap-3.5">
       <span
         className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg ${
@@ -105,7 +74,11 @@ const PinPanel = ({ pin, isRotated, message, onContinue, loading }) => (
 );
 
 const AuthPage = () => {
-  const [isLogin, setIsLogin] = useState(true);
+  // Sign-in and sign-up each own a route (/auth and /auth/signup), so the
+  // switch behaves like a real page change — the URL updates and the browser's
+  // back button works — instead of a silent in-place toggle.
+  const location = useLocation();
+  const isLogin = !location.pathname.startsWith("/auth/signup");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -121,7 +94,7 @@ const AuthPage = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Extra auth steps introduced by the rotating security PIN
-  const [flow, setFlow] = useState("form"); // "form" | "verifyPin" | "verifyEmail" | "pinPanel" | "forgot" | "enrollFace"
+  const [flow, setFlow] = useState("form"); // "form" | "verifyPin" | "verifyEmail" | "pinPanel" | "forgot" | "forgotPassword" | "enrollFace"
   const [verifyEmail, setVerifyEmail] = useState("");
   const [verifyPin, setVerifyPin] = useState("");
   const [pinInfo, setPinInfo] = useState(null); // { pin, isRotated, message }
@@ -141,9 +114,35 @@ const AuthPage = () => {
   const [forgotAppealNote, setForgotAppealNote] = useState("");
   const [appealSubmitting, setAppealSubmitting] = useState(false);
   const [appealDone, setAppealDone] = useState(false);
+  // Camera-less fallback: ask an admin or event organizer to reset the security
+  // PIN on-site. Available whenever face verification can't be used (no camera,
+  // no enrolled photo, or locked out) — no photo required.
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetNote, setResetNote] = useState("");
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
+
+  // Password reset ("Forgot Password?") — an emailed 6-digit code, kept fully
+  // separate from the security-PIN recovery above. Two stages: ask for the
+  // email, then the code + a new password. Deliberately signed-out-only: no
+  // token is issued here, the user returns to the sign-in form afterwards.
+  const [fpStage, setFpStage] = useState("form"); // "form" (email) | "code"
+  const [fpEmail, setFpEmail] = useState("");
+  const [fpCode, setFpCode] = useState("");
+  const [fpPassword, setFpPassword] = useState("");
+  const [fpConfirm, setFpConfirm] = useState("");
+  const [fpShowPassword, setFpShowPassword] = useState(false);
+  const [fpShowConfirm, setFpShowConfirm] = useState(false);
+  const [fpLoading, setFpLoading] = useState(false);
+  const [fpResendIn, setFpResendIn] = useState(0);
+  const [fpNotice, setFpNotice] = useState(""); // success banner on sign-in
 
   const navigate = useNavigate();
   const { isDark } = useTheme();
+
+  const showLogin = () => navigate("/auth");
+  const showSignup = () => navigate("/auth/signup");
 
   const finishAuth = (token, role) => {
     setAuth(token, role);
@@ -153,6 +152,7 @@ const AuthPage = () => {
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setError("");
+    setFpNotice("");
   };
 
   // Tick the "resend code" cooldown down once a second.
@@ -161,6 +161,14 @@ const AuthPage = () => {
     const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [resendIn]);
+
+  // Separate tick for the password-reset resend cooldown, so leaving one flow
+  // mid-countdown never leaves the other one stuck.
+  useEffect(() => {
+    if (fpResendIn <= 0) return;
+    const t = setTimeout(() => setFpResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [fpResendIn]);
 
   const startEmailVerification = (email) => {
     setPendingEmail(email || formData.email.trim());
@@ -251,6 +259,11 @@ const AuthPage = () => {
           return;
         }
 
+        if (!isStrongPassword(formData.password.trim())) {
+          setError(PASSWORD_MESSAGE);
+          return;
+        }
+
         const res = await api.post("/auth/register", {
           name: formData.name.trim(),
           email: formData.email.trim(),
@@ -327,8 +340,95 @@ const AuthPage = () => {
       }
     } else {
       setPinInfo(null);
-      setIsLogin(true);
+      showLogin();
       setFlow("form");
+    }
+  };
+
+  // ------------------- PASSWORD RESET (EMAIL CODE) -------------------
+  const openForgotPassword = () => {
+    setFpStage("form");
+    setFpEmail(formData.email.trim());
+    setFpCode("");
+    setFpPassword("");
+    setFpConfirm("");
+    setFpShowPassword(false);
+    setFpShowConfirm(false);
+    setFpResendIn(0);
+    setFpNotice("");
+    setError("");
+    setFlow("forgotPassword");
+  };
+
+  const backToSignIn = () => {
+    setFlow("form");
+    showLogin();
+    setError("");
+  };
+
+  // Shared by the first "Send Code" and by "Resend code". The server answers
+  // identically for known and unknown addresses, so we always move on to the
+  // code stage — an account that doesn't exist simply never receives a valid
+  // code, and no email list can be harvested from this screen.
+  const sendResetCode = async () => {
+    setFpLoading(true);
+    setError("");
+    try {
+      await api.post("/auth/forgot-password", { email: fpEmail.trim() });
+      setFpStage("code");
+      setFpCode("");
+      setFpResendIn(60);
+    } catch (err) {
+      setError(err.response?.data?.message || "Something went wrong.");
+    } finally {
+      setFpLoading(false);
+    }
+  };
+
+  const handleForgotPasswordSend = (e) => {
+    e.preventDefault();
+    sendResetCode();
+  };
+
+  const handleForgotPasswordResend = () => {
+    if (fpResendIn > 0 || fpLoading) return;
+    sendResetCode();
+  };
+
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (fpPassword.trim() !== fpConfirm.trim()) {
+      setError("Passwords do not match");
+      return;
+    }
+    if (!isStrongPassword(fpPassword.trim())) {
+      setError(PASSWORD_MESSAGE);
+      return;
+    }
+
+    setFpLoading(true);
+    setError("");
+    try {
+      await api.post("/auth/forgot-password/verify", {
+        email: fpEmail.trim(),
+        code: fpCode.trim(),
+        password: fpPassword.trim(),
+      });
+
+      // Back to sign-in — this flow never signs anyone in, it only rewrites
+      // the password. The security PIN is untouched.
+      setFlow("form");
+      showLogin();
+      setFpNotice("Password updated. Sign in with your new password.");
+      setFormData({ ...formData, email: fpEmail.trim(), password: "" });
+      setFpCode("");
+      setFpPassword("");
+      setFpConfirm("");
+      setFpResendIn(0);
+    } catch (err) {
+      setError(err.response?.data?.message || "Something went wrong.");
+    } finally {
+      setFpLoading(false);
     }
   };
 
@@ -340,6 +440,10 @@ const AuthPage = () => {
     setForgotAppealOpen(false);
     setForgotAppealNote("");
     setAppealDone(false);
+    setResetOpen(false);
+    setResetNote("");
+    setResetDone(false);
+    setResetMessage("");
     setError("");
     setFlow("forgot");
   };
@@ -383,8 +487,10 @@ const AuthPage = () => {
       setFlow("pinPanel");
     } catch (err) {
       if (err.response?.status === 429) {
-        // Locked out mid-flow — surface the appeal option.
+        // Locked out mid-flow — leave the scanner and surface the appeal and
+        // camera-less reset options on the form stage.
         setForgotInfo({ enrolled: true, locked: true });
+        setForgotStage("form");
       }
       setError(err.response?.data?.message || "Face verification failed. Try again.");
     } finally {
@@ -412,6 +518,29 @@ const AuthPage = () => {
     }
   };
 
+  const submitResetRequest = async (e) => {
+    if (e) e.preventDefault();
+    setResetSubmitting(true);
+    setError("");
+    try {
+      const res = await api.post("/auth/forgot-pin/reset-request", {
+        email: verifyEmail.trim(),
+        password: forgotPassword,
+        note: resetNote.trim(),
+        deviceId: getDeviceId(),
+        deviceLabel: getDeviceLabel(),
+      });
+      setResetMessage(res.data.message);
+      setResetDone(true);
+      setResetOpen(false);
+      setResetNote("");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to send your request. Try again.");
+    } finally {
+      setResetSubmitting(false);
+    }
+  };
+
   const renderAppealBox = () => (
     <div className="rounded-xl border border-line bg-card-alt/50 p-4">
       <p className="mb-3 text-sm text-on-dim">
@@ -434,6 +563,39 @@ const AuthPage = () => {
     </div>
   );
 
+  // Camera-less path: a note-only request (no photo) that staff confirm on-site.
+  const renderResetBox = () => (
+    <form onSubmit={submitResetRequest} className="rounded-xl border border-line bg-card-alt/50 p-4">
+      <p className="mb-3 text-sm text-on-dim">
+        No camera needed. Add a note if you like, then take this request to an admin or event
+        organizer — they&apos;ll verify you in person and give you your new security PIN.
+      </p>
+      <textarea
+        value={resetNote}
+        onChange={(e) => setResetNote(e.target.value)}
+        placeholder="Optional note (e.g. which class you're from)..."
+        rows={2}
+        className={`${inputClasses} mb-3 resize-none`}
+      />
+      <div className="flex gap-2">
+        <Button type="submit" disabled={resetSubmitting} className="flex-1 py-2">
+          {resetSubmitting ? "Sending..." : "Send request"}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            setResetOpen(false);
+            setError("");
+          }}
+          className="py-2"
+        >
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+
   const handleEnrollPhoto = async (blob) => {
     setEnrolling(true);
     setError("");
@@ -451,13 +613,17 @@ const AuthPage = () => {
     }
   };
 
+  // Phone: white pill inputs with a soft shadow (mockup). Desktop: unchanged
+  // bordered input inside the card.
   const inputClasses =
-    "w-full rounded-lg border border-line bg-card-alt/60 px-3.5 py-2.5 text-sm text-on placeholder-on-muted focus:border-transparent focus:outline-none transition-colors";
+    "w-full rounded-xl border border-transparent bg-white px-3.5 py-3 text-sm text-on shadow-sm placeholder-on-muted focus:border-transparent focus:outline-none transition-colors dark:bg-card-alt/60 lg:rounded-lg lg:border lg:border-line lg:bg-card-alt/60 lg:py-2.5 lg:shadow-none";
 
   return (
     <AppBackground>
       <div className="relative flex w-full min-h-screen">
-        {/* Left — photo + branding panel */}
+        {/* Left — photo + branding panel. Sign-in only: sign-up drops the
+            split so the form sits alone on the backdrop at every size. */}
+        {isLogin && (
         <div className="relative hidden w-1/2 overflow-hidden lg:block">
           <img
             src={isDark ? techDark : techLight}
@@ -484,20 +650,23 @@ const AuthPage = () => {
           <div className="relative z-10 flex h-full flex-col justify-between p-12 xl:p-16">
             <BrandMark onLight />
 
-            <div>
+            <div key={isLogin ? "panel-login" : "panel-signup"} className="animate-fade-up">
               <h2 className="max-w-md text-3xl font-bold leading-tight text-white xl:text-4xl">
-                Lock onto every lecture, event, and community hour.
+                {isLogin
+                  ? "Lock onto every lecture, event, and community hour."
+                  : "New here? Create your account in about a minute."}
               </h2>
               <p className="mt-3 max-w-md text-indigo-100/80">
-                TrackED keeps Events attendance in clear focus — for students,
-                organizers, and admins.
+                {isLogin
+                  ? "TrackED keeps Events attendance in clear focus — for students, organizers, and admins."
+                  : "Register with your school email, verify it with a 6-digit code, and your next event is one scan away."}
               </p>
 
               <div className="mt-9 grid gap-3 sm:grid-cols-2">
                 {features.map((f) => (
                   <div
                     key={f.title}
-                    className="flex items-start gap-3.5 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm"
+                    className="flex items-start gap-3.5 rounded-2xl border border-white/20 bg-white/15 p-4 backdrop-blur-sm"
                   >
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-500/40 text-indigo-100 ring-1 ring-inset ring-white/10">
                       {f.icon}
@@ -516,14 +685,51 @@ const AuthPage = () => {
             </p>
           </div>
         </div>
+        )}
 
         {/* Right — authentication */}
-        <div className="flex min-h-screen w-full flex-1 items-center justify-center p-4 sm:p-8">
+        <div className="relative flex min-h-screen w-full flex-1 items-center justify-center p-4 sm:p-8">
+          {/* Phone only: the mockup's soft blue→violet wash with a couple of
+              diagonal indigo bands, over a faded copy of the same photo the
+              desktop panel uses — so the phone keeps the brand's photographic
+              texture without hurting legibility. Hidden at lg and above, where
+              the full-strength photo panel takes over. */}
+          <div
+            aria-hidden="true"
+            className={`pointer-events-none absolute inset-0 -z-10 overflow-hidden bg-gradient-to-b from-[#eef2ff] via-[#f7f5ff] to-[#e9f1ff] dark:from-[#0b1020] dark:via-[#141136] dark:to-[#0a1024] ${
+              isLogin ? "lg:hidden" : ""
+            }`}
+          >
+            <img
+              src={isDark ? techDark : techLight}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover opacity-[0.28] dark:opacity-[0.4]"
+            />
+            {/* Indigo recolor to match brand (same blend as the desktop panel) */}
+            <div
+              className="absolute inset-0"
+              style={{
+                mixBlendMode: "color",
+                background: "#6366f1",
+                opacity: isDark ? 0.4 : 0.3,
+              }}
+            />
+            {/* Legibility scrim — keeps every auth state readable over the photo */}
+            <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/60 to-white/88 dark:from-[#0b1020]/80 dark:via-[#0b1020]/60 dark:to-[#0a1024]/88" />
+            <div className="absolute -right-24 top-1/4 h-96 w-96 rotate-45 rounded-[4rem] bg-indigo-400/20 blur-3xl dark:bg-indigo-500/15" />
+            <div className="absolute -left-20 bottom-8 h-72 w-72 -rotate-12 rounded-[3rem] bg-violet-400/25 blur-3xl dark:bg-violet-500/15" />
+            <div className="absolute inset-x-0 top-1/3 h-40 -rotate-6 bg-white/40 blur-2xl dark:bg-white/5" />
+          </div>
+
           <div className="w-full max-w-md">
-            {/* Brand (mobile / tablet, since the photo panel is hidden below lg) */}
-            <div className="mb-6 flex justify-center lg:hidden">
+          {/* Brand (mobile / tablet, since the photo panel is hidden below lg).
+              The password-reset screens carry their own circular brand badge
+              instead, so this one stands down there. */}
+          {flow !== "forgotPassword" && (
+            <div className={`mb-6 flex justify-center ${isLogin ? "lg:hidden" : ""}`}>
               <BrandMark />
             </div>
+          )}
 
             {flow === "pinPanel" && pinInfo ? (
               <PinPanel
@@ -534,8 +740,8 @@ const AuthPage = () => {
                 loading={false}
               />
             ) : flow === "verifyEmail" ? (
-              <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
-                <div className="mb-6 flex items-start gap-3.5">
+              <div className={panelClasses}>
+                <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
                     <FaShieldAlt />
                   </span>
@@ -603,7 +809,7 @@ const AuthPage = () => {
                       setFlow("form");
                       setEmailCode("");
                       setError("");
-                      setIsLogin(true);
+                      showLogin();
                     }}
                     className="font-medium text-on-dim hover:text-on"
                   >
@@ -612,8 +818,8 @@ const AuthPage = () => {
                 </div>
               </div>
             ) : flow === "forgot" ? (
-              <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
-                <div className="mb-6 flex items-start gap-3.5">
+              <div className={panelClasses}>
+                <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 ring-1 ring-inset ring-amber-500/20 dark:text-amber-400">
                     <FaCamera />
                   </span>
@@ -622,8 +828,8 @@ const AuthPage = () => {
                       Forgot your security PIN?
                     </h1>
                     <p className="mt-1.5 text-sm text-on-dim">
-                      Prove it&apos;s really you with a live face scan and we&apos;ll mint a brand-new
-                      security PIN.
+                      Scan your face to mint a brand-new security PIN — or ask an admin or event
+                      organizer to reset it for you in person.
                     </p>
                   </div>
                 </div>
@@ -639,7 +845,16 @@ const AuthPage = () => {
 
                 {forgotStage === "capture" ? (
                   <>
-                    {forgotAppealOpen ? (
+                    {resetDone ? (
+                      <div
+                        role="status"
+                        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-600 dark:text-emerald-400"
+                      >
+                        {resetMessage}
+                      </div>
+                    ) : resetOpen ? (
+                      renderResetBox()
+                    ) : forgotAppealOpen ? (
                       renderAppealBox()
                     ) : (
                       <>
@@ -654,13 +869,22 @@ const AuthPage = () => {
                             setError("");
                           }}
                         />
-                        <button
-                          type="button"
-                          onClick={() => setForgotAppealOpen(true)}
-                          className="mt-4 text-sm font-medium text-on-dim hover:text-on"
-                        >
-                          Face not matching? Submit an appeal instead
-                        </button>
+                        <div className="mt-4 flex flex-col items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setForgotAppealOpen(true)}
+                            className="text-sm font-medium text-on-dim hover:text-on"
+                          >
+                            Face not matching? Submit an appeal instead
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setResetOpen(true)}
+                            className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                          >
+                            No camera? Request a PIN reset instead
+                          </button>
+                        </div>
                       </>
                     )}
                   </>
@@ -679,7 +903,7 @@ const AuthPage = () => {
                           ? "Too many face attempts recently. Wait a few minutes and try again."
                           : forgotInfo.enrolled
                             ? "Face verification is set up for this account. Take a selfie to confirm your identity."
-                            : "You don't have a face photo enrolled on this account yet. Ask an admin to reset your security PIN."}
+                            : "You don't have a face photo enrolled on this account yet. Request a PIN reset below — an admin or event organizer will verify you in person."}
                       </div>
                     )}
 
@@ -748,47 +972,82 @@ const AuthPage = () => {
                       </Button>
                     </form>
 
-                    {forgotInfo?.locked && (
+                    {forgotInfo && (
                       <div className="mt-5 border-t border-line pt-5">
-                        {appealDone ? (
+                        {resetDone ? (
                           <div
                             role="status"
                             className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-600 dark:text-emerald-400"
                           >
-                            Appeal submitted. An admin will review your proof photo and unlock your
-                            face verification.
+                            {resetMessage}
                           </div>
-                        ) : forgotAppealOpen ? (
-                          renderAppealBox()
+                        ) : resetOpen ? (
+                          renderResetBox()
                         ) : (
-                          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-                            <p className="text-sm text-amber-700 dark:text-amber-400">
-                              Camera not working while you wait? Submit an appeal with a proof photo
-                              and an admin will review it, then unlock you.
-                            </p>
-                            <Button
-                              type="button"
-                              onClick={() => setForgotAppealOpen(true)}
-                              className="mt-3 w-full py-2"
+                          <>
+                            {appealDone ? (
+                              <div
+                                role="status"
+                                className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-600 dark:text-emerald-400"
+                              >
+                                Appeal submitted. An admin will review your proof photo and unlock your
+                                face verification.
+                              </div>
+                            ) : forgotAppealOpen ? (
+                              renderAppealBox()
+                            ) : forgotInfo.locked ? (
+                              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                                <p className="text-sm text-amber-700 dark:text-amber-400">
+                                  Camera not working while you wait? Submit an appeal with a proof photo
+                                  and an admin will review it, then unlock you.
+                                </p>
+                                <Button
+                                  type="button"
+                                  onClick={() => setForgotAppealOpen(true)}
+                                  className="mt-3 w-full py-2"
+                                >
+                                  Submit an appeal
+                                </Button>
+                              </div>
+                            ) : null}
+
+                            <div
+                              className={`rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4 ${
+                                appealDone || forgotAppealOpen || forgotInfo.locked ? "mt-4" : ""
+                              }`}
                             >
-                              Submit an appeal
-                            </Button>
-                          </div>
+                              <p className="text-sm text-indigo-700 dark:text-indigo-400">
+                                No camera, or no face photo enrolled? Ask an admin or event organizer to
+                                verify you in person and reset your security PIN.
+                              </p>
+                              <Button
+                                type="button"
+                                onClick={() => setResetOpen(true)}
+                                className="mt-3 w-full py-2"
+                              >
+                                Request a PIN reset
+                              </Button>
+                            </div>
+                          </>
                         )}
                         <button
                           type="button"
                           onClick={() => {
-                            setIsLogin(true);
+                            showLogin();
                             setFlow("form");
                             setForgotStage("form");
                             setForgotInfo(null);
                             setForgotAppealOpen(false);
                             setAppealDone(false);
+                            setResetOpen(false);
+                            setResetNote("");
+                            setResetDone(false);
+                            setResetMessage("");
                             setError("");
                           }}
                           className="mt-4 text-sm font-medium text-on-dim hover:text-on"
                         >
-                          {appealDone ? "Back to sign in" : "Wait and try again instead"}
+                          {appealDone || resetDone ? "Back to sign in" : "Wait and try again instead"}
                         </button>
                       </div>
                     )}
@@ -801,6 +1060,12 @@ const AuthPage = () => {
                     setFlow("verifyPin");
                     setForgotStage("form");
                     setForgotInfo(null);
+                    setForgotAppealOpen(false);
+                    setAppealDone(false);
+                    setResetOpen(false);
+                    setResetNote("");
+                    setResetDone(false);
+                    setResetMessage("");
                     setError("");
                   }}
                   className="mt-4 text-sm font-medium text-on-dim hover:text-on"
@@ -809,8 +1074,8 @@ const AuthPage = () => {
                 </button>
               </div>
             ) : flow === "enrollFace" ? (
-              <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
-                <div className="mb-6 flex items-start gap-3.5">
+              <div className={panelClasses}>
+                <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
                     <FaShieldAlt />
                   </span>
@@ -835,10 +1100,14 @@ const AuthPage = () => {
                     if (pendingAuth) finishAuth(pendingAuth.token, pendingAuth.role);
                   }}
                 />
+                <p className="mt-3 text-center text-xs text-on-muted">
+                  No camera? Skip this — you can ask an admin or event organizer to reset your
+                  security PIN later from the sign-in screen.
+                </p>
               </div>
             ) : flow === "verifyPin" ? (
-              <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
-                <div className="mb-6 flex items-start gap-3.5">
+              <div className={panelClasses}>
+                <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
                     <FaShieldAlt />
                   </span>
@@ -897,10 +1166,7 @@ const AuthPage = () => {
                           <option value="">Select Program</option>
                           <option value="BSIT">BSIT</option>
                           <option value="BSCS">BSCS</option>
-                          <option value="IT">IT</option>
-                          <option value="BSIS">BSIS</option>
                           <option value="BSEMC">BSEMC</option>
-                          <option value="OTHER">OTHER</option>
                         </select>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -948,9 +1214,188 @@ const AuthPage = () => {
                   </button>
                 </div>
               </div>
+            ) : flow === "forgotPassword" ? (
+              <div className={panelClasses}>
+                {/* The mockup's back chevron — steps back to the email screen
+                    from the code stage, all the way out to sign-in otherwise. */}
+                <button
+                  type="button"
+                  aria-label="Back"
+                  onClick={() => (fpStage === "code" ? setFpStage("form") : backToSignIn())}
+                  className="-ml-1 mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full text-on-dim transition-colors hover:text-on"
+                >
+                  <FaArrowLeft />
+                </button>
+
+                {/* The mockup's illustration spot: TrackED's mark in a soft
+                    indigo circle. No stock illustration ships with the app. */}
+                <div className="mb-5 flex justify-center lg:justify-start">
+                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/80 shadow-sm ring-1 ring-indigo-200 dark:bg-card-alt dark:ring-indigo-400/30">
+                    <TrackMark className="h-9 w-9" />
+                  </span>
+                </div>
+
+                <div className="mb-6 text-center lg:text-left">
+                  <h1 className="text-2xl font-bold tracking-tight text-on">Forgot Password?</h1>
+                  <p className="mt-1.5 text-sm text-on-dim">
+                    {fpStage === "form" ? (
+                      "Don't worry — it happens. Please enter the email address linked with your account."
+                    ) : (
+                      <>
+                        We sent a 6-digit code to{" "}
+                        <span className="font-semibold text-on">{fpEmail}</span>. Enter it below
+                        with your new password.
+                      </>
+                    )}
+                  </p>
+                </div>
+
+                {error && (
+                  <div
+                    role="alert"
+                    className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
+                  >
+                    {error}
+                  </div>
+                )}
+
+                {fpStage === "form" ? (
+                  <form onSubmit={handleForgotPasswordSend} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label htmlFor="fp-email" className="text-sm font-medium text-on">
+                        Email
+                      </label>
+                      <input
+                        id="fp-email"
+                        type="email"
+                        value={fpEmail}
+                        onChange={(e) => {
+                          setFpEmail(e.target.value);
+                          setError("");
+                        }}
+                        placeholder="Enter your email"
+                        autoComplete="email"
+                        className={inputClasses}
+                        required
+                      />
+                    </div>
+
+                    <Button type="submit" disabled={fpLoading} className="w-full py-2.5">
+                      {fpLoading ? "Sending..." : "Send Code"}
+                    </Button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label htmlFor="fp-code" className="text-sm font-medium text-on">
+                        Verification code
+                      </label>
+                      <input
+                        id="fp-code"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        pattern="\d{6}"
+                        value={fpCode}
+                        onChange={(e) => {
+                          setFpCode(e.target.value.replace(/\D/g, ""));
+                          setError("");
+                        }}
+                        placeholder="••••••"
+                        className={`${inputClasses} text-center text-xl tracking-[0.4em]`}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label htmlFor="fp-password" className="text-sm font-medium text-on">
+                        New password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="fp-password"
+                          type={fpShowPassword ? "text" : "password"}
+                          value={fpPassword}
+                          onChange={(e) => {
+                            setFpPassword(e.target.value);
+                            setError("");
+                          }}
+                          placeholder="••••••••"
+                          autoComplete="new-password"
+                          className={`${inputClasses} pr-11`}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFpShowPassword((v) => !v)}
+                          aria-label={fpShowPassword ? "Hide password" : "Show password"}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-on-muted hover:text-on"
+                        >
+                          {fpShowPassword ? <FaEyeSlash /> : <FaEye />}
+                        </button>
+                      </div>
+                      <p className="text-xs text-on-muted">{PASSWORD_HINT}</p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label htmlFor="fp-confirm" className="text-sm font-medium text-on">
+                        Confirm new password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="fp-confirm"
+                          type={fpShowConfirm ? "text" : "password"}
+                          value={fpConfirm}
+                          onChange={(e) => {
+                            setFpConfirm(e.target.value);
+                            setError("");
+                          }}
+                          placeholder="••••••••"
+                          autoComplete="new-password"
+                          className={`${inputClasses} pr-11`}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFpShowConfirm((v) => !v)}
+                          aria-label={fpShowConfirm ? "Hide password" : "Show password"}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-on-muted hover:text-on"
+                        >
+                          {fpShowConfirm ? <FaEyeSlash /> : <FaEye />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <Button type="submit" disabled={fpLoading} className="w-full py-2.5">
+                      {fpLoading ? "Saving..." : "Reset password"}
+                    </Button>
+                  </form>
+                )}
+
+                <div className="mt-4 flex flex-col items-center gap-2 text-sm">
+                  {fpStage === "code" && (
+                    <button
+                      type="button"
+                      onClick={handleForgotPasswordResend}
+                      disabled={fpResendIn > 0 || fpLoading}
+                      className="font-medium text-on-dim hover:text-on disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {fpResendIn > 0 ? `Resend code in ${fpResendIn}s` : "Resend code"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={backToSignIn}
+                    className="font-medium text-on-dim hover:text-on"
+                  >
+                    ← Back to sign in
+                  </button>
+                </div>
+              </div>
             ) : (
-              <div className="animate-fade-up rounded-2xl border border-line bg-card p-7 shadow-xl shadow-black/5 sm:p-8">
-                <div className="mb-6">
+              <div key={isLogin ? "signin" : "signup"} className={panelClasses}>
+                <div className="mb-6 text-center lg:text-left">
                   <h1 className="text-2xl font-bold tracking-tight text-on">
                     {isLogin ? "Sign in to your account" : "Create your account"}
                   </h1>
@@ -960,6 +1405,15 @@ const AuthPage = () => {
                       : "Register to track your event attendance."}
                   </p>
                 </div>
+
+                {fpNotice && !error && isLogin && (
+                  <div
+                    role="status"
+                    className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-400"
+                  >
+                    {fpNotice}
+                  </div>
+                )}
 
                 {error && (
                   <div
@@ -1015,10 +1469,10 @@ const AuthPage = () => {
                       {isLogin && (
                         <button
                           type="button"
-                          onClick={openForgot}
+                          onClick={openForgotPassword}
                           className="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
                         >
-                          Forgot your security PIN?
+                          Forgot Password?
                         </button>
                       )}
                     </div>
@@ -1043,6 +1497,9 @@ const AuthPage = () => {
                         {showPassword ? <FaEyeSlash /> : <FaEye />}
                       </button>
                     </div>
+                    {!isLogin && (
+                      <p className="text-xs text-on-muted">{PASSWORD_HINT}</p>
+                    )}
                   </div>
 
                   {!isLogin && (
@@ -1082,10 +1539,7 @@ const AuthPage = () => {
                           <option value="">Select Program</option>
                           <option value="BSIT">BSIT</option>
                           <option value="BSCS">BSCS</option>
-                          <option value="IT">IT</option>
-                          <option value="BSIS">BSIS</option>
                           <option value="BSEMC">BSEMC</option>
-                          <option value="OTHER">OTHER</option>
                         </select>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -1121,6 +1575,18 @@ const AuthPage = () => {
                   </Button>
                 </form>
 
+                {/* The PIN recovery flow still has to be reachable now that
+                    the password row belongs to "Forgot Password?" */}
+                {isLogin && (
+                  <button
+                    type="button"
+                    onClick={openForgot}
+                    className="mt-4 block w-full text-center text-xs font-medium text-on-dim hover:text-on"
+                  >
+                    Forgot your security PIN?
+                  </button>
+                )}
+
                 <p className="mt-6 text-center text-sm text-on-dim">
                   {isLogin ? (
                     <>
@@ -1128,7 +1594,7 @@ const AuthPage = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          setIsLogin(false);
+                          showSignup();
                           setError("");
                         }}
                         className="font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
@@ -1141,10 +1607,10 @@ const AuthPage = () => {
                       Already have an account?{" "}
                       <button
                         type="button"
-                        onClick={() => {
-                          setIsLogin(true);
-                          setError("");
-                        }}
+                          onClick={() => {
+                            showLogin();
+                            setError("");
+                          }}
                         className="font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
                       >
                         Sign in

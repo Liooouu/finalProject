@@ -227,7 +227,7 @@ const SubmitExcuse = () => {
           <select
             value={selectedEvent}
             onChange={(e) => setSelectedEvent(e.target.value)}
-            className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+            className="field-select"
             required
           >
             <option value="">-- Select an event --</option>

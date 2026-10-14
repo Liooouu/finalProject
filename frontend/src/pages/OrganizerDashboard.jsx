@@ -12,6 +12,7 @@ import NotificationsPage from "../components/organizer/NotificationsPage";
 import ProfileSettings from "../components/settings/ProfileSettings";
 import EventDetails from "../components/EventDetails";
 import OrgManageAttendees from "../components/organizer/OrgManageAttendees";
+import PinResetRequests from "../components/security/PinResetRequests";
 
 const OrganizerDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -30,6 +31,7 @@ const OrganizerDashboard = () => {
                 <Route path="events/:id" element={<EventDetails />} />
                 <Route path="events/:id/attendees" element={<OrgManageAttendees />} />
                 <Route path="excuses" element={<ManageExcuses />} />
+                <Route path="pin-resets" element={<PinResetRequests />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="profile" element={<ProfileSettings />} />
                 <Route path="*" element={<Navigate to="" replace />} />

@@ -13,6 +13,7 @@ const Event = require("./models/Event");
 const User = require("./models/User");
 const Attendance = require("./models/Attendance");
 const { notifyUsers, eventRecipients } = require("./services/notify");
+const { isMailEnabled } = require("./services/mailer");
 const {
   STATUS,
   OPEN_STATUS_FILTER,
@@ -65,6 +66,7 @@ app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     db: mongoose.connection.readyState === 1 ? "up" : "down",
+    mail: isMailEnabled() ? "on" : "off",
     uptime: Math.round(process.uptime()),
   });
 });

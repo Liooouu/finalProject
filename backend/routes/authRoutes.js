@@ -8,11 +8,13 @@ const fs = require("fs");
 
 const User = require("../models/User");
 const FaceAppeal = require("../models/FaceAppeal");
+const PinResetRequest = require("../models/PinResetRequest");
 const faceMatcher = require("../services/faceMatcher");
-const { notifyAdmins } = require("../services/notifyAdmins");
+const { notifyAdmins, notifyStaff } = require("../services/notifyAdmins");
 const { sendMail, isMailEnabled } = require("../services/mailer");
-const { renderVerificationEmail } = require("../services/emailTemplate");
+const { renderVerificationEmail, renderPasswordResetEmail } = require("../services/emailTemplate");
 const { protect, authorize } = require("../middleware/authMiddleware");
+const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
 
 const LOCK_ATTEMPTS = 5;
 const LOCK_MINUTES = 5;
@@ -23,6 +25,8 @@ const FACE_LOCK_MINUTES = 5;
 const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
 const EMAIL_CODE_MAX_ATTEMPTS = 5;
 const EMAIL_RESEND_COOLDOWN_MS = 60 * 1000;
+// A student may re-file a PIN reset request this long after their last one.
+const RESET_REQUEST_COOLDOWN_MS = 10 * 60 * 1000;
 
 const getDeviceId = (req) => req.headers["x-device-id"] || req.body.deviceId || "";
 
@@ -55,6 +59,37 @@ async function issueEmailCode(user) {
   }
 
   return code;
+}
+
+// Mint a fresh 6-digit reset code for an EXISTING account, store its hash +
+// expiry, and email it. Mirrors issueEmailCode() but writes to the dedicated
+// password-reset fields, so a signup verification code in flight is never
+// clobbered (and vice versa).
+async function issuePasswordResetCode(user) {
+  const code = User.generatePin();
+  await user.setPasswordCode(code);
+  user.passwordResetExpires = new Date(Date.now() + EMAIL_CODE_TTL_MS);
+  user.passwordResetAttempts = 0;
+  user.passwordResetLastSentAt = new Date();
+  await user.save();
+
+  const { html, text } = renderPasswordResetEmail({ name: user.name, code });
+  const sent = await sendMail({
+    to: user.email,
+    subject: `Your TrackED password reset code`,
+    html,
+    text,
+  });
+
+  // Same DEV-only escape hatch as signup verification: keep the flow testable
+  // when mail is off or the send fails. Never print a code in production.
+  if (!sent && process.env.NODE_ENV !== "production") {
+    console.warn(
+      `[mail] Password reset email NOT sent to ${user.email}. DEV-ONLY code: ${code}`
+    );
+  }
+
+  return sent;
 }
 
 // Temporary upload for recovery selfies (deleted right after processing).
@@ -137,6 +172,9 @@ router.post("/register", async (req, res) => {
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Please fill all fields" });
     }
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({ message: PASSWORD_MESSAGE });
+    }
 
     const mailEnabled = isMailEnabled();
     const existingUser = await User.findOne({ email });
@@ -170,7 +208,7 @@ router.post("/register", async (req, res) => {
     section = String(section).trim().toUpperCase();
     yearLevel = Number(yearLevel);
 
-    const allowedPrograms = ["BSIT", "BSCS", "IT", "BSIS", "BSEMC", "OTHER"];
+    const allowedPrograms = ["BSIT", "BSCS", "BSEMC"];
     if (!allowedPrograms.includes(program)) {
       return res.status(400).json({ message: "Invalid program" });
     }
@@ -329,6 +367,121 @@ router.post("/resend-verification", async (req, res) => {
     });
   } catch (err) {
     console.error("RESEND VERIFICATION ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// -------------------- FORGOT PASSWORD (ALL ROLES) --------------------
+// STEP 1 — request a 6-digit code by email. Works for every role (student,
+// organizer, admin): anyone with a registered, verified email can recover
+// access. The success response is byte-for-byte identical whether or not the
+// address exists, so this endpoint can't be used to discover which emails are
+// registered.
+router.post("/forgot-password", async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    if (!email) return res.status(400).json({ message: "Email is required" });
+
+    // Without SMTP nobody could ever receive the code, so don't pretend we sent
+    // one. Development keeps going — issuePasswordResetCode() prints the code
+    // to the console instead, which keeps the flow testable locally.
+    if (!isMailEnabled() && process.env.NODE_ENV === "production") {
+      return res.status(503).json({
+        message: "Password reset by email is unavailable right now. Contact your administrator.",
+      });
+    }
+
+    const genericMessage =
+      "If an account exists for that email, we've sent a 6-digit code. Check your inbox.";
+
+    const user = await User.findOne({ email });
+    // A registration that never finished verifying can't reset a password it
+    // never finished setting — answer exactly like a missing account anyway.
+    if (!user || user.emailVerified === false) {
+      return res.json({ message: genericMessage });
+    }
+
+    if (
+      user.passwordResetLastSentAt &&
+      Date.now() - user.passwordResetLastSentAt.getTime() < EMAIL_RESEND_COOLDOWN_MS
+    ) {
+      const wait = Math.ceil(
+        (EMAIL_RESEND_COOLDOWN_MS -
+          (Date.now() - user.passwordResetLastSentAt.getTime())) /
+          1000
+      );
+      return res
+        .status(429)
+        .json({ message: `Please wait ${wait}s before requesting another code.` });
+    }
+
+    await issuePasswordResetCode(user);
+    res.json({ message: genericMessage });
+  } catch (err) {
+    console.error("FORGOT PASSWORD ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// STEP 2 — exchange the emailed code for a brand-new password. Deliberately
+// does NOT sign the caller in (this runs before login) and does NOT touch the
+// security PIN — that stays behind the separate "Forgot your security PIN?"
+// face-recovery flow.
+router.post("/forgot-password/verify", async (req, res) => {
+  const { email, code, password } = req.body;
+
+  try {
+    if (!email || !code || !password || !String(password).trim()) {
+      return res.status(400).json({ message: "Please fill all fields." });
+    }
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({ message: PASSWORD_MESSAGE });
+    }
+    if (!/^\d{6}$/.test(String(code))) {
+      return res.status(400).json({ message: "Invalid verification code" });
+    }
+
+    const user = await User.findOne({ email });
+    if (
+      !user ||
+      user.emailVerified === false ||
+      !user.passwordResetCodeHash ||
+      !user.passwordResetExpires ||
+      user.passwordResetExpires <= new Date()
+    ) {
+      return res.status(400).json({ message: "Invalid or expired code. Request a new one." });
+    }
+
+    const ok = await user.comparePasswordCode(String(code));
+    if (!ok) {
+      user.passwordResetAttempts = (user.passwordResetAttempts || 0) + 1;
+      let message = "Incorrect verification code";
+      if (user.passwordResetAttempts >= EMAIL_CODE_MAX_ATTEMPTS) {
+        user.passwordResetCodeHash = "";
+        user.passwordResetExpires = null;
+        user.passwordResetAttempts = 0;
+        message = "Too many attempts. Request a new code.";
+      } else {
+        message += ` (${EMAIL_CODE_MAX_ATTEMPTS - user.passwordResetAttempts} attempts left)`;
+      }
+      await user.save();
+      return res.status(400).json({ message });
+    }
+
+    // Success — assigning the plain password marks it modified, so the pre-save
+    // hook hashes it exactly like registration does.
+    user.password = String(password);
+    user.passwordResetCodeHash = "";
+    user.passwordResetExpires = null;
+    user.passwordResetAttempts = 0;
+    user.passwordResetLastSentAt = null;
+    await user.save();
+
+    console.log("Password reset:", email);
+    res.json({ message: "Password updated. Sign in with your new password." });
+  } catch (err) {
+    console.error("RESET PASSWORD ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -572,7 +725,7 @@ router.post(
         cleanup();
         return res
           .status(400)
-          .json({ message: "You have no face photo enrolled. Ask an admin to reset your security PIN." });
+          .json({ message: "You have no face photo enrolled. Request a PIN reset instead — an admin or event organizer can verify you in person." });
       }
 
       const refPath = path.join(__dirname, "..", user.facePhoto.replace(/^\//, ""));
@@ -689,7 +842,7 @@ router.post(
         cleanup();
         return res
           .status(400)
-          .json({ message: "You have no face photo enrolled. Ask an admin to reset your security PIN." });
+          .json({ message: "You have no face photo enrolled. Request a PIN reset instead — an admin or event organizer can verify you in person." });
       }
 
       const pending = await FaceAppeal.findOne({ student: user._id, status: "pending" });
@@ -721,5 +874,64 @@ router.post(
     }
   }
 );
+
+// STEP 4 (camera-less fallback) — no camera, no enrolled face, or locked out?
+// Ask for a PIN reset instead of a photo appeal. Password-gated exactly like
+// the other forgot-PIN steps; an admin or event organizer confirms identity
+// on-site and mints the new PIN, so a student can never reset their own
+// security by themselves.
+router.post("/forgot-pin/reset-request", async (req, res) => {
+  try {
+    const { email, password, deviceLabel } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: "Please fill all fields" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user || user.role !== "student") {
+      return res.status(400).json({ message: "Invalid email or password" });
+    }
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid email or password" });
+    }
+
+    const pending = await PinResetRequest.findOne({ student: user._id, status: "pending" });
+    if (pending) {
+      return res
+        .status(400)
+        .json({ message: "You already have a pending reset request awaiting review" });
+    }
+
+    const recent = await PinResetRequest.findOne({ student: user._id }).sort({ createdAt: -1 });
+    if (recent && Date.now() - recent.createdAt.getTime() < RESET_REQUEST_COOLDOWN_MS) {
+      return res
+        .status(429)
+        .json({ message: "You already sent a request recently. Please wait a few minutes before sending another." });
+    }
+
+    const request = new PinResetRequest({
+      student: user._id,
+      note: (req.body.note || "").trim(),
+      deviceId: getDeviceId(req),
+      deviceLabel: deviceLabel || "",
+    });
+    await request.save();
+
+    await notifyStaff(
+      "New security PIN reset request",
+      `${user.name} (${user.email}) requested a security PIN reset without face verification. Verify them in person, then approve it to mint a new PIN.`
+    );
+
+    console.log("PIN reset request from", user.email);
+    res.status(201).json({
+      message: "Request sent. An admin or event organizer will verify you in person and give you your new PIN.",
+      request,
+    });
+  } catch (err) {
+    console.error("PIN RESET REQUEST ERROR:", err);
+    res.status(500).json({ message: "Failed to submit request. Please try again." });
+  }
+});
 
 module.exports = router;

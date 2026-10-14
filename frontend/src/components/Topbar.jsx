@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { FaBars, FaMoon, FaSun, FaIdBadge, FaSignOutAlt, FaChevronDown } from "react-icons/fa";
+import api from "../api/axios";
 import { getUserFromToken, logout } from "../utils/auth";
 import { portalName, profilePathFor, getPageTitle } from "../utils/nav";
 import { useTheme } from "../context/ThemeContext";
@@ -19,6 +20,11 @@ const Topbar = ({ onOpenSidebar }) => {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const menuRef = useRef(null);
 
+  // The JWT only carries { id, role }, so the real name, email, and profile
+  // picture are loaded from /account. Re-fetched on navigation so a picture
+  // uploaded on the profile page shows up without a reload.
+  const [account, setAccount] = useState(null);
+
   // Close the user dropdown when navigating to another route.
   const [prevPath, setPrevPath] = useState(location.pathname);
   if (prevPath !== location.pathname) {
@@ -36,10 +42,34 @@ const Topbar = ({ onOpenSidebar }) => {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    api
+      .get("/account")
+      .then((res) => {
+        if (alive) setAccount(res.data);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [location.pathname]);
+
   const title = meta.title || getPageTitle(role, location.pathname);
   const subtitle = meta.subtitle || portalName[role] || "";
 
-  const initials = (user?.id || "").slice(-2).toUpperCase() || "U";
+  // Initials come from the real name ("Lio Apiado" -> "LA"). Before the
+  // account loads, fall back to the role's first letter instead of the old
+  // ObjectId tail, which produced meaningless values like "93".
+  const initials = account?.name
+    ? String(account.name)
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0].toUpperCase())
+        .join("") || "U"
+    : (role?.[0] || "U").toUpperCase();
 
   const openProfile = () => {
     setMenuOpen(false);
@@ -88,9 +118,17 @@ const Topbar = ({ onOpenSidebar }) => {
             aria-expanded={menuOpen}
             className="flex items-center gap-2 rounded-lg border border-line py-1 pl-1 pr-2.5 hover:bg-card-alt"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-600 text-[12px] font-bold text-white">
-              {initials}
-            </span>
+            {account?.profilePicture ? (
+              <img
+                src={account.profilePicture}
+                alt=""
+                className="h-7 w-7 rounded-md object-cover"
+              />
+            ) : (
+              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-600 text-[12px] font-bold text-white">
+                {initials}
+              </span>
+            )}
             <span className="hidden text-sm font-medium text-on sm:block capitalize">
               {role}
             </span>
@@ -103,10 +141,12 @@ const Topbar = ({ onOpenSidebar }) => {
               className="absolute right-0 top-12 w-52 overflow-hidden rounded-xl border border-line bg-card shadow-xl shadow-black/10 animate-fade-up"
             >
               <div className="border-b border-line px-4 py-3">
-                <p className="truncate text-sm font-medium text-on capitalize">
-                  {role} account
+                <p className="truncate text-sm font-medium text-on">
+                  {account?.name || `${role} account`}
                 </p>
-                <p className="truncate text-xs text-on-dim">{user?.email || "Signed in"}</p>
+                <p className="truncate text-xs text-on-dim">
+                  {account?.email || "Signed in"}
+                </p>
               </div>
               <button
                 role="menuitem"

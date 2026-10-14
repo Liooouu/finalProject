@@ -40,9 +40,14 @@
   --orb-3: radial-gradient(65% 65% at 50% 50%, rgba(139, 92, 246, 0.14) 0%, transparent 70%);
   --app-grid-line: rgba(15, 23, 42, 0.05);
   --app-noise-opacity: 0.45;
+
+  /* Native pickers (select lists, date/time dropdowns) follow the theme
+     instead of forcing the OS default palette. */
+  color-scheme: light;
 }
 
 .dark {
+  color-scheme: dark;
   --on: #f1f5f9;
   --on-dim: #94a3b8;
   --on-muted: #64748b;
@@ -98,6 +103,32 @@ textarea::placeholder {
   outline: 2px solid rgb(99 102 241 / 0.9);
   outline-offset: 2px;
   border-radius: 6px;
+}
+
+/* ============================================================
+   Shared event-form fields — one look for every dropdown and
+   date/time input (used by ManageEvents / OrgManageEvents /
+   EventDetails). .field-select hides the OS arrow and draws ours.
+   ============================================================ */
+.field-select {
+  @apply w-full appearance-none rounded-lg border border-line bg-card px-3.5 py-2.5 pr-9 text-sm text-on transition-colors hover:border-indigo-300 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:hover:border-indigo-500/40;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 0.9rem;
+}
+
+.field-datetime {
+  @apply w-full rounded-lg border border-line bg-card px-3.5 py-2.5 text-sm text-on transition-colors hover:border-indigo-300 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:hover:border-indigo-500/40;
+}
+
+/* Keep the native picker affordance, just toned down. */
+.field-datetime::-webkit-calendar-picker-indicator {
+  opacity: 0.5;
+  cursor: pointer;
+}
+.field-datetime::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
 
 /* ============================================================
@@ -201,4 +232,121 @@ textarea::placeholder {
 }
 .animate-fade-up {
   animation: fade-up 0.3s ease both;
+}
+
+/* ============================================================
+   Scroll reveals — the landing page's in/out animation.
+   Toggled by components/landing/Reveal.jsx as sections enter and
+   leave the viewport, so scrolling back up replays them.
+   ============================================================ */
+.reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition:
+    opacity 0.6s ease,
+    transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: opacity, transform;
+}
+.reveal-left  { transform: translateX(-32px); }
+.reveal-right { transform: translateX(32px); }
+.reveal-scale { transform: scale(0.94); }
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* ============================================================
+   Weather scene — decorative sky effects on the student
+   dashboard's Today card (TodayCard.jsx). CSS-only, all layers
+   are aria-hidden and pointer-events-none.
+   ============================================================ */
+@keyframes wx-rain-fall {
+  0%   { transform: translateY(-24px); opacity: 0; }
+  12%  { opacity: 1; }
+  100% { transform: translateY(300px); opacity: 0.75; }
+}
+.wx-drop {
+  position: absolute;
+  top: -24px;
+  width: 2px;
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(transparent, rgba(191, 219, 254, 0.95));
+  animation-name: wx-rain-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes wx-snow-fall {
+  0%   { transform: translate(0, -12px); opacity: 0; }
+  12%  { opacity: 1; }
+  100% { transform: translate(24px, 300px); opacity: 0.85; }
+}
+.wx-flake {
+  position: absolute;
+  top: -12px;
+  animation-name: wx-snow-fall;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes wx-sun-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50%      { transform: scale(1.14); opacity: 1; }
+}
+.wx-sun {
+  animation: wx-sun-pulse 4.5s ease-in-out infinite;
+}
+
+@keyframes wx-cloud-drift {
+  from { left: -32%; }
+  to   { left: 112%; }
+}
+.wx-cloud {
+  animation-name: wx-cloud-drift;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes wx-fog-drift {
+  from { transform: translateX(-6%); }
+  to   { transform: translateX(6%); }
+}
+.wx-fog {
+  animation: wx-fog-drift ease-in-out infinite alternate;
+}
+
+@keyframes wx-twinkle {
+  0%, 100% { opacity: 0.2; }
+  50%      { opacity: 1; }
+}
+.wx-star {
+  animation: wx-twinkle ease-in-out infinite;
+}
+
+@keyframes wx-flash {
+  0%, 90%, 100% { opacity: 0; }
+  91%           { opacity: 0.5; }
+  92.5%         { opacity: 0; }
+  94%           { opacity: 0.3; }
+  95.5%         { opacity: 0; }
+}
+.wx-flash {
+  animation: wx-flash 7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wx-drop, .wx-flake, .wx-sun, .wx-cloud, .wx-fog, .wx-star, .wx-flash {
+    animation: none;
+  }
+  .wx-sun { opacity: 0.9; }
 }

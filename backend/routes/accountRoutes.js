@@ -8,6 +8,7 @@ const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const faceMatcher = require("../services/faceMatcher");
 const { protect, authorize } = require("../middleware/authMiddleware");
+const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -71,6 +72,13 @@ router.patch("/", protect, async (req, res) => {
 router.patch("/password", protect, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword || !String(newPassword).trim()) {
+      return res.status(400).json({ error: "Please fill all fields" });
+    }
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({ error: PASSWORD_MESSAGE });
+    }
 
     const user = await User.findById(req.user._id);
 

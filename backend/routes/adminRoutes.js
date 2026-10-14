@@ -1,10 +1,13 @@
 ﻿const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const Attendance = require("../models/Attendance");
 const Notification = require("../models/Notification");
 const FaceAppeal = require("../models/FaceAppeal");
+const PinResetRequest = require("../models/PinResetRequest");
 const { protect, authorize } = require("../middleware/authMiddleware");
+const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
 
 // ADMIN CREATES ORGANIZER
 // Registration is student-only, so this is the only way an organizer account is
@@ -20,6 +23,9 @@ router.post(
 
       if (!name || !email || !password)
         return res.status(400).json({ message: "Missing fields" });
+      if (!isStrongPassword(password)) {
+        return res.status(400).json({ message: PASSWORD_MESSAGE });
+      }
 
       const existing = await User.findOne({ email });
       if (existing)
@@ -295,6 +301,110 @@ router.post(
       console.log(`Admin ${action} appeal of`, appeal.student.email);
 
       res.json({ appeal, message: `Appeal ${action}` });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+// LIST PIN RESET REQUESTS (admin/organizer)
+// Camera-less students file these from the sign-in screen; staff verify them
+// in person before any PIN is minted. Organizers see the whole queue.
+router.get(
+  "/security/pin-reset-requests",
+  protect,
+  authorize("admin", "organizer"),
+  async (req, res) => {
+    try {
+      const filter = {};
+      if (req.query.status) filter.status = req.query.status;
+      const requests = await PinResetRequest.find(filter)
+        .populate("student", "name email program yearLevel section")
+        .sort({ createdAt: -1 });
+      res.json(requests);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+// REVIEW A PIN RESET REQUEST (admin/organizer)
+// Approve -> mints a fresh PIN, clears every lockout, trusts the device the
+// request came from (so the student can sign in with their password alone and
+// read the PIN), and returns the PIN for the reviewer to relay in person.
+// Reject -> records the reason and notifies the student.
+router.post(
+  "/security/pin-reset-requests/:id/review",
+  protect,
+  authorize("admin", "organizer"),
+  async (req, res) => {
+    try {
+      const { action, note, clearDevices } = req.body;
+      if (!["approved", "rejected"].includes(action)) {
+        return res.status(400).json({ message: "action must be 'approved' or 'rejected'" });
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+        return res.status(404).json({ message: "Reset request not found" });
+      }
+      const request = await PinResetRequest.findById(req.params.id);
+      if (!request) {
+        return res.status(404).json({ message: "Reset request not found" });
+      }
+      if (request.status !== "pending") {
+        return res.status(400).json({ message: `This request was already ${request.status}` });
+      }
+
+      // Load the full document: setPin/trustDevice mutate fields we need intact.
+      const student = await User.findById(request.student);
+      if (!student) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+
+      request.status = action;
+      request.reviewedBy = req.user._id;
+      request.responseNote = (note || "").trim();
+
+      let pin = null;
+      if (action === "approved") {
+        pin = User.generatePin();
+        await student.setPin(pin);
+        student.pinAttempts = 0;
+        student.pinLockUntil = null;
+        student.faceAttempts = 0;
+        student.faceLockUntil = null;
+        if (clearDevices) student.trustedDevices = [];
+        // Trusted last so a device wipe can never lock the student back out.
+        if (request.deviceId) {
+          student.trustDevice(request.deviceId, request.deviceLabel);
+        }
+        await student.save();
+      }
+      await request.save();
+
+      const notification = new Notification({
+        user: student._id,
+        type: "system",
+        title:
+          action === "approved"
+            ? "Security PIN reset approved"
+            : "Security PIN reset rejected",
+        message:
+          action === "approved"
+            ? `Your identity was verified. Your new security PIN is ${pin}.`
+            : `Your security PIN reset request was rejected.${request.responseNote ? ` Reason: ${request.responseNote}` : ""} Ask an admin if you need help.`,
+      });
+      await notification.save();
+
+      console.log(
+        `${req.user.role} ${action} PIN reset request of`,
+        student.email
+      );
+
+      await request.populate("student", "name email program yearLevel section");
+      res.json({ request, pin, message: `Request ${action}` });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Server error" });

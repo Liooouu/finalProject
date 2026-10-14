@@ -14,6 +14,7 @@ import NotificationsPage from "../components/organizer/NotificationsPage";
 import ProfileSettings from "../components/settings/ProfileSettings";
 import EventDetails from "../components/EventDetails";
 import OrgManageAttendees from "../components/organizer/OrgManageAttendees";
+import PinResetRequests from "../components/security/PinResetRequests";
 
 const AdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -33,6 +34,7 @@ const AdminDashboard = () => {
                 <Route path="events/:id" element={<EventDetails />} />
                 <Route path="events/:id/attendees" element={<OrgManageAttendees />} />
                 <Route path="users" element={<ManageUsers />} />
+                <Route path="pin-resets" element={<PinResetRequests />} />
                 <Route path="reports" element={<AttendanceReport />} />
                 <Route path="notifications" element={<NotificationsPage role="admin" />} />
                 <Route path="profile" element={<ProfileSettings />} />

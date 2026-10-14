@@ -64,14 +64,17 @@ Registration is **student-only**. Organizers must be created by admins.
 |-------|------|-------|
 | POST /api/auth/register | None | student only |
 | POST /api/auth/login | None | all |
-| /api/admin/* | Bearer | admin |
+| POST /api/auth/forgot-password | None | all |
+| POST /api/auth/forgot-password/verify | None | all |
+| POST /api/auth/forgot-pin/reset-request | None (password-gated) | student |
+| /api/admin/* | Bearer | admin (organizer also: users, security/pin-reset-requests) |
 | /api/events/* | Bearer | varies |
 | /api/account/* | Bearer | all |
 
 ## Setup Requirements
 
 - MongoDB must be running at `127.0.0.1:27017`
-- Backend `.env` contains `MONGO_URI`, `PORT=5000`, `JWT_SECRET`, `JWT_EXPIRES_IN`
+- Backend `.env` contains `MONGO_URI`, `PORT=5000`, `JWT_SECRET`, `JWT_EXPIRES_IN`, plus `SMTP_*` (without them, email verification and "Forgot Password?" emails never leave the machine)
 - Run `npm run seed:admin` once to create the first admin account
 
 ## Deployment

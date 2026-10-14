@@ -262,25 +262,34 @@ const OrgManageEvents = () => {
                 className="h-64"
               />
             </div>
-            <div>
-              <input
-                type="date"
-                name="date"
-                value={form.date}
-                onChange={handleChange}
-                required
-                className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
-              />
-            </div>
-            <div>
-              <input
-                type="time"
-                name="time"
-                value={form.time}
-                onChange={handleChange}
-                required
-                className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
-              />
+          </div>
+
+          {/* Event Starts — when the event itself begins */}
+          <div className="border-t border-line pt-4">
+            <h3 className="text-sm font-semibold text-on-dim mb-3">Event Starts</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-on-muted block mb-1">Start Date</label>
+                <input
+                  type="date"
+                  name="date"
+                  value={form.date}
+                  onChange={handleChange}
+                  required
+                  className="field-datetime"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-on-muted block mb-1">Start Time</label>
+                <input
+                  type="time"
+                  name="time"
+                  value={form.time}
+                  onChange={handleChange}
+                  required
+                  className="field-datetime"
+                />
+              </div>
             </div>
           </div>
 
@@ -295,7 +304,7 @@ const OrgManageEvents = () => {
                   name="endDate"
                   value={form.endDate}
                   onChange={handleChange}
-                  className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                  className="field-datetime"
                 />
               </div>
               <div>
@@ -305,7 +314,7 @@ const OrgManageEvents = () => {
                   name="endTime"
                   value={form.endTime}
                   onChange={handleChange}
-                  className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                  className="field-datetime"
                 />
               </div>
             </div>
@@ -329,7 +338,7 @@ const OrgManageEvents = () => {
                   value={form.attendanceStartTime}
                   onChange={handleChange}
                   required
-                  className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                  className="field-datetime"
                 />
               </div>
               <div>
@@ -340,7 +349,7 @@ const OrgManageEvents = () => {
                   value={form.attendanceEndTime}
                   onChange={handleChange}
                   required
-                  className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                  className="field-datetime"
                 />
               </div>
             </div>

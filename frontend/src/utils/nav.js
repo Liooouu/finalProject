@@ -1,4 +1,4 @@
-const ROLE_PATHS = {
+export const ROLE_PATHS = {
   admin: "/admin/dashboard",
   organizer: "/organizer/dashboard",
   student: "/student/dashboard",
@@ -30,6 +30,7 @@ const TITLES = {
   "/organizer/dashboard/events/": "Event Details",
   "/organizer/dashboard/events/detail/attendees": "Manage Attendees",
   "/organizer/dashboard/excuses": "Manage Excuses",
+  "/organizer/dashboard/pin-resets": "PIN Reset Requests",
   "/organizer/dashboard/notifications": "Notifications",
   "/organizer/dashboard/profile": "Profile Settings",
 
@@ -37,6 +38,7 @@ const TITLES = {
   "/admin/dashboard/create-organizer": "Create Organizer",
   "/admin/dashboard/events": "Manage Events",
   "/admin/dashboard/users": "Manage Users",
+  "/admin/dashboard/pin-resets": "PIN Reset Requests",
   "/admin/dashboard/reports": "Attendance Report",
   "/admin/dashboard/notifications": "Notifications",
   "/admin/dashboard/profile": "Profile Settings",
