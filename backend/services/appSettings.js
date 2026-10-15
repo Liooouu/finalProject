@@ -5,23 +5,50 @@
 // never saves keeps the old behavior. The document is cached for a short TTL
 // and invalidated explicitly via invalidateEmailSettings() after a save.
 const Setting = require("../models/Setting");
+const mongoose = require("mongoose");
 
 const CACHE_TTL_MS = 30 * 1000;
 const EMAIL_KEY = "email";
 
 let cache = null;
 let cacheAt = 0;
+// Distinguishes "loaded and found nothing" from "never loaded". Without it a
+// null cache re-queries on every call.
+let cacheLoaded = false;
 
 function invalidateEmailSettings() {
   cache = null;
   cacheAt = 0;
+  cacheLoaded = false;
 }
 
 async function loadEmailSettingDoc() {
   const now = Date.now();
-  if (cache && now - cacheAt < CACHE_TTL_MS) return cache;
-  cache = await Setting.findOne({ key: EMAIL_KEY });
+  if (cacheLoaded && now - cacheAt < CACHE_TTL_MS) return cache;
+
+  // Skip the query entirely when the connection isn't ready. Mongoose would
+  // otherwise buffer the findOne for ~10s and then reject, stalling the
+  // /api/health probe past its timeout. Env fallback applies instead, and
+  // nothing is cached so the read resumes once the database is back.
+  if (mongoose.connection.readyState !== 1) {
+    return null;
+  }
+
+  try {
+    cache = await Setting.findOne({ key: EMAIL_KEY });
+  } catch (err) {
+    // The database dropped mid-query. Never let this rejection escape: it would
+    // propagate into isMailEnabled() and the async /api/health handler, which
+    // Express 4 does not catch, leaving the probe hanging until it times out.
+    // Falling back to an empty doc means settings resolve from env vars only.
+    console.error(
+      "[settings] Could not read email settings from the database:",
+      err.message
+    );
+    cache = null;
+  }
   cacheAt = now;
+  cacheLoaded = true;
   return cache;
 }
 
