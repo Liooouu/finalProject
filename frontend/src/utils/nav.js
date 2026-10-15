@@ -40,6 +40,7 @@ const TITLES = {
   "/admin/dashboard/users": "Manage Users",
   "/admin/dashboard/pin-resets": "PIN Reset Requests",
   "/admin/dashboard/reports": "Attendance Report",
+  "/admin/dashboard/settings/email": "Email Settings",
   "/admin/dashboard/notifications": "Notifications",
   "/admin/dashboard/profile": "Profile Settings",
 };

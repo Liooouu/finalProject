@@ -12,6 +12,7 @@ import {
   FaTimes,
   FaShieldAlt,
   FaKey,
+  FaEnvelopeOpenText,
 } from "react-icons/fa";
 import TrackMark from "./shared/TrackMark";
 import { portalName } from "../utils/nav";
@@ -24,6 +25,7 @@ const menuItems = {
     { name: "Manage Users", path: "/admin/dashboard/users", icon: <FaUsers /> },
     { name: "PIN Reset Requests", path: "/admin/dashboard/pin-resets", icon: <FaKey /> },
     { name: "Attendance Report", path: "/admin/dashboard/reports", icon: <FaChartBar /> },
+    { name: "Email Settings", path: "/admin/dashboard/settings/email", icon: <FaEnvelopeOpenText /> },
     { name: "Notifications", path: "/admin/dashboard/notifications", icon: <FaBell /> },
   ],
   organizer: [

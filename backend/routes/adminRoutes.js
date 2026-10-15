@@ -8,6 +8,9 @@ const FaceAppeal = require("../models/FaceAppeal");
 const PinResetRequest = require("../models/PinResetRequest");
 const { protect, authorize } = require("../middleware/authMiddleware");
 const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
+const { getRawEmailSetting, saveEmailSetting } = require("../services/appSettings");
+const { resetTransporter, sendMail } = require("../services/mailer");
+const { seal } = require("../utils/secretBox");
 
 // ADMIN CREATES ORGANIZER
 // Registration is student-only, so this is the only way an organizer account is
@@ -555,5 +558,130 @@ router.patch(
     }
   }
 );
+
+// -------------------- EMAIL SETTINGS --------------------
+// GET — raw DB values (password stripped; hasSmtpPassword flag instead) plus
+// which fields currently fall back to environment variables, so the UI can
+// show "using environment variables" hints.
+router.get("/settings/email", protect, authorize("admin"), async (req, res) => {
+  try {
+    const raw = await getRawEmailSetting();
+
+    const envFallback = {
+      host: !raw.smtp.host && Boolean(process.env.SMTP_HOST),
+      user: !raw.smtp.user && Boolean(process.env.SMTP_USER),
+      password: !raw.hasSmtpPassword && Boolean(process.env.SMTP_PASS),
+      from: !raw.smtp.from && Boolean(process.env.MAIL_FROM),
+      appUrl: !raw.smtp.appUrl && Boolean(process.env.APP_URL),
+    };
+
+    res.json({ ...raw, envFallback });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// PATCH — partial update. Empty/absent password keeps the current one;
+// clearSmtpPassword: true removes it (reverting to the env fallback).
+// Saving invalidates the mailer's cached transporter so the next send uses
+// the new values immediately.
+router.patch("/settings/email", protect, authorize("admin"), async (req, res) => {
+  try {
+    const { smtp = {}, templates = {}, clearSmtpPassword } = req.body || {};
+    const patch = { smtp: {}, templates: {} };
+
+    if (smtp.host !== undefined) patch.smtp.host = String(smtp.host).trim();
+    if (smtp.user !== undefined) patch.smtp.user = String(smtp.user).trim();
+    if (smtp.from !== undefined) patch.smtp.from = String(smtp.from).trim();
+    if (smtp.appUrl !== undefined) patch.smtp.appUrl = String(smtp.appUrl).trim();
+
+    if (smtp.port !== undefined && smtp.port !== null && smtp.port !== "") {
+      const port = Number(smtp.port);
+      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        return res.status(400).json({ message: "Port must be a number between 1 and 65535" });
+      }
+      patch.smtp.port = port;
+    } else if (smtp.port === null || smtp.port === "") {
+      patch.smtp.port = null;
+    }
+
+    if (smtp.secure !== undefined) {
+      patch.smtp.secure = smtp.secure === null || smtp.secure === "" ? null : Boolean(smtp.secure);
+    }
+
+    if (clearSmtpPassword) {
+      patch.smtp.passEncrypted = "";
+    } else if (typeof smtp.password === "string" && smtp.password.trim()) {
+      patch.smtp.passEncrypted = seal(smtp.password.trim());
+    }
+
+    const allowedTemplateFields = ["subject", "title", "body"];
+    for (const key of ["verification", "passwordReset", "notification"]) {
+      const block = templates[key];
+      if (!block || typeof block !== "object") continue;
+      const clean = {};
+      for (const field of allowedTemplateFields) {
+        if (block[field] !== undefined) clean[field] = String(block[field]);
+      }
+      if (Object.keys(clean).length) patch.templates[key] = clean;
+    }
+
+    const saved = await saveEmailSetting(patch, req.user._id);
+    resetTransporter();
+
+    res.json({
+      message: "Email settings saved",
+      ...saved,
+      envFallback: {
+        host: !saved.smtp.host && Boolean(process.env.SMTP_HOST),
+        user: !saved.smtp.user && Boolean(process.env.SMTP_USER),
+        password: !saved.hasSmtpPassword && Boolean(process.env.SMTP_PASS),
+        from: !saved.smtp.from && Boolean(process.env.MAIL_FROM),
+        appUrl: !saved.smtp.appUrl && Boolean(process.env.APP_URL),
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// POST — send a short test email through the current settings so a
+// misconfigured host/credential is visible immediately. Simple in-memory
+// 60s-per-admin cooldown to deter spamming.
+const testEmailCooldown = new Map();
+router.post("/settings/email/test", protect, authorize("admin"), async (req, res) => {
+  try {
+    const email = String(req.body?.email || "").trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ message: "Enter a valid email address" });
+    }
+
+    const last = testEmailCooldown.get(String(req.user._id)) || 0;
+    if (Date.now() - last < 60 * 1000) {
+      return res.status(429).json({ message: "Please wait a minute before sending another test email." });
+    }
+
+    const sent = await sendMail({
+      to: email,
+      subject: "[TrackED] Test email",
+      html: `<div style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;padding:28px;"><h1 style="font-size:20px;color:#111827;">TrackED test email</h1><p style="font-size:15px;color:#374151;">If you're reading this, the SMTP settings saved on the Email Settings page are working.</p></div>`,
+      text: "TrackED test email — if you're reading this, the SMTP settings saved on the Email Settings page are working.",
+    });
+
+    if (!sent) {
+      return res.status(502).json({
+        message: "Could not send the test email. Check the host, port, user, and password, then try again.",
+      });
+    }
+
+    testEmailCooldown.set(String(req.user._id), Date.now());
+    res.json({ message: `Test email sent to ${email}` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 module.exports = router;

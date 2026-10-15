@@ -40,10 +40,10 @@ async function issueEmailCode(user) {
   user.emailVerificationLastSentAt = new Date();
   await user.save();
 
-  const { html, text } = renderVerificationEmail({ name: user.name, code });
+  const { subject, html, text } = await renderVerificationEmail({ name: user.name, code });
   const sent = await sendMail({
     to: user.email,
-    subject: `Your TrackED verification code`,
+    subject,
     html,
     text,
   });
@@ -73,10 +73,10 @@ async function issuePasswordResetCode(user) {
   user.passwordResetLastSentAt = new Date();
   await user.save();
 
-  const { html, text } = renderPasswordResetEmail({ name: user.name, code });
+  const { subject, html, text } = await renderPasswordResetEmail({ name: user.name, code });
   const sent = await sendMail({
     to: user.email,
-    subject: `Your TrackED password reset code`,
+    subject,
     html,
     text,
   });
@@ -176,7 +176,7 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ message: PASSWORD_MESSAGE });
     }
 
-    const mailEnabled = isMailEnabled();
+    const mailEnabled = await isMailEnabled();
     const existingUser = await User.findOne({ email });
 
     if (existingUser) {
@@ -336,7 +336,7 @@ router.post("/resend-verification", async (req, res) => {
 
   try {
     if (!email) return res.status(400).json({ message: "Email is required" });
-    if (!isMailEnabled()) {
+    if (!(await isMailEnabled())) {
       return res.status(400).json({ message: "Email sending is not configured." });
     }
 
@@ -386,7 +386,7 @@ router.post("/forgot-password", async (req, res) => {
     // Without SMTP nobody could ever receive the code, so don't pretend we sent
     // one. Development keeps going — issuePasswordResetCode() prints the code
     // to the console instead, which keeps the flow testable locally.
-    if (!isMailEnabled() && process.env.NODE_ENV === "production") {
+    if (!(await isMailEnabled()) && process.env.NODE_ENV === "production") {
       return res.status(503).json({
         message: "Password reset by email is unavailable right now. Contact your administrator.",
       });
@@ -506,7 +506,7 @@ router.post("/login", async (req, res) => {
     // frontend route to the code screen; if mail is off, auto-verify so nobody
     // gets stranded (this only happens when SMTP was disabled after signup).
     if (user.emailVerified === false) {
-      if (isMailEnabled()) {
+      if (await isMailEnabled()) {
         return res.status(403).json({
           message: "Please verify your email to continue. We can send you a new code.",
           requiresEmailVerification: true,

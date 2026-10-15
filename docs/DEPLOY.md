@@ -97,6 +97,13 @@ the API logs no mail.
 | `MAIL_FROM` | `TrackED <the sending Gmail address>` |
 | `APP_URL` | `https://track-ed.vispo.me` (used in the email's button) |
 
+> **In-app override:** an admin can later edit SMTP settings and the email
+> texts from **Admin Portal → Email Settings** (`/admin/dashboard/settings/email`).
+> Values saved there are stored in the database (password encrypted at rest)
+> and take precedence over these environment variables, which act as the
+> fallback until the page is used. A **Send Test** button on the page verifies
+> the configuration without waiting for a real notification.
+
 The API creates the admin account on first boot **only when `ADMIN_EMAIL` and
 `ADMIN_PASSWORD` are both set**, and only if no admin exists yet. Restarts and
 redeploys are safe: it never touches an existing admin account, and it refuses

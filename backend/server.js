@@ -62,11 +62,11 @@ app.get("/", (req, res) => {
 // probe. Reports database state without failing on it: the process only starts
 // listening after a successful connect, so a failing probe here would only
 // produce restart loops around a database that is already coming back up.
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (req, res) => {
   res.json({
     ok: true,
     db: mongoose.connection.readyState === 1 ? "up" : "down",
-    mail: isMailEnabled() ? "on" : "off",
+    mail: (await isMailEnabled()) ? "on" : "off",
     uptime: Math.round(process.uptime()),
   });
 });

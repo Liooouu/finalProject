@@ -15,6 +15,7 @@ import ProfileSettings from "../components/settings/ProfileSettings";
 import EventDetails from "../components/EventDetails";
 import OrgManageAttendees from "../components/organizer/OrgManageAttendees";
 import PinResetRequests from "../components/security/PinResetRequests";
+import EmailSettings from "../components/admin/EmailSettings";
 
 const AdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -36,6 +37,7 @@ const AdminDashboard = () => {
                 <Route path="users" element={<ManageUsers />} />
                 <Route path="pin-resets" element={<PinResetRequests />} />
                 <Route path="reports" element={<AttendanceReport />} />
+                <Route path="settings/email" element={<EmailSettings />} />
                 <Route path="notifications" element={<NotificationsPage role="admin" />} />
                 <Route path="profile" element={<ProfileSettings />} />
                 <Route path="*" element={<Navigate to="" replace />} />

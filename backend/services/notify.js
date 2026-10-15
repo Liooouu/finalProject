@@ -53,10 +53,9 @@ async function notifyUsers(recipients, { type, title, message, relatedEvent, eve
     }))
   );
 
-  if (!isMailEnabled()) return;
+  if (!(await isMailEnabled())) return;
 
-  const subject = `[TrackED] ${title}`;
-  const { html, text } = renderNotificationEmail({ title, message, event });
+  const { subject, html, text } = await renderNotificationEmail({ title, message, event });
   const recipientsWithEmail = users.filter((u) => u.email);
 
   await Promise.all(
