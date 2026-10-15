@@ -14,8 +14,10 @@ import {
   FaSun,
 } from "react-icons/fa";
 
-const DEFAULT_LAT = 14.5995;
-const DEFAULT_LON = 120.9842;
+// Batangas City — the campus locale. The weather card pins here on purpose
+// (no device geolocation) so every user sees the same local forecast.
+const DEFAULT_LAT = 13.7565;
+const DEFAULT_LON = 121.0583;
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -224,10 +226,13 @@ const TodayCard = ({
     let cancelled = false;
     let refreshId = null;
 
-    const fetchWeather = async (lat, lon) => {
+    const fetchWeather = async () => {
       try {
+        // Always Batangas — device geolocation drifted to wrong places
+        // (VPN, denied permission, IP fallback), showing rain during sunny
+        // PH days. The app serves one campus, so one local forecast fits.
         const res = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+          `https://api.open-meteo.com/v1/forecast?latitude=${DEFAULT_LAT}&longitude=${DEFAULT_LON}` +
             `&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,is_day,wind_speed_10m` +
             `&hourly=temperature_2m,weather_code,is_day` +
             `&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max` +
@@ -286,26 +291,14 @@ const TodayCard = ({
       }
     };
 
-    const start = (lat, lon) => {
-      fetchWeather(lat, lon);
+    const start = () => {
+      fetchWeather();
       // Keep it fresh without hammering the API — 15 minutes is plenty for a
       // dashboard glance.
-      refreshId = setInterval(() => fetchWeather(lat, lon), 15 * 60 * 1000);
+      refreshId = setInterval(fetchWeather, 15 * 60 * 1000);
     };
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (!cancelled) start(pos.coords.latitude, pos.coords.longitude);
-        },
-        () => {
-          if (!cancelled) start(DEFAULT_LAT, DEFAULT_LON);
-        },
-        { timeout: 6000, maximumAge: 600000 }
-      );
-    } else {
-      start(DEFAULT_LAT, DEFAULT_LON);
-    }
+    start();
 
     return () => {
       cancelled = true;
