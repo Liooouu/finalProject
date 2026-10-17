@@ -10,6 +10,8 @@ const {
   STATUS,
   EVENT_STATUSES,
   isTerminal,
+  manilaNow,
+  manilaClock,
   eventStartsAt,
   eventEndAt,
   resolveAutomation,
@@ -56,7 +58,7 @@ router.post("/", protect, async (req, res) => {
     const { title, description, date, time, location, mapQuery, attendanceStartTime, attendanceEndTime } = req.body;
 
     if (!attendanceStartTime || !attendanceEndTime) {
-      return res.status(400).json({ error: "Attendance window (start and end time) is required" });
+      return res.status(400).json({ error: "The attendance window (start and end time) is required" });
     }
 
     const endDate = req.body.endDate || date;
@@ -72,6 +74,21 @@ router.post("/", protect, async (req, res) => {
     });
     if (scheduleError) {
       return res.status(400).json({ error: scheduleError });
+    }
+
+    // Duplicate-submission guard. On a slow connection a double-click fires the
+    // request twice before the first response lands; without this the organizer
+    // ends up with two identical events. If the same organizer just created the
+    // same title at the same start date/time, return that event instead of a copy.
+    const duplicate = await Event.findOne({
+      organizer: req.user._id,
+      title,
+      date,
+      time,
+      createdAt: { $gte: new Date(Date.now() - 30 * 1000) },
+    });
+    if (duplicate) {
+      return res.status(200).json(duplicate);
     }
 
     const event = new Event({
@@ -94,7 +111,7 @@ router.post("/", protect, async (req, res) => {
     await notifyUsers(await eventRecipients(event), {
       type: "info",
       title: "New Event Posted",
-      message: `A new event "${event.title}" has been posted for ${new Date(event.date).toLocaleDateString()} at ${event.time}.`,
+      message: `A new event "${event.title}" has been scheduled for ${new Date(event.date).toLocaleDateString()} at ${event.time}.`,
       relatedEvent: event._id,
       event,
     });
@@ -279,11 +296,13 @@ router.post("/:id/attendance", protect, async (req, res) => {
       return res.status(400).json({ error: `This event is ${label} — attendance can no longer be marked` });
     }
 
-    const eventDay = new Date(event.date);
+    // Compare calendar days on the school's clock (Asia/Manila), not the server's.
+    const nowM = manilaNow(now);
+    const eventDayM = manilaNow(event.date);
     const sameDay =
-      now.getFullYear() === eventDay.getFullYear() &&
-      now.getMonth() === eventDay.getMonth() &&
-      now.getDate() === eventDay.getDate();
+      nowM.getUTCFullYear() === eventDayM.getUTCFullYear() &&
+      nowM.getUTCMonth() === eventDayM.getUTCMonth() &&
+      nowM.getUTCDate() === eventDayM.getUTCDate();
     if (!sameDay) {
       return res.status(400).json({ error: "Attendance can only be marked on the event day" });
     }
@@ -297,7 +316,7 @@ router.post("/:id/attendance", protect, async (req, res) => {
       return res.status(400).json({ error: "Attendance already marked" });
     }
 
-    const currentTime = now.getHours().toString().padStart(2, "0") + ":" + now.getMinutes().toString().padStart(2, "0");
+    const currentTime = manilaClock(now);
     const endTime = event.attendanceEndTime;
 
     let status = "present";
@@ -343,7 +362,7 @@ router.post("/:id/attendance", protect, async (req, res) => {
       await notifyUsers([req.user], {
         type: "attendance",
         title: "Marked Late",
-        message: `You were late for event "${event.title}".${replacedExcuse ? " Your approved excuse was replaced since you attended." : ""} 4 community service hours have been added to your community service hours.`,
+        message: `You were late for the event "${event.title}".${replacedExcuse ? " Your approved excuse was replaced since you attended." : ""} 4 community service hours have been added to your total.`,
         relatedEvent: event._id,
         event,
       });
@@ -373,7 +392,7 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
     if (!event) return res.status(404).json({ error: "Event not found" });
 
     if (req.user.role !== "organizer" && req.user.role !== "admin") {
-      return res.status(403).json({ error: "Only organizers can scan attendance" });
+      return res.status(403).json({ error: "Only organizers and admins can scan attendance" });
     }
 
     if (req.user.role === "organizer" && event.organizer.toString() !== req.user._id.toString()) {
@@ -394,7 +413,7 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
     }
 
     const now = new Date();
-    const currentTime = now.getHours().toString().padStart(2, "0") + ":" + now.getMinutes().toString().padStart(2, "0");
+    const currentTime = manilaClock(now);
     const endTime = event.attendanceEndTime;
 
     console.log(`[SCAN] currentTime: "${currentTime}", endTime: "${endTime}", currentTime > endTime: ${currentTime > endTime}`);
@@ -442,7 +461,7 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
       await notifyUsers([student], {
         type: "attendance",
         title: "Marked Late",
-        message: `You were marked as late for event "${event.title}" by the organizer. 4 community service hours have been added to your community service hours.`,
+        message: `You were marked as late for the event "${event.title}" by the organizer. 4 community service hours have been added to your total.`,
         relatedEvent: event._id,
         event,
       });
@@ -617,7 +636,7 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
       await notifyUsers([req.params.studentId], {
         type: status === "late" ? "attendance" : "penalty",
         title: status === "late" ? "Marked Late" : "Marked Absent",
-        message: `You were marked as ${status} for event "${event.title}" by the organizer. ${communityServiceHours} community service hours have been added to your community service hours.`,
+        message: `You were marked as ${status} for the event "${event.title}" by the organizer. ${communityServiceHours} community service hours have been added to your total.`,
         relatedEvent: event._id,
         event,
       });
@@ -685,7 +704,7 @@ router.patch("/:id/attendees/:studentId/community-service", protect, async (req,
     await notifyUsers([req.params.studentId], {
       type: "penalty",
       title: "Community Service Hours Updated",
-      message: `Your community service hours for "${event.title}" have been set to ${hours} hour(s) by the organizer.`,
+      message: `Your community service hours for "${event.title}" have been set to ${hours} hour${hours === 1 ? "" : "s"} by the organizer or admin.`,
       relatedEvent: event._id,
       event,
     });
@@ -762,7 +781,7 @@ router.patch("/:id/attendees/:studentId/community-service/remove", protect, asyn
     await notifyUsers([studentId], {
       type: "penalty",
       title: "Community Service Hours Removed",
-      message: `${removed} community service hour(s) have been removed from your record by the organizer.`,
+      message: `${removed} community service hour${removed === 1 ? "" : "s"} ${removed === 1 ? "has" : "have"} been removed from your record by the organizer or admin.`,
       relatedEvent: event._id,
       event,
     });
@@ -832,7 +851,7 @@ router.post("/:id/attendees/manual", protect, async (req, res) => {
       await notifyUsers([student], {
         type: status === "late" ? "attendance" : "penalty",
         title: status === "late" ? "Marked Late" : "Marked Absent",
-        message: `You were marked as ${status} for event "${event.title}" by the organizer. ${hours} community service hours have been added to your community service hours.`,
+        message: `You were marked as ${status} for the event "${event.title}" by the organizer. ${hours} community service hours have been added to your total.`,
         relatedEvent: event._id,
         event,
       });

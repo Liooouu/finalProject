@@ -457,7 +457,7 @@ router.patch(
         user: attendance.student,
         type: "penalty",
         title: "Community Service Hours Updated",
-        message: `Your community service hours for "${attendance.event?.title || "an event"}" have been set to ${hours} hour(s) by an admin.`,
+        message: `Your community service hours for "${attendance.event?.title || "an event"}" have been set to ${hours} hour${hours === 1 ? "" : "s"} by an admin.`,
         relatedEvent: attendance.event ? attendance.event._id : undefined,
       });
       await notification.save();
@@ -542,7 +542,7 @@ router.patch(
         user: studentId,
         type: "penalty",
         title: "Community Service Hours Removed",
-        message: `${removed} community service hour(s) have been removed from your record by an admin.`,
+        message: `${removed} community service hour${removed === 1 ? "" : "s"} ${removed === 1 ? "has" : "have"} been removed from your record by an admin.`,
         relatedEvent: attendance.event ? attendance.event._id : undefined,
       });
       await notification.save();

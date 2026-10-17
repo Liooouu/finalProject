@@ -288,7 +288,7 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
             </span>
             {sessionCount > 0 && (
               <span className="shrink-0 text-on-dim font-medium">
-                {sessionCount} scanned this session
+                Scanned this session: {sessionCount}
               </span>
             )}
           </div>

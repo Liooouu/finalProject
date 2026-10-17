@@ -24,7 +24,7 @@ const steps = [
     n: "01",
     icon: <FaQrcode />,
     title: "Students check in",
-    desc: "Enroll your face once, then check in by QR or map, watch your community-service hours add up, and file an excuse when life gets in the way.",
+    desc: "Enroll your face once, then check in by QR and watch your community-service hours add up. File an excuse when life gets in the way.",
   },
   {
     n: "02",
@@ -43,8 +43,8 @@ const steps = [
 const securityPoints = [
   {
     icon: <FaCamera />,
-    title: "Face enrolment",
-    desc: "Students can unlock their account with a live face check on their own device.",
+    title: "Face enrollment",
+    desc: "Forgot your security PIN? Recover it with a live face check on your own device.",
   },
   {
     icon: <FaKey />,
@@ -137,15 +137,15 @@ const LandingPage = () => {
 
             <Reveal delay={90}>
               <h1 className="mt-8 max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-tight text-on sm:text-5xl lg:text-6xl">
-                Lock onto every{" "}
-                <span className="text-indigo-500">events</span> and community
-                hours.
+                Track every{" "}
+                <span className="text-indigo-500">event</span> and community
+                hour.
               </h1>
             </Reveal>
 
             <Reveal delay={180}>
               <p className="mt-5 max-w-2xl text-base text-on-dim sm:text-lg">
-                TrackED keeps Events attendance in clear focus — for students,
+                TrackED keeps event attendance in clear focus for students,
                 organizers, and admins.
               </p>
             </Reveal>
@@ -284,7 +284,7 @@ const LandingPage = () => {
               <TrackMark className="h-9 w-9" />
             </span>
             <h2 className="mt-7 text-3xl font-extrabold tracking-tight text-on sm:text-5xl">
-              Ready to lock on?
+              Ready to get started?
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-on-dim">
               Create your account in about a minute — then your next event is

@@ -415,7 +415,7 @@ const OrgManageAttendees = () => {
                   <div className="text-right">
                     <StatusBadge status={attendance.status} />
                     <p className="text-on-dim text-sm mt-1">
-                      {attendance.communityServiceHours} hrs CS
+                      {attendance.communityServiceHours} service hrs
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -444,7 +444,7 @@ const OrgManageAttendees = () => {
                       onClick={() => handleRemoveCS(attendance)}
                       className="bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
                     >
-                      Remove CS
+                      Remove hours
                     </button>
                   </div>
                 </div>

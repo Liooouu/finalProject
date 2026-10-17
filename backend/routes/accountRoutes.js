@@ -74,7 +74,7 @@ router.patch("/password", protect, async (req, res) => {
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword || !String(newPassword).trim()) {
-      return res.status(400).json({ error: "Please fill all fields" });
+      return res.status(400).json({ error: "Please fill in all fields" });
     }
     if (!isStrongPassword(newPassword)) {
       return res.status(400).json({ error: PASSWORD_MESSAGE });
@@ -94,7 +94,7 @@ router.patch("/password", protect, async (req, res) => {
     if (!isMatch) {
       return res
         .status(400)
-        .json({ error: "Current password incorrect" });
+        .json({ error: "Current password is incorrect" });
     }
 
     const salt = await bcrypt.genSalt(10);

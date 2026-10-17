@@ -179,7 +179,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
           title: "Advance Excuse Approved",
           message:
             `Your advance excuse for "${excuse.event.title}" was approved. You won't receive community service hours if you miss this event.` +
-            (removal === "16" ? " 16 hours were removed from your community service hours." : ""),
+            (removal === "16" ? " 16 hours were removed from your community service total." : ""),
           relatedEvent: excuse.event._id,
         });
         await notification.save();
@@ -235,7 +235,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
           title: "Excuse Approved",
           message:
             removal === "16"
-              ? `Your excuse for "${excuse.event.title}" was approved. 16 hours were removed from your community service hours.`
+              ? `Your excuse for "${excuse.event.title}" was approved. 16 hours were removed from your community service total.`
               : `Your excuse for "${excuse.event.title}" was approved. Any community service hours for this event have been removed.`,
           relatedEvent: excuse.event._id,
         });

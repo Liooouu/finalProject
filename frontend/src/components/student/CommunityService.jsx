@@ -44,7 +44,7 @@ const CommunityService = () => {
     <div className="space-y-6">
       {/* Note to students about CS adjustments */}
       <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 text-sm text-on-dim">
-        Note: The event organizer and admin may modify your community service hours according to your behavior.
+        Note: The event organizer or admin may adjust your community service hours at their discretion.
       </div>
 
       {/* Stats Cards */}
@@ -82,7 +82,7 @@ const CommunityService = () => {
           <p className="text-4xl font-bold dark:text-green-400 text-green-600">
             {removedHours} <span className="text-lg font-normal text-on-dim">hrs</span>
           </p>
-          <p className="text-xs text-on-muted mt-1">Forgiven via excuses, status changes &amp; Remove CS</p>
+          <p className="text-xs text-on-muted mt-1">Cleared by approved excuses, status changes, or manual removal</p>
         </div>
       </div>
 

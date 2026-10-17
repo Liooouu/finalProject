@@ -623,7 +623,7 @@ const ManageUsers = () => {
                           {(record.event?.date || record.eventDate) && new Date(record.event?.date || record.eventDate).toLocaleDateString()}
                           {record.communityServiceHours > 0 && (
                             <span className="dark:text-yellow-400 text-yellow-600 font-medium">
-                              {" "}• {record.communityServiceHours} hrs CS
+                              {" "}• {record.communityServiceHours} service hrs
                             </span>
                           )}
                         </p>
@@ -656,7 +656,7 @@ const ManageUsers = () => {
                               onClick={() => handleRemoveCS(record)}
                               className="bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
                             >
-                              Remove CS
+                              Remove hours
                             </button>
                         </div>
                       </div>

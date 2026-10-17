@@ -2,8 +2,13 @@
 // Single source of truth for when an event starts, when it ends, and what
 // counts as an active status. The background job, the routes and the reports
 // all agree because they all ask these helpers instead of re-deriving the
-// date math (which previously compared a UTC-midnight date against local
-// midnight — right in UTC+8, off by one day in negative offsets).
+// date math.
+//
+// Every wall-clock value below is resolved in Asia/Manila (UTC+8, no DST), not
+// the server's timezone. The API container runs in UTC, so the old
+// `new Date(localY, localM, ...)` math was +8h off in production: a 5:45 PM
+// attendance window fired its notices at 1:45 AM. Deriving the school clock
+// from a fixed offset keeps dev (Windows, PHT) and prod (UTC container) identical.
 
 const STATUS = {
   UPCOMING: "upcoming",
@@ -32,42 +37,76 @@ function parseClock(value) {
   return { hours, minutes };
 }
 
-// `date` is stored as UTC midnight (the browser sends YYYY-MM-DD), so the
-// calendar day has to be read from the UTC parts and then rebuilt in the
-// server's local timezone — the school runs on wall-clock time.
-function localDayStart(value) {
+// The school runs on Philippine time. Node reads the server zone (UTC inside
+// the container), so every wall-clock instant is anchored to this fixed offset
+// instead — the Philippines has never observed DST, so +8 is always correct.
+const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+// The current instant shifted so its UTC getters read Manila wall-clock.
+function manilaNow(now = new Date()) {
+  return new Date(now.getTime() + MANILA_OFFSET_MS);
+}
+
+// "HH:mm" on the Manila clock for an instant.
+function manilaClock(now = new Date()) {
+  const m = manilaNow(now);
+  return (
+    String(m.getUTCHours()).padStart(2, "0") +
+    ":" +
+    String(m.getUTCMinutes()).padStart(2, "0")
+  );
+}
+
+// Calendar day (Y/M/D) of a stored event date. `date` is saved as UTC midnight
+// (the browser sends YYYY-MM-DD), so the UTC parts are the organizer's day.
+function calendarParts(value) {
   const parsed = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
+  return {
+    y: parsed.getUTCFullYear(),
+    m: parsed.getUTCMonth(),
+    d: parsed.getUTCDate(),
+  };
+}
+
+// Instant at a Manila wall-clock time on a given calendar day.
+function manilaInstant(parts, hours = 0, minutes = 0) {
   return new Date(
-    parsed.getUTCFullYear(),
-    parsed.getUTCMonth(),
-    parsed.getUTCDate(),
-    0,
-    0,
-    0,
-    0
+    Date.UTC(parts.y, parts.m, parts.d, hours, minutes) - MANILA_OFFSET_MS
   );
+}
+
+// [start, end] instants of the Manila calendar day that contains `instant`.
+function manilaDayRange(instant = new Date()) {
+  const m = manilaNow(instant);
+  const y = m.getUTCFullYear();
+  const mo = m.getUTCMonth();
+  const d = m.getUTCDate();
+  return {
+    start: new Date(Date.UTC(y, mo, d) - MANILA_OFFSET_MS),
+    end: new Date(Date.UTC(y, mo, d + 1) - MANILA_OFFSET_MS - 1),
+  };
 }
 
 // Instant the event is scheduled to begin.
 function eventStartsAt(event) {
-  const day = localDayStart(event.date);
-  if (!day) return null;
+  const parts = calendarParts(event.date);
+  if (!parts) return null;
   const clock = parseClock(event.time);
-  if (!clock) return day;
-  return new Date(day.getFullYear(), day.getMonth(), day.getDate(), clock.hours, clock.minutes);
+  if (!clock) return manilaInstant(parts, 0, 0);
+  return manilaInstant(parts, clock.hours, clock.minutes);
 }
 
 // Instant the event is over: its own end date/time, falling back to the end of
-// the attendance window and then to midnight of that day.
+// the attendance window and then to the last moment of that day.
 function eventEndAt(event) {
-  const day = localDayStart(event.endDate || event.date);
-  if (!day) return null;
+  const parts = calendarParts(event.endDate || event.date);
+  if (!parts) return null;
   const clock = parseClock(event.endTime || event.attendanceEndTime);
   if (!clock) {
-    return new Date(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59, 999);
+    return new Date(manilaInstant(parts, 23, 59).getTime() + 59 * 1000 + 999);
   }
-  return new Date(day.getFullYear(), day.getMonth(), day.getDate(), clock.hours, clock.minutes);
+  return manilaInstant(parts, clock.hours, clock.minutes);
 }
 
 // Events a human has taken control of are left alone by the automation.
@@ -132,6 +171,9 @@ module.exports = {
   OPEN_STATUS_FILTER,
   isTerminal,
   isAutomated,
+  manilaNow,
+  manilaClock,
+  manilaDayRange,
   eventStartsAt,
   eventEndAt,
   shouldAutoGoLive,

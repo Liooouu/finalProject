@@ -41,6 +41,7 @@ const EventDetails = () => {
   const [studentId, setStudentId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [csDrafts, setCsDrafts] = useState({});
+  const [saving, setSaving] = useState(false);
   const [program, setProgram] = useState("");
   const [yearLevel, setYearLevel] = useState("");
   const [section, setSection] = useState("");
@@ -217,6 +218,8 @@ const EventDetails = () => {
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
     try {
       const res = await api.put(`/events/${id}`, editForm);
       setEvent(res.data);
@@ -224,6 +227,8 @@ const EventDetails = () => {
       setMessage("Event updated successfully!");
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to update event");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -430,9 +435,6 @@ const EventDetails = () => {
                 <p className="text-on-dim text-sm">
                   QR code refreshes every 30 seconds for security
                 </p>
-                <p className="text-on-muted text-sm text-center mt-3">
-                  Show this QR code to the organizer to mark your attendance
-                </p>
               </div>
             </div>
           )}
@@ -594,8 +596,9 @@ const EventDetails = () => {
                 <div className="flex gap-3">
                   <Button
                     type="submit"
+                    disabled={saving}
                   >
-                    Save Changes
+                    {saving ? "Saving..." : "Save Changes"}
                   </Button>
                   <Button
                     type="button"
@@ -658,7 +661,7 @@ const EventDetails = () => {
           <div className="rounded-xl border border-line bg-card p-6">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-xl font-bold text-on">
-                Attendees with filtered groups
+                    Attendees by group
                 {selectedGroup !== "all" && ` (${filteredAttendees.length})`}
               </h2>
               <p className="text-xs text-on-muted">
@@ -774,7 +777,7 @@ const EventDetails = () => {
                           onClick={() => handleRemoveCS(attendance)}
                           className="text-red-500 hover:border-red-500/40"
                         >
-                          Remove CS
+                          Remove hours
                         </Button>
                       </div>
                     </div>

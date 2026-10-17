@@ -79,7 +79,7 @@ const ManageExcuses = () => {
       if (target.type === "all") {
         const res = await api.delete("/organizer/excuses");
         setExcuses(excuses.filter(e => e.status === "pending"));
-        setMessage(`${res.data.deleted} reviewed excuse(s) deleted!`);
+        setMessage(`${res.data.deleted} reviewed ${res.data.deleted === 1 ? "excuse" : "excuses"} deleted!`);
       } else {
         await api.delete(`/organizer/excuses/${target.id}`);
         setExcuses(excuses.filter(e => e._id !== target.id));

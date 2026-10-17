@@ -6,8 +6,8 @@ import { FaQrcode, FaClock, FaBell, FaChartBar } from "react-icons/fa";
 const features = [
   {
     icon: <FaQrcode />,
-    title: "QR & map check-in",
-    desc: "Scan your code or mark attendance in one tap.",
+    title: "QR check-in",
+    desc: "Show your QR to be scanned, or mark your attendance in one tap.",
   },
   {
     icon: <FaClock />,

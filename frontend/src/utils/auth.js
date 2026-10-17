@@ -68,6 +68,23 @@ export const clearAllAuth = () => {
   ROLES.forEach((role) => localStorage.removeItem(`token_${role}`));
 };
 
+// Signup email-verification is easy to interrupt: the student leaves to read the
+// emailed code and the tab reloads. Remembering the address lets the auth page
+// drop them straight back onto the code screen after the refresh instead of the
+// sign-in form. Cleared once the code is verified or the student backs out.
+const PENDING_VERIFICATION_KEY = "pendingVerificationEmail";
+
+export const setPendingVerificationEmail = (email) => {
+  if (email) localStorage.setItem(PENDING_VERIFICATION_KEY, email);
+};
+
+export const getPendingVerificationEmail = () =>
+  localStorage.getItem(PENDING_VERIFICATION_KEY) || null;
+
+export const clearPendingVerificationEmail = () => {
+  localStorage.removeItem(PENDING_VERIFICATION_KEY);
+};
+
 export const getUserFromToken = () => {
   const token = getToken();
   if (!token) return null;

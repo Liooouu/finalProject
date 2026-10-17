@@ -39,6 +39,7 @@ const OrgManageEvents = () => {
   const [expandedEvent, setExpandedEvent] = useState(null);
   const [eventGroups, setEventGroups] = useState({});
   const [loadingGroups, setLoadingGroups] = useState({});
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -94,6 +95,10 @@ const OrgManageEvents = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // A slow request leaves the button clickable; a second tap would POST again
+    // and create a duplicate event. Latch until the first one resolves.
+    if (submitting) return;
+    setSubmitting(true);
     try {
       await api.post("/events", form);
       setMessage("Event created successfully!");
@@ -113,6 +118,8 @@ const OrgManageEvents = () => {
       fetchEvents();
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to create event.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -358,9 +365,10 @@ const OrgManageEvents = () => {
 
           <Button
             type="submit"
+            disabled={submitting}
             className="w-full py-2.5"
           >
-            Create Event
+            {submitting ? "Creating..." : "Create Event"}
           </Button>
         </form>
       )}
@@ -458,7 +466,7 @@ const OrgManageEvents = () => {
                     className="flex items-center gap-2 text-sm text-on-dim hover:text-on transition-colors"
                   >
                     {expandedEvent === event._id ? <FaChevronDown /> : <FaChevronRight />}
-                    Attendees with filtered groups
+                    Attendees by group
                   </button>
                   {expandedEvent === event._id && (
                     <div className="mt-3 space-y-2">
@@ -468,7 +476,7 @@ const OrgManageEvents = () => {
                         (eventGroups[event._id] || []).map((g) => (
                           <div key={g.key || g.label} className="flex items-center justify-between rounded-lg bg-card-alt/40 border border-line px-3 py-2 text-sm">
                             <span className="text-on-dim">{g.label || "Unassigned"}</span>
-                            <span className="text-on">{g.attended || 0} {g.attended === 1 ? "student" : "students"} have attended</span>
+                            <span className="text-on">{g.attended || 0} {g.attended === 1 ? "student has" : "students have"} attended</span>
                           </div>
                         ))
                       ) : (

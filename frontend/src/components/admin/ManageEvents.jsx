@@ -26,6 +26,7 @@ const ManageEvents = () => {
   const [messageType, setMessageType] = useState("success");
   const [showCreate, setShowCreate] = useState(false);
   const [createMsg, setCreateMsg] = useState("");
+  const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({
     title: "",
     description: "",
@@ -110,6 +111,10 @@ const ManageEvents = () => {
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
+    // Latch while the request is in flight so a slow connection can't turn one
+    // click into several events.
+    if (creating) return;
+    setCreating(true);
     try {
       const res = await api.post("/events", createForm);
       setEvents((prev) => [res.data, ...prev]);
@@ -129,6 +134,8 @@ const ManageEvents = () => {
       setCreateMsg("");
     } catch (err) {
       setCreateMsg(err.response?.data?.error || "Failed to create event");
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -355,8 +362,8 @@ const ManageEvents = () => {
             <p className="text-xs text-on-muted mt-2">Students can only mark attendance within this time window.</p>
           </div>
 
-          <Button type="submit" className="w-full py-2.5">
-            Create Event
+          <Button type="submit" disabled={creating} className="w-full py-2.5">
+            {creating ? "Creating..." : "Create Event"}
           </Button>
         </form>
       )}

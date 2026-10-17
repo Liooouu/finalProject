@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "../../api/axios";
-import { setAuth } from "../../utils/auth";
+import {
+  setAuth,
+  getToken,
+  setPendingVerificationEmail,
+  getPendingVerificationEmail,
+  clearPendingVerificationEmail,
+} from "../../utils/auth";
 import { getDeviceId, getDeviceLabel } from "../../utils/device";
 import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
 import {
@@ -50,7 +56,7 @@ const PinPanel = ({ pin, isRotated, message, onContinue, loading }) => (
           {message ||
             (isRotated
               ? "This is now your security PIN. Record it somewhere safe."
-              : "The system assigned this PIN. You'll need it the first time you sign in from a new device in the computer lab.")}
+              : "The system assigned this PIN. You'll need it the first time you sign in from a new device.")}
         </p>
       </div>
     </div>
@@ -62,8 +68,8 @@ const PinPanel = ({ pin, isRotated, message, onContinue, loading }) => (
     <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-line bg-card-alt/60 px-3.5 py-3 text-sm text-on-dim">
       <FaShieldAlt className="mt-0.5 shrink-0 text-indigo-500" />
       <p>
-        Do not share your PIN. A friend with your login credentials will be locked out the moment
-        your PIN rotates.
+        Do not share your PIN. Because it rotates after each new-device sign-in, someone using only
+        your login credentials still can't get in.
       </p>
     </div>
 
@@ -145,6 +151,7 @@ const AuthPage = () => {
   const showSignup = () => navigate("/auth/signup");
 
   const finishAuth = (token, role) => {
+    clearPendingVerificationEmail();
     setAuth(token, role);
     navigate(`/${role}/dashboard`);
   };
@@ -162,6 +169,22 @@ const AuthPage = () => {
     return () => clearTimeout(t);
   }, [resendIn]);
 
+  // A student who signed up and left to read the emailed code comes back to a
+  // reloaded tab. Resume the code screen instead of dumping them on sign-in, so
+  // a refresh never strands a half-created account. `resendIn` starts at 0 so
+  // they can immediately request a fresh code if the first one expired.
+  useEffect(() => {
+    const pending = getPendingVerificationEmail();
+    if (pending && !getToken()) {
+      setPendingEmail(pending);
+      setEmailCode("");
+      setError("");
+      setResendIn(0);
+      setFlow("verifyEmail");
+    }
+    // Mount-only: this restores state lost to a refresh, not a live navigation.
+  }, []);
+
   // Separate tick for the password-reset resend cooldown, so leaving one flow
   // mid-countdown never leaves the other one stuck.
   useEffect(() => {
@@ -171,7 +194,9 @@ const AuthPage = () => {
   }, [fpResendIn]);
 
   const startEmailVerification = (email) => {
-    setPendingEmail(email || formData.email.trim());
+    const value = email || formData.email.trim();
+    setPendingEmail(value);
+    if (value) setPendingVerificationEmail(value);
     setEmailCode("");
     setResendIn(60);
     setError("");
@@ -195,6 +220,7 @@ const AuthPage = () => {
         isRotated: false,
         message: "Your email is verified. This PIN unlocks future sign-ins from new devices.",
       });
+      clearPendingVerificationEmail();
       setPendingAuth({ token: res.data.token, role: res.data.role, next: "enroll" });
       setFlow("pinPanel");
     } catch (err) {
@@ -653,12 +679,12 @@ const AuthPage = () => {
             <div key={isLogin ? "panel-login" : "panel-signup"} className="animate-fade-up">
               <h2 className="max-w-md text-3xl font-bold leading-tight text-white xl:text-4xl">
                 {isLogin
-                  ? "Lock onto every lecture, event, and community hour."
+                  ? "Track every event and community service hour."
                   : "New here? Create your account in about a minute."}
               </h2>
               <p className="mt-3 max-w-md text-indigo-100/80">
                 {isLogin
-                  ? "TrackED keeps Events attendance in clear focus — for students, organizers, and admins."
+                  ? "TrackED keeps event attendance in clear focus for students, organizers, and admins."
                   : "Register with your school email, verify it with a 6-digit code, and your next event is one scan away."}
               </p>
 
@@ -809,6 +835,7 @@ const AuthPage = () => {
                       setFlow("form");
                       setEmailCode("");
                       setError("");
+                      clearPendingVerificationEmail();
                       showLogin();
                     }}
                     className="font-medium text-on-dim hover:text-on"

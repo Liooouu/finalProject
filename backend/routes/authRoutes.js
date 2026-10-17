@@ -152,7 +152,7 @@ const rejectIfLocked = (user, res) => {
   if (mins > 0) {
     res
       .status(423)
-      .json({ message: `Too many attempts. Try again in ${mins} minute(s).` });
+      .json({ message: `Too many attempts. Try again in ${mins} minute${mins === 1 ? "" : "s"}.` });
     return true;
   }
   return false;
@@ -170,7 +170,7 @@ router.post("/register", async (req, res) => {
 
   try {
     if (!name || !email || !password) {
-      return res.status(400).json({ message: "Please fill all fields" });
+      return res.status(400).json({ message: "Please fill in all fields" });
     }
     if (!isStrongPassword(password)) {
       return res.status(400).json({ message: PASSWORD_MESSAGE });
@@ -201,7 +201,7 @@ router.post("/register", async (req, res) => {
     if (!program || !yearLevel || !section) {
       return res
         .status(400)
-        .json({ message: "Please fill program, year level, and section" });
+        .json({ message: "Please provide your program, year level, and section" });
     }
 
     program = String(program).trim().toUpperCase();
@@ -298,7 +298,8 @@ router.post("/verify-email", async (req, res) => {
         user.emailVerificationAttempts = 0;
         message = "Too many attempts. Request a new code.";
       } else {
-        message += ` (${EMAIL_CODE_MAX_ATTEMPTS - user.emailVerificationAttempts} attempts left)`;
+        const left = EMAIL_CODE_MAX_ATTEMPTS - user.emailVerificationAttempts;
+        message += ` (${left} ${left === 1 ? "attempt" : "attempts"} left)`;
       }
       await user.save();
       return res.status(400).json({ message });
@@ -433,7 +434,7 @@ router.post("/forgot-password/verify", async (req, res) => {
 
   try {
     if (!email || !code || !password || !String(password).trim()) {
-      return res.status(400).json({ message: "Please fill all fields." });
+      return res.status(400).json({ message: "Please fill in all fields." });
     }
     if (!isStrongPassword(password)) {
       return res.status(400).json({ message: PASSWORD_MESSAGE });
@@ -463,7 +464,8 @@ router.post("/forgot-password/verify", async (req, res) => {
         user.passwordResetAttempts = 0;
         message = "Too many attempts. Request a new code.";
       } else {
-        message += ` (${EMAIL_CODE_MAX_ATTEMPTS - user.passwordResetAttempts} attempts left)`;
+        const left = EMAIL_CODE_MAX_ATTEMPTS - user.passwordResetAttempts;
+        message += ` (${left} ${left === 1 ? "attempt" : "attempts"} left)`;
       }
       await user.save();
       return res.status(400).json({ message });
@@ -493,7 +495,7 @@ router.post("/login", async (req, res) => {
 
   try {
     if (!email || !password) {
-      return res.status(400).json({ message: "Please fill all fields" });
+      return res.status(400).json({ message: "Please fill in all fields" });
     }
 
     const user = await User.findOne({ email });
@@ -567,7 +569,7 @@ router.post("/verify-device", async (req, res) => {
 
   try {
     if (!email || !pin || !deviceId) {
-      return res.status(400).json({ message: "Please fill all fields" });
+      return res.status(400).json({ message: "Please fill in all fields" });
     }
     if (!/^\d{6}$/.test(pin)) {
       return res.status(400).json({ message: "Invalid security PIN" });
@@ -589,7 +591,8 @@ router.post("/verify-device", async (req, res) => {
         status = 423;
         message = `Too many attempts. Try again in ${LOCK_MINUTES} minutes.`;
       } else {
-        message += ` (${LOCK_ATTEMPTS - user.pinAttempts} attempts left)`;
+        const left = LOCK_ATTEMPTS - user.pinAttempts;
+        message += ` (${left} ${left === 1 ? "attempt" : "attempts"} left)`;
       }
       await user.save();
       return res.status(status).json({ message });
@@ -666,7 +669,7 @@ router.post("/forgot-pin", async (req, res) => {
   const { email, password } = req.body;
   try {
     if (!email || !password) {
-      return res.status(400).json({ message: "Please fill all fields" });
+      return res.status(400).json({ message: "Please fill in all fields" });
     }
     const user = await User.findOne({ email });
     if (!user || user.role !== "student") {
@@ -699,7 +702,7 @@ router.post(
       const { email, password, deviceId, deviceLabel } = req.body;
       if (!email || !password || !req.file || !getDeviceId(req)) {
         cleanup();
-        return res.status(400).json({ message: "Please fill all fields" });
+        return res.status(400).json({ message: "Please fill in all fields" });
       }
 
       const user = await User.findOne({ email });
@@ -718,7 +721,7 @@ router.post(
         cleanup();
         return res
           .status(429)
-          .json({ message: `Too many face attempts. Try again in ${mins} minute(s).` });
+          .json({ message: `Too many face attempts. Try again in ${mins} minute${mins === 1 ? "" : "s"}.` });
       }
 
       if (!user.facePhoto) {
@@ -756,7 +759,8 @@ router.post(
       if (!matched) {
         user.faceAttempts = (user.faceAttempts || 0) + 1;
         let status = 403;
-        let message = `Face does not match the enrolled photo (${FACE_LOCK_ATTEMPTS - user.faceAttempts} attempt(s) left).`;
+        const faceLeft = FACE_LOCK_ATTEMPTS - user.faceAttempts;
+        let message = `Face does not match the enrolled photo (${faceLeft} ${faceLeft === 1 ? "attempt" : "attempts"} left).`;
         if (user.faceAttempts >= FACE_LOCK_ATTEMPTS) {
           user.faceLockUntil = new Date(Date.now() + FACE_LOCK_MINUTES * 60000);
           user.faceAttempts = 0;
@@ -825,7 +829,7 @@ router.post(
       const note = (req.body.note || "").trim();
       if (!email || !password || !req.file) {
         cleanup();
-        return res.status(400).json({ message: "Please fill all fields and attach a proof photo" });
+        return res.status(400).json({ message: "Please fill in all fields and attach a proof photo" });
       }
 
       const user = await User.findOne({ email });
@@ -884,7 +888,7 @@ router.post("/forgot-pin/reset-request", async (req, res) => {
   try {
     const { email, password, deviceLabel } = req.body;
     if (!email || !password) {
-      return res.status(400).json({ message: "Please fill all fields" });
+      return res.status(400).json({ message: "Please fill in all fields" });
     }
 
     const user = await User.findOne({ email });

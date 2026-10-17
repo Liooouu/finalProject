@@ -13,12 +13,12 @@ const DEFAULT_TEMPLATES = {
   verification: {
     subject: `Your ${APP_NAME} verification code`,
     title: "Verify your email address",
-    body: "Hi {name}, Use the code below to finish creating your account.",
+    body: "Hi {name}, use the code below to finish creating your account.",
   },
   passwordReset: {
     subject: `Your ${APP_NAME} password reset code`,
     title: "Reset your password",
-    body: "Hi {name}, Use the code below to choose a new password for your account.",
+    body: "Hi {name}, use the code below to choose a new password for your account.",
   },
   notification: {
     subject: `[${APP_NAME}] {title}`,
@@ -171,7 +171,7 @@ async function renderVerificationEmail({ name, code }) {
     titleHtml: newlinesToHtml(title),
     bodyHtml: body
       ? `<p style="margin:0;font-size:15px;line-height:1.6;color:#374151;">${newlinesToHtml(body)}</p>`
-      : `<p style="margin:0;font-size:15px;line-height:1.6;color:#374151;">${greeting} Use the code below to finish creating your ${APP_NAME} account.</p>`,
+      : `<p style="margin:0;font-size:15px;line-height:1.6;color:#374151;">${greeting} use the code below to finish creating your ${APP_NAME} account.</p>`,
     middleHtml: `
         <div style="margin:22px 0;padding:16px;border-radius:12px;border:1px dashed #a5b4fc;background:#eef2ff;text-align:center;">
           <span style="font-size:32px;font-weight:700;letter-spacing:.35em;color:#312e81;">${escapeHtml(code)}</span>
@@ -181,7 +181,7 @@ async function renderVerificationEmail({ name, code }) {
     footer: `You are receiving this because someone used this address to sign up for ${APP_NAME}. Please do not reply to this email.`,
   });
 
-  const text = `${title}\n\n${body || `${greeting} Use the code below to finish creating your ${APP_NAME} account.`}\n\n    ${code}\n\nThis code expires in 10 minutes. If you didn't try to create an account, you can ignore this email.${
+  const text = `${title}\n\n${body || `${greeting} use the code below to finish creating your ${APP_NAME} account.`}\n\n    ${code}\n\nThis code expires in 10 minutes. If you didn't try to create an account, you can ignore this email.${
     smtp.appUrl ? `\n\nOpen ${APP_NAME}: ${smtp.appUrl}` : ""
   }`;
 
@@ -206,7 +206,7 @@ async function renderPasswordResetEmail({ name, code }) {
     titleHtml: newlinesToHtml(title),
     bodyHtml: body
       ? `<p style="margin:0;font-size:15px;line-height:1.6;color:#374151;">${newlinesToHtml(body)}</p>`
-      : `<p style="margin:0;font-size:15px;line-height:1.6;color:#374151;">${greeting} Use the code below to choose a new password for your ${APP_NAME} account.</p>`,
+      : `<p style="margin:0;font-size:15px;line-height:1.6;color:#374151;">${greeting} use the code below to choose a new password for your ${APP_NAME} account.</p>`,
     middleHtml: `
         <div style="margin:22px 0;padding:16px;border-radius:12px;border:1px dashed #a5b4fc;background:#eef2ff;text-align:center;">
           <span style="font-size:32px;font-weight:700;letter-spacing:.35em;color:#312e81;">${escapeHtml(code)}</span>
@@ -216,7 +216,7 @@ async function renderPasswordResetEmail({ name, code }) {
     footer: `You are receiving this because a password reset was requested for this ${APP_NAME} account. Please do not reply to this email.`,
   });
 
-  const text = `${title}\n\n${body || `${greeting} Use the code below to choose a new password for your ${APP_NAME} account.`}\n\n    ${code}\n\nThis code expires in 10 minutes. If you didn't try to reset your password, you can safely ignore this email — your password stays unchanged.${
+  const text = `${title}\n\n${body || `${greeting} use the code below to choose a new password for your ${APP_NAME} account.`}\n\n    ${code}\n\nThis code expires in 10 minutes. If you didn't try to reset your password, you can safely ignore this email — your password stays unchanged.${
     smtp.appUrl ? `\n\nOpen ${APP_NAME}: ${smtp.appUrl}` : ""
   }`;
 

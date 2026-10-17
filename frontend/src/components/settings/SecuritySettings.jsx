@@ -215,7 +215,7 @@ const SecuritySettings = () => {
           <Loading />
         ) : devices.length === 0 ? (
           <p className="py-8 text-center text-sm text-on-dim">
-            No trusted devices yet. This browser was registered on your account.
+            No trusted devices yet. Signing in from a new browser will ask for your PIN.
           </p>
         ) : (
           devices.map((device) => {
@@ -375,8 +375,8 @@ const SecuritySettings = () => {
       <div className="flex items-start gap-2.5 rounded-xl border border-line bg-card p-4 text-sm text-on-dim">
         <FaExclamationTriangle className="mt-0.5 shrink-0 text-amber-500" />
         <p>
-          Don&apos;t share your PIN. Because it rotates after every new device, a friend using your
-          login credentials gets locked out the moment your PIN changes.
+          Don&apos;t share your PIN. Because it rotates after every new-device sign-in, someone using
+          only your login credentials still can&apos;t get in.
         </p>
       </div>
 

@@ -17,6 +17,8 @@ const { isMailEnabled } = require("./services/mailer");
 const {
   STATUS,
   OPEN_STATUS_FILTER,
+  manilaClock,
+  manilaDayRange,
   eventEndAt,
   shouldAutoGoLive,
   shouldAutoFinish,
@@ -120,16 +122,10 @@ connectDB()
     const runLifecycleJob = async () => {
       try {
         const now = new Date();
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const currentTime =
-          now.getHours().toString().padStart(2, "0") +
-          ":" +
-          now.getMinutes().toString().padStart(2, "0");
-
-        const todayEnd = new Date(today);
-        todayEnd.setHours(23, 59, 59, 999);
+        // Day boundaries and the clock come from the school's zone (Asia/Manila),
+        // not the container's UTC — otherwise a 5:45 PM window notifies at 1:45 AM.
+        const { start: today, end: todayEnd } = manilaDayRange(now);
+        const currentTime = manilaClock(now);
 
         // ── STEP 1: go live automatically at the start time ──────────────
         const toGoLive = await Event.find({
@@ -196,7 +192,7 @@ connectDB()
               await notifyUsers([student], {
                 type: "penalty",
                 title: "Marked Absent",
-                message: `You were marked as absent for event "${event.title}". 8 community service hours have been added to your community service hours.`,
+                message: `You were marked as absent for the event "${event.title}". 8 community service hours have been added to your total.`,
                 relatedEvent: event._id,
                 event,
               });

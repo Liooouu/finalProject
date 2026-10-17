@@ -84,9 +84,12 @@ const NotificationsPage = ({ role = "organizer" }) => {
     const diff = Math.floor((now - then) / 1000);
     
     if (diff < 60) return "Just now";
-    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`;
+    const minutes = Math.floor(diff / 60);
+    if (diff < 3600) return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+    const hours = Math.floor(diff / 3600);
+    if (diff < 86400) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+    const days = Math.floor(diff / 86400);
+    if (diff < 604800) return `${days} ${days === 1 ? "day" : "days"} ago`;
     return then.toLocaleDateString();
   };
 

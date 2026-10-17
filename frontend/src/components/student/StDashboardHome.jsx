@@ -439,7 +439,7 @@ const windowCutoff = () => {
             </p>
           </div>
           <p className="text-xs text-on-muted mt-2">
-            Late marks add 4 hrs and absent marks add 8 hrs to your community service hours; approved excuses and removals take hours off. The event organizer and admin may modify your community service hours according to your behavior.
+            Late marks add 4 hrs and absent marks add 8 hrs to your community service hours; approved excuses and removals take hours off. The event organizer or admin may adjust your community service hours at their discretion.
           </p>
         </div>
 
