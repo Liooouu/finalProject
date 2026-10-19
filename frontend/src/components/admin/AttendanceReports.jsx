@@ -4,6 +4,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { usePageMeta } from "../../context/PageMetaContext";
 import StatusChip from "../ui/StatusChip";
 import Button from "../ui/Button";
+import { formatDate } from "../../utils/helpers";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -257,7 +258,7 @@ const AttendanceReports = () => {
                       <td className="p-2">
                         <StatusChip status={r.status} />
                       </td>
-                      <td className="p-2">{new Date(r.attendedAt).toLocaleDateString()}</td>
+                      <td className="p-2">{formatDate(r.attendedAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -333,7 +334,7 @@ const AttendanceReports = () => {
                   {eventsData.events.map((e) => (
                     <tr key={e._id} className="border-b border-line">
                       <td className="p-2">{e.title}</td>
-                      <td className="p-2">{new Date(e.date).toLocaleDateString()}</td>
+                      <td className="p-2">{formatDate(e.date)}</td>
                       <td className="p-2">{e.location || "N/A"}</td>
                       <td className="p-2">
                         <StatusChip status={e.status} />
@@ -429,7 +430,7 @@ const AttendanceReports = () => {
                           {u.role}
                         </span>
                       </td>
-                      <td className="p-2">{new Date(u.createdAt).toLocaleDateString()}</td>
+                      <td className="p-2">{formatDate(u.createdAt)}</td>
                     </tr>
                   ))}
                 </tbody>

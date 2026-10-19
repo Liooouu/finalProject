@@ -4,7 +4,22 @@ const { protect } = require("../middleware/authMiddleware");
 const Excuse = require("../models/Excuse");
 const Event = require("../models/Event");
 const Attendance = require("../models/Attendance");
-const Notification = require("../models/Notification");
+const { notifyUsers } = require("../services/notify");
+
+// Event IDs an organizer owns; null means "all" (admins).
+async function ownedEventIds(user) {
+  if (user.role === "admin") return null;
+  return Event.find({ organizer: user._id }).distinct("_id");
+}
+
+const canManageExcuse = (excuse, user) => {
+  if (!excuse) return false;
+  if (user.role === "admin") return true;
+  if (user.role !== "organizer") return false;
+  const event = excuse.event;
+  const organizerId = event && typeof event === "object" ? event.organizer : null;
+  return !!organizerId && String(organizerId) === String(user._id);
+};
 
 // Removes a flat number of hours from a student's CS balance. The excuse
 // event's own record (priorityAttendanceId) is consumed first, then any
@@ -52,7 +67,10 @@ router.get("/excuses", protect, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const excuses = await Excuse.find()
+    const ids = await ownedEventIds(req.user);
+    const filter = ids === null ? {} : { event: { $in: ids } };
+
+    const excuses = await Excuse.find(filter)
       .populate("student", "name email")
       .populate("event", "title date organizer")
       .populate("reviewedBy", "name")
@@ -79,7 +97,7 @@ router.get("/stats", protect, async (req, res) => {
 
     const eventIds = events.map(e => e._id);
     const counts = await Attendance.aggregate([
-      { $match: { event: { $in: eventIds } } },
+      { $match: { event: { $in: eventIds }, status: { $in: ["present", "late"] } } },
       { $group: { _id: "$event", count: { $sum: 1 } } },
     ]);
     const countMap = Object.fromEntries(
@@ -87,7 +105,12 @@ router.get("/stats", protect, async (req, res) => {
     );
 
     const totalAttendees = counts.reduce((sum, c) => sum + c.count, 0);
-    const pendingExcuses = await Excuse.countDocuments({ status: "pending" });
+    // Only this organizer's pending letters are actionable for them (admins
+    // own the whole queue).
+    const pendingExcuses = await Excuse.countDocuments({
+      event: { $in: eventIds },
+      status: "pending",
+    });
     const totalEvents = events.length;
 
     const attendeesPerEvent = events
@@ -118,143 +141,149 @@ router.patch("/excuses/:id", protect, async (req, res) => {
     }
 
     const { status, responseNote, removal } = req.body;
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({ error: "Invalid review status" });
+    }
 
-    const excuse = await Excuse.findByIdAndUpdate(
-      req.params.id,
+    // Load with the event so ownership can be checked before any side effect.
+    const loaded = await Excuse.findById(req.params.id).populate("event", "title date organizer");
+    if (!loaded) return res.status(404).json({ error: "Excuse not found" });
+    if (!canManageExcuse(loaded, req.user)) {
+      return res.status(403).json({ error: "You are not the organizer of this event" });
+    }
+    if (loaded.status !== "pending") {
+      return res.status(400).json({ error: `This excuse was already ${loaded.status}` });
+    }
+
+    // Never replace a genuine present/late record with "excused".
+    const attendance = await Attendance.findOne({
+      event: loaded.event._id,
+      student: loaded.student,
+    });
+    if (status === "approved" && attendance && ["present", "late"].includes(attendance.status)) {
+      return res.status(400).json({ error: "The student already attended this event" });
+    }
+
+    // Claim the excuse atomically. A second (double-click / concurrent reviewer)
+    // request finds it non-pending and is refused, so hours can't be deducted
+    // twice.
+    const excuse = await Excuse.findOneAndUpdate(
+      { _id: req.params.id, status: "pending" },
       { status, responseNote, reviewedBy: req.user._id },
       { new: true }
     )
       .populate("student", "name email")
-      .populate("event", "title date")
+      .populate("event", "title date organizer")
       .populate("reviewedBy", "name");
 
     if (!excuse) {
-      return res.status(404).json({ error: "Excuse not found" });
+      return res.status(409).json({ error: "This excuse was already reviewed" });
     }
 
-    if (status === "approved") {
-      // Approved excuses set the event's attendance to excused. removal
-      // "16" deducts exactly 16 hours from the student's balance; removal
-      // "complete" forgives this event's penalty entirely.
-      if (excuse.type === "advance") {
-        // Pre-create the attendance as excused BEFORE the event happens,
-        // so the auto-absent background job never penalizes this student.
-        const existingAdvance = await Attendance.findOne({
-          event: excuse.event._id,
-          student: excuse.student._id,
-        });
-        const previousAdvanceHours =
-          (existingAdvance && existingAdvance.communityServiceHours) || 0;
+    try {
+      if (status === "approved") {
+        const removalMode = removal === "16" ? "16" : "complete";
+        let removedHours = 0;
 
-        const advanceUpdate = { status: "excused" };
-        if (removal === "complete") advanceUpdate.communityServiceHours = 0;
-
-        const attendance = await Attendance.findOneAndUpdate(
-          { event: excuse.event._id, student: excuse.student._id },
-          advanceUpdate,
-          { new: true, upsert: true, setDefaultsOnInsert: true }
-        );
-
-        if (removal === "complete") {
-          if (previousAdvanceHours > 0 && attendance) {
-            attendance.communityServiceLog.push({
-              action: "removed",
-              hours: previousAdvanceHours,
-              note: "Excuse approved (advance)",
-            });
-            await attendance.save();
-          }
-        } else {
-          await removeFlatHours(
-            excuse.student._id,
-            attendance._id,
-            16,
-            "Advance excuse approved (16 hrs removed from CS)"
-          );
-        }
-
-        const notification = new Notification({
-          user: excuse.student._id,
-          type: "excuse",
-          title: "Advance Excuse Approved",
-          message:
-            `Your advance excuse for "${excuse.event.title}" was approved. You won't receive community service hours if you miss this event.` +
-            (removal === "16" ? " 16 hours were removed from your community service total." : ""),
-          relatedEvent: excuse.event._id,
-        });
-        await notification.save();
-      } else {
-        const existing = await Attendance.findOne({
-          event: excuse.event._id,
-          student: excuse.student._id,
-        });
-
-        if (removal === "16") {
-          // Exactly 16 hours come off the student's balance. The excuse
-          // event's own record is consumed first, then any remaining amount
-          // is taken from the student's other penalty records.
-          const attendance = await Attendance.findOneAndUpdate(
+        if (excuse.type === "advance") {
+          // Create/mark the excuse attendance BEFORE the event happens so the
+          // auto-absent job never penalizes this student.
+          const hadHours = attendance ? attendance.communityServiceHours || 0 : 0;
+          const updated = await Attendance.findOneAndUpdate(
             { event: excuse.event._id, student: excuse.student._id },
             { status: "excused" },
-            { new: true }
+            { new: true, upsert: true, setDefaultsOnInsert: true }
           );
 
-          if (!attendance) {
-            return res.status(404).json({ error: "Attendance record not found" });
+          if (removalMode === "complete") {
+            if (hadHours > 0 && updated) {
+              updated.communityServiceHours = 0;
+              updated.communityServiceLog.push({
+                action: "removed",
+                hours: hadHours,
+                note: "Excuse approved (advance)",
+              });
+              await updated.save();
+              removedHours = hadHours;
+            }
+          } else {
+            removedHours = await removeFlatHours(
+              excuse.student._id,
+              updated._id,
+              16,
+              "Advance excuse approved (16 hrs removed from CS)"
+            );
           }
-
-          await removeFlatHours(
+        } else if (!attendance) {
+          const err = new Error("Attendance record not found");
+          err.statusCode = 404;
+          throw err;
+        } else if (removalMode === "complete") {
+          // Forgive this event's penalty entirely.
+          const hadHours = attendance.communityServiceHours || 0;
+          attendance.status = "excused";
+          attendance.communityServiceHours = 0;
+          if (hadHours > 0) {
+            attendance.communityServiceLog.push({
+              action: "removed",
+              hours: hadHours,
+              note: "Excuse approved",
+            });
+          }
+          await attendance.save();
+          removedHours = hadHours;
+        } else {
+          attendance.status = "excused";
+          await attendance.save();
+          removedHours = await removeFlatHours(
             excuse.student._id,
             attendance._id,
             16,
             "Excuse approved (16 hrs removed from CS)"
           );
-        } else {
-          // "complete" — forgive this event's penalty entirely.
-          const previousHours = (existing && existing.communityServiceHours) || 0;
-
-          const attendance = await Attendance.findOneAndUpdate(
-            { event: excuse.event._id, student: excuse.student._id },
-            { status: "excused", communityServiceHours: 0 },
-            { new: true }
-          );
-
-          if (previousHours > 0 && attendance) {
-            attendance.communityServiceLog.push({
-              action: "removed",
-              hours: previousHours,
-              note: "Excuse approved",
-            });
-            await attendance.save();
-          }
         }
 
-        const notification = new Notification({
-          user: excuse.student._id,
-          type: "excuse",
-          title: "Excuse Approved",
-          message:
-            removal === "16"
+        await Excuse.findByIdAndUpdate(excuse._id, { removedHours });
+
+        const message =
+          excuse.type === "advance"
+            ? `Your advance excuse for "${excuse.event.title}" was approved. You won't receive community service hours if you miss this event.` +
+              (removedHours > 0
+                ? ` ${removedHours} hours were removed from your community service total.`
+                : "")
+            : removalMode === "16"
               ? `Your excuse for "${excuse.event.title}" was approved. 16 hours were removed from your community service total.`
-              : `Your excuse for "${excuse.event.title}" was approved. Any community service hours for this event have been removed.`,
+              : `Your excuse for "${excuse.event.title}" was approved. Any community service hours for this event have been removed.`;
+
+        await notifyUsers([excuse.student], {
+          type: "excuse",
+          title: excuse.type === "advance" ? "Advance Excuse Approved" : "Excuse Approved",
+          message,
           relatedEvent: excuse.event._id,
+          event: excuse.event,
         });
-        await notification.save();
+      } else {
+        await notifyUsers([excuse.student], {
+          type: "excuse",
+          title: "Excuse Rejected",
+          message: `Your excuse for "${excuse.event.title}" was rejected.${responseNote ? ` Note: ${responseNote}` : ""}`,
+          relatedEvent: excuse.event._id,
+          event: excuse.event,
+        });
       }
-    } else if (status === "rejected") {
-      const notification = new Notification({
-        user: excuse.student._id,
-        type: "excuse",
-        title: "Excuse Rejected",
-        message: `Your excuse for "${excuse.event.title}" was rejected.${responseNote ? ` Note: ${responseNote}` : ""}`,
-        relatedEvent: excuse.event._id,
+    } catch (sideEffectErr) {
+      // Undo the claim so the reviewer can retry instead of being stuck.
+      await Excuse.findByIdAndUpdate(excuse._id, {
+        status: "pending",
+        reviewedBy: null,
+        responseNote: "",
       });
-      await notification.save();
+      throw sideEffectErr;
     }
 
     res.json(excuse);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.statusCode || 500).json({ error: err.message });
   }
 });
 
@@ -265,8 +294,10 @@ router.delete("/excuses", protect, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
+    const ids = await ownedEventIds(req.user);
     const result = await Excuse.deleteMany({
       status: { $in: ["approved", "rejected"] },
+      ...(ids === null ? {} : { event: { $in: ids } }),
     });
     res.json({ deleted: result.deletedCount });
   } catch (err) {
@@ -281,10 +312,15 @@ router.delete("/excuses/:id", protect, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const excuse = await Excuse.findByIdAndDelete(req.params.id);
+    const excuse = await Excuse.findById(req.params.id).populate("event", "organizer");
     if (!excuse) {
       return res.status(404).json({ error: "Excuse not found" });
     }
+    if (!canManageExcuse(excuse, req.user)) {
+      return res.status(403).json({ error: "You are not the organizer of this event" });
+    }
+
+    await excuse.deleteOne();
     res.json({ message: "Excuse deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });

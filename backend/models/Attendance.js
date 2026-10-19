@@ -2,7 +2,7 @@
 const mongoose = require("mongoose");
 
 const communityServiceLogSchema = new mongoose.Schema({
-  action: { type: String, enum: ["penalty", "removed"], required: true },
+  action: { type: String, enum: ["penalty", "removed", "restored"], required: true },
   hours: { type: Number, required: true },
   note: { type: String, default: "" },
   at: { type: Date, default: Date.now },
@@ -13,12 +13,14 @@ const attendanceSchema = new mongoose.Schema({
   student: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   attendedAt: { type: Date, default: Date.now },
   status: { type: String, enum: ["present", "late", "absent", "pending", "excused"], default: "pending" },
-  communityServiceHours: { type: Number, default: 0 },
+  communityServiceHours: { type: Number, default: 0, min: 0 },
   communityServiceLog: [communityServiceLogSchema],
   eventTitle: { type: String },
   eventDate: { type: Date },
 }, { timestamps: true });
 
 attendanceSchema.index({ event: 1, student: 1 }, { unique: true });
+attendanceSchema.index({ student: 1, status: 1 });
+attendanceSchema.index({ event: 1, status: 1 });
 
 module.exports = mongoose.model("Attendance", attendanceSchema);

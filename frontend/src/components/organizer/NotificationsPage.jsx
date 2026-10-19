@@ -7,12 +7,15 @@ import { usePageMeta } from "../../context/PageMetaContext";
 import EmptyState from "../shared/EmptyState";
 import Button from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import { formatDate, notifyNotificationsChanged } from "../../utils/helpers";
 
 const NotificationsPage = ({ role = "organizer" }) => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   usePageMeta("Notifications", "Stay updated with your events.");
 
@@ -34,9 +37,10 @@ const NotificationsPage = ({ role = "organizer" }) => {
   const markAsRead = async (id) => {
     try {
       await api.patch(`/notifications/${id}/read`);
-      setNotifications(notifications.map(n => 
-        n._id === id ? { ...n, isRead: true } : n
-      ));
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
+      );
+      notifyNotificationsChanged();
     } catch (err) {
       console.error(err.response?.data || err.message);
     }
@@ -45,7 +49,8 @@ const NotificationsPage = ({ role = "organizer" }) => {
   const markAllAsRead = async () => {
     try {
       await api.patch("/notifications/read-all");
-      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      notifyNotificationsChanged();
     } catch (err) {
       console.error(err.response?.data || err.message);
     }
@@ -54,9 +59,25 @@ const NotificationsPage = ({ role = "organizer" }) => {
   const deleteNotification = async (id) => {
     try {
       await api.delete(`/notifications/${id}`);
-      setNotifications(notifications.filter(n => n._id !== id));
+      setNotifications((prev) => prev.filter((n) => n._id !== id));
+      notifyNotificationsChanged();
     } catch (err) {
       console.error(err.response?.data || err.message);
+    }
+  };
+
+  const deleteAllNotifications = async () => {
+    if (deletingAll) return;
+    setDeletingAll(true);
+    try {
+      await api.delete("/notifications");
+      setNotifications([]);
+      notifyNotificationsChanged();
+      setConfirmDeleteAll(false);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+    } finally {
+      setDeletingAll(false);
     }
   };
 
@@ -90,7 +111,7 @@ const NotificationsPage = ({ role = "organizer" }) => {
     if (diff < 86400) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
     const days = Math.floor(diff / 86400);
     if (diff < 604800) return `${days} ${days === 1 ? "day" : "days"} ago`;
-    return then.toLocaleDateString();
+    return formatDate(then);
   };
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
@@ -101,15 +122,25 @@ const NotificationsPage = ({ role = "organizer" }) => {
 
   return (
     <div className="space-y-6">
-      {unreadCount > 0 && (
-        <div className="flex justify-end">
+      {notifications.length > 0 && (
+        <div className="flex flex-wrap justify-end gap-2">
+          {unreadCount > 0 && (
+            <Button
+              onClick={markAllAsRead}
+              variant="secondary"
+              size="sm"
+            >
+              <FaCheck className="text-xs" />
+              Mark all as read ({unreadCount})
+            </Button>
+          )}
           <Button
-            onClick={markAllAsRead}
-            variant="secondary"
+            onClick={() => setConfirmDeleteAll(true)}
+            variant="danger"
             size="sm"
           >
-            <FaCheck className="text-xs" />
-            Mark all as read ({unreadCount})
+            <FaTrash className="text-xs" />
+            Delete all
           </Button>
         </div>
       )}
@@ -230,6 +261,18 @@ const NotificationsPage = ({ role = "organizer" }) => {
           deleteNotification(target);
         }}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteAll}
+        title="Delete all notifications?"
+        message={`This permanently removes all ${notifications.length} notification${notifications.length === 1 ? "" : "s"}. This action cannot be undone.`}
+        confirmLabel="Delete all"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={deleteAllNotifications}
+        onCancel={() => setConfirmDeleteAll(false)}
+        busy={deletingAll}
       />
     </div>
   );

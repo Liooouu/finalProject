@@ -1,15 +1,19 @@
 ﻿const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
+const path = require("path");
+const fs = require("fs");
 const User = require("../models/User");
 const Attendance = require("../models/Attendance");
+const Excuse = require("../models/Excuse");
 const Notification = require("../models/Notification");
 const FaceAppeal = require("../models/FaceAppeal");
 const PinResetRequest = require("../models/PinResetRequest");
 const { protect, authorize } = require("../middleware/authMiddleware");
 const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
 const { getRawEmailSetting, saveEmailSetting } = require("../services/appSettings");
-const { resetTransporter, sendMail } = require("../services/mailer");
+const { resetTransporter, sendMail, isMailEnabled } = require("../services/mailer");
+const { notifyUsers } = require("../services/notify");
 const { seal } = require("../utils/secretBox");
 
 // ADMIN CREATES ORGANIZER
@@ -30,13 +34,13 @@ router.post(
         return res.status(400).json({ message: PASSWORD_MESSAGE });
       }
 
-      const existing = await User.findOne({ email });
+      const existing = await User.findOne({ email: User.normalizeEmail(email) });
       if (existing)
         return res.status(400).json({ message: "User already exists" });
 
       const organizer = new User({
         name,
-        email,
+        email: User.normalizeEmail(email),
         password,
         role: "organizer",
       });
@@ -63,17 +67,25 @@ router.get("/users", protect, authorize("admin", "organizer"), async (req, res) 
   try {
     const { role } = req.query;
     const query = {};
-    if (role) {
+
+    // Organizers only need the student directory; letting them request
+    // role=admin would expose admin accounts (and their metadata).
+    if (req.user.role === "organizer") {
+      query.role = "student";
+    } else if (role) {
       const roles = String(role)
         .split(",")
         .map((r) => r.trim())
-        .filter(Boolean);
+        .filter((r) => ["student", "organizer", "admin"].includes(r));
       if (roles.length) query.role = roles.length > 1 ? { $in: roles } : roles[0];
     }
 
-    const users = await User.find(query)
-      .select("-password -pinHash -pinPlain -trustedDevices")
-      .sort({ name: 1 });
+    const projection =
+      req.user.role === "organizer"
+        ? "name email role program yearLevel section createdAt updatedAt"
+        : "name email role profilePicture program yearLevel section emailVerified facePhoto faceAttempts faceLockUntil createdAt updatedAt";
+
+    const users = await User.find(query).select(projection).sort({ name: 1 });
 
     res.json(users);
   } catch (error) {
@@ -88,9 +100,44 @@ router.patch("/users/:id", protect, authorize("admin"), async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (name !== undefined) user.name = name;
-    if (email !== undefined) user.email = email;
-    if (role !== undefined) user.role = role;
+    if (role !== undefined) {
+      if (!["student", "organizer", "admin"].includes(role)) {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+      if (String(user._id) === String(req.user._id) && role !== "admin") {
+        return res.status(400).json({ message: "You cannot change your own role" });
+      }
+      // Never leave the system without an admin.
+      if (user.role === "admin" && role !== "admin") {
+        const admins = await User.countDocuments({ role: "admin" });
+        if (admins <= 1) {
+          return res.status(400).json({ message: "Cannot change the last admin account" });
+        }
+      }
+      user.role = role;
+    }
+
+    if (name !== undefined) {
+      const trimmed = String(name).trim();
+      if (!trimmed) return res.status(400).json({ message: "Name cannot be empty" });
+      user.name = trimmed;
+    }
+
+    if (email !== undefined) {
+      const normalized = User.normalizeEmail(email);
+      if (!normalized) return res.status(400).json({ message: "Email cannot be empty" });
+      if (normalized !== user.email) {
+        const conflict = await User.findOne({ email: normalized, _id: { $ne: user._id } });
+        if (conflict) return res.status(400).json({ message: "Email already exists" });
+        user.email = normalized;
+        // A new address has not been proven — require verification when mail is on.
+        user.emailVerified = !(await isMailEnabled());
+        user.emailVerificationCodeHash = "";
+        user.emailVerificationExpires = null;
+        user.emailVerificationAttempts = 0;
+      }
+    }
+
     if (program !== undefined) user.program = String(program).trim().toUpperCase();
     if (section !== undefined) user.section = String(section).trim().toUpperCase();
     if (yearLevel !== undefined) user.yearLevel = Number(yearLevel);
@@ -114,8 +161,15 @@ router.patch("/users/:id", protect, authorize("admin"), async (req, res) => {
     const sanitized = user.toObject();
     delete sanitized.password;
     delete sanitized.pinHash;
+    delete sanitized.pinPlain;
+    delete sanitized.emailVerificationCodeHash;
+    delete sanitized.passwordResetCodeHash;
+    delete sanitized.trustedDevices;
     res.json(sanitized);
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
     res.status(500).json({ message: error.message });
   }
 });
@@ -137,7 +191,37 @@ router.delete(
         return res.status(403).json({ message: "Cannot delete admin accounts" });
       }
 
-      await User.findByIdAndDelete(req.params.id);
+      // Cascade: removing the account must not leave orphaned attendance,
+      // excuse, notification, appeal or reset records (or their files).
+      const [excuses, appeals] = await Promise.all([
+        Excuse.find({ student: user._id }).select("attachments attachmentUrl"),
+        FaceAppeal.find({ student: user._id }).select("photoUrl"),
+      ]);
+      const files = new Set(
+        [
+          user.facePhoto,
+          user.profilePicture,
+          ...excuses.flatMap((e) => [...(e.attachments || []), e.attachmentUrl]),
+          ...appeals.map((a) => a.photoUrl),
+        ].filter(Boolean)
+      );
+      for (const url of files) {
+        try {
+          const abs = path.join(__dirname, "..", String(url).replace(/^\//, ""));
+          if (fs.existsSync(abs)) fs.unlinkSync(abs);
+        } catch {
+          // A missing/odd path must never block the delete.
+        }
+      }
+
+      await Promise.all([
+        User.findByIdAndDelete(user._id),
+        Attendance.deleteMany({ student: user._id }),
+        Excuse.deleteMany({ student: user._id }),
+        Notification.deleteMany({ user: user._id }),
+        FaceAppeal.deleteMany({ student: user._id }),
+        PinResetRequest.deleteMany({ student: user._id }),
+      ]);
 
       res.json({ message: "User deleted successfully" });
     } catch (err) {
@@ -175,7 +259,8 @@ router.post(
       // PIN is reset.
       user.faceAttempts = 0;
       user.faceLockUntil = null;
-      if (req.body.clearDevices) {
+      const clearDevices = req.body.clearDevices === true;
+      if (clearDevices) {
         user.trustedDevices = [];
       }
       await user.save();
@@ -185,7 +270,7 @@ router.post(
       res.json({
         message: "Student security reset",
         pin,
-        devicesCleared: !!req.body.clearDevices,
+        devicesCleared: clearDevices,
       });
     } catch (err) {
       console.error(err);
@@ -216,13 +301,11 @@ router.post(
       user.faceLockUntil = null;
       await user.save();
 
-      const notification = new Notification({
-        user: user._id,
+      await notifyUsers([user], {
         type: "system",
         title: "Face verification unlocked",
         message: "An admin unlocked your face verification. You can try again now.",
       });
-      await notification.save();
 
       res.json({ message: "Face verification unlocked for " + user.email });
     } catch (err) {
@@ -268,18 +351,22 @@ router.post(
         return res.status(400).json({ message: "action must be 'approved' or 'rejected'" });
       }
 
-      const appeal = await FaceAppeal.findById(req.params.id).populate("student", "name email");
+      const appeal = await FaceAppeal.findOneAndUpdate(
+        { _id: req.params.id, status: "pending" },
+        {
+          status: action,
+          reviewedBy: req.user._id,
+          responseNote: (note || "").trim(),
+        },
+        { new: true }
+      ).populate("student", "name email");
       if (!appeal) {
-        return res.status(404).json({ message: "Appeal not found" });
+        const existing = await FaceAppeal.findById(req.params.id);
+        if (!existing) {
+          return res.status(404).json({ message: "Appeal not found" });
+        }
+        return res.status(400).json({ message: `This appeal was already ${existing.status}` });
       }
-      if (appeal.status !== "pending") {
-        return res.status(400).json({ message: `This appeal was already ${appeal.status}` });
-      }
-
-      appeal.status = action;
-      appeal.reviewedBy = req.user._id;
-      appeal.responseNote = (note || "").trim();
-      await appeal.save();
 
       if (action === "approved") {
         appeal.student.faceAttempts = 0;
@@ -287,8 +374,7 @@ router.post(
         await appeal.student.save();
       }
 
-      const notification = new Notification({
-        user: appeal.student._id,
+      await notifyUsers([appeal.student], {
         type: "system",
         title:
           action === "approved"
@@ -299,7 +385,6 @@ router.post(
             ? "An admin verified your appeal. You can try face verification again now."
             : `Your face verification appeal was rejected.${appeal.responseNote ? ` Reason: ${appeal.responseNote}` : ""} Ask an admin if you need help.`,
       });
-      await notification.save();
 
       console.log(`Admin ${action} appeal of`, appeal.student.email);
 
@@ -352,12 +437,23 @@ router.post(
       if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
         return res.status(404).json({ message: "Reset request not found" });
       }
-      const request = await PinResetRequest.findById(req.params.id);
+      // Claim atomically: two reviewers clicking at once must not both mint a
+      // PIN (the second would invalidate the one shown to the student).
+      const request = await PinResetRequest.findOneAndUpdate(
+        { _id: req.params.id, status: "pending" },
+        {
+          status: action,
+          reviewedBy: req.user._id,
+          responseNote: (note || "").trim(),
+        },
+        { new: true }
+      );
       if (!request) {
-        return res.status(404).json({ message: "Reset request not found" });
-      }
-      if (request.status !== "pending") {
-        return res.status(400).json({ message: `This request was already ${request.status}` });
+        const existing = await PinResetRequest.findById(req.params.id);
+        if (!existing) {
+          return res.status(404).json({ message: "Reset request not found" });
+        }
+        return res.status(400).json({ message: `This request was already ${existing.status}` });
       }
 
       // Load the full document: setPin/trustDevice mutate fields we need intact.
@@ -365,10 +461,6 @@ router.post(
       if (!student) {
         return res.status(404).json({ message: "Student not found" });
       }
-
-      request.status = action;
-      request.reviewedBy = req.user._id;
-      request.responseNote = (note || "").trim();
 
       let pin = null;
       if (action === "approved") {
@@ -378,7 +470,7 @@ router.post(
         student.pinLockUntil = null;
         student.faceAttempts = 0;
         student.faceLockUntil = null;
-        if (clearDevices) student.trustedDevices = [];
+        if (clearDevices === true) student.trustedDevices = [];
         // Trusted last so a device wipe can never lock the student back out.
         if (request.deviceId) {
           student.trustDevice(request.deviceId, request.deviceLabel);
@@ -387,8 +479,7 @@ router.post(
       }
       await request.save();
 
-      const notification = new Notification({
-        user: student._id,
+      await notifyUsers([student], {
         type: "system",
         title:
           action === "approved"
@@ -399,7 +490,6 @@ router.post(
             ? `Your identity was verified. Your new security PIN is ${pin}.`
             : `Your security PIN reset request was rejected.${request.responseNote ? ` Reason: ${request.responseNote}` : ""} Ask an admin if you need help.`,
       });
-      await notification.save();
 
       console.log(
         `${req.user.role} ${action} PIN reset request of`,
@@ -453,14 +543,12 @@ router.patch(
       attendance.communityServiceHours = hours;
       await attendance.save();
 
-      const notification = new Notification({
-        user: attendance.student,
+      await notifyUsers([attendance.student], {
         type: "penalty",
         title: "Community Service Hours Updated",
         message: `Your community service hours for "${attendance.event?.title || "an event"}" have been set to ${hours} hour${hours === 1 ? "" : "s"} by an admin.`,
         relatedEvent: attendance.event ? attendance.event._id : undefined,
       });
-      await notification.save();
 
       const populated = await Attendance.findById(attendance._id)
         .populate("student", "name email")
@@ -504,14 +592,12 @@ router.patch(
           await rec.save();
         }
 
-        const notification = new Notification({
-          user: studentId,
+        await notifyUsers([studentId], {
           type: "penalty",
           title: "Community Service Removed",
           message: "Your community service hours have been removed by an admin.",
           relatedEvent: attendance.event ? attendance.event._id : undefined,
         });
-        await notification.save();
 
         const populated = await Attendance.findById(attendance._id)
           .populate("student", "name email")
@@ -538,14 +624,12 @@ router.patch(
         await attendance.save();
       }
 
-      const notification = new Notification({
-        user: studentId,
+      await notifyUsers([studentId], {
         type: "penalty",
         title: "Community Service Hours Removed",
         message: `${removed} community service hour${removed === 1 ? "" : "s"} ${removed === 1 ? "has" : "have"} been removed from your record by an admin.`,
         relatedEvent: attendance.event ? attendance.event._id : undefined,
       });
-      await notification.save();
 
       const populated = await Attendance.findById(attendance._id)
         .populate("student", "name email")
@@ -607,10 +691,13 @@ router.patch("/settings/email", protect, authorize("admin"), async (req, res) =>
     }
 
     if (smtp.secure !== undefined) {
-      patch.smtp.secure = smtp.secure === null || smtp.secure === "" ? null : Boolean(smtp.secure);
+      patch.smtp.secure =
+        smtp.secure === null || smtp.secure === ""
+          ? null
+          : smtp.secure === true || smtp.secure === "true";
     }
 
-    if (clearSmtpPassword) {
+    if (clearSmtpPassword === true) {
       patch.smtp.passEncrypted = "";
     } else if (typeof smtp.password === "string" && smtp.password.trim()) {
       patch.smtp.passEncrypted = seal(smtp.password.trim());
@@ -662,6 +749,9 @@ router.post("/settings/email/test", protect, authorize("admin"), async (req, res
     if (Date.now() - last < 60 * 1000) {
       return res.status(429).json({ message: "Please wait a minute before sending another test email." });
     }
+    // Record the attempt BEFORE sending: a broken SMTP config must also be
+    // throttled, otherwise it can be retried in a tight loop.
+    testEmailCooldown.set(String(req.user._id), Date.now());
 
     const sent = await sendMail({
       to: email,
@@ -676,7 +766,6 @@ router.post("/settings/email/test", protect, authorize("admin"), async (req, res
       });
     }
 
-    testEmailCooldown.set(String(req.user._id), Date.now());
     res.json({ message: `Test email sent to ${email}` });
   } catch (err) {
     console.error(err);

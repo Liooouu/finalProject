@@ -12,6 +12,7 @@ import { FaArrowRight, FaClipboardCheck } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { KpiCard, PageHeader, BaseCard } from "../ui";
 import Button from "../ui/Button";
+import { formatDate } from "../../utils/helpers";
 
 const OrganizerHome = () => {
   const [stats, setStats] = useState({
@@ -137,7 +138,7 @@ const OrganizerHome = () => {
                     {event.title}
                   </p>
                   <p className="truncate text-xs text-on-dim">
-                    {new Date(event.date).toLocaleDateString("en-US", {
+                    {formatDate(event.date, {
                       year: "numeric",
                       month: "short",
                       day: "numeric",

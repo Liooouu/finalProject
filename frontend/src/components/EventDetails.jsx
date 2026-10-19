@@ -4,6 +4,8 @@ import api from "../api/axios";
 import { getUserRole, getUserFromToken } from "../utils/auth";
 import {
   formatTime12Hour,
+  formatDate,
+  formatDateTime,
   isTerminalStatus,
   describeEventLifecycle,
 } from "../utils/helpers";
@@ -33,6 +35,7 @@ const EventDetails = () => {
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("success");
   const [myAttendance, setMyAttendance] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
@@ -40,6 +43,8 @@ const EventDetails = () => {
   const [qrRefreshKey, setQrRefreshKey] = useState(0);
   const [studentId, setStudentId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pendingRemoveCS, setPendingRemoveCS] = useState(null);
+  const [removingCS, setRemovingCS] = useState(false);
   const [csDrafts, setCsDrafts] = useState({});
   const [saving, setSaving] = useState(false);
   const [program, setProgram] = useState("");
@@ -54,7 +59,7 @@ const EventDetails = () => {
       : "all";
 
   usePageMeta(event?.title || "Event", event?.date
-    ? new Date(event.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+    ? formatDate(event.date, { weekday: "long", month: "long", day: "numeric", year: "numeric" })
     : "Event details");
 
   useEffect(() => {
@@ -110,6 +115,7 @@ const EventDetails = () => {
       } catch (err) {
         console.error(err.response?.data || err.message);
         setMessage("Failed to load event details");
+        setMessageType("error");
       } finally {
         setLoading(false);
       }
@@ -158,10 +164,12 @@ const EventDetails = () => {
   const handleUpdateStatus = async (stdId, status) => {
     try {
       const res = await api.patch(`/events/${id}/attendees/${stdId}`, { status });
-      setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
+      setAttendees((prev) => prev.map((a) => (a._id === res.data._id ? res.data : a)));
       setMessage("Status updated");
+      setMessageType("success");
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to update status");
+      setMessageType("error");
     }
   };
 
@@ -170,24 +178,37 @@ const EventDetails = () => {
     if (!Number.isFinite(hours) || hours < 0) return;
     try {
       const res = await api.patch(`/events/${id}/attendees/${stdId}/community-service`, { hours });
-      setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
+      setAttendees((prev) => prev.map((a) => (a._id === res.data._id ? res.data : a)));
       setCsDrafts((d) => ({ ...d, [stdId]: hours }));
       setMessage(`Community service hours set to ${hours} hrs`);
+      setMessageType("success");
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to update service hours");
+      setMessageType("error");
     }
   };
 
-  const handleRemoveCS = async (attendance) => {
+  const confirmRemoveCS = async () => {
+    const attendance = pendingRemoveCS;
+    if (!attendance || removingCS) return;
+    setRemovingCS(true);
     const stdId = attendance.student?._id || attendance.student;
     try {
-      const res = await api.patch(`/events/${id}/attendees/${stdId}/community-service/remove`, {});
+      const res = await api.patch(
+        `/events/${id}/attendees/${stdId}/community-service/remove`,
+        { hours: attendance.communityServiceHours || 0 }
+      );
       const remaining = res.data.communityServiceHours || 0;
-      setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
+      setAttendees((prev) => prev.map((a) => (a._id === res.data._id ? res.data : a)));
       setCsDrafts((d) => ({ ...d, [stdId]: String(remaining) }));
-      setMessage("Community service removed");
+      setMessage("Community service hours removed");
+      setMessageType("success");
+      setPendingRemoveCS(null);
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to remove service hours");
+      setMessageType("error");
+    } finally {
+      setRemovingCS(false);
     }
   };
 
@@ -330,7 +351,7 @@ const EventDetails = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
             <div className="bg-card p-4 rounded-xl border border-line">
               <p className="text-on-dim text-sm mb-1">Date</p>
-              <p className="text-lg font-semibold text-on">{new Date(event.date).toLocaleDateString()}</p>
+              <p className="text-lg font-semibold text-on">{formatDate(event.date)}</p>
             </div>
             <div className="bg-card p-4 rounded-xl border border-line">
               <p className="text-on-dim text-sm mb-1">Starts</p>
@@ -345,7 +366,7 @@ const EventDetails = () => {
           <div className="mb-6 bg-card p-4 rounded-xl border border-line">
             <p className="text-on-dim text-sm mb-1">Ends</p>
             <p className="text-lg font-semibold text-on">
-              {new Date(event.endDate || event.date).toLocaleDateString()} at{" "}
+              {formatDate(event.endDate || event.date)} at{" "}
               {formatTime12Hour(event.endTime || event.attendanceEndTime)}
             </p>
           </div>
@@ -372,7 +393,7 @@ const EventDetails = () => {
 
       {/* Message */}
       {message && (
-        <div className={`p-4 rounded-xl ${myAttendance?.status === "late" || message.includes("late") ? "bg-yellow-500/20 border border-yellow-500/30 dark:text-yellow-400 text-yellow-600" : "bg-green-500/20 border border-green-500/30 dark:text-green-400 text-green-600"}`}>
+        <div className={`p-4 rounded-xl ${messageType === "error" ? "bg-red-500/20 border border-red-500/30 dark:text-red-400 text-red-600" : myAttendance?.status === "late" || message.includes("late") ? "bg-yellow-500/20 border border-yellow-500/30 dark:text-yellow-400 text-yellow-600" : "bg-green-500/20 border border-green-500/30 dark:text-green-400 text-green-600"}`}>
           {message}
         </div>
       )}
@@ -398,7 +419,7 @@ const EventDetails = () => {
                 </p>
               </div>
               <p className="text-on-dim">
-                Checked in at: {new Date(myAttendance.attendedAt).toLocaleString()}
+                Checked in at: {formatDateTime(myAttendance.attendedAt)}
               </p>
               {myAttendance.communityServiceHours > 0 && (
                 <p className="dark:text-yellow-400 text-yellow-600 font-medium">
@@ -733,7 +754,7 @@ const EventDetails = () => {
                       <p className="font-medium text-on">{attendance.student?.name}</p>
                       <p className="text-sm text-on-dim">{attendance.student?.email}</p>
                       <p className="text-xs text-on-muted mt-1">
-                        Checked in: {new Date(attendance.attendedAt).toLocaleString()}
+                        Checked in: {formatDateTime(attendance.attendedAt)}
                       </p>
                       {attendance.communityServiceHours > 0 && (
                         <p className="dark:text-yellow-400 text-yellow-600 text-xs mt-1">
@@ -774,7 +795,8 @@ const EventDetails = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleRemoveCS(attendance)}
+                          onClick={() => setPendingRemoveCS(attendance)}
+                          disabled={attendance.communityServiceHours <= 0}
                           className="text-red-500 hover:border-red-500/40"
                         >
                           Remove hours
@@ -798,6 +820,21 @@ const EventDetails = () => {
         variant="danger"
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}
+      />
+
+      <ConfirmDialog
+        open={!!pendingRemoveCS}
+        title="Remove community service hours?"
+        message={
+          pendingRemoveCS
+            ? `Remove the ${pendingRemoveCS.communityServiceHours} service hour${pendingRemoveCS.communityServiceHours === 1 ? "" : "s"} recorded for ${pendingRemoveCS.student?.name || "this student"} in this event? This only affects this event.`
+            : ""
+        }
+        confirmLabel="Remove hours"
+        variant="danger"
+        onConfirm={confirmRemoveCS}
+        onCancel={() => setPendingRemoveCS(null)}
+        busy={removingCS}
       />
     </div>
   );

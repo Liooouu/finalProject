@@ -4,7 +4,7 @@ import api from "../../api/axios";
 import { FaBook, FaCheck, FaFileAlt, FaCalendarTimes, FaCalendarPlus } from "react-icons/fa";
 import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { isTerminalStatus } from "../../utils/helpers";
+import { isTerminalStatus, formatDate } from "../../utils/helpers";
 import Button from "../ui/Button";
 
 const SubmitExcuse = () => {
@@ -18,6 +18,7 @@ const SubmitExcuse = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("success");
 
   usePageMeta("Submit Excuse", "File an excuse for a missed or upcoming event.");
 
@@ -76,10 +77,12 @@ const SubmitExcuse = () => {
     const overSize = selected.find((f) => f.size > 5 * 1024 * 1024);
     if (overSize) {
       setMessage("Each file must be less than 5MB");
+      setMessageType("error");
       return;
     }
     if (files.length + selected.length > 5) {
       setMessage("You can attach up to 5 files total");
+      setMessageType("error");
       return;
     }
     setFiles([...files, ...selected]);
@@ -94,10 +97,12 @@ const SubmitExcuse = () => {
     e.preventDefault();
     if (!selectedEvent) {
       setMessage("Please select an event");
+      setMessageType("error");
       return;
     }
     if (!excuseText.trim()) {
       setMessage("Please provide an excuse description");
+      setMessageType("error");
       return;
     }
 
@@ -118,9 +123,11 @@ const SubmitExcuse = () => {
       });
 
       setMessage("Excuse submitted successfully!");
+      setMessageType("success");
       setTimeout(() => navigate("/student/dashboard"), 2000);
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to submit excuse");
+      setMessageType("error");
     } finally {
       setSubmitting(false);
     }
@@ -183,7 +190,7 @@ const SubmitExcuse = () => {
 
       {/* Message */}
       {message && (
-        <div className={`p-4 rounded-xl ${message.includes("success") ? "bg-green-500/20 border border-green-500/30 dark:text-green-400 text-green-600" : "bg-red-500/20 border border-red-500/30 dark:text-red-400 text-red-600"}`}>
+        <div className={`p-4 rounded-xl ${messageType === "error" ? "bg-red-500/20 border border-red-500/30 dark:text-red-400 text-red-600" : "bg-green-500/20 border border-green-500/30 dark:text-green-400 text-green-600"}`}>
           {message}
         </div>
       )}
@@ -240,7 +247,7 @@ const SubmitExcuse = () => {
                 const event = isAdvance ? item : item.event;
                 return (
                   <option key={event._id} value={event._id}>
-                    {event.title} - {new Date(event.date).toLocaleDateString()}
+                    {event.title} - {formatDate(event.date)}
                   </option>
                 );
               })

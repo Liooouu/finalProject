@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { formatDate, formatTime } from "../../utils/helpers";
 import {
   FaBolt,
   FaCalendarAlt,
@@ -205,7 +206,7 @@ const formatHourLabel = (iso) => {
 };
 
 const formatClock = (date) =>
-  date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  formatTime(date, { hour: "numeric", minute: "2-digit" });
 
 const TodayCard = ({
   events = [],
@@ -338,19 +339,19 @@ const TodayCard = ({
     return Math.min(1, Math.max(0, (now.getTime() - s) / (e - s)));
   })();
 
-  const timeStr = now.toLocaleTimeString("en-US", {
+  const timeStr = formatTime(now, {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
     hour12: true,
   });
-  const dateStr = now.toLocaleDateString("en-US", {
+  const dateStr = formatDate(now, {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
-  const monthTitle = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const monthTitle = formatDate(now, { month: "long", year: "numeric" });
   const WeatherIcon = weather.icon;
 
   return (

@@ -7,7 +7,7 @@ import StatusChip from "../ui/StatusChip";
 import Button from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { isTerminalStatus, describeEventLifecycle, formatTime12Hour } from "../../utils/helpers";
+import { isTerminalStatus, describeEventLifecycle, formatTime12Hour, formatDate } from "../../utils/helpers";
 import { TableSkeleton } from "../ui";
 import MapPicker from "../shared/MapPicker";
 import { FaPlus } from "react-icons/fa";
@@ -393,7 +393,7 @@ const ManageEvents = () => {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      {new Date(event.date).toLocaleDateString()} at {formatTime12Hour(event.time)}
+                      {formatDate(event.date)} at {formatTime12Hour(event.time)}
                     </span>
                     {event.location && (
                       <span className="flex items-center gap-1">
@@ -414,7 +414,7 @@ const ManageEvents = () => {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      Ends: {new Date(event.endDate || event.date).toLocaleDateString()} at{" "}
+                      Ends: {formatDate(event.endDate || event.date)} at{" "}
                       {formatTime12Hour(event.endTime || event.attendanceEndTime)}
                     </span>
                   </div>
@@ -459,7 +459,7 @@ const ManageEvents = () => {
               <div>
                 <h3 className="text-xl font-bold">{selectedEvent.title}</h3>
                 <p className="text-sm text-on-dim">
-                  {new Date(selectedEvent.date).toLocaleDateString()} at {selectedEvent.time}
+                  {formatDate(selectedEvent.date)} at {selectedEvent.time}
                   {selectedEvent.location && ` - ${selectedEvent.location}`}
                 </p>
               </div>

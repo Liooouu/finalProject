@@ -1,8 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
+const fs = require("fs");
+const path = require("path");
 const Event = require("../models/Event");
 const Attendance = require("../models/Attendance");
+const Excuse = require("../models/Excuse");
+const Notification = require("../models/Notification");
 const User = require("../models/User");
 const { notifyUsers, eventRecipients } = require("../services/notify");
 const { protect } = require("../middleware/authMiddleware");
@@ -10,13 +14,62 @@ const {
   STATUS,
   EVENT_STATUSES,
   isTerminal,
-  manilaNow,
-  manilaClock,
+  parseClock,
   eventStartsAt,
   eventEndAt,
+  eventWindow,
+  eventLastCheckInAt,
   resolveAutomation,
   eventLiveNotification,
 } = require("../services/eventLifecycle");
+
+// An organizer may only act on their own events; admins act on anything. Used
+// by every mutation route so ownership can't be bypassed by calling the route
+// directly — the scan route already enforced this.
+function canManageEvent(event, user) {
+  if (!event || !user) return false;
+  if (user.role === "admin") return true;
+  if (user.role !== "organizer") return false;
+  return String(event.organizer) === String(user._id);
+}
+
+// Age of a scanned QR payload in milliseconds, or null when no timestamp was
+// sent. Accepts epoch seconds/ms or an ISO string.
+function qrTimestampAgeMs(timestamp) {
+  if (timestamp === undefined || timestamp === null || timestamp === "") return null;
+  const numeric = Number(timestamp);
+  if (Number.isFinite(numeric)) {
+    const ms = numeric < 1e12 ? numeric * 1000 : numeric;
+    return Date.now() - ms;
+  }
+  const parsed = Date.parse(timestamp);
+  return Number.isNaN(parsed) ? NaN : Date.now() - parsed;
+}
+
+// In-flight create promises, keyed by organizer + event identity. Serializes
+// double-clicks on a slow network so both can't pass the duplicate check.
+const inFlightCreates = new Map();
+function createKey(userId, title, date, time) {
+  const day = date instanceof Date ? date.toISOString() : String(date || "");
+  return [userId, String(title || "").trim().toLowerCase(), day, String(time || "").trim()].join("|");
+}
+
+// An approved excuse may have deducted flat hours. If the student ends up
+// attending after all, those hours must come back — attendance supersedes the
+// excuse. Returns the number of hours to restore and marks the excuse spent.
+async function takeExcuseRestore(studentId, eventId) {
+  const excuse = await Excuse.findOne({
+    student: studentId,
+    event: eventId,
+    status: "approved",
+    removedHours: { $gt: 0 },
+  });
+  if (!excuse) return 0;
+  const hours = excuse.removedHours;
+  excuse.removedHours = 0;
+  await excuse.save();
+  return hours;
+}
 
 // Rejects a schedule the system could never make sense of: unparseable dates,
 // an attendance window that runs backwards, or an event that ends before it
@@ -29,16 +82,17 @@ function validateSchedule(schedule) {
   }
 
   const { attendanceStartTime, attendanceEndTime } = schedule;
-  if (attendanceStartTime && attendanceEndTime) {
-    const [startH, startM] = attendanceStartTime.split(":").map(Number);
-    const [endH, endM] = attendanceEndTime.split(":").map(Number);
-    if ([startH, startM, endH, endM].some(Number.isNaN)) {
-      return "Attendance window times must be in HH:mm format";
-    }
-    if (startH * 60 + startM >= endH * 60 + endM) {
-      return "The attendance window must end after it starts";
-    }
+  // `parseClock` rejects out-of-range values ("24:00", "99:99", "9:5") that the
+  // old split-on-colon check let through and that later broke the date math.
+  if (attendanceStartTime && !parseClock(attendanceStartTime)) {
+    return "Attendance window start must be in HH:mm format";
   }
+  if (attendanceEndTime && !parseClock(attendanceEndTime)) {
+    return "Attendance window end must be in HH:mm format";
+  }
+  // An end clock earlier than the start clock is allowed: it means the window
+  // crosses midnight (e.g. 23:00–01:00), which the attendance checks resolve by
+  // rolling the end onto the next Manila day.
 
   const endsAt = eventEndAt(schedule);
   if (endsAt && endsAt <= startsAt) {
@@ -76,36 +130,60 @@ router.post("/", protect, async (req, res) => {
       return res.status(400).json({ error: scheduleError });
     }
 
-    // Duplicate-submission guard. On a slow connection a double-click fires the
-    // request twice before the first response lands; without this the organizer
-    // ends up with two identical events. If the same organizer just created the
-    // same title at the same start date/time, return that event instead of a copy.
-    const duplicate = await Event.findOne({
-      organizer: req.user._id,
-      title,
-      date,
-      time,
-      createdAt: { $gte: new Date(Date.now() - 30 * 1000) },
-    });
-    if (duplicate) {
-      return res.status(200).json(duplicate);
+    // Duplicate-submission guard, made concurrency-safe with an in-process lock.
+    // A plain check-then-insert lets two simultaneous requests both pass the
+    // check before either inserts; serializing identical creates closes that
+    // window for this single API process.
+    const key = createKey(req.user._id, title, date, time);
+    const pending = inFlightCreates.get(key);
+    if (pending) {
+      try {
+        const { event } = await pending;
+        return res.status(200).json(event);
+      } catch {
+        // Fall through and let this request attempt the create itself.
+      }
     }
 
-    const event = new Event({
-      title,
-      description,
-      date,
-      time,
-      endDate,
-      endTime,
-      location,
-      mapQuery,
-      attendanceStartTime,
-      attendanceEndTime,
-      organizer: req.user._id,
-    });
+    const work = (async () => {
+      const duplicate = await Event.findOne({
+        organizer: req.user._id,
+        title,
+        date,
+        time,
+        attendanceStartTime,
+        attendanceEndTime,
+        createdAt: { $gte: new Date(Date.now() - 30 * 1000) },
+      });
+      if (duplicate) return { event: duplicate, created: false };
 
-    await event.save();
+      const created = new Event({
+        title,
+        description,
+        date,
+        time,
+        endDate,
+        endTime,
+        location,
+        mapQuery,
+        attendanceStartTime,
+        attendanceEndTime,
+        organizer: req.user._id,
+      });
+      await created.save();
+      return { event: created, created: true };
+    })();
+
+    inFlightCreates.set(key, work);
+    let result;
+    try {
+      result = await work;
+    } finally {
+      inFlightCreates.delete(key);
+    }
+
+    const { event, created } = result;
+    if (!created) return res.status(200).json(event);
 
     // Announce the new event to students, admins and the organizer
     await notifyUsers(await eventRecipients(event), {
@@ -128,7 +206,7 @@ router.get("/my-events", protect, async (req, res) => {
     const events = await Event.find({ organizer: req.user._id });
     const eventIds = events.map((e) => e._id);
     const counts = await Attendance.aggregate([
-      { $match: { event: { $in: eventIds } } },
+      { $match: { event: { $in: eventIds }, status: { $in: ["present", "late"] } } },
       { $group: { _id: "$event", count: { $sum: 1 } } },
     ]);
     const map = Object.fromEntries(counts.map((c) => [c._id.toString(), c.count]));
@@ -150,7 +228,7 @@ router.get("/all", protect, async (req, res) => {
       .sort({ createdAt: -1 });
     const eventIds = events.map((e) => e._id);
     const counts = await Attendance.aggregate([
-      { $match: { event: { $in: eventIds } } },
+      { $match: { event: { $in: eventIds }, status: { $in: ["present", "late"] } } },
       { $group: { _id: "$event", count: { $sum: 1 } } },
     ]);
     const map = Object.fromEntries(counts.map((c) => [c._id.toString(), c.count]));
@@ -179,10 +257,34 @@ router.patch("/:id/status", protect, async (req, res) => {
     const oldEvent = await Event.findById(req.params.id);
 
     if (!oldEvent) return res.status(404).json({ error: "Event not found" });
+    if (!canManageEvent(oldEvent, req.user)) {
+      return res.status(403).json({ error: "You are not the organizer of this event" });
+    }
 
     const update = { status };
     // Reopening an event means it is no longer sitting finished.
     if (status !== STATUS.FINISHED) update.autoFinishedAt = null;
+
+    // Reopening resets the one-shot notices so the new run can notify again.
+    if (status === STATUS.UPCOMING) {
+      update.openNotified = false;
+      update.closingSoonNotified = false;
+      update.closedNotified = false;
+      update.upcomingNotified = false;
+    }
+
+    // Reopening an auto-finished event must also undo the absences + 8-hour
+    // penalties the automation wrote, or students stay penalized/blocked before
+    // the event has actually happened.
+    if (status === STATUS.UPCOMING && oldEvent.status !== status) {
+      await Attendance.deleteMany({
+        event: oldEvent._id,
+        status: "absent",
+        communityServiceLog: {
+          $elemMatch: { action: "penalty", note: "Marked absent (auto)" },
+        },
+      });
+    }
 
     // Reopening hands the event back to the clock; every other status chosen
     // here is a human decision that pins it.
@@ -221,6 +323,12 @@ router.patch("/:id/automation", protect, async (req, res) => {
     const { enabled } = req.body;
     if (typeof enabled !== "boolean") {
       return res.status(400).json({ error: "Send { enabled: true|false }" });
+    }
+
+    const existing = await Event.findById(req.params.id);
+    if (!existing) return res.status(404).json({ error: "Event not found" });
+    if (!canManageEvent(existing, req.user)) {
+      return res.status(403).json({ error: "You are not the organizer of this event" });
     }
 
     const event = await Event.findByIdAndUpdate(
@@ -296,15 +404,13 @@ router.post("/:id/attendance", protect, async (req, res) => {
       return res.status(400).json({ error: `This event is ${label} — attendance can no longer be marked` });
     }
 
-    // Compare calendar days on the school's clock (Asia/Manila), not the server's.
-    const nowM = manilaNow(now);
-    const eventDayM = manilaNow(event.date);
-    const sameDay =
-      nowM.getUTCFullYear() === eventDayM.getUTCFullYear() &&
-      nowM.getUTCMonth() === eventDayM.getUTCMonth() &&
-      nowM.getUTCDate() === eventDayM.getUTCDate();
-    if (!sameDay) {
-      return res.status(400).json({ error: "Attendance can only be marked on the event day" });
+    // Attendance is only accepted inside the real window (no early check-in at
+    // 00:01, no late check-in after the grace period). `eventWindow` resolves
+    // the window as Manila instants, so a window that crosses midnight works.
+    const window = eventWindow(event);
+    const lastCheckIn = eventLastCheckInAt(event);
+    if (!window || !lastCheckIn) {
+      return res.status(400).json({ error: "This event has no valid attendance window" });
     }
 
     let attendance = await Attendance.findOne({
@@ -316,29 +422,44 @@ router.post("/:id/attendance", protect, async (req, res) => {
       return res.status(400).json({ error: "Attendance already marked" });
     }
 
-    const currentTime = manilaClock(now);
-    const endTime = event.attendanceEndTime;
+    if (now < window.start) {
+      return res.status(400).json({ error: "Attendance is not open yet" });
+    }
+    if (now > lastCheckIn) {
+      return res.status(400).json({ error: "The attendance window has closed" });
+    }
 
     let status = "present";
     let communityServiceHours = 0;
 
-    if (currentTime > endTime) {
+    // After the window closes but before the event is over, a check-in is late.
+    if (now > window.end) {
       status = "late";
       communityServiceHours = 4;
     }
 
     const replacedExcuse = attendance && attendance.status === "excused";
+    const restoredHours = replacedExcuse
+      ? await takeExcuseRestore(req.user._id, event._id)
+      : 0;
 
     if (replacedExcuse) {
       // Student had an approved advance excuse but attended anyway
       attendance.attendedAt = now;
       attendance.status = status;
-      attendance.communityServiceHours = communityServiceHours;
+      attendance.communityServiceHours = communityServiceHours + restoredHours;
       if (communityServiceHours > 0) {
         attendance.communityServiceLog.push({
           action: "penalty",
           hours: communityServiceHours,
           note: "Marked late",
+        });
+      }
+      if (restoredHours > 0) {
+        attendance.communityServiceLog.push({
+          action: "restored",
+          hours: restoredHours,
+          note: "Approved excuse replaced by attendance",
         });
       }
       await attendance.save();
@@ -399,6 +520,33 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
       return res.status(403).json({ error: "You are not the organizer of this event" });
     }
 
+    const now = new Date();
+
+    // Same day/status/window rules as self-marking: scanning days early or late,
+    // or after the event closed, must not record attendance.
+    if (isTerminal(event.status)) {
+      const label = event.status === STATUS.CLOSED ? "closed" : "already finished";
+      return res.status(400).json({ error: `This event is ${label} — attendance can no longer be marked` });
+    }
+    const window = eventWindow(event);
+    const lastCheckIn = eventLastCheckInAt(event);
+    if (!window || !lastCheckIn) {
+      return res.status(400).json({ error: "This event has no valid attendance window" });
+    }
+    if (now < window.start) {
+      return res.status(400).json({ error: "Attendance is not open yet" });
+    }
+    if (now > lastCheckIn) {
+      return res.status(400).json({ error: "The attendance window has closed" });
+    }
+
+    // Reject stale/replayed QR payloads. A missing timestamp is tolerated for
+    // older clients, but a present one must be recent.
+    const age = qrTimestampAgeMs(timestamp);
+    if (age !== null && (Number.isNaN(age) || age > 10 * 60 * 1000 || age < -60 * 1000)) {
+      return res.status(400).json({ error: "This QR code has expired. Ask the student to refresh it." });
+    }
+
     const student = await User.findById(studentId);
     if (!student) return res.status(404).json({ error: "Student not found" });
     if (student.role !== "student") return res.status(400).json({ error: "This user is not a student" });
@@ -412,32 +560,37 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
       return res.status(400).json({ error: `${student.name} has already marked attendance` });
     }
 
-    const now = new Date();
-    const currentTime = manilaClock(now);
-    const endTime = event.attendanceEndTime;
-
-    console.log(`[SCAN] currentTime: "${currentTime}", endTime: "${endTime}", currentTime > endTime: ${currentTime > endTime}`);
-
     let status = "present";
     let communityServiceHours = 0;
 
-    if (currentTime > endTime) {
+    // Late once the window closes, until the event's own end / grace runs out.
+    if (now > window.end) {
       status = "late";
       communityServiceHours = 4;
     }
 
     const replacedExcuse = attendance && attendance.status === "excused";
+    const restoredHours = replacedExcuse
+      ? await takeExcuseRestore(studentId, event._id)
+      : 0;
 
     if (replacedExcuse) {
       // Student had an approved advance excuse but attended anyway
       attendance.attendedAt = now;
       attendance.status = status;
-      attendance.communityServiceHours = communityServiceHours;
+      attendance.communityServiceHours = communityServiceHours + restoredHours;
       if (communityServiceHours > 0) {
         attendance.communityServiceLog.push({
           action: "penalty",
           hours: communityServiceHours,
           note: "Marked late (scanned)",
+        });
+      }
+      if (restoredHours > 0) {
+        attendance.communityServiceLog.push({
+          action: "restored",
+          hours: restoredHours,
+          note: "Approved excuse replaced by attendance",
         });
       }
       await attendance.save();
@@ -489,6 +642,9 @@ router.get("/:id/attendees", protect, async (req, res) => {
 
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
+    if (!canManageEvent(event, req.user)) {
+      return res.status(403).json({ error: "You are not the organizer of this event" });
+    }
 
     const attendees = await Attendance.find({ event: req.params.id })
       .populate("student", "name email program yearLevel section")
@@ -575,12 +731,20 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
 
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
+    if (!canManageEvent(event, req.user)) {
+      return res.status(403).json({ error: "You are not the organizer of this event" });
+    }
 
     const { status } = req.body;
 
     const validStatuses = ["present", "late", "absent", "excused"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: "Invalid attendance status" });
+    }
+
+    const targetStudent = await User.findById(req.params.studentId).select("role");
+    if (!targetStudent || targetStudent.role !== "student") {
+      return res.status(400).json({ error: "This user is not a student" });
     }
 
     let communityServiceHours = 0;
@@ -612,8 +776,13 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
       await attendance.save();
     } else {
       const previousHours = attendance.communityServiceHours || 0;
+      const wasExcused = attendance.status === "excused";
+      const restoredHours =
+        wasExcused && (status === "present" || status === "late")
+          ? await takeExcuseRestore(req.params.studentId, event._id)
+          : 0;
       attendance.status = status;
-      attendance.communityServiceHours = communityServiceHours;
+      attendance.communityServiceHours = communityServiceHours + restoredHours;
 
       const delta = communityServiceHours - previousHours;
       if (delta > 0) {
@@ -627,6 +796,13 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
           action: "removed",
           hours: -delta,
           note: `Status set to ${status}`,
+        });
+      }
+      if (restoredHours > 0) {
+        attendance.communityServiceLog.push({
+          action: "restored",
+          hours: restoredHours,
+          note: "Approved excuse replaced by attendance",
         });
       }
       await attendance.save();
@@ -663,10 +839,18 @@ router.patch("/:id/attendees/:studentId/community-service", protect, async (req,
 
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
+    if (!canManageEvent(event, req.user)) {
+      return res.status(403).json({ error: "You are not the organizer of this event" });
+    }
 
     const hours = Number(req.body.hours);
     if (!Number.isFinite(hours) || hours < 0) {
       return res.status(400).json({ error: "Hours must be a number greater than or equal to 0" });
+    }
+
+    const targetStudent = await User.findById(req.params.studentId).select("role");
+    if (!targetStudent || targetStudent.role !== "student") {
+      return res.status(400).json({ error: "This user is not a student" });
     }
 
     let attendance = await Attendance.findOne({ event: req.params.id, student: req.params.studentId });
@@ -728,6 +912,9 @@ router.patch("/:id/attendees/:studentId/community-service/remove", protect, asyn
 
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
+    if (!canManageEvent(event, req.user)) {
+      return res.status(403).json({ error: "You are not the organizer of this event" });
+    }
 
     const attendance = await Attendance.findOne({ event: req.params.id, student: req.params.studentId });
     if (!attendance) return res.status(404).json({ error: "Attendance not found" });
@@ -802,6 +989,9 @@ router.post("/:id/attendees/manual", protect, async (req, res) => {
 
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
+    if (!canManageEvent(event, req.user)) {
+      return res.status(403).json({ error: "You are not the organizer of this event" });
+    }
 
     const { studentId, status } = req.body;
     if (!studentId) return res.status(400).json({ error: "Student ID is required" });
@@ -875,6 +1065,9 @@ router.put("/:id", protect, async (req, res) => {
 
     const existing = await Event.findById(req.params.id);
     if (!existing) return res.status(404).json({ error: "Event not found" });
+    if (!canManageEvent(existing, req.user)) {
+      return res.status(403).json({ error: "You are not the organizer of this event" });
+    }
 
     const { title, description, date, time, endDate, endTime, location, mapQuery, status, attendanceStartTime, attendanceEndTime } = req.body;
 
@@ -912,15 +1105,47 @@ router.put("/:id", protect, async (req, res) => {
       attendanceEndTime,
     };
 
-    // Moving the schedule is how an organizer says "this is still running", so
-    // it hands the event back to the background job — unless the request also
-    // carries a status the client genuinely changed, which pins it instead.
-    const scheduleTouched = ["date", "time", "endDate", "endTime", "attendanceStartTime", "attendanceEndTime"].some(
-      (field) => req.body[field] !== undefined
-    );
+    // Touching the schedule only counts when a value actually CHANGED. Checking
+    // mere presence released the manual override every time the edit form
+    // resubmitted the same schedule (which it always does), so editing a title
+    // could un-pause an event the organizer was holding open.
+    const normDate = (v) => (v ? new Date(v).getTime() : null);
+    const normClock = (v) => (v == null ? null : String(v).trim());
+    const scheduleTouched =
+      ["date", "endDate"].some(
+        (field) => req.body[field] !== undefined && normDate(req.body[field]) !== normDate(existing[field])
+      ) ||
+      ["time", "endTime", "attendanceStartTime", "attendanceEndTime"].some(
+        (field) => req.body[field] !== undefined && normClock(req.body[field]) !== normClock(existing[field])
+      );
+
+    // A schedule change moves the event back to the clock, so its old one-shot
+    // notices must fire again for the new date/window.
+    if (scheduleTouched) {
+      update.openNotified = false;
+      update.closingSoonNotified = false;
+      update.closedNotified = false;
+      update.upcomingNotified = false;
+    }
+
+    // Rescheduling a finished/closed event into the future must revive it —
+    // otherwise it stays terminal forever because the automation only moves
+    // `upcoming`/`live` events.
+    const nextStartsAt = eventStartsAt(nextSchedule);
+    if (
+      scheduleTouched &&
+      nextStartsAt &&
+      nextStartsAt > new Date() &&
+      isTerminal(existing.status) &&
+      (status === undefined || status === existing.status)
+    ) {
+      update.status = STATUS.UPCOMING;
+      update.autoFinishedAt = null;
+    }
+
     const pinned = resolveAutomation({
       currentStatus: existing.status,
-      nextStatus: status,
+      nextStatus: update.status,
       scheduleTouched,
     });
     if (pinned !== undefined) update.manualOverride = pinned;
@@ -960,6 +1185,9 @@ router.delete("/:id", protect, async (req, res) => {
     const event = await Event.findById(req.params.id);
 
     if (!event) return res.status(404).json({ error: "Event not found" });
+    if (!canManageEvent(event, req.user)) {
+      return res.status(403).json({ error: "You are not the organizer of this event" });
+    }
 
     // Preserve community service hours: keep the attendance records and
     // snapshot the event's name/date onto them. The event reference is kept
@@ -976,6 +1204,29 @@ router.delete("/:id", protect, async (req, res) => {
     );
 
     await Event.findByIdAndDelete(req.params.id);
+
+    // Cascade: an Excuse requires its event, and Notifications point at it, so
+    // leaving them behind creates orphan records that break later approval and
+    // keep stale notifications around. Attendance is intentionally preserved
+    // above to keep community-service history.
+    const excuses = await Excuse.find({ event: req.params.id }).select("attachments attachmentUrl");
+    for (const excuse of excuses) {
+      const files = new Set([
+        ...(excuse.attachments || []),
+        ...(excuse.attachmentUrl ? [excuse.attachmentUrl] : []),
+      ]);
+      for (const url of files) {
+        try {
+          const rel = String(url).replace(/^\/uploads\//, "");
+          const abs = path.join(__dirname, "..", "uploads", rel);
+          if (fs.existsSync(abs)) fs.unlinkSync(abs);
+        } catch {
+          // A missing/oddly-named attachment must never fail the delete.
+        }
+      }
+    }
+    await Excuse.deleteMany({ event: req.params.id });
+    await Notification.deleteMany({ relatedEvent: req.params.id });
 
     res.json({ message: "Event deleted successfully. Community service hours were preserved." });
   } catch (err) {

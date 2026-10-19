@@ -8,9 +8,23 @@ const Attendance = require("../models/Attendance");
 const Excuse = require("../models/Excuse");
 const Event = require("../models/Event");
 const User = require("../models/User");
-const Notification = require("../models/Notification");
 const FaceAppeal = require("../models/FaceAppeal");
 const { notifyAdmins } = require("../services/notifyAdmins");
+const { notifyUsers } = require("../services/notify");
+const { isTerminal, eventStartsAt } = require("../services/eventLifecycle");
+
+// Multer has already written the files to disk before the route runs, so every
+// early return must remove them or failed submissions leak storage.
+function unlinkUploads(req) {
+  const files = [...(req.files || []), ...(req.file ? [req.file] : [])];
+  for (const file of files) {
+    try {
+      if (file.path) fs.unlinkSync(file.path);
+    } catch {
+      // Already gone — nothing to clean up.
+    }
+  }
+}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -22,7 +36,38 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    // JPEG/PNG only — these files are served back from the app origin, so
+    // scriptable types (svg/html/gif) would be a stored-XSS vector.
+    const okExt = /jpeg|jpg|png/.test(path.extname(file.originalname).toLowerCase());
+    const okMime = /jpeg|jpg|png/.test(file.mimetype);
+    if (okExt && okMime) return cb(null, true);
+    cb(new Error("Only JPEG or PNG images are allowed"));
+  },
+});
+
+// Appeal proof photos are biometric: keep them out of the public /uploads tree.
+const FACE_DIR = path.join(__dirname, "..", "uploads", "private-faces");
+fs.mkdirSync(FACE_DIR, { recursive: true });
+const appealUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, FACE_DIR),
+    filename: (req, file, cb) => {
+      const unique = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+      cb(null, `appeal-${unique}${path.extname(file.originalname)}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const okExt = /jpeg|jpg|png/.test(path.extname(file.originalname).toLowerCase());
+    const okMime = /jpeg|jpg|png/.test(file.mimetype);
+    if (okExt && okMime) return cb(null, true);
+    cb(new Error("Only JPEG or PNG images are allowed"));
+  },
+});
 
 router.get("/community-service", protect, async (req, res) => {
   try {
@@ -35,7 +80,10 @@ router.get("/community-service", protect, async (req, res) => {
       .sort({ attendedAt: -1 });
 
     const totalHours = attendances.reduce((sum, a) => sum + (a.communityServiceHours || 0), 0);
-    const totalAttended = attendances.filter(a => a.status !== "absent").length;
+    // Only real attendance counts; pending (never marked) and excused do not.
+    const totalAttended = attendances.filter(
+      (a) => a.status === "present" || a.status === "late"
+    ).length;
     // Penalties (late=4, absent=8) add to totalHours (the student's community
     // service hours); excuses/removals take them off. completedHours stays 0
     // here — it only moves when the student genuinely finishes service.
@@ -79,6 +127,7 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
 
     const event = await Event.findById(eventId);
     if (!event) {
+      unlinkUploads(req);
       return res.status(404).json({ error: "Event not found" });
     }
 
@@ -89,6 +138,7 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
       status: { $in: ["pending", "approved"] },
     });
     if (activeExcuse) {
+      unlinkUploads(req);
       return res.status(400).json({
         error:
           activeExcuse.status === "pending"
@@ -98,12 +148,24 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
     }
 
     if (type === "advance") {
+      // Advance excuses must be filed before the event starts, while it can
+      // still be missed. Otherwise a student could file one after the event
+      // ends but before the absence job runs and dodge the penalty.
+      const startsAt = eventStartsAt(event);
+      if (isTerminal(event.status) || !startsAt || startsAt <= new Date()) {
+        unlinkUploads(req);
+        return res.status(400).json({
+          error: "Advance excuses can only be filed for upcoming events",
+        });
+      }
+
       // Upcoming events only — student must not have an attendance record yet
       const existingAttendance = await Attendance.findOne({
         event: eventId,
         student: req.user._id,
       });
       if (existingAttendance) {
+        unlinkUploads(req);
         return res.status(400).json({
           error: "You already have an attendance record for this event",
         });
@@ -116,6 +178,7 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
         status: "absent",
       });
       if (!absentRecord) {
+        unlinkUploads(req);
         return res.status(400).json({
           error: "You can only file absence excuses for events you were marked absent in",
         });
@@ -136,23 +199,22 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
     // Notify the event organizer and admins that a letter awaits their review
     const reviewers = await User.find({
       $or: [{ _id: event.organizer }, { role: "admin" }],
-    }).select("_id");
+    }).select("_id name email");
     if (reviewers.length > 0) {
-      await Notification.insertMany(
-        reviewers.map((u) => ({
-          user: u._id,
-          type: "excuse",
-          title: "New Excuse Letter",
-          message: `${req.user.name} submitted an ${
-            type === "advance" ? "advance" : "absence"
-          } excuse letter for "${event.title}". It awaits your review.`,
-          relatedEvent: event._id,
-        }))
-      );
+      await notifyUsers(reviewers, {
+        type: "excuse",
+        title: "New Excuse Letter",
+        message: `${req.user.name} submitted an ${
+          type === "advance" ? "advance" : "absence"
+        } excuse letter for "${event.title}". It awaits your review.`,
+        relatedEvent: event._id,
+        event,
+      });
     }
 
     res.status(201).json(excuse);
   } catch (err) {
+    unlinkUploads(req);
     res.status(500).json({ error: err.message });
   }
 });
@@ -191,7 +253,7 @@ router.get("/security/face-appeals", protect, async (req, res) => {
 // "The camera won't verify me" -> upload a proof photo + a short note. The
 // admin compares the proof against the enrolled face photo and either unlocks
 // the student or rejects the appeal.
-router.post("/security/face-appeals", protect, upload.single("photo"), async (req, res) => {
+router.post("/security/face-appeals", protect, appealUpload.single("photo"), async (req, res) => {
   try {
     if (req.user.role !== "student") {
       if (req.file) {
@@ -221,7 +283,7 @@ router.post("/security/face-appeals", protect, upload.single("photo"), async (re
     const appeal = new FaceAppeal({
       student: req.user._id,
       note,
-      photoUrl: `/uploads/${req.file.filename}`,
+      photoUrl: `/uploads/private-faces/${req.file.filename}`,
     });
     await appeal.save();
 
@@ -248,6 +310,10 @@ router.use((err, req, res, next) => {
     return res.status(400).json({
       error: err.code === "LIMIT_FILE_SIZE" ? "Each file must be less than 5MB" : err.message,
     });
+  }
+  // fileFilter rejections are plain Errors; without this they surface as 500s.
+  if (err && /Only JPEG or PNG/.test(err.message || "")) {
+    return res.status(400).json({ error: err.message });
   }
   next(err);
 });

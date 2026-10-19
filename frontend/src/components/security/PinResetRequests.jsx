@@ -9,6 +9,7 @@ import StatusBadge from "../shared/StatusBadge";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { TableSkeleton } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import { formatDateTime } from "../../utils/helpers";
 
 const PinResetRequests = () => {
   const [requests, setRequests] = useState([]);
@@ -19,6 +20,7 @@ const PinResetRequests = () => {
   const [approvedPin, setApprovedPin] = useState(null);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
+  const [reviewing, setReviewing] = useState(false);
 
   usePageMeta(
     "PIN Reset Requests",
@@ -53,6 +55,8 @@ const PinResetRequests = () => {
   };
 
   const handleReview = async (request, action) => {
+    if (reviewing) return;
+    setReviewing(true);
     try {
       const res = await api.post(
         `/admin/security/pin-reset-requests/${request._id}/review`,
@@ -63,7 +67,7 @@ const PinResetRequests = () => {
         }
       );
       setRequests(
-        requests.map((r) => (r._id === request._id ? res.data.request : r))
+        (prev) => prev.map((r) => (r._id === request._id ? res.data.request : r))
       );
       if (action === "approved") {
         // Keep the dialog open and swap its contents for the new PIN.
@@ -81,6 +85,8 @@ const PinResetRequests = () => {
       setApprovedPin(null);
       setMessage(err.response?.data?.message || "Failed to review request");
       setMessageType("error");
+    } finally {
+      setReviewing(false);
     }
   };
 
@@ -142,7 +148,7 @@ const PinResetRequests = () => {
                 )}
 
                 <p className="mt-3 text-xs text-on-muted">
-                  Submitted {new Date(request.createdAt).toLocaleString()}
+                  Submitted {formatDateTime(request.createdAt)}
                   {request.deviceLabel ? ` from ${request.deviceLabel}` : ""}
                 </p>
 
@@ -207,6 +213,7 @@ const PinResetRequests = () => {
         cancelLabel={approvedPin ? "Close" : "Cancel"}
         variant={approvedPin ? "default" : reviewTarget?.action === "approved" ? "default" : "danger"}
         icon={approvedPin ? <FaKey /> : undefined}
+        busy={reviewing}
         onConfirm={() => {
           if (approvedPin) {
             resetDialog();

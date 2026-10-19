@@ -7,6 +7,9 @@ import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
 import Button from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import { formatDate } from "../../utils/helpers";
+
+const API_BASE = api.defaults.baseURL.replace(/\/api$/, "");
 
 const ManageExcuses = () => {
   const [excuses, setExcuses] = useState([]);
@@ -14,9 +17,11 @@ const ManageExcuses = () => {
   const [filter, setFilter] = useState("pending");
   const [selectedExcuse, setSelectedExcuse] = useState(null);
   const [responseNote, setResponseNote] = useState("");
-  const [removalMode, setRemovalMode] = useState("complete");
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("success");
+  const [reviewingId, setReviewingId] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   usePageMeta("Manage Excuses", "Review and manage student excuse letters.");
 
@@ -36,59 +41,81 @@ const ManageExcuses = () => {
 
   const filteredExcuses = excuses.filter(e => e.status === filter);
 
+  const showMessage = (text, type) => {
+    setMessage(text);
+    setMessageType(type);
+  };
+
   const handleApprove = async (id) => {
+    if (reviewingId) return;
+    setReviewingId(id);
     try {
       const res = await api.patch(`/organizer/excuses/${id}`, {
         status: "approved",
         responseNote,
-        removal: removalMode,
+        removal: "complete",
       });
-      setExcuses(excuses.map(e => e._id === id ? res.data : e));
-      setMessage("Excuse approved!");
+      setExcuses(prev => prev.map(e => e._id === id ? res.data : e));
+      showMessage("Excuse approved!", "success");
       setSelectedExcuse(null);
       setResponseNote("");
-      setRemovalMode("complete");
     } catch (err) {
-      setMessage(err.response?.data?.error || "Failed to approve excuse");
+      showMessage(err.response?.data?.error || "Failed to approve excuse", "error");
+    } finally {
+      setReviewingId(null);
     }
   };
 
   const handleReject = async (id) => {
+    if (reviewingId) return;
+    setReviewingId(id);
     try {
       const res = await api.patch(`/organizer/excuses/${id}`, {
         status: "rejected",
         responseNote,
       });
-      setExcuses(excuses.map(e => e._id === id ? res.data : e));
-      setMessage("Excuse rejected!");
+      setExcuses(prev => prev.map(e => e._id === id ? res.data : e));
+      showMessage("Excuse rejected!", "success");
       setSelectedExcuse(null);
       setResponseNote("");
     } catch (err) {
-      setMessage(err.response?.data?.error || "Failed to reject excuse");
+      showMessage(err.response?.data?.error || "Failed to reject excuse", "error");
+    } finally {
+      setReviewingId(null);
     }
   };
 
   const reviewedExcuseCount = excuses.filter(e => e.status !== "pending").length;
+
+  // Uploaded files are stored as "/uploads/..." and must be resolved against
+  // the API origin (the SPA dev server does not proxy that path).
+  const fileUrl = (url) => (/^https?:\/\//i.test(url) ? url : `${API_BASE}${url}`);
 
   const confirmDeleteOne = (id) => setPendingDelete({ type: "one", id });
   const confirmDeleteAll = () => setPendingDelete({ type: "all" });
 
   const doDelete = async () => {
     const target = pendingDelete;
+    if (!target || deleting) return;
+    setDeleting(true);
     try {
       if (target.type === "all") {
         const res = await api.delete("/organizer/excuses");
-        setExcuses(excuses.filter(e => e.status === "pending"));
-        setMessage(`${res.data.deleted} reviewed ${res.data.deleted === 1 ? "excuse" : "excuses"} deleted!`);
+        setExcuses(prev => prev.filter(e => e.status === "pending"));
+        showMessage(
+          `${res.data.deleted} reviewed ${res.data.deleted === 1 ? "excuse" : "excuses"} deleted!`,
+          "success"
+        );
       } else {
         await api.delete(`/organizer/excuses/${target.id}`);
-        setExcuses(excuses.filter(e => e._id !== target.id));
-        setMessage("Excuse deleted!");
+        setExcuses(prev => prev.filter(e => e._id !== target.id));
+        showMessage("Excuse deleted!", "success");
       }
-    } catch (err) {
-      setMessage(err.response?.data?.error || "Failed to delete excuse");
-    } finally {
       setPendingDelete(null);
+    } catch (err) {
+      showMessage(err.response?.data?.error || "Failed to delete excuse", "error");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -100,7 +127,7 @@ const ManageExcuses = () => {
     <div className="space-y-6">
       {/* Message */}
       {message && (
-        <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${message.includes("approved") ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+        <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${messageType === "success" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"}`}>
           {message}
         </div>
       )}
@@ -170,7 +197,7 @@ const ManageExcuses = () => {
                       <StatusBadge status={excuse.status} />
                     </div>
                     <p className="text-xs text-on-muted mt-1">
-                      {new Date(excuse.createdAt).toLocaleDateString()}
+                      {formatDate(excuse.createdAt)}
                     </p>
                   </div>
                 </div>
@@ -184,7 +211,7 @@ const ManageExcuses = () => {
                   </p>
                   <p className="font-medium text-on">{excuse.event?.title || "Unknown Event"}</p>
                   <p className="text-sm text-on-muted">
-                    {excuse.event?.date ? new Date(excuse.event.date).toLocaleDateString() : ""}
+                    {excuse.event?.date ? formatDate(excuse.event.date) : ""}
                   </p>
                 </div>
 
@@ -204,13 +231,13 @@ const ManageExcuses = () => {
                         return isImage ? (
                           <a
                             key={idx}
-                            href={url}
+                            href={fileUrl(url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="group block"
                           >
                             <img
-                              src={url}
+                              src={fileUrl(url)}
                               alt={`Attachment ${idx + 1}`}
                               className="h-24 w-24 rounded-lg object-cover ring-1 ring-line transition-all group-hover:ring-2 group-hover:ring-indigo-500/50"
                             />
@@ -218,7 +245,7 @@ const ManageExcuses = () => {
                         ) : (
                           <a
                             key={idx}
-                            href={url}
+                            href={fileUrl(url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors"
@@ -263,48 +290,25 @@ const ManageExcuses = () => {
                           className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
                         />
                         {excuse.type === "absence" && (
-                        <div className="space-y-2">
-                          <p className="text-xs text-on-muted">
-                            On approval, how should the student's community service hours be handled?
+                          <p className="rounded-lg border border-line bg-card-alt/50 px-3.5 py-2 text-xs text-on-muted">
+                            Approving forgives this event&apos;s penalty only
+                            (the {excuse.removedHours || 8} hours recorded for this event).
                           </p>
-                          <div className="flex gap-2 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={() => setRemovalMode("16")}
-                              className={`flex-1 min-w-[10rem] rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors ${
-                                removalMode === "16"
-                                  ? "border-indigo-500/50 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
-                                  : "border-line bg-card text-on-dim hover:bg-card-alt hover:text-on"
-                              }`}
-                            >
-                              Remove 16 hrs
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setRemovalMode("complete")}
-                              className={`flex-1 min-w-[10rem] rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors ${
-                                removalMode === "complete"
-                                  ? "border-indigo-500/50 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
-                                  : "border-line bg-card text-on-dim hover:bg-card-alt hover:text-on"
-                              }`}
-                            >
-                              Remove completely
-                            </button>
-                          </div>
-                        </div>
                         )}
                         <div className="flex gap-3">
                           <Button
                             onClick={() => handleApprove(excuse._id)}
                             variant="primary"
                             className="flex-1"
+                            disabled={reviewingId === excuse._id}
                           >
-                            <FaCheck /> Approve
+                            <FaCheck /> {reviewingId === excuse._id ? "Approving…" : "Approve"}
                           </Button>
                           <Button
                             onClick={() => handleReject(excuse._id)}
                             variant="danger"
                             className="flex-1"
+                            disabled={reviewingId === excuse._id}
                           >
                             <FaTimes /> Reject
                           </Button>
@@ -346,6 +350,7 @@ const ManageExcuses = () => {
           icon={<FaTrash />}
           onConfirm={doDelete}
           onCancel={() => setPendingDelete(null)}
+          busy={deleting}
         />
       )}
     </div>

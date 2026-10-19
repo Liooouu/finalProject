@@ -30,6 +30,8 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      lowercase: true,
+      trim: true,
     },
     password: {
       type: String,
@@ -173,6 +175,13 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
 // ✅ GENERATE A RANDOM 6-DIGIT SECURITY PIN (system-assigned, never user-chosen)
 userSchema.statics.generatePin = function () {
   return crypto.randomInt(0, 1000000).toString().padStart(6, "0");
+};
+
+// ✅ CANONICAL EMAIL — emails are matched case-insensitively everywhere so
+// "User@x.com" and "user@x.com" can never become two accounts. Callers must
+// use this for every lookup/registration so stored (lowercased) docs are found.
+userSchema.statics.normalizeEmail = function (email) {
+  return String(email == null ? "" : email).trim().toLowerCase();
 };
 
 // ✅ HASH + STORE THE CURRENT SECURITY PIN

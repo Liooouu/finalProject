@@ -1,23 +1,95 @@
 const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
 const Attendance = require("../models/Attendance");
 const Event = require("../models/Event");
 const User = require("../models/User");
 const { protect, authorize } = require("../middleware/authMiddleware");
+const { manilaDayRange } = require("../services/eventLifecycle");
 
 router.use(protect, authorize("admin"));
 
+const fmtDate = new Intl.DateTimeFormat("en-PH", {
+  timeZone: "Asia/Manila",
+  year: "numeric",
+  month: "short",
+  day: "2-digit",
+});
+const fmtDateTime = new Intl.DateTimeFormat("en-PH", {
+  timeZone: "Asia/Manila",
+  year: "numeric",
+  month: "short",
+  day: "2-digit",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+// Safe account fields for reports: never hashes, PINs, device ids, or photos.
+const REPORT_USER_FIELDS = "name email role program yearLevel section createdAt";
+
+function badRequest(message) {
+  const err = new Error(message);
+  err.status = 400;
+  return err;
+}
+
+function buildMatch({ startDate, endDate, eventId }) {
+  const match = {};
+
+  if (eventId) {
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      throw badRequest("Invalid event id");
+    }
+    match.event = new mongoose.Types.ObjectId(eventId);
+  }
+
+  if (startDate || endDate) {
+    match.attendedAt = {};
+    if (startDate) {
+      const start = new Date(startDate);
+      if (Number.isNaN(start.getTime())) throw badRequest("Invalid start date");
+      match.attendedAt.$gte = manilaDayRange(start).start;
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      if (Number.isNaN(end.getTime())) throw badRequest("Invalid end date");
+      // Inclusive of the whole selected Manila day.
+      match.attendedAt.$lte = manilaDayRange(end).end;
+    }
+  }
+
+  return match;
+}
+
+// CSV cell: always quoted, embedded quotes doubled, newlines flattened, and
+// leading =/+/-/@ neutralized so a spreadsheet never evaluates user text.
+function csvCell(value) {
+  let text = value === undefined || value === null ? "" : String(value);
+  text = text.replace(/[\r\n]+/g, " ").trim();
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function csvFromRows(rows) {
+  return rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+}
+
+function sendCsv(res, filename, rows) {
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+  res.send(csvFromRows(rows));
+}
+
+function fail(res, error) {
+  const status = error.status || 500;
+  res.status(status).json({
+    message: status >= 500 ? "Server error" : error.message || "Request failed",
+  });
+}
+
 router.get("/attendance", async (req, res) => {
   try {
-    const { startDate, endDate, eventId } = req.query;
-    
-    const match = {};
-    if (eventId) match.event = eventId;
-    if (startDate || endDate) {
-      match.attendedAt = {};
-      if (startDate) match.attendedAt.$gte = new Date(startDate);
-      if (endDate) match.attendedAt.$lte = new Date(endDate);
-    }
+    const match = buildMatch(req.query);
 
     const attendance = await Attendance.find(match)
       .populate("event", "title date")
@@ -26,15 +98,10 @@ router.get("/attendance", async (req, res) => {
 
     const stats = await Attendance.aggregate([
       { $match: match },
-      {
-        $group: {
-          _id: "$status",
-          count: { $sum: 1 },
-        },
-      },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
     ]);
 
-    const statsMap = { present: 0, late: 0, absent: 0, pending: 0 };
+    const statsMap = { present: 0, late: 0, absent: 0, pending: 0, excused: 0 };
     stats.forEach((s) => {
       statsMap[s._id] = s.count;
     });
@@ -45,18 +112,11 @@ router.get("/attendance", async (req, res) => {
         $group: {
           _id: "$event",
           total: { $sum: 1 },
-          present: {
-            $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] },
-          },
-          late: {
-            $sum: { $cond: [{ $eq: ["$status", "late"] }, 1, 0] },
-          },
-          absent: {
-            $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] },
-          },
-          pending: {
-            $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] },
-          },
+          present: { $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] } },
+          late: { $sum: { $cond: [{ $eq: ["$status", "late"] }, 1, 0] } },
+          absent: { $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] } },
+          pending: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
+          excused: { $sum: { $cond: [{ $eq: ["$status", "excused"] }, 1, 0] } },
         },
       },
       {
@@ -77,16 +137,27 @@ router.get("/attendance", async (req, res) => {
           late: 1,
           absent: 1,
           pending: 1,
+          excused: 1,
           attendanceRate: {
             $cond: [
               { $gt: ["$total", 0] },
-              { $round: [{ $multiply: [{ $divide: ["$present", "$total"] }, 100] }, 1] },
+              {
+                $round: [
+                  {
+                    $multiply: [
+                      { $divide: [{ $add: ["$present", "$late"] }, "$total"] },
+                      100,
+                    ],
+                  },
+                  1,
+                ],
+              },
               0,
             ],
           },
         },
       },
-      { $sort: { "eventDate": -1 } },
+      { $sort: { eventDate: -1 } },
     ]);
 
     res.json({
@@ -97,50 +168,39 @@ router.get("/attendance", async (req, res) => {
         late: statsMap.late,
         absent: statsMap.absent,
         pending: statsMap.pending,
+        excused: statsMap.excused,
       },
       byEvent,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    fail(res, error);
   }
 });
 
 router.get("/attendance/export", async (req, res) => {
   try {
-    const { startDate, endDate, eventId } = req.query;
-    
-    const match = {};
-    if (eventId) match.event = eventId;
-    if (startDate || endDate) {
-      match.attendedAt = {};
-      if (startDate) match.attendedAt.$gte = new Date(startDate);
-      if (endDate) match.attendedAt.$lte = new Date(endDate);
-    }
+    const match = buildMatch(req.query);
 
     const attendance = await Attendance.find(match)
       .populate("event", "title date")
       .populate("student", "name email")
       .sort({ attendedAt: -1 });
 
-    const csv = [
-      ["Event", "Event Date", "Student Name", "Student Email", "Status", "Marked At"].join(","),
-      ...attendance.map((a) =>
-        [
-          `"${a.event?.title || ""}"`,
-          a.event?.date ? new Date(a.event.date).toLocaleDateString() : "",
-          `"${a.student?.name || ""}"`,
-          a.student?.email || "",
-          a.status,
-          new Date(a.attendedAt).toLocaleString(),
-        ].join(",")
-      ),
-    ].join("\n");
+    const rows = [
+      ["Event", "Event Date", "Student Name", "Student Email", "Status", "Marked At"],
+      ...attendance.map((a) => [
+        a.event?.title || "",
+        a.event?.date ? fmtDate.format(new Date(a.event.date)) : "",
+        a.student?.name || "",
+        a.student?.email || "",
+        a.status,
+        a.attendedAt ? fmtDateTime.format(new Date(a.attendedAt)) : "",
+      ]),
+    ];
 
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", "attachment; filename=attendance-report.csv");
-    res.send(csv);
+    sendCsv(res, "attendance-report.csv", rows);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    fail(res, error);
   }
 });
 
@@ -154,8 +214,10 @@ router.get("/events", async (req, res) => {
       events.map(async (event) => {
         const attendance = await Attendance.find({ event: event._id });
         const present = attendance.filter((a) => a.status === "present").length;
+        const late = attendance.filter((a) => a.status === "late").length;
         const absent = attendance.filter((a) => a.status === "absent").length;
         const pending = attendance.filter((a) => a.status === "pending").length;
+        const excused = attendance.filter((a) => a.status === "excused").length;
         const total = attendance.length;
 
         return {
@@ -169,9 +231,11 @@ router.get("/events", async (req, res) => {
           organizer: event.organizer,
           totalAttendees: total,
           present,
+          late,
           absent,
           pending,
-          attendanceRate: total > 0 ? Math.round((present / total) * 100 * 10) / 10 : 0,
+          excused,
+          attendanceRate: total > 0 ? Math.round(((present + late) / total) * 100 * 10) / 10 : 0,
         };
       })
     );
@@ -191,7 +255,7 @@ router.get("/events", async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    fail(res, error);
   }
 });
 
@@ -205,6 +269,7 @@ router.get("/events/export", async (req, res) => {
       events.map(async (event) => {
         const attendance = await Attendance.find({ event: event._id });
         const present = attendance.filter((a) => a.status === "present").length;
+        const late = attendance.filter((a) => a.status === "late").length;
         return {
           title: event.title,
           date: event.date,
@@ -213,44 +278,37 @@ router.get("/events/export", async (req, res) => {
           organizer: event.organizer?.name || "",
           totalAttendees: attendance.length,
           present,
+          late,
         };
       })
     );
 
-    const csv = [
-      ["Title", "Date", "Location", "Status", "Organizer", "Total Attendees", "Present"].join(","),
-      ...eventsWithStats.map((e) =>
-        [
-          `"${e.title}"`,
-          new Date(e.date).toLocaleDateString(),
-          `"${e.location}"`,
-          e.status,
-          `"${e.organizer}"`,
-          e.totalAttendees,
-          e.present,
-        ].join(",")
-      ),
-    ].join("\n");
+    const rows = [
+      ["Title", "Date", "Location", "Status", "Organizer", "Total Attendees", "Present", "Late"],
+      ...eventsWithStats.map((e) => [
+        e.title,
+        e.date ? fmtDate.format(new Date(e.date)) : "",
+        e.location,
+        e.status,
+        e.organizer,
+        e.totalAttendees,
+        e.present,
+        e.late,
+      ]),
+    ];
 
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", "attachment; filename=events-report.csv");
-    res.send(csv);
+    sendCsv(res, "events-report.csv", rows);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    fail(res, error);
   }
 });
 
 router.get("/users", async (req, res) => {
   try {
-    const users = await User.find().select("-password").sort({ createdAt: -1 });
+    const users = await User.find().select(REPORT_USER_FIELDS).sort({ createdAt: -1 });
 
     const byRole = await User.aggregate([
-      {
-        $group: {
-          _id: "$role",
-          count: { $sum: 1 },
-        },
-      },
+      { $group: { _id: "$role", count: { $sum: 1 } } },
     ]);
 
     const roleMap = { student: 0, organizer: 0, admin: 0 };
@@ -272,31 +330,27 @@ router.get("/users", async (req, res) => {
       recentUsers,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    fail(res, error);
   }
 });
 
 router.get("/users/export", async (req, res) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 }).select("name email role createdAt");
+    const users = await User.find().sort({ createdAt: -1 }).select(REPORT_USER_FIELDS);
 
-    const csv = [
-      ["Name", "Email", "Role", "Created At"].join(","),
-      ...users.map((u) =>
-        [
-          `"${u.name}"`,
-          u.email,
-          u.role,
-          new Date(u.createdAt).toLocaleDateString(),
-        ].join(",")
-      ),
-    ].join("\n");
+    const rows = [
+      ["Name", "Email", "Role", "Created At"],
+      ...users.map((u) => [
+        u.name,
+        u.email,
+        u.role,
+        u.createdAt ? fmtDate.format(new Date(u.createdAt)) : "",
+      ]),
+    ];
 
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", "attachment; filename=users-report.csv");
-    res.send(csv);
+    sendCsv(res, "users-report.csv", rows);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    fail(res, error);
   }
 });
 

@@ -11,6 +11,12 @@ const excuseSchema = new mongoose.Schema({
   status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
   responseNote: { type: String },
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  // Flat hours actually deducted when this excuse was approved. Recorded so a
+  // later attendance replacement can restore exactly what was taken.
+  removedHours: { type: Number, default: 0 },
 }, { timestamps: true });
+
+excuseSchema.index({ student: 1, event: 1, status: 1 });
+excuseSchema.index({ event: 1, status: 1 });
 
 module.exports = mongoose.model("Excuse", excuseSchema);

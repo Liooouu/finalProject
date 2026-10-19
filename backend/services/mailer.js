@@ -65,14 +65,24 @@ async function getTransporter() {
       transporter = buildTransporter({ ...smtp, password });
       console.log(`[mail] SMTP transport ready (${smtp.host}:${smtp.port})`);
       return transporter;
-    })();
+    })().catch((err) => {
+      // Don't cache a failed init forever — the next send should retry.
+      initPromise = null;
+      throw err;
+    });
   }
   return initPromise;
 }
 
 async function sendMail({ to, subject, html, text }) {
   if (!to) return false;
-  const tx = await getTransporter();
+  let tx;
+  try {
+    tx = await getTransporter();
+  } catch (err) {
+    console.error("[mail] Could not initialise SMTP:", err.message);
+    return false;
+  }
   if (!tx) return false; // Mail not configured — nothing to do.
 
   try {

@@ -103,6 +103,7 @@ const AuthPage = () => {
   const [flow, setFlow] = useState("form"); // "form" | "verifyPin" | "verifyEmail" | "pinPanel" | "forgot" | "forgotPassword" | "enrollFace"
   const [verifyEmail, setVerifyEmail] = useState("");
   const [verifyPin, setVerifyPin] = useState("");
+  const [verifyPassword, setVerifyPassword] = useState("");
   const [pinInfo, setPinInfo] = useState(null); // { pin, isRotated, message }
   const [pendingAuth, setPendingAuth] = useState(null); // { token, role, next }
   // Email-verification step (signup only).
@@ -258,6 +259,9 @@ const AuthPage = () => {
 
         if (res.data.requiresPin) {
           setVerifyEmail(res.data.email || formData.email.trim());
+          // Kept only in memory for the one follow-up request; the server now
+          // requires the password alongside the PIN on an unknown device.
+          setVerifyPassword(formData.password.trim());
           setVerifyPin("");
           setFlow("verifyPin");
         } else if (res.data.token && res.data.pin) {
@@ -339,6 +343,7 @@ const AuthPage = () => {
     try {
       const res = await api.post("/auth/verify-device", {
         email: verifyEmail,
+        password: verifyPassword,
         pin: verifyPin.trim(),
         deviceId: getDeviceId(),
         deviceLabel: getDeviceLabel(),

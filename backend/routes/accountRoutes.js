@@ -7,6 +7,7 @@ const fs = require("fs");
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const faceMatcher = require("../services/faceMatcher");
+const { isMailEnabled } = require("../services/mailer");
 const { protect, authorize } = require("../middleware/authMiddleware");
 const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
 
@@ -21,26 +22,56 @@ const storage = multer.diskStorage({
   },
 });
 
+// Face photos are biometric data: they live in their own directory that the
+// public /uploads static handler refuses to serve (see server.js) and are only
+// readable through the authenticated /account/face/:filename route.
+const FACE_DIR = path.join(__dirname, "..", "uploads", "private-faces");
+fs.mkdirSync(FACE_DIR, { recursive: true });
+
+const faceStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, FACE_DIR),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, `face-${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
+});
+
+const allowedImage = (req, file, cb) => {
+  // JPEG/PNG only. GIF/SVG/HTML are omitted on purpose: the files are served
+  // back from the app origin, so any executable/scriptable type would be a
+  // stored-XSS vector.
+  const allowedTypes = /jpeg|jpg|png/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype);
+  if (extname && mimetype) {
+    return cb(null, true);
+  }
+  cb(new Error("Only JPEG or PNG images are allowed"));
+};
+
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
-      return cb(null, true);
-    }
-    cb(new Error("Only image files are allowed (jpeg, jpg, png, gif)"));
-  },
+  fileFilter: allowedImage,
 });
+
+const faceUpload = multer({
+  storage: faceStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: allowedImage,
+});
+
+// Fields the client is allowed to see about an account: never the password, the
+// PIN hash, or the email/reset code hashes.
+const ACCOUNT_FIELDS =
+  "name email role profilePicture program yearLevel section facePhoto trustedDevices pinPlain createdAt updatedAt";
 
 // =======================
 // GET ACCOUNT INFO
 // =======================
 router.get("/", protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select("-password");
+    const user = await User.findById(req.user._id).select(ACCOUNT_FIELDS);
     res.json(user);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -54,14 +85,38 @@ router.patch("/", protect, async (req, res) => {
   try {
     const { name, email } = req.body;
 
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { name, email },
-      { new: true }
-    ).select("-password");
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: "User not found" });
 
-    res.json(user);
+    if (name !== undefined) {
+      if (!String(name).trim()) return res.status(400).json({ error: "Name cannot be empty" });
+      user.name = String(name).trim();
+    }
+
+    if (email !== undefined) {
+      const normalized = User.normalizeEmail(email);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+        return res.status(400).json({ error: "Enter a valid email address" });
+      }
+      if (normalized !== user.email) {
+        const taken = await User.findOne({ email: normalized, _id: { $ne: user._id } });
+        if (taken) return res.status(400).json({ error: "Email already in use" });
+        user.email = normalized;
+        // A new address must be re-verified — otherwise someone could move the
+        // account onto an address they do not control, or onto an unvalidated one.
+        user.emailVerified = (await isMailEnabled()) ? false : true;
+        user.emailVerificationCodeHash = "";
+        user.emailVerificationExpires = null;
+      }
+    }
+
+    await user.save();
+    const safe = await User.findById(user._id).select(ACCOUNT_FIELDS);
+    res.json(safe);
   } catch (err) {
+    if (err && err.code === 11000) {
+      return res.status(400).json({ error: "Email already in use" });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -97,8 +152,9 @@ router.patch("/password", protect, async (req, res) => {
         .json({ error: "Current password is incorrect" });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
+    // Assign the plaintext and let the model's pre-save hook hash it exactly
+    // once. Hashing here as well stored a hash-of-a-hash, locking the user out.
+    user.password = String(newPassword);
 
     await user.save();
 
@@ -140,13 +196,13 @@ router.post(
   "/face",
   protect,
   authorize("student"),
-  upload.single("face"),
+  faceUpload.single("face"),
   async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: "No face photo uploaded" });
     }
 
-    const filePath = `uploads/${req.file.filename}`;
+    const filePath = req.file.path;
     try {
       // Validates the photo and caches its descriptor in the same pass, so the
       // student's first PIN recovery doesn't have to re-analyse the reference.
@@ -171,7 +227,7 @@ router.post(
         }
       }
 
-      user.facePhoto = `/uploads/${req.file.filename}`;
+      user.facePhoto = `/uploads/private-faces/${req.file.filename}`;
       await user.save();
 
       res.json({ facePhoto: user.facePhoto });
@@ -186,6 +242,36 @@ router.post(
 );
 
 // =======================
+// READ A PRIVATE FACE PHOTO (owner or admin)
+// =======================
+// The /uploads static handler refuses the private-faces directory; this is the
+// only way to read a face photo, and it checks who is asking.
+router.get("/face/:filename", protect, async (req, res) => {
+  try {
+    const { filename } = req.params;
+    if (!/^[A-Za-z0-9._-]+$/.test(filename)) {
+      return res.status(400).json({ error: "Invalid file name" });
+    }
+
+    const stored = `/uploads/private-faces/${filename}`;
+    if (req.user.role !== "admin" && req.user.facePhoto !== stored) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const abs = path.join(FACE_DIR, filename);
+    if (!abs.startsWith(FACE_DIR + path.sep) || !fs.existsSync(abs)) {
+      return res.status(404).json({ error: "Photo not found" });
+    }
+
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "private, max-age=300");
+    res.sendFile(abs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =======================
 // DELETE USER ACCOUNT (Admin only)
 // =======================
 router.delete("/:id", protect, async (req, res) => {
@@ -194,20 +280,37 @@ router.delete("/:id", protect, async (req, res) => {
       return res.status(403).json({ error: "Only admins can delete accounts" });
     }
 
-    const user = await User.findByIdAndDelete(req.params.id);
-
+    // Load and authorize BEFORE deleting: the old code deleted the document and
+    // only then checked the role, so an admin account was removed and a 400
+    // returned anyway.
+    const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
-
     if (user.role === "admin") {
       return res.status(400).json({ error: "Cannot delete admin accounts" });
     }
+
+    await User.findByIdAndDelete(req.params.id);
 
     res.json({ message: "User account deleted successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Turn multer failures (size limit, rejected file type) into clean 400s instead
+// of letting the generic error handler report a 500.
+router.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({
+      error: err.code === "LIMIT_FILE_SIZE" ? "File must be less than 5MB" : err.message,
+    });
+  }
+  if (err && /only jpeg or png/i.test(String(err.message))) {
+    return res.status(400).json({ error: "Only JPEG or PNG images are allowed" });
+  }
+  next(err);
 });
 
 module.exports = router;

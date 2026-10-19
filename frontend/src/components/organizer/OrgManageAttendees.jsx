@@ -8,6 +8,7 @@ import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { getUserRole } from "../../utils/auth";
 import Button from "../ui/Button";
+import ConfirmDialog from "../ui/ConfirmDialog";
 
 const fieldClasses =
   "w-full rounded-lg border border-line bg-card-alt/60 px-3 py-2 text-sm text-on focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/40";
@@ -22,6 +23,10 @@ const OrgManageAttendees = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("success");
+  const [rowBusyId, setRowBusyId] = useState(null);
+  const [pendingRemove, setPendingRemove] = useState(null);
+  const [removing, setRemoving] = useState(false);
   const [csDrafts, setCsDrafts] = useState({});
   const [program, setProgram] = useState("");
   const [yearLevel, setYearLevel] = useState("");
@@ -94,9 +99,10 @@ const OrgManageAttendees = () => {
   );
 
   const handleAddAttendance = async (status, student = selectedStudent) => {
-    if (!student) return;
+    if (!student || submitting) return;
     setSubmitting(true);
     setMessage("");
+    setMessageType("success");
 
     try {
       const res = await api.post(`/events/${eventId}/attendees/manual`, {
@@ -104,50 +110,67 @@ const OrgManageAttendees = () => {
         status,
       });
 
-      setAttendees([...attendees, res.data]);
+      setAttendees((prev) => [...prev, res.data]);
       setSelectedStudent(null);
       setSearchTerm("");
       setMessage("Attendance added successfully!");
+      setMessageType("success");
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to add attendance");
+      setMessageType("error");
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleUpdateCS = async (attendance, hours) => {
+    if (rowBusyId) return;
     const value = Number(hours);
     if (!Number.isFinite(value) || value < 0) {
       setMessage("Please enter a valid number of hours (0 or more)");
+      setMessageType("error");
       return;
     }
 
+    setRowBusyId(attendance._id);
     try {
       const studentId = attendance.student?._id || attendance.student;
       const res = await api.patch(
         `/events/${eventId}/attendees/${studentId}/community-service`,
         { hours: value }
       );
-      setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
+      setAttendees((prev) => prev.map((a) => (a._id === res.data._id ? res.data : a)));
       setMessage(`Community service hours set to ${value} hrs`);
+      setMessageType("success");
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to update community service");
+      setMessageType("error");
+    } finally {
+      setRowBusyId(null);
     }
   };
 
-  const handleRemoveCS = async (attendance) => {
+  const confirmRemoveCS = async () => {
+    const attendance = pendingRemove;
+    if (!attendance || removing) return;
+    setRemoving(true);
     const studentId = attendance.student?._id || attendance.student;
     try {
       const res = await api.patch(
         `/events/${eventId}/attendees/${studentId}/community-service/remove`,
-        {}
+        { hours: attendance.communityServiceHours || 0 }
       );
       const remaining = res.data.communityServiceHours || 0;
-      setAttendees(attendees.map((a) => (a._id === res.data._id ? res.data : a)));
+      setAttendees((prev) => prev.map((a) => (a._id === res.data._id ? res.data : a)));
       setCsDrafts((d) => ({ ...d, [attendance._id]: String(remaining) }));
-      setMessage("Community service removed");
+      setMessage("Community service hours removed");
+      setMessageType("success");
+      setPendingRemove(null);
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to remove community service");
+      setMessageType("error");
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -172,7 +195,7 @@ const OrgManageAttendees = () => {
       </div>
 
       {message && (
-        <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${message.includes("success") ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+        <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${messageType === "success" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"}`}>
           {message}
         </div>
       )}
@@ -436,13 +459,15 @@ const OrgManageAttendees = () => {
                           csDrafts[attendance._id] ?? attendance.communityServiceHours
                         )
                       }
-                      className="bg-green-500 hover:bg-green-600 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
+                      disabled={rowBusyId === attendance._id}
+                      className="bg-green-500 hover:bg-green-600 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
                     >
                       Set hrs
                     </button>
                     <button
-                      onClick={() => handleRemoveCS(attendance)}
-                      className="bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
+                      onClick={() => setPendingRemove(attendance)}
+                      disabled={rowBusyId === attendance._id || attendance.communityServiceHours <= 0}
+                      className="bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
                     >
                       Remove hours
                     </button>
@@ -455,6 +480,20 @@ const OrgManageAttendees = () => {
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={!!pendingRemove}
+        title="Remove community service hours?"
+        message={
+          pendingRemove
+            ? `Remove the ${pendingRemove.communityServiceHours} service hour${pendingRemove.communityServiceHours === 1 ? "" : "s"} recorded for ${pendingRemove.student?.name || "this student"} in this event? This only affects this event.`
+            : ""
+        }
+        confirmLabel="Remove hours"
+        onConfirm={confirmRemoveCS}
+        onCancel={() => setPendingRemove(null)}
+        busy={removing}
+      />
     </div>
   );
 };

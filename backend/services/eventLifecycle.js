@@ -27,6 +27,12 @@ const OPEN_STATUS_FILTER = { status: { $nin: TERMINAL_STATUSES } };
 
 const isTerminal = (status) => TERMINAL_STATUSES.includes(status);
 
+// A student who checks in after the attendance window closes is "late" for this
+// long before the event is treated as over (auto-absence + auto-finish). Without
+// it the event's end defaults to the window's end, leaving no time to ever be
+// late.
+const LATE_GRACE_MS = 15 * 60 * 1000;
+
 function parseClock(value) {
   if (typeof value !== "string") return null;
   const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
@@ -60,6 +66,7 @@ function manilaClock(now = new Date()) {
 // Calendar day (Y/M/D) of a stored event date. `date` is saved as UTC midnight
 // (the browser sends YYYY-MM-DD), so the UTC parts are the organizer's day.
 function calendarParts(value) {
+  if (value === null || value === undefined || value === "") return null;
   const parsed = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
   return {
@@ -114,21 +121,50 @@ function isAutomated(event) {
   return !event.manualOverride;
 }
 
+// The attendance window as real instants: [start, end]. An end clock earlier
+// than the start clock means the window crosses midnight, so the end rolls to
+// the following Manila day. Returns null when the window can't be parsed.
+function eventWindow(event) {
+  const startParts = calendarParts(event.date);
+  const startClock = parseClock(event.attendanceStartTime);
+  if (!startParts || !startClock) return null;
+
+  const start = manilaInstant(startParts, startClock.hours, startClock.minutes);
+
+  const endClock = parseClock(event.attendanceEndTime);
+  if (!endClock) return null;
+  let end = manilaInstant(startParts, endClock.hours, endClock.minutes);
+  if (end <= start) end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+
+  return { start, end };
+}
+
+// The last instant a check-in counts. Anything up to the window's end is
+// "present", and the grace period (or a later event end) lets a check-in be
+// "late". After this the event is over: auto-absence and auto-finish run.
+function eventLastCheckInAt(event) {
+  const window = eventWindow(event);
+  const endsAt = eventEndAt(event);
+  let last = window ? new Date(window.end.getTime() + LATE_GRACE_MS) : null;
+  if (endsAt && (!last || endsAt > last)) last = endsAt;
+  return last || endsAt;
+}
+
 // Flip to live once the event's start time has arrived but it has not ended.
 function shouldAutoGoLive(event, now = new Date()) {
   if (event.status !== STATUS.UPCOMING || !isAutomated(event)) return false;
   const startsAt = eventStartsAt(event);
-  const endsAt = eventEndAt(event);
-  if (!startsAt || !endsAt) return false;
-  if (endsAt <= startsAt) return false;
-  return now >= startsAt && now < endsAt;
+  const last = eventLastCheckInAt(event);
+  if (!startsAt || !last) return false;
+  if (last <= startsAt) return false;
+  return now >= startsAt && now < last;
 }
 
-// Flip to finished once the event's end time has arrived.
+// Flip to finished once the last moment a check-in could count has passed.
 function shouldAutoFinish(event, now = new Date()) {
   if (isTerminal(event.status) || !isAutomated(event)) return false;
-  const endsAt = eventEndAt(event);
-  return !!endsAt && now >= endsAt;
+  const last = eventLastCheckInAt(event);
+  return !!last && now >= last;
 }
 
 // Decide whether the background job should keep running on an event.
@@ -169,13 +205,17 @@ module.exports = {
   EVENT_STATUSES,
   TERMINAL_STATUSES,
   OPEN_STATUS_FILTER,
+  LATE_GRACE_MS,
   isTerminal,
   isAutomated,
   manilaNow,
   manilaClock,
   manilaDayRange,
+  parseClock,
   eventStartsAt,
   eventEndAt,
+  eventWindow,
+  eventLastCheckInAt,
   shouldAutoGoLive,
   shouldAutoFinish,
   resolveAutomation,

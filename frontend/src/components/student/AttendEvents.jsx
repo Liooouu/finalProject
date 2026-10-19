@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { formatTime12Hour, splitEventsByLifecycle } from "../../utils/helpers";
+import { formatTime12Hour, splitEventsByLifecycle, formatDate } from "../../utils/helpers";
 import { FaCalendarAlt, FaMapMarkerAlt, FaClock, FaArrowRight } from "react-icons/fa";
 import { BsClipboardCheck } from "react-icons/bs";
 import { usePageMeta } from "../../context/PageMetaContext";
@@ -105,7 +105,7 @@ const AttendEvents = () => {
               <div className="mb-4 space-y-2 text-sm text-on-dim">
                 <div className="flex items-center gap-2">
                   <FaCalendarAlt className="text-xs text-on-muted" />
-                  <span>{new Date(event.date).toLocaleDateString()}</span>
+                  <span>{formatDate(event.date)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <FaClock className="text-xs text-on-muted" />

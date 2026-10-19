@@ -139,7 +139,7 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
               return;
             }
 
-            await handleScan(qrData.studentId);
+            await handleScan(qrData.studentId, qrData.timestamp);
           },
           () => {}
         );
@@ -186,10 +186,11 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
     setIsStarting(false);
   };
 
-  const handleScan = async (studentId) => {
+  const handleScan = async (studentId, timestamp) => {
     try {
       const res = await api.post(`/events/${eventId}/attendance/scan`, {
         studentId,
+        timestamp,
       });
 
       const attendance = res.data?.attendance || {};

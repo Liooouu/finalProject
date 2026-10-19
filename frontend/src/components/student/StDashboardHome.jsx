@@ -15,7 +15,7 @@ import {
 import { BsClipboardCheck, BsEmojiSmile } from "react-icons/bs";
 import { MdLocalActivity } from "react-icons/md";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { splitEventsByLifecycle } from "../../utils/helpers";
+import { splitEventsByLifecycle, formatDate } from "../../utils/helpers";
 import {
   BaseCard,
   StatusPill,
@@ -219,7 +219,7 @@ const windowCutoff = () => {
                           </p>
                           <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-on-muted">
                             <FaCalendarAlt className="text-[10px]" />
-                            {event.date ? new Date(event.date).toLocaleDateString() : "-"}
+                            {event.date ? formatDate(event.date) : "-"}
                             {event.location && (
                               <>
                                 <span>·</span>
@@ -301,7 +301,7 @@ const windowCutoff = () => {
                     <div className="flex-1 min-w-0">
                       <p className="text-on font-medium truncate">{record.event?.title || record.eventTitle || "Unknown Event"}</p>
                       <p className="text-xs text-on-muted">
-                        {record.event?.date ? new Date(record.event.date).toLocaleDateString() : record.eventDate ? new Date(record.eventDate).toLocaleDateString() : "-"}
+                        {record.event?.date ? formatDate(record.event.date) : record.eventDate ? formatDate(record.eventDate) : "-"}
                       </p>
                     </div>
                     <StatusPill

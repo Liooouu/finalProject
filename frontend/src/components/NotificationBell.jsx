@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { FaBell } from "react-icons/fa";
+import { NOTIFICATIONS_CHANGED_EVENT } from "../utils/helpers";
 
 const paths = {
   student: "/student/dashboard/notifications",
@@ -23,7 +24,19 @@ const NotificationBell = ({ role }) => {
 
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+
+    // React immediately when a notifications page marks items read/deletes
+    // them, and when the tab regains focus after being backgrounded.
+    const onChanged = () => fetchUnreadCount();
+    const onFocus = () => fetchUnreadCount();
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged);
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged);
+      window.removeEventListener("focus", onFocus);
+    };
   }, []);
 
   return (

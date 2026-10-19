@@ -24,6 +24,8 @@ const ProfileSettings = () => {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
   const [uploadingPic, setUploadingPic] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
 
   usePageMeta("Profile Settings", "Manage your account information.");
@@ -68,6 +70,8 @@ const ProfileSettings = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (savingProfile) return;
+    setSavingProfile(true);
     try {
       const res = await api.patch("/account", form);
       setProfile(res.data);
@@ -75,15 +79,19 @@ const ProfileSettings = () => {
       showMessage("Profile updated successfully!");
     } catch (err) {
       showMessage(err.response?.data?.error || "Failed to update profile", "error");
+    } finally {
+      setSavingProfile(false);
     }
   };
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
+    if (savingPassword) return;
     if (!isStrongPassword(passwordForm.newPassword)) {
       showMessage(PASSWORD_MESSAGE, "error");
       return;
     }
+    setSavingPassword(true);
     try {
       await api.patch("/account/password", passwordForm);
       setPasswordForm({ currentPassword: "", newPassword: "" });
@@ -91,6 +99,8 @@ const ProfileSettings = () => {
       showMessage("Password changed successfully!");
     } catch (err) {
       showMessage(err.response?.data?.error || "Password update failed", "error");
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -210,8 +220,8 @@ const ProfileSettings = () => {
                   />
                 </div>
                 <div className="flex gap-3">
-                  <Button type="submit">
-                    <FaCheck /> Save Changes
+                  <Button type="submit" disabled={savingProfile}>
+                    <FaCheck /> {savingProfile ? "Saving…" : "Save Changes"}
                   </Button>
                   <Button
                     type="button"
@@ -256,8 +266,8 @@ const ProfileSettings = () => {
                   <p className="text-xs text-on-muted">{PASSWORD_HINT}</p>
                 </div>
                 <div className="flex gap-3">
-                  <Button type="submit">
-                    <FaCheck /> Update Password
+                  <Button type="submit" disabled={savingPassword}>
+                    <FaCheck /> {savingPassword ? "Updating…" : "Update Password"}
                   </Button>
                   <Button
                     type="button"

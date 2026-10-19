@@ -17,9 +17,9 @@ import Button from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Loading from "../shared/Loading";
 import FaceCapture from "../auth/FaceCapture";
+import PrivateImage from "../shared/PrivateImage";
 import { getDeviceId } from "../../utils/device";
-
-const API_BASE = api.defaults.baseURL.replace(/\/api$/, "");
+import { formatDateTime } from "../../utils/helpers";
 
 const SecuritySettings = () => {
   const [devices, setDevices] = useState([]);
@@ -142,7 +142,7 @@ const SecuritySettings = () => {
   };
 
   const formatDate = (d) =>
-    d ? new Date(d).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
+    d ? formatDateTime(d, { dateStyle: "medium", timeStyle: "short" }) : "—";
 
   return (
     <div className="space-y-6">
@@ -265,8 +265,8 @@ const SecuritySettings = () => {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             {facePhoto ? (
-              <img
-                src={`${API_BASE}${facePhoto}`}
+              <PrivateImage
+                src={facePhoto}
                 alt="Enrolled face"
                 className="h-16 w-16 rounded-xl border border-line object-cover"
               />
@@ -325,7 +325,7 @@ const SecuritySettings = () => {
                     Appeal {(appeal.status).charAt(0).toUpperCase() + appeal.status.slice(1)}
                   </p>
                   <p className="text-xs text-on-muted">
-                    Submitted {new Date(appeal.createdAt).toLocaleString()}
+                    Submitted {formatDateTime(appeal.createdAt)}
                   </p>
                   {appeal.responseNote && (
                     <p className="mt-0.5 text-xs text-on-dim">

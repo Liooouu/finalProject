@@ -6,6 +6,7 @@ import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
+import { formatDate, formatDateTime } from "../../utils/helpers";
 
 const CommunityService = () => {
   const [data, setData] = useState(null);
@@ -116,7 +117,7 @@ const CommunityService = () => {
                     <tr key={index} className="hover:bg-card transition-colors">
                       <td className="px-6 py-4 text-on font-medium">{record.event?.title || record.eventTitle || "Unknown Event"}</td>
                       <td className="px-6 py-4 text-on-dim">
-                        {record.event?.date ? new Date(record.event.date).toLocaleDateString() : record.eventDate ? new Date(record.eventDate).toLocaleDateString() : "-"}
+                        {record.event?.date ? formatDate(record.event.date) : record.eventDate ? formatDate(record.eventDate) : "-"}
                       </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={record.status} />
@@ -129,7 +130,7 @@ const CommunityService = () => {
                         )}
                       </td>
                       <td className="px-6 py-4 text-on-dim text-sm">
-                        {new Date(record.attendedAt).toLocaleString()}
+                        {formatDateTime(record.attendedAt)}
                       </td>
                     </tr>
                   );

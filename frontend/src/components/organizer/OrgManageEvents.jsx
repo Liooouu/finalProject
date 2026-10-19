@@ -5,6 +5,7 @@ import {
   formatTime12Hour,
   isTerminalStatus,
   describeEventLifecycle,
+  formatDate,
 } from "../../utils/helpers";
 import { FaPlus, FaCalendarAlt, FaMapMarkerAlt, FaClock, FaTrash, FaUndo, FaChevronDown, FaChevronRight } from "react-icons/fa";
 import { MdClose } from "react-icons/md";
@@ -33,6 +34,7 @@ const OrgManageEvents = () => {
   const [events, setEvents] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("success");
   const [viewMode, setViewMode] = useState("my");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -102,6 +104,7 @@ const OrgManageEvents = () => {
     try {
       await api.post("/events", form);
       setMessage("Event created successfully!");
+      setMessageType("success");
       setForm({
         title: "",
         description: "",
@@ -118,6 +121,7 @@ const OrgManageEvents = () => {
       fetchEvents();
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to create event.");
+      setMessageType("error");
     } finally {
       setSubmitting(false);
     }
@@ -127,9 +131,11 @@ const OrgManageEvents = () => {
     try {
       await api.delete(`/events/${id}`);
       setMessage("Event deleted.");
+      setMessageType("success");
       fetchEvents();
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to delete event.");
+      setMessageType("error");
     }
   };
 
@@ -141,9 +147,11 @@ const OrgManageEvents = () => {
       setMessage(
         "Event reopened. It will finish again at its end time — extend the schedule to keep it running."
       );
+      setMessageType("success");
       fetchEvents();
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to reopen event.");
+      setMessageType("error");
     }
   };
 
@@ -217,7 +225,7 @@ const OrgManageEvents = () => {
 
       {/* Message */}
       {message && (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-600 dark:text-emerald-400">
+        <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${messageType === "error" ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
           {message}
         </div>
       )}
@@ -442,12 +450,12 @@ const OrgManageEvents = () => {
 
                 <div className="flex flex-wrap gap-4 text-sm text-on-dim mb-4">
                   <span className="flex items-center gap-1"><FaMapMarkerAlt /> {event.location || "TBA"}</span>
-                  <span className="flex items-center gap-1"><FaCalendarAlt /> {new Date(event.date).toLocaleDateString()}</span>
+                  <span className="flex items-center gap-1"><FaCalendarAlt /> {formatDate(event.date)}</span>
                   <span className="flex items-center gap-1"><FaClock /> {formatTime12Hour(event.time)}</span>
                   <span className="flex items-center gap-1"><BsClipboardCheck /> {event.attendeeCount ?? 0}+ {event.attendeeCount === 1 ? "attendee" : "attendees"}</span>
                 </div>
                 <p className="text-xs text-on-muted mb-4">
-                  Ends: {new Date(event.endDate || event.date).toLocaleDateString()} at {formatTime12Hour(event.endTime || event.attendanceEndTime)}
+                  Ends: {formatDate(event.endDate || event.date)} at {formatTime12Hour(event.endTime || event.attendanceEndTime)}
                 </p>
 
                 <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20">

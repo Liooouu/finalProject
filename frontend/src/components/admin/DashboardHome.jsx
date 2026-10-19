@@ -10,6 +10,7 @@ import {
 import { usePageMeta } from "../../context/PageMetaContext";
 import { KpiCard, StatusChip, PageHeader, TableSkeleton, BaseCard } from "../ui";
 import Button from "../ui/Button";
+import { formatDate, formatDateTime } from "../../utils/helpers";
 
 const Avatar = ({ name }) => {
   const initials = (name || "?")
@@ -31,7 +32,7 @@ const DashboardHome = () => {
   const [users, setUsers] = useState([]);
   const [attendance, setAttendance] = useState([]);
 
-  usePageMeta("Overview", new Date().toLocaleDateString("en-US", {
+  usePageMeta("Overview", formatDate(new Date(), {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -130,7 +131,7 @@ const DashboardHome = () => {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-on">{event.title}</p>
                     <p className="truncate text-xs text-on-dim">
-                      {event.location || "No location"} · {new Date(event.date).toLocaleDateString()}
+                      {event.location || "No location"} · {formatDate(event.date)}
                     </p>
                   </div>
                   <StatusChip status={event.status} />
@@ -206,7 +207,7 @@ const DashboardHome = () => {
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium text-on">{record.event?.title || record.eventTitle || "Event"}</p>
                       {(record.event?.date || record.eventDate) && (
-                        <p className="text-xs text-on-muted">{new Date(record.event?.date || record.eventDate).toLocaleDateString()}</p>
+                        <p className="text-xs text-on-muted">{formatDate(record.event?.date || record.eventDate)}</p>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -217,7 +218,7 @@ const DashboardHome = () => {
                       <StatusChip status={record.status} />
                     </td>
                     <td className="px-4 py-3 text-xs text-on-dim">
-                      {record.attendedAt ? new Date(record.attendedAt).toLocaleString() : "—"}
+                      {record.attendedAt ? formatDateTime(record.attendedAt) : "—"}
                     </td>
                   </tr>
                 ))}

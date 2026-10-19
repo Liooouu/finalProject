@@ -20,6 +20,8 @@ const {
   manilaClock,
   manilaDayRange,
   eventEndAt,
+  eventStartsAt,
+  eventLastCheckInAt,
   shouldAutoGoLive,
   shouldAutoFinish,
   eventLiveNotification,
@@ -44,7 +46,23 @@ if (!fs.existsSync("uploads")) {
 // ✅ MIDDLEWARES
 app.use(cors());
 app.use(express.json());
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use(
+  "/uploads",
+  // Face photos are biometric data: never serve the private directory directly.
+  (req, res, next) => {
+    if (req.path.startsWith("/private-faces/")) {
+      return res.status(404).end();
+    }
+    next();
+  },
+  express.static(path.join(__dirname, "uploads"), {
+    setHeaders: (res) => {
+      // Uploads are images only, but the app origin serves them — never let a
+      // browser sniff one into something scriptable.
+      res.setHeader("X-Content-Type-Options", "nosniff");
+    },
+  })
+);
 
 // ✅ ROUTES
 app.use("/api/auth", authRoutes);
@@ -76,8 +94,22 @@ app.get("/api/health", async (req, res) => {
 // ✅ GLOBAL ERROR HANDLER (VERY IMPORTANT)
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err.stack);
-  res.status(500).json({
-    message: err.message || "Server error",
+
+  // Malformed JSON body is a client error, not a server fault.
+  if (err.type === "entity.parse.failed" || err instanceof SyntaxError) {
+    return res.status(400).json({ message: "Invalid JSON in request body" });
+  }
+  // Multer: file too large / rejected type.
+  if (err.name === "MulterError") {
+    return res.status(400).json({
+      message: err.code === "LIMIT_FILE_SIZE" ? "File is too large" : err.message,
+    });
+  }
+
+  const status = err.status || err.statusCode || 500;
+  // Never leak internal messages for an unexpected 500.
+  res.status(status).json({
+    message: status >= 500 ? "Server error" : err.message || "Request failed",
   });
 });
 
@@ -119,7 +151,12 @@ connectDB()
     // Step 2 must run before step 3: an event leaves the "still open" query the
     // moment it finishes, so the absences for its last day would never be
     // written otherwise.
+    let lifecycleRunning = false;
     const runLifecycleJob = async () => {
+      // A run can outlast the 60s tick (large student lists). Overlapping runs
+      // used to race on the same events and duplicate notifications.
+      if (lifecycleRunning) return;
+      lifecycleRunning = true;
       try {
         const now = new Date();
         // Day boundaries and the clock come from the school's zone (Asia/Manila),
@@ -130,26 +167,32 @@ connectDB()
         // ── STEP 1: go live automatically at the start time ──────────────
         const toGoLive = await Event.find({
           status: STATUS.UPCOMING,
+          manualOverride: { $ne: true },
           date: { $lte: todayEnd },
         });
 
         for (const event of toGoLive) {
-          if (!shouldAutoGoLive(event, now)) continue;
+          try {
+            if (!shouldAutoGoLive(event, now)) continue;
 
-          await Event.findByIdAndUpdate(event._id, { status: STATUS.LIVE });
+            await Event.findByIdAndUpdate(event._id, { status: STATUS.LIVE });
 
-          const recipients = await eventRecipients(event);
-          if (recipients.length > 0) {
-            const { type, title, message } = eventLiveNotification(event);
-            await notifyUsers(recipients, {
-              type,
-              title,
-              message,
-              relatedEvent: event._id,
-              event,
-            });
+            const recipients = await eventRecipients(event);
+            if (recipients.length > 0) {
+              const { type, title, message } = eventLiveNotification(event);
+              await notifyUsers(recipients, {
+                type,
+                title,
+                message,
+                relatedEvent: event._id,
+                event,
+              });
+            }
+            console.log(`[lifecycle] "${event.title}" is now live (auto)`);
+          } catch (err) {
+            // One bad event must not stop the rest of the pass.
+            console.error(`[lifecycle] go-live failed for "${event.title}":`, err.message);
           }
-          console.log(`[lifecycle] "${event.title}" is now live (auto)`);
         }
 
         // ── STEP 2: absence marking for events that are over ─────────────
@@ -158,45 +201,64 @@ connectDB()
         const candidateEvents = await Event.find({
           date: { $lte: todayEnd },
           ...OPEN_STATUS_FILTER,
+          manualOverride: { $ne: true },
         });
 
         for (const event of candidateEvents) {
-          const endsAt = eventEndAt(event);
-          if (!endsAt || now < endsAt) continue;
+          // Absences are written once the check-in window (plus grace) is over,
+          // not merely when the event end passes — otherwise an event whose end
+          // is earlier than its window would penalize students mid-window.
+          const lastCheckIn = eventLastCheckInAt(event) || eventEndAt(event);
+          if (!lastCheckIn || now < lastCheckIn) continue;
 
-          // Get all students
-          const students = await User.find({ role: "student" });
+          try {
+            // Get all students
+            const students = await User.find({ role: "student" });
 
-          for (const student of students) {
-            // Check if student already has attendance (idempotent — no duplicates)
-            const existingAttendance = await Attendance.findOne({
-              event: event._id,
-              student: student._id,
-            });
+            for (const student of students) {
+              try {
+                // Check if student already has attendance (idempotent — no duplicates)
+                const existingAttendance = await Attendance.findOne({
+                  event: event._id,
+                  student: student._id,
+                });
 
-            if (!existingAttendance) {
-              // Create absent attendance with 8 hours community service
-              const attendance = new Attendance({
-                event: event._id,
-                student: student._id,
-                attendedAt: now,
-                status: "absent",
-                communityServiceHours: 8,
-                communityServiceLog: [
-                  { action: "penalty", hours: 8, note: "Marked absent (auto)" },
-                ],
-              });
-              await attendance.save();
+                if (!existingAttendance) {
+                  // Create absent attendance with 8 hours community service
+                  const attendance = new Attendance({
+                    event: event._id,
+                    student: student._id,
+                    attendedAt: now,
+                    status: "absent",
+                    communityServiceHours: 8,
+                    communityServiceLog: [
+                      { action: "penalty", hours: 8, note: "Marked absent (auto)" },
+                    ],
+                  });
+                  await attendance.save();
 
-              // Notify the student (in-app + email)
-              await notifyUsers([student], {
-                type: "penalty",
-                title: "Marked Absent",
-                message: `You were marked as absent for the event "${event.title}". 8 community service hours have been added to your total.`,
-                relatedEvent: event._id,
-                event,
-              });
+                  // Notify the student (in-app + email)
+                  await notifyUsers([student], {
+                    type: "penalty",
+                    title: "Marked Absent",
+                    message: `You were marked as absent for the event "${event.title}". 8 community service hours have been added to your total.`,
+                    relatedEvent: event._id,
+                    event,
+                  });
+                }
+              } catch (err) {
+                // A unique-index race (two replicas / a late self-mark) is fine;
+                // anything else is logged and skipped so the pass continues.
+                if (err.code !== 11000) {
+                  console.error(
+                    `[lifecycle] absence failed for "${event.title}" / ${student.email}:`,
+                    err.message
+                  );
+                }
+              }
             }
+          } catch (err) {
+            console.error(`[lifecycle] absence pass failed for "${event.title}":`, err.message);
           }
         }
 
@@ -231,8 +293,20 @@ connectDB()
             });
           };
 
+          const minutesOf = (value) => {
+            const [h, m] = String(value || "0:0").split(":").map(Number);
+            return (h || 0) * 60 + (m || 0);
+          };
+          const nowMin = minutesOf(currentTime);
+          const startMin = minutesOf(event.attendanceStartTime);
+          let endMin = minutesOf(event.attendanceEndTime);
+          // A window can cross midnight (end <= start); lift the end so the
+          // comparisons stay monotonic instead of treating it as "already past".
+          if (endMin <= startMin) endMin += 24 * 60;
+          const nowForWindow = nowMin < startMin ? nowMin + 24 * 60 : nowMin;
+
           // Attendance window just opened
-          if (!event.openNotified && currentTime >= event.attendanceStartTime) {
+          if (!event.openNotified && nowForWindow >= startMin) {
             if (allStudents.length > 0) {
               await notifyUsers(allStudents, {
                 type: "attendance",
@@ -247,14 +321,7 @@ connectDB()
           }
 
           // Closing soon (15 minutes before the window ends)
-          const [endH, endM] = event.attendanceEndTime.split(":").map(Number);
-          const cutoffTotal = Math.max(0, endH * 60 + endM - 15);
-          const closingSoonTime =
-            String(Math.floor(cutoffTotal / 60)).padStart(2, "0") +
-            ":" +
-            String(cutoffTotal % 60).padStart(2, "0");
-
-          if (!event.closingSoonNotified && currentTime >= closingSoonTime) {
+          if (!event.closingSoonNotified && nowForWindow >= endMin - 15) {
             await notifyNonAttendees(
               "Attendance Closing Soon",
               `The attendance window for "${event.title}" closes at ${event.attendanceEndTime}. Mark your attendance before you're marked absent!`,
@@ -265,7 +332,7 @@ connectDB()
           }
 
           // Window fully closed and student never checked in
-          if (!event.closedNotified && currentTime >= event.attendanceEndTime) {
+          if (!event.closedNotified && nowForWindow >= endMin) {
             await notifyNonAttendees(
               "Attendance Missed",
               `The attendance window for "${event.title}" has closed and you weren't marked as present. You may be marked absent for this event.`,
@@ -282,25 +349,35 @@ connectDB()
 
         // ✅ UPCOMING EVENT REMINDER — 24 hours before the event starts
         const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        // `date` is date-only (midnight), so comparing it to `now` fired the
+        // reminder at the wrong time. Use the real start instant for the check.
         const upcomingEvents = await Event.find({
-          date: { $gte: now, $lte: in24h },
+          date: { $gte: new Date(now.getTime() - 48 * 60 * 60 * 1000), $lte: in24h },
           ...OPEN_STATUS_FILTER,
+          manualOverride: { $ne: true },
           upcomingNotified: false,
         });
 
         for (const event of upcomingEvents) {
-          const students = await User.find({ role: "student" }).select("_id name email");
-          if (students.length > 0) {
-            await notifyUsers(students, {
-              type: "info",
-              title: "Upcoming Event Reminder",
-              message: `Don't forget: "${event.title}" is happening on ${new Date(event.date).toLocaleDateString()} at ${event.time}${event.location ? ` (${event.location})` : ""}.`,
-              relatedEvent: event._id,
-              event,
-            });
+          try {
+            const startsAt = eventStartsAt(event);
+            if (!startsAt || startsAt < now || startsAt > in24h) continue;
+
+            const students = await User.find({ role: "student" }).select("_id name email");
+            if (students.length > 0) {
+              await notifyUsers(students, {
+                type: "info",
+                title: "Upcoming Event Reminder",
+                message: `Don't forget: "${event.title}" is happening on ${new Date(event.date).toLocaleDateString()} at ${event.time}${event.location ? ` (${event.location})` : ""}.`,
+                relatedEvent: event._id,
+                event,
+              });
+            }
+            event.upcomingNotified = true;
+            await event.save();
+          } catch (err) {
+            console.error(`[lifecycle] reminder failed for "${event.title}":`, err.message);
           }
-          event.upcomingNotified = true;
-          await event.save();
         }
 
         // ── STEP 3: finish automatically at the end time ─────────────────
@@ -321,6 +398,8 @@ connectDB()
         }
       } catch (err) {
         console.error("Error in attendance processing job:", err.message);
+      } finally {
+        lifecycleRunning = false;
       }
     };
 

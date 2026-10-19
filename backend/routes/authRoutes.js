@@ -21,6 +21,10 @@ const LOCK_MINUTES = 5;
 const FACE_LOCK_ATTEMPTS = 3;
 const FACE_LOCK_MINUTES = 5;
 
+// Biometric uploads live in the private directory the static handler refuses;
+// ensure it exists even when this router is loaded outside the full server.
+fs.mkdirSync(path.join(__dirname, "..", "uploads", "private-faces"), { recursive: true });
+
 // Email-verification policy.
 const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
 const EMAIL_CODE_MAX_ATTEMPTS = 5;
@@ -94,7 +98,7 @@ async function issuePasswordResetCode(user) {
 
 // Temporary upload for recovery selfies (deleted right after processing).
 const recoveryStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
+  destination: (req, file, cb) => cb(null, "uploads/private-faces/"),
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     cb(null, `recovery-${uniqueSuffix}${path.extname(file.originalname)}`);
@@ -104,20 +108,22 @@ const recoveryUpload = multer({
   storage: recoveryStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
+    // Biometric images: JPEG/PNG only, never GIF/SVG/HTML.
     if (
-      /jpeg|jpg|png|gif/.test(path.extname(file.originalname).toLowerCase()) &&
-      /jpeg|jpg|png|gif/.test(file.mimetype)
+      /jpeg|jpg|png/.test(path.extname(file.originalname).toLowerCase()) &&
+      /jpeg|jpg|png/.test(file.mimetype)
     ) {
       return cb(null, true);
     }
-    cb(new Error("Only image files are allowed (jpeg, jpg, png, gif)"));
+    cb(new Error("Only JPEG or PNG images are allowed"));
   },
 });
 
 // Persistent upload for appeal proof photos (kept on disk like face photos, so
-// admins can review them side-by-side with the enrolled face photo).
+// admins can review them side-by-side with the enrolled face photo). Stored in
+// the private directory because they are biometric proof.
 const appealStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
+  destination: (req, file, cb) => cb(null, "uploads/private-faces/"),
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     cb(null, `appeal-${uniqueSuffix}${path.extname(file.originalname)}`);
@@ -128,12 +134,12 @@ const appealUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (
-      /jpeg|jpg|png|gif/.test(path.extname(file.originalname).toLowerCase()) &&
-      /jpeg|jpg|png|gif/.test(file.mimetype)
+      /jpeg|jpg|png/.test(path.extname(file.originalname).toLowerCase()) &&
+      /jpeg|jpg|png/.test(file.mimetype)
     ) {
       return cb(null, true);
     }
-    cb(new Error("Only image files are allowed (jpeg, jpg, png, gif)"));
+    cb(new Error("Only JPEG or PNG images are allowed"));
   },
 });
 
@@ -177,12 +183,18 @@ router.post("/register", async (req, res) => {
     }
 
     const mailEnabled = await isMailEnabled();
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: User.normalizeEmail(email) });
 
     if (existingUser) {
       // A student who started signup while verification was on but never
-      // finished can request a fresh code — we don't touch their password.
+      // finished can resume it. The pending account cannot be used until the
+      // emailed code is entered, so refreshing the password here is safe — and
+      // necessary, otherwise a typo in the password would be permanent.
       if (existingUser.emailVerified === false && mailEnabled) {
+        existingUser.name = String(name).trim();
+        existingUser.password = String(password);
+        existingUser.trustedDevices = [];
+        await existingUser.save();
         await issueEmailCode(existingUser);
         return res.status(200).json({
           message: "We re-sent your verification code. Check your inbox.",
@@ -230,7 +242,9 @@ router.post("/register", async (req, res) => {
       emailVerified: !mailEnabled,
     });
     await user.setPin(pin);
-    if (deviceId) user.trustDevice(deviceId, req.body.deviceLabel);
+    // Only trust the device once the account is actually usable; when mail is
+    // on, the device is trusted at /verify-email after the code is entered.
+    if (deviceId && !mailEnabled) user.trustDevice(deviceId, req.body.deviceLabel);
 
     await user.save();
 
@@ -275,7 +289,7 @@ router.post("/verify-email", async (req, res) => {
       return res.status(400).json({ message: "Invalid verification code" });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: User.normalizeEmail(email) });
     if (!user || user.emailVerified !== false) {
       return res.status(400).json({ message: "Invalid or expired verification code" });
     }
@@ -290,18 +304,25 @@ router.post("/verify-email", async (req, res) => {
 
     const ok = await user.compareEmailCode(String(code));
     if (!ok) {
-      user.emailVerificationAttempts = (user.emailVerificationAttempts || 0) + 1;
+      // Atomic increment: concurrent guesses must not overwrite each other's
+      // count and reset the attempt budget.
+      const updated = await User.findByIdAndUpdate(
+        user._id,
+        { $inc: { emailVerificationAttempts: 1 } },
+        { new: true }
+      );
       let message = "Incorrect verification code";
-      if (user.emailVerificationAttempts >= EMAIL_CODE_MAX_ATTEMPTS) {
-        user.emailVerificationCodeHash = "";
-        user.emailVerificationExpires = null;
-        user.emailVerificationAttempts = 0;
+      if (updated.emailVerificationAttempts >= EMAIL_CODE_MAX_ATTEMPTS) {
+        await User.findByIdAndUpdate(user._id, {
+          emailVerificationCodeHash: "",
+          emailVerificationExpires: null,
+          emailVerificationAttempts: 0,
+        });
         message = "Too many attempts. Request a new code.";
       } else {
-        const left = EMAIL_CODE_MAX_ATTEMPTS - user.emailVerificationAttempts;
+        const left = EMAIL_CODE_MAX_ATTEMPTS - updated.emailVerificationAttempts;
         message += ` (${left} ${left === 1 ? "attempt" : "attempts"} left)`;
       }
-      await user.save();
       return res.status(400).json({ message });
     }
 
@@ -341,7 +362,7 @@ router.post("/resend-verification", async (req, res) => {
       return res.status(400).json({ message: "Email sending is not configured." });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: User.normalizeEmail(email) });
     if (!user || user.emailVerified !== false) {
       return res.status(400).json({ message: "No pending verification for this email." });
     }
@@ -396,7 +417,7 @@ router.post("/forgot-password", async (req, res) => {
     const genericMessage =
       "If an account exists for that email, we've sent a 6-digit code. Check your inbox.";
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: User.normalizeEmail(email) });
     // A registration that never finished verifying can't reset a password it
     // never finished setting — answer exactly like a missing account anyway.
     if (!user || user.emailVerified === false) {
@@ -407,14 +428,9 @@ router.post("/forgot-password", async (req, res) => {
       user.passwordResetLastSentAt &&
       Date.now() - user.passwordResetLastSentAt.getTime() < EMAIL_RESEND_COOLDOWN_MS
     ) {
-      const wait = Math.ceil(
-        (EMAIL_RESEND_COOLDOWN_MS -
-          (Date.now() - user.passwordResetLastSentAt.getTime())) /
-          1000
-      );
-      return res
-        .status(429)
-        .json({ message: `Please wait ${wait}s before requesting another code.` });
+      // Same generic 200 as the normal path: a 429 only for existing accounts
+      // would reveal which emails are registered.
+      return res.json({ message: genericMessage });
     }
 
     await issuePasswordResetCode(user);
@@ -443,7 +459,7 @@ router.post("/forgot-password/verify", async (req, res) => {
       return res.status(400).json({ message: "Invalid verification code" });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: User.normalizeEmail(email) });
     if (
       !user ||
       user.emailVerified === false ||
@@ -456,18 +472,24 @@ router.post("/forgot-password/verify", async (req, res) => {
 
     const ok = await user.comparePasswordCode(String(code));
     if (!ok) {
-      user.passwordResetAttempts = (user.passwordResetAttempts || 0) + 1;
+      // Atomic: parallel guesses must not overwrite each other's count.
+      const updated = await User.findByIdAndUpdate(
+        user._id,
+        { $inc: { passwordResetAttempts: 1 } },
+        { new: true }
+      );
       let message = "Incorrect verification code";
-      if (user.passwordResetAttempts >= EMAIL_CODE_MAX_ATTEMPTS) {
-        user.passwordResetCodeHash = "";
-        user.passwordResetExpires = null;
-        user.passwordResetAttempts = 0;
+      if (updated.passwordResetAttempts >= EMAIL_CODE_MAX_ATTEMPTS) {
+        await User.findByIdAndUpdate(user._id, {
+          passwordResetCodeHash: "",
+          passwordResetExpires: null,
+          passwordResetAttempts: 0,
+        });
         message = "Too many attempts. Request a new code.";
       } else {
-        const left = EMAIL_CODE_MAX_ATTEMPTS - user.passwordResetAttempts;
+        const left = EMAIL_CODE_MAX_ATTEMPTS - updated.passwordResetAttempts;
         message += ` (${left} ${left === 1 ? "attempt" : "attempts"} left)`;
       }
-      await user.save();
       return res.status(400).json({ message });
     }
 
@@ -498,11 +520,13 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Please fill in all fields" });
     }
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: "User not found" });
+    const user = await User.findOne({ email: User.normalizeEmail(email) });
+    // Identical message for unknown address and wrong password so this endpoint
+    // can't be used to enumerate accounts.
+    if (!user) return res.status(400).json({ message: "Invalid email or password" });
 
     const isMatch = await user.comparePassword(password);
-    if (!isMatch) return res.status(400).json({ message: "Invalid password" });
+    if (!isMatch) return res.status(400).json({ message: "Invalid email or password" });
 
     // Email not verified yet. If mail is configured, block login and let the
     // frontend route to the code screen; if mail is off, auto-verify so nobody
@@ -565,36 +589,55 @@ router.post("/login", async (req, res) => {
 // Verifies the entering PIN, signs the student in, and silently rotates the PIN
 // for the next new device. The current PIN is only shown on the Security page.
 router.post("/verify-device", async (req, res) => {
-  const { email, pin, deviceId, deviceLabel } = req.body;
+  const { email, password, pin, deviceId, deviceLabel } = req.body;
 
   try {
-    if (!email || !pin || !deviceId) {
+    // Requiring the password here means a stolen security PIN alone cannot be
+    // used to sign in from an unknown device.
+    if (!email || !password || !pin || !deviceId) {
       return res.status(400).json({ message: "Please fill in all fields" });
     }
     if (!/^\d{6}$/.test(pin)) {
       return res.status(400).json({ message: "Invalid security PIN" });
     }
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: "User not found" });
+    const user = await User.findOne({ email: User.normalizeEmail(email) });
+    if (!user) return res.status(400).json({ message: "Invalid email or password" });
+
+    const passwordOk = await user.comparePassword(password);
+    if (!passwordOk) return res.status(400).json({ message: "Invalid email or password" });
+
+    if (user.emailVerified === false && (await isMailEnabled())) {
+      return res.status(403).json({
+        message: "Please verify your email to continue.",
+        requiresEmailVerification: true,
+        email: user.email,
+      });
+    }
 
     if (rejectIfLocked(user, res)) return;
 
     const ok = await user.comparePin(pin);
     if (!ok) {
-      user.pinAttempts = (user.pinAttempts || 0) + 1;
+      // Increment atomically so parallel guesses can't erase each other's count.
+      const updated = await User.findByIdAndUpdate(
+        user._id,
+        { $inc: { pinAttempts: 1 } },
+        { new: true }
+      );
       let status = 400;
       let message = "Incorrect security PIN";
-      if (user.pinAttempts >= LOCK_ATTEMPTS) {
-        user.pinLockUntil = new Date(Date.now() + LOCK_MINUTES * 60000);
-        user.pinAttempts = 0;
+      if (updated.pinAttempts >= LOCK_ATTEMPTS) {
+        await User.findByIdAndUpdate(user._id, {
+          pinLockUntil: new Date(Date.now() + LOCK_MINUTES * 60000),
+          pinAttempts: 0,
+        });
         status = 423;
         message = `Too many attempts. Try again in ${LOCK_MINUTES} minutes.`;
       } else {
-        const left = LOCK_ATTEMPTS - user.pinAttempts;
+        const left = LOCK_ATTEMPTS - updated.pinAttempts;
         message += ` (${left} ${left === 1 ? "attempt" : "attempts"} left)`;
       }
-      await user.save();
       return res.status(status).json({ message });
     }
 
@@ -623,6 +666,10 @@ router.post("/rotate-pin", protect, authorize("student"), async (req, res) => {
   try {
     const newPin = User.generatePin();
     await req.user.setPin(newPin);
+    // A freshly rotated PIN must also clear any lockout left over from the
+    // previous one, or the student stays locked on new devices.
+    req.user.pinAttempts = 0;
+    req.user.pinLockUntil = null;
     await req.user.save();
     console.log("PIN rotated by student:", req.user.email);
     res.json({ pin: newPin, message: "Your security PIN has changed." });
@@ -671,7 +718,7 @@ router.post("/forgot-pin", async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ message: "Please fill in all fields" });
     }
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: User.normalizeEmail(email) });
     if (!user || user.role !== "student") {
       return res.status(400).json({ message: "Invalid email or password" });
     }
@@ -705,7 +752,7 @@ router.post(
         return res.status(400).json({ message: "Please fill in all fields" });
       }
 
-      const user = await User.findOne({ email });
+      const user = await User.findOne({ email: User.normalizeEmail(email) });
       if (!user || user.role !== "student") {
         cleanup();
         return res.status(400).json({ message: "Invalid email or password" });
@@ -757,13 +804,19 @@ router.post(
       );
 
       if (!matched) {
-        user.faceAttempts = (user.faceAttempts || 0) + 1;
+        // Atomic increment so concurrent attempts can't reset each other's count.
+        const updated = await User.findByIdAndUpdate(
+          user._id,
+          { $inc: { faceAttempts: 1 } },
+          { new: true }
+        );
         let status = 403;
-        const faceLeft = FACE_LOCK_ATTEMPTS - user.faceAttempts;
-        let message = `Face does not match the enrolled photo (${faceLeft} ${faceLeft === 1 ? "attempt" : "attempts"} left).`;
-        if (user.faceAttempts >= FACE_LOCK_ATTEMPTS) {
-          user.faceLockUntil = new Date(Date.now() + FACE_LOCK_MINUTES * 60000);
-          user.faceAttempts = 0;
+        let message = "Face does not match the enrolled photo.";
+        if (updated.faceAttempts >= FACE_LOCK_ATTEMPTS) {
+          await User.findByIdAndUpdate(user._id, {
+            faceLockUntil: new Date(Date.now() + FACE_LOCK_MINUTES * 60000),
+            faceAttempts: 0,
+          });
           status = 429;
           message = `Too many face attempts. Try again in ${FACE_LOCK_MINUTES} minutes.`;
           // Three failed matches is a red flag — likely a classmate trying to
@@ -772,8 +825,10 @@ router.post(
             "Possible impersonation attempt",
             `${user.name} (${user.email}) failed face verification ${FACE_LOCK_ATTEMPTS} times and is now locked out for ${FACE_LOCK_MINUTES} minutes. A classmate may be trying to impersonate them.`
           );
+        } else {
+          const left = FACE_LOCK_ATTEMPTS - updated.faceAttempts;
+          message = `Face does not match the enrolled photo (${left} ${left === 1 ? "attempt" : "attempts"} left).`;
         }
-        await user.save();
         cleanup();
         return res.status(status).json({ message });
       }
@@ -832,7 +887,7 @@ router.post(
         return res.status(400).json({ message: "Please fill in all fields and attach a proof photo" });
       }
 
-      const user = await User.findOne({ email });
+      const user = await User.findOne({ email: User.normalizeEmail(email) });
       if (!user || user.role !== "student") {
         cleanup();
         return res.status(400).json({ message: "Invalid email or password" });
@@ -858,7 +913,7 @@ router.post(
       const appeal = new FaceAppeal({
         student: user._id,
         note,
-        photoUrl: `/uploads/${req.file.filename}`,
+        photoUrl: `/uploads/private-faces/${req.file.filename}`,
       });
       await appeal.save();
 
@@ -891,7 +946,7 @@ router.post("/forgot-pin/reset-request", async (req, res) => {
       return res.status(400).json({ message: "Please fill in all fields" });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: User.normalizeEmail(email) });
     if (!user || user.role !== "student") {
       return res.status(400).json({ message: "Invalid email or password" });
     }

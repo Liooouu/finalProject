@@ -2,12 +2,12 @@ import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import { FaKey, FaCheck, FaTimes, FaShieldAlt } from "react-icons/fa";
 import StatusBadge from "../shared/StatusBadge";
+import PrivateImage from "../shared/PrivateImage";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { TableSkeleton } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Button from "../ui/Button";
-
-const API_BASE = api.defaults.baseURL.replace(/\/api$/, "");
+import { formatDate, formatDateTime } from "../../utils/helpers";
 
 const ManageUsers = () => {
   const [users, setUsers] = useState([]);
@@ -22,13 +22,18 @@ const ManageUsers = () => {
   const [resetTarget, setResetTarget] = useState(null);
   const [resetClearDevices, setResetClearDevices] = useState(false);
   const [resetPin, setResetPin] = useState(null);
+  const [resetting, setResetting] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
+  const [pendingRemoveCS, setPendingRemoveCS] = useState(null);
+  const [removingCS, setRemovingCS] = useState(false);
+  const [rowBusyId, setRowBusyId] = useState(null);
   const [activeTab, setActiveTab] = useState("users");
   const [appeals, setAppeals] = useState([]);
   const [appealsLoading, setAppealsLoading] = useState(false);
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewNote, setReviewNote] = useState("");
+  const [reviewingAppeal, setReviewingAppeal] = useState(false);
   const [unlockTarget, setUnlockTarget] = useState(null);
 
   usePageMeta("Manage Users", "Search, inspect, and manage all accounts.");
@@ -96,19 +101,21 @@ const ManageUsers = () => {
   };
 
   const handleReview = async (appeal, action) => {
+    if (reviewingAppeal) return;
+    setReviewingAppeal(true);
     try {
       const res = await api.post(`/admin/security/face-appeals/${appeal._id}/review`, {
         action,
         note: action === "rejected" ? reviewNote : "",
       });
-      setAppeals(appeals.map((a) => (a._id === appeal._id ? res.data.appeal : a)));
+      setAppeals((prev) => prev.map((a) => (a._id === appeal._id ? res.data.appeal : a)));
       setReviewTarget(null);
       setReviewNote("");
       setMessage(res.data.message || `Appeal ${action}`);
       setMessageType("success");
       if (action === "approved" && appeal.student?._id) {
-        setUsers(
-          users.map((u) =>
+        setUsers((prev) =>
+          prev.map((u) =>
             u._id === appeal.student._id
               ? { ...u, faceLockUntil: null, faceAttempts: 0 }
               : u
@@ -119,13 +126,15 @@ const ManageUsers = () => {
       console.error(err);
       setMessage(err.response?.data?.message || "Failed to review appeal");
       setMessageType("error");
+    } finally {
+      setReviewingAppeal(false);
     }
   };
 
   const deleteUser = async (userId) => {
     try {
       await api.delete(`/admin/users/${userId}`);
-      setUsers(users.filter((u) => u._id !== userId));
+      setUsers((prev) => prev.filter((u) => u._id !== userId));
       setMessage("User deleted successfully");
       setMessageType("success");
     } catch (err) {
@@ -136,6 +145,8 @@ const ManageUsers = () => {
   };
 
   const resetSecurity = async (userId, clearDevices) => {
+    if (resetting) return;
+    setResetting(true);
     try {
       const res = await api.post(`/admin/users/${userId}/reset-security`, {
         clearDevices,
@@ -146,6 +157,8 @@ const ManageUsers = () => {
       setResetTarget(null);
       setMessage(err.response?.data?.message || "Failed to reset security");
       setMessageType("error");
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -171,37 +184,50 @@ const ManageUsers = () => {
   };
 
   const handleUpdateCS = async (record, hours) => {
+    if (rowBusyId) return;
     const value = Number(hours);
     if (!Number.isFinite(value) || value < 0) {
       setMessage("Please enter a valid number of hours (0 or more)");
       setMessageType("error");
       return;
     }
+    setRowBusyId(record._id);
     try {
       const res = await api.patch(`/admin/attendance/${record._id}/community-service`, {
         hours: value,
       });
-      setUserAttendance(userAttendance.map((r) => (r._id === res.data._id ? res.data : r)));
+      setUserAttendance((prev) => prev.map((r) => (r._id === res.data._id ? res.data : r)));
+      setCsDrafts((d) => ({ ...d, [record._id]: String(value) }));
       setMessage(`Community service hours set to ${value} hrs`);
       setMessageType("success");
     } catch (err) {
       setMessage(err.response?.data?.message || "Failed to update community service");
       setMessageType("error");
+    } finally {
+      setRowBusyId(null);
     }
   };
 
-  const handleRemoveCS = async (record) => {
+  const confirmRemoveCS = async () => {
+    const record = pendingRemoveCS;
+    if (!record || removingCS) return;
+    setRemovingCS(true);
     const studentId = record.student?._id || record.student;
     try {
-      await api.patch(`/admin/attendance/${record._id}/community-service/remove`, {});
+      await api.patch(`/admin/attendance/${record._id}/community-service/remove`, {
+        hours: record.communityServiceHours || 0,
+      });
       if (selectedUser && selectedUser._id === studentId) {
         await loadAttendance(selectedUser);
       }
       setMessage("Community service hours removed");
       setMessageType("success");
+      setPendingRemoveCS(null);
     } catch (err) {
       setMessage(err.response?.data?.message || "Failed to remove community service");
       setMessageType("error");
+    } finally {
+      setRemovingCS(false);
     }
   };
 
@@ -381,7 +407,7 @@ const ManageUsers = () => {
                       )}
                     </td>
                     <td className="p-4 text-on-dim text-sm">
-                      {new Date(user.createdAt).toLocaleDateString()}
+                      {formatDate(user.createdAt)}
                     </td>
                     <td className="p-4">
                       <div className="flex gap-2">
@@ -467,8 +493,8 @@ const ManageUsers = () => {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <p className="mb-1 text-xs font-medium text-on-muted">Proof photo (submitted)</p>
-                      <img
-                        src={`${API_BASE}${appeal.photoUrl}`}
+                      <PrivateImage
+                        src={appeal.photoUrl}
                         alt="Proof"
                         className="aspect-[4/3] w-full rounded-lg border border-line object-cover"
                       />
@@ -476,8 +502,8 @@ const ManageUsers = () => {
                     <div>
                       <p className="mb-1 text-xs font-medium text-on-muted">Enrolled face photo</p>
                       {appeal.student?.facePhoto ? (
-                        <img
-                          src={`${API_BASE}${appeal.student.facePhoto}`}
+                        <PrivateImage
+                          src={appeal.student.facePhoto}
                           alt="Enrolled face"
                           className="aspect-[4/3] w-full rounded-lg border border-line object-cover"
                         />
@@ -490,7 +516,7 @@ const ManageUsers = () => {
                   </div>
 
                   <p className="mt-3 text-xs text-on-muted">
-                    Submitted {new Date(appeal.createdAt).toLocaleString()}
+                    Submitted {formatDateTime(appeal.createdAt)}
                   </p>
 
                   {appeal.status === "pending" && (
@@ -557,7 +583,7 @@ const ManageUsers = () => {
                 <span className="text-sm text-on-dim">Role:</span>
                 {getRoleBadge(selectedUser.role)}
                 <span className="text-sm text-on-dim">
-                  Joined: {new Date(selectedUser.createdAt).toLocaleDateString()}
+                  Joined: {formatDate(selectedUser.createdAt)}
                 </span>
                 {selectedUser.role === "student" && (
                   <span className="text-sm text-on-dim">
@@ -579,7 +605,7 @@ const ManageUsers = () => {
                       )}
                       {isFaceLocked(selectedUser) ? (
                         <p className="mt-0.5 text-sm font-medium text-red-600 dark:text-red-400">
-                          Locked until {new Date(selectedUser.faceLockUntil).toLocaleString()}
+                          Locked until {formatDateTime(selectedUser.faceLockUntil)}
                         </p>
                       ) : (
                         <p className="mt-0.5 text-sm text-on-muted">Not locked</p>
@@ -587,8 +613,8 @@ const ManageUsers = () => {
                     </div>
                   </div>
                   {selectedUser.facePhoto && (
-                    <img
-                      src={`${API_BASE}${selectedUser.facePhoto}`}
+                    <PrivateImage
+                      src={selectedUser.facePhoto}
                       alt="Enrolled face"
                       className="h-20 w-20 rounded-xl border border-line object-cover sm:ml-auto"
                     />
@@ -620,7 +646,7 @@ const ManageUsers = () => {
                       <div>
                         <p className="font-medium">{record.event?.title || record.eventTitle || "Event"}</p>
                         <p className="text-sm text-on-dim">
-                          {(record.event?.date || record.eventDate) && new Date(record.event?.date || record.eventDate).toLocaleDateString()}
+                          {(record.event?.date || record.eventDate) && formatDate(record.event?.date || record.eventDate)}
                           {record.communityServiceHours > 0 && (
                             <span className="dark:text-yellow-400 text-yellow-600 font-medium">
                               {" "}• {record.communityServiceHours} service hrs
@@ -648,13 +674,15 @@ const ManageUsers = () => {
                                 csDrafts[record._id] ?? record.communityServiceHours
                               )
                             }
-                            className="bg-green-500 hover:bg-green-600 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
+                            disabled={rowBusyId === record._id}
+                            className="bg-green-500 hover:bg-green-600 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
                           >
                             Set hrs
                           </button>
                           <button
-                              onClick={() => handleRemoveCS(record)}
-                              className="bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
+                              onClick={() => setPendingRemoveCS(record)}
+                              disabled={rowBusyId === record._id || record.communityServiceHours <= 0}
+                              className="bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
                             >
                               Remove hours
                             </button>
@@ -670,6 +698,21 @@ const ManageUsers = () => {
       )}
 
       <ConfirmDialog
+        open={!!pendingRemoveCS}
+        title="Remove community service hours?"
+        message={
+          pendingRemoveCS
+            ? `Remove the ${pendingRemoveCS.communityServiceHours} service hour${pendingRemoveCS.communityServiceHours === 1 ? "" : "s"} recorded for this event? This only affects this event.`
+            : ""
+        }
+        confirmLabel="Remove hours"
+        variant="danger"
+        onConfirm={confirmRemoveCS}
+        onCancel={() => setPendingRemoveCS(null)}
+        busy={removingCS}
+      />
+
+      <ConfirmDialog
         open={!!resetTarget}
         title={resetPin ? "New security PIN assigned" : "Reset this student's security PIN?"}
         message={
@@ -683,6 +726,7 @@ const ManageUsers = () => {
         cancelLabel={resetPin ? "Close" : "Cancel"}
         variant={resetPin ? "default" : "danger"}
         icon={resetPin ? <FaKey /> : undefined}
+        busy={resetting}
         onConfirm={() => {
           if (resetPin) {
             setResetTarget(null);
@@ -764,6 +808,7 @@ const ManageUsers = () => {
         }
         cancelLabel="Cancel"
         variant={reviewTarget?.action === "approved" ? "default" : "danger"}
+        busy={reviewingAppeal}
         onConfirm={() =>
           reviewTarget && handleReview(reviewTarget.appeal, reviewTarget.action)
         }
