@@ -1,17 +1,22 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { FaUserPlus, FaSearch, FaCheck, FaTimes, FaClock, FaArrowLeft, FaUsers } from "react-icons/fa";
+import {
+  FaArrowLeft,
+  FaCheck,
+  FaClock,
+  FaSearch,
+  FaTimes,
+  FaUserPlus,
+  FaUsers,
+} from "react-icons/fa";
 import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { getUserRole } from "../../utils/auth";
-import Button from "../ui/Button";
+import { Button, Card, PageHeader } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
-
-const fieldClasses =
-  "w-full rounded-lg border border-line bg-card-alt/60 px-3 py-2 text-sm text-on focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/40";
 
 const OrgManageAttendees = () => {
   const { id: eventId } = useParams();
@@ -73,9 +78,7 @@ const OrgManageAttendees = () => {
 
   const filteredByGroupAttendees = attendees.filter((a) => {
     if (!selectedGroup) return true;
-    const s = a.student;
-    const key = getStudentKey(s);
-    return key === selectedGroup;
+    return getStudentKey(a.student) === selectedGroup;
   });
 
   const filteredStudents = students.filter((s) => {
@@ -178,44 +181,55 @@ const OrgManageAttendees = () => {
     return <Loading />;
   }
 
+  const backPath =
+    getUserRole() === "admin"
+      ? `/admin/dashboard/events/${eventId}`
+      : `/organizer/dashboard/events/${eventId}`;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate(
-            getUserRole() === "admin"
-              ? `/admin/dashboard/events/${eventId}`
-              : `/organizer/dashboard/events/${eventId}`
-          )}
-        >
-          <FaArrowLeft /> Back to event
-        </Button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Attendance desk"
+        title="Manage attendees"
+        subtitle="Add students manually or adjust community service hours for this event."
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => navigate(backPath)}>
+            <FaArrowLeft /> Back to event
+          </Button>
+        }
+      />
 
       {message && (
-        <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${messageType === "success" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"}`}>
-          {message}
+        <div
+          className={`alert ${messageType === "success" ? "alert-ok" : "alert-danger"}`}
+          role="status"
+        >
+          <span aria-hidden="true">{messageType === "success" ? "✓" : "!"}</span>
+          <p>{message}</p>
         </div>
       )}
 
-      {/* Attendees — program/year/section form first; student details only render once a class is chosen */}
-      <div className="rounded-xl border border-line bg-card p-6">
-        <h2 className="text-xl font-bold text-on mb-4 flex items-center gap-2">
-          <FaUsers className="text-indigo-500" />
-          Attendees
-        </h2>
-
-        <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-3">
+      <Card>
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
+            <FaUsers />
+          </span>
           <div>
-            <label className="mb-2 block text-sm font-semibold text-on-dim">
-              Program
-            </label>
+            <h2 className="panel-heading">Choose a class</h2>
+            <p className="mt-0.5 text-xs text-on-muted">
+              Students only appear after program, year and section are set.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label htmlFor="attendee-program" className="field-label">Program</label>
             <select
+              id="attendee-program"
               value={program}
               onChange={(e) => setProgram(e.target.value)}
-              className={fieldClasses}
+              className="field-select"
             >
               <option value="" disabled hidden />
               <option value="BSIT">BSIT</option>
@@ -225,259 +239,280 @@ const OrgManageAttendees = () => {
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-semibold text-on-dim">
-              Year
-            </label>
+            <label htmlFor="attendee-year" className="field-label">Year</label>
             <input
+              id="attendee-year"
               type="number"
               min={1}
               max={4}
               placeholder="1 – 4"
               value={yearLevel}
               onChange={(e) => setYearLevel(e.target.value)}
-              className={fieldClasses}
+              className="field"
             />
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-semibold text-on-dim">
-              Section
-            </label>
+            <label htmlFor="attendee-section" className="field-label">Section</label>
             <input
+              id="attendee-section"
               type="text"
-              maxLength={2}
-              placeholder="A – D"
+              maxLength={1}
+              placeholder="A – C"
               value={section}
               onChange={(e) =>
-                setSection(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))
+                setSection(e.target.value.toUpperCase().replace(/[^ABC]/g, ""))
               }
-              className={fieldClasses}
+              className="field"
             />
           </div>
         </div>
 
-        {selectedGroup ? (
-          <p className="mt-4 text-sm text-on-dim">
-            Showing students for{" "}
-            <span className="font-semibold text-on">{selectedGroup}</span>
-          </p>
-        ) : (
-          <p className="mt-4 text-sm text-on-muted">
-            Pick a program, year and section to view its students.
-          </p>
-        )}
-      </div>
+        <p className="mt-4 text-sm text-on-dim">
+          {selectedGroup ? (
+            <>
+              Showing students for{" "}
+              <span className="font-semibold text-on">{selectedGroup}</span>
+            </>
+          ) : (
+            <span className="text-on-muted">
+              Pick a program, year and section to view its students.
+            </span>
+          )}
+        </p>
+      </Card>
 
       {selectedGroup && (
         <>
-          {/* Manual Attendance Section */}
-          <div className="rounded-xl border border-line bg-card p-6">
-            <h2 className="text-xl font-bold text-on mb-4 flex items-center gap-2">
-              <FaUserPlus className="text-indigo-500" />
-              Add Attendance Manually
-            </h2>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-on-dim mb-2">Search Student</label>
-            <div className="relative">
-              <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-on-muted" />
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  if (selectedStudent) setSelectedStudent(null);
-                }}
-                className="w-full rounded-lg border border-line bg-card-alt/60 py-2.5 pl-10 pr-4 text-sm text-on focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-              />
-            </div>
-          </div>
-
-          {selectedStudent ? (
-            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-on font-medium">{selectedStudent.name}</p>
-                  <p className="text-on-dim text-sm">{selectedStudent.email}</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setSelectedStudent(null);
-                    setSearchTerm("");
-                  }}
-                  className="p-2 text-on-dim hover:text-on transition-colors"
-                  aria-label="Clear selection"
-                >
-                  <FaTimes />
-                </button>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-2 mt-4">
-                <Button
-                  onClick={() => handleAddAttendance("present")}
-                  disabled={submitting}
-                  variant="primary"
-                  className="flex-1"
-                >
-                  <FaCheck /> Present (0 hrs)
-                </Button>
-                <Button
-                  onClick={() => handleAddAttendance("late")}
-                  disabled={submitting}
-                  className="flex-1 bg-amber-500 text-white shadow-sm hover:bg-amber-600"
-                >
-                  <FaClock /> Late (4 hrs)
-                </Button>
-                <Button
-                  onClick={() => handleAddAttendance("absent")}
-                  disabled={submitting}
-                  variant="danger"
-                  className="flex-1"
-                >
-                  <FaTimes /> Absent (8 hrs)
-                </Button>
+          <Card>
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-ok/10 text-ok ring-1 ring-inset ring-ok/20">
+                <FaUserPlus />
+              </span>
+              <div>
+                <h2 className="panel-heading">Add attendance manually</h2>
+                <p className="mt-0.5 text-xs text-on-muted">
+                  Search the class and choose a status.
+                </p>
               </div>
             </div>
-          ) : availableStudents.length > 0 ? (
-            <div className="max-h-72 overflow-auto rounded-lg border border-line bg-card p-1.5 space-y-1">
-              {availableStudents.map((student) => (
-                <div
-                  key={student._id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-line bg-card-alt/40 p-2.5"
-                >
-                  <button
-                    onClick={() => {
-                      setSelectedStudent(student);
-                      setSearchTerm(student.email);
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <label htmlFor="attendee-search" className="field-label">Search student</label>
+                <div className="relative">
+                  <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-on-muted" />
+                  <input
+                    id="attendee-search"
+                    type="text"
+                    placeholder="Search by name or email..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      if (selectedStudent) setSelectedStudent(null);
                     }}
-                    className="min-w-0 flex-1 text-left"
-                  >
-                    <p className="truncate text-on font-medium">{student.name}</p>
-                    <p className="truncate text-on-dim text-sm">{student.email}</p>
-                  </button>
-                  <div className="flex shrink-0 items-center gap-1.5">
+                    className="field field-search"
+                  />
+                </div>
+              </div>
+
+              {selectedStudent ? (
+                <div className="rounded-xl border border-ok/25 bg-ok/10 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-on">{selectedStudent.name}</p>
+                      <p className="truncate text-sm text-on-dim">{selectedStudent.email}</p>
+                    </div>
                     <button
-                      onClick={() => handleAddAttendance("present", student)}
-                      disabled={submitting}
-                      className="rounded-lg bg-green-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-600 disabled:opacity-50"
+                      onClick={() => {
+                        setSelectedStudent(null);
+                        setSearchTerm("");
+                      }}
+                      className="shrink-0 rounded-lg p-2 text-on-dim transition-colors hover:text-on"
+                      aria-label="Clear selection"
                     >
-                      <FaCheck /> Present
-                    </button>
-                    <button
-                      onClick={() => handleAddAttendance("late", student)}
-                      disabled={submitting}
-                      className="rounded-lg bg-amber-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
-                    >
-                      <FaClock /> Late
-                    </button>
-                    <button
-                      onClick={() => handleAddAttendance("absent", student)}
-                      disabled={submitting}
-                      className="rounded-lg bg-red-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50"
-                    >
-                      <FaTimes /> Absent
+                      <FaTimes />
                     </button>
                   </div>
+
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      onClick={() => handleAddAttendance("present")}
+                      disabled={submitting}
+                      className="flex-1"
+                    >
+                      <FaCheck /> Present (0 hrs)
+                    </Button>
+                    <Button
+                      onClick={() => handleAddAttendance("late")}
+                      disabled={submitting}
+                      variant="secondary"
+                      className="flex-1 border-warn/30 text-warn hover:bg-warn/10"
+                    >
+                      <FaClock /> Late (4 hrs)
+                    </Button>
+                    <Button
+                      onClick={() => handleAddAttendance("absent")}
+                      disabled={submitting}
+                      variant="danger"
+                      className="flex-1"
+                    >
+                      <FaTimes /> Absent (8 hrs)
+                    </Button>
+                  </div>
                 </div>
-              ))}
-            </div>
-          ) : searchTerm ? (
-            matchedAlready.length > 0 ? (
-              <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
-                <p className="flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400">
-                  <FaCheck className="text-xs" /> Already checked in for this event
-                </p>
-                <div className="mt-2 space-y-1.5">
-                  {matchedAlready.map((s) => (
-                    <div key={s._id} className="flex items-center justify-between gap-3 text-sm">
-                      <span className="text-on">{s.name}</span>
-                      <span className="text-on-muted">{s.email}</span>
+              ) : availableStudents.length > 0 ? (
+                <div className="max-h-80 space-y-1.5 overflow-auto rounded-xl border border-line bg-card-alt/30 p-2">
+                  {availableStudents.map((student) => (
+                    <div
+                      key={student._id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-card p-2.5"
+                    >
+                      <button
+                        onClick={() => {
+                          setSelectedStudent(student);
+                          setSearchTerm(student.email);
+                        }}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <p className="truncate text-sm font-medium text-on">{student.name}</p>
+                        <p className="truncate text-xs text-on-dim">{student.email}</p>
+                      </button>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <button
+                          onClick={() => handleAddAttendance("present", student)}
+                          disabled={submitting}
+                          className="rounded-lg border border-ok/25 bg-ok/10 px-2.5 py-1.5 text-xs font-medium text-ok transition-colors hover:bg-ok/15 disabled:opacity-50"
+                        >
+                          <FaCheck /> Present
+                        </button>
+                        <button
+                          onClick={() => handleAddAttendance("late", student)}
+                          disabled={submitting}
+                          className="rounded-lg border border-warn/25 bg-warn/10 px-2.5 py-1.5 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-50"
+                        >
+                          <FaClock /> Late
+                        </button>
+                        <button
+                          onClick={() => handleAddAttendance("absent", student)}
+                          disabled={submitting}
+                          className="rounded-lg border border-danger/25 bg-danger/10 px-2.5 py-1.5 text-xs font-medium text-danger transition-colors hover:bg-danger/15 disabled:opacity-50"
+                        >
+                          <FaTimes /> Absent
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            ) : (
-              <p className="text-sm text-on-muted">
-                No students match "{searchTerm}".
-              </p>
-            )
-          ) : (
-            <p className="text-sm text-on-muted">
-              No students to add — everyone is already checked in for this event.
-            </p>
-          )}
-        </div>
-      </div>
+              ) : searchTerm ? (
+                matchedAlready.length > 0 ? (
+                  <div className="alert alert-warn">
+                    <FaCheck className="mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-medium">Already checked in for this event</p>
+                      <div className="mt-1.5 space-y-1">
+                        {matchedAlready.map((s) => (
+                          <div key={s._id} className="flex items-center justify-between gap-3">
+                            <span className="text-on">{s.name}</span>
+                            <span className="text-xs opacity-80">{s.email}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-on-muted">
+                    No students match &quot;{searchTerm}&quot;.
+                  </p>
+                )
+              ) : (
+                <p className="text-sm text-on-muted">
+                  No students to add — everyone is already checked in for this event.
+                </p>
+              )}
+            </div>
+          </Card>
 
-{/* Checked-in students of the selected class */}
-          <div className="rounded-xl border border-line bg-card p-6">
-            <h2 className="text-xl font-bold text-on mb-4">
-              Checked-in students ({filteredByGroupAttendees.length})
-            </h2>
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="panel-heading">
+                Checked-in students ({filteredByGroupAttendees.length})
+              </h2>
+              <p className="text-xs text-on-muted">
+                Adjust hours per student for this event only.
+              </p>
+            </div>
 
             {filteredByGroupAttendees.length === 0 ? (
-              <EmptyState icon={<FaUsers />} title="No attendees in this class" description="No students checked in for this class yet." />
+              <EmptyState
+                icon={<FaUsers />}
+                title="No attendees in this class"
+                description="No students checked in for this class yet."
+                compact
+              />
             ) : (
-          <div className="space-y-3">
-            {filteredByGroupAttendees.map((attendance) => (
-              <div
-                key={attendance._id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-card rounded-xl border border-line"
-              >
-                <div>
-                  <p className="text-on font-medium">
-                    {attendance.student?.name || "Unknown"}
-                  </p>
-                  <p className="text-on-dim text-sm">
-                    {attendance.student?.email || ""}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <StatusBadge status={attendance.status} />
-                    <p className="text-on-dim text-sm mt-1">
-                      {attendance.communityServiceHours} service hrs
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      min="0"
-                      value={csDrafts[attendance._id] ?? String(attendance.communityServiceHours)}
-                      onChange={(e) =>
-                        setCsDrafts({ ...csDrafts, [attendance._id]: e.target.value })
-                      }
-                      className="w-16 bg-card-alt border border-line rounded-lg px-2 py-1.5 text-sm text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                      title="Set this student's community service hours for this event"
-                    />
-                    <button
-                      onClick={() =>
-                        handleUpdateCS(
-                          attendance,
-                          csDrafts[attendance._id] ?? attendance.communityServiceHours
-                        )
-                      }
-                      disabled={rowBusyId === attendance._id}
-                      className="bg-green-500 hover:bg-green-600 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
-                    >
-                      Set hrs
-                    </button>
-                    <button
-                      onClick={() => setPendingRemove(attendance)}
-                      disabled={rowBusyId === attendance._id || attendance.communityServiceHours <= 0}
-                      className="bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
-                    >
-                      Remove hours
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-          </div>
+              <ul className="mt-4 space-y-2.5">
+                {filteredByGroupAttendees.map((attendance) => (
+                  <li
+                    key={attendance._id}
+                    className="flex flex-col gap-3 rounded-xl border border-line bg-card-alt/30 p-3.5 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-on">
+                        {attendance.student?.name || "Unknown"}
+                      </p>
+                      <p className="truncate text-xs text-on-dim">
+                        {attendance.student?.email || ""}
+                      </p>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <StatusBadge status={attendance.status} />
+                        <span className="text-xs text-on-muted">
+                          {attendance.communityServiceHours} service hrs
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        value={
+                          csDrafts[attendance._id] ?? String(attendance.communityServiceHours)
+                        }
+                        onChange={(e) =>
+                          setCsDrafts({ ...csDrafts, [attendance._id]: e.target.value })
+                        }
+                        className="w-16 rounded-lg border border-line bg-card px-2 py-1.5 text-sm text-on focus:outline-none focus:ring-2 focus:ring-brand/30"
+                        title="Set this student's community service hours for this event"
+                      />
+                      <Button
+                        onClick={() =>
+                          handleUpdateCS(
+                            attendance,
+                            csDrafts[attendance._id] ?? attendance.communityServiceHours
+                          )
+                        }
+                        disabled={rowBusyId === attendance._id}
+                        size="sm"
+                      >
+                        Set hrs
+                      </Button>
+                      <Button
+                        onClick={() => setPendingRemove(attendance)}
+                        disabled={
+                          rowBusyId === attendance._id ||
+                          attendance.communityServiceHours <= 0
+                        }
+                        variant="danger"
+                        size="sm"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
         </>
       )}
 
@@ -486,7 +521,9 @@ const OrgManageAttendees = () => {
         title="Remove community service hours?"
         message={
           pendingRemove
-            ? `Remove the ${pendingRemove.communityServiceHours} service hour${pendingRemove.communityServiceHours === 1 ? "" : "s"} recorded for ${pendingRemove.student?.name || "this student"} in this event? This only affects this event.`
+            ? `Remove the ${pendingRemove.communityServiceHours} service hour${
+                pendingRemove.communityServiceHours === 1 ? "" : "s"
+              } recorded for ${pendingRemove.student?.name || "this student"} in this event? This only affects this event.`
             : ""
         }
         confirmLabel="Remove hours"

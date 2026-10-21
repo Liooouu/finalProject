@@ -1,17 +1,37 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
-import { FaCalendarAlt } from "react-icons/fa";
+import { FaCalendarAlt, FaMapMarkerAlt, FaPlus, FaUsers } from "react-icons/fa";
 import EmptyState from "../shared/EmptyState";
-import StatusBadge from "../shared/StatusBadge";
-import StatusChip from "../ui/StatusChip";
-import Button from "../ui/Button";
-import ConfirmDialog from "../ui/ConfirmDialog";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { isTerminalStatus, describeEventLifecycle, formatTime12Hour, formatDate } from "../../utils/helpers";
-import { TableSkeleton } from "../ui";
+import {
+  isTerminalStatus,
+  describeEventLifecycle,
+  formatTime12Hour,
+  formatDate,
+} from "../../utils/helpers";
+import {
+  Button,
+  Card,
+  PageHeader,
+  StatusChip,
+  TableSkeleton,
+} from "../ui";
+import ConfirmDialog from "../ui/ConfirmDialog";
 import MapPicker from "../shared/MapPicker";
-import { FaPlus } from "react-icons/fa";
 import { MdClose } from "react-icons/md";
+
+const EMPTY_FORM = {
+  title: "",
+  description: "",
+  location: "",
+  mapQuery: "",
+  date: "",
+  time: "",
+  endDate: "",
+  endTime: "",
+  attendanceStartTime: "",
+  attendanceEndTime: "",
+};
 
 const ManageEvents = () => {
   const [events, setEvents] = useState([]);
@@ -27,18 +47,7 @@ const ManageEvents = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [createMsg, setCreateMsg] = useState("");
   const [creating, setCreating] = useState(false);
-  const [createForm, setCreateForm] = useState({
-    title: "",
-    description: "",
-    location: "",
-    mapQuery: "",
-    date: "",
-    time: "",
-    endDate: "",
-    endTime: "",
-    attendanceStartTime: "",
-    attendanceEndTime: "",
-  });
+  const [createForm, setCreateForm] = useState(EMPTY_FORM);
 
   usePageMeta("Manage Events", "Every event across the institution.");
 
@@ -118,18 +127,7 @@ const ManageEvents = () => {
     try {
       const res = await api.post("/events", createForm);
       setEvents((prev) => [res.data, ...prev]);
-      setCreateForm({
-        title: "",
-        description: "",
-        location: "",
-        mapQuery: "",
-        date: "",
-        time: "",
-        endDate: "",
-        endTime: "",
-        attendanceStartTime: "",
-        attendanceEndTime: "",
-      });
+      setCreateForm(EMPTY_FORM);
       setShowCreate(false);
       setCreateMsg("");
     } catch (err) {
@@ -154,11 +152,14 @@ const ManageEvents = () => {
 
   const filteredEvents = events
     .filter((event) => {
-      const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      const matchesSearch =
+        event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         event.organizer?.name?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus =
         statusFilter === "all" ||
-        (statusFilter === "active" ? !isTerminalStatus(event.status) : event.status === statusFilter);
+        (statusFilter === "active"
+          ? !isTerminalStatus(event.status)
+          : event.status === statusFilter);
       return matchesSearch && matchesStatus;
     })
     // Finished/closed events sink to the bottom of the list.
@@ -171,42 +172,51 @@ const ManageEvents = () => {
         : new Date(a.date) - new Date(b.date);
     });
 
-  const inputClasses =
-    "px-3.5 py-2 bg-card rounded-lg border border-line text-sm text-on placeholder-on-muted focus:outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500/40 transition-colors";
-
   return (
-    <div className="space-y-6">
-      {message && (
-        <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${messageType === "error" ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
-          {message}
-        </div>
-      )}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-on-dim">
-          {filteredEvents.length} of {events.length} events
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Institution events"
+        title="All events"
+        subtitle={`${filteredEvents.length} of ${events.length} events`}
+        actions={
           <Button
             onClick={() => setShowCreate(!showCreate)}
             variant={showCreate ? "secondary" : "primary"}
             size="sm"
           >
             {showCreate ? <MdClose /> : <FaPlus className="text-xs" />}
-            {showCreate ? "Cancel" : "Create Event"}
+            {showCreate ? "Cancel" : "Create event"}
           </Button>
+        }
+      />
+
+      {message && (
+        <div
+          className={`alert ${messageType === "error" ? "alert-danger" : "alert-ok"}`}
+          role="status"
+        >
+          <span aria-hidden="true">{messageType === "error" ? "!" : "✓"}</span>
+          <p>{message}</p>
+        </div>
+      )}
+
+      {!showCreate && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <input
             type="text"
-            placeholder="Search events..."
+            placeholder="Search events or organizers..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className={inputClasses}
+            className="field sm:max-w-xs"
+            aria-label="Search events"
           />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className={inputClasses}
+            className="field-select sm:ml-auto sm:max-w-[180px]"
+            aria-label="Filter by status"
           >
-            <option value="all">All Status</option>
+            <option value="all">All statuses</option>
             <option value="active">Active</option>
             <option value="upcoming">Upcoming</option>
             <option value="live">Live</option>
@@ -214,52 +224,60 @@ const ManageEvents = () => {
             <option value="closed">Closed</option>
           </select>
         </div>
-      </div>
+      )}
 
-      {/* Create Event Form */}
       {showCreate && (
-        <form
-          onSubmit={handleCreateSubmit}
-          className="space-y-5 rounded-xl border border-line bg-card p-6"
-        >
-          <h2 className="text-lg font-semibold text-on">Create New Event</h2>
+        <Card as="form" onSubmit={handleCreateSubmit} className="space-y-6">
+          <div>
+            <h2 className="panel-heading">Create new event</h2>
+            <p className="mt-1 text-sm text-on-dim">
+              The event appears for every student once published.
+            </p>
+          </div>
 
           {createMsg && (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-600 dark:text-red-400">
-              {createMsg}
+            <div className="alert alert-danger" role="alert">
+              <span aria-hidden="true">!</span>
+              <p>{createMsg}</p>
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
+              <label htmlFor="admin-event-title" className="field-label">Event title</label>
               <input
+                id="admin-event-title"
                 type="text"
                 name="title"
-                placeholder="Event Title"
+                placeholder="e.g. Founders Day"
                 value={createForm.title}
                 onChange={handleCreateChange}
                 required
-                className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                className="field"
               />
             </div>
             <div className="md:col-span-2">
+              <label htmlFor="admin-event-description" className="field-label">Description</label>
               <textarea
+                id="admin-event-description"
                 name="description"
-                placeholder="Description"
+                placeholder="What should students expect?"
                 value={createForm.description}
                 onChange={handleCreateChange}
                 rows={3}
-                className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                className="field"
               />
             </div>
             <div className="md:col-span-2">
+              <label htmlFor="admin-event-location" className="field-label">Location</label>
               <input
+                id="admin-event-location"
                 type="text"
                 name="location"
-                placeholder="Location"
+                placeholder="Venue or address"
                 value={createForm.location}
                 onChange={handleCreateChange}
-                className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                className="field"
               />
             </div>
             <div className="md:col-span-2">
@@ -271,12 +289,13 @@ const ManageEvents = () => {
             </div>
           </div>
 
-          <div className="border-t border-line pt-4">
-            <h3 className="text-sm font-semibold text-on-dim mb-3">Event Starts</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="border-t border-line pt-5">
+            <h3 className="text-sm font-semibold text-on">Event starts</h3>
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-xs text-on-muted block mb-1">Start Date</label>
+                <label htmlFor="admin-event-date" className="field-label">Start date</label>
                 <input
+                  id="admin-event-date"
                   type="date"
                   name="date"
                   value={createForm.date}
@@ -286,8 +305,9 @@ const ManageEvents = () => {
                 />
               </div>
               <div>
-                <label className="text-xs text-on-muted block mb-1">Start Time</label>
+                <label htmlFor="admin-event-time" className="field-label">Start time</label>
                 <input
+                  id="admin-event-time"
                   type="time"
                   name="time"
                   value={createForm.time}
@@ -299,12 +319,13 @@ const ManageEvents = () => {
             </div>
           </div>
 
-          <div className="border-t border-line pt-4">
-            <h3 className="text-sm font-semibold text-on-dim mb-3">Event Ends</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="border-t border-line pt-5">
+            <h3 className="text-sm font-semibold text-on">Event ends</h3>
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-xs text-on-muted block mb-1">End Date</label>
+                <label htmlFor="admin-event-end-date" className="field-label">End date</label>
                 <input
+                  id="admin-event-end-date"
                   type="date"
                   name="endDate"
                   value={createForm.endDate}
@@ -313,8 +334,9 @@ const ManageEvents = () => {
                 />
               </div>
               <div>
-                <label className="text-xs text-on-muted block mb-1">End Time</label>
+                <label htmlFor="admin-event-end-time" className="field-label">End time</label>
                 <input
+                  id="admin-event-end-time"
                   type="time"
                   name="endTime"
                   value={createForm.endTime}
@@ -323,7 +345,7 @@ const ManageEvents = () => {
                 />
               </div>
             </div>
-            <p className="text-xs text-on-muted mt-2">
+            <p className="field-hint">
               This event ends on{" "}
               <span className="font-medium text-on-dim">
                 {createForm.endDate || createForm.date || "—"} at{" "}
@@ -333,12 +355,13 @@ const ManageEvents = () => {
             </p>
           </div>
 
-          <div className="border-t border-line pt-4">
-            <h3 className="text-sm font-semibold text-on-dim mb-3">Attendance Window</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="border-t border-line pt-5">
+            <h3 className="text-sm font-semibold text-on">Attendance window</h3>
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-xs text-on-muted block mb-1">Start Time</label>
+                <label htmlFor="admin-attendance-start" className="field-label">Start time</label>
                 <input
+                  id="admin-attendance-start"
                   type="time"
                   name="attendanceStartTime"
                   value={createForm.attendanceStartTime}
@@ -348,8 +371,9 @@ const ManageEvents = () => {
                 />
               </div>
               <div>
-                <label className="text-xs text-on-muted block mb-1">End Time</label>
+                <label htmlFor="admin-attendance-end" className="field-label">End time</label>
                 <input
+                  id="admin-attendance-end"
                   type="time"
                   name="attendanceEndTime"
                   value={createForm.attendanceEndTime}
@@ -359,71 +383,71 @@ const ManageEvents = () => {
                 />
               </div>
             </div>
-            <p className="text-xs text-on-muted mt-2">Students can only mark attendance within this time window.</p>
+            <p className="field-hint">
+              Students can only mark attendance within this window.
+            </p>
           </div>
 
-          <Button type="submit" disabled={creating} className="w-full py-2.5">
-            {creating ? "Creating..." : "Create Event"}
+          <Button type="submit" loading={creating} className="w-full">
+            {creating ? "Creating..." : "Create event"}
           </Button>
-        </form>
+        </Card>
       )}
 
       {loading ? (
-        <TableSkeleton rows={5} />
+        <Card>
+          <TableSkeleton rows={5} />
+        </Card>
       ) : filteredEvents.length === 0 ? (
-        <EmptyState icon={<FaCalendarAlt />} title="No events found" description="Events created by organizers will appear here." />
+        <EmptyState
+          icon={<FaCalendarAlt />}
+          title="No events found"
+          description="Events created by organizers will appear here."
+        />
       ) : (
-        <div className="grid gap-4">
+        <div className="space-y-3">
           {filteredEvents.map((event) => (
-            <div
-              key={event._id}
-              className="bg-card p-5 rounded-xl border border-line hover:border-line transition-colors"
-            >
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-semibold">{event.title}</h3>
+            <Card key={event._id} as="article">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <h3 className="font-display text-[17px] font-semibold tracking-tight text-on">
+                      {event.title}
+                    </h3>
                     <StatusChip status={event.status} />
                   </div>
                   {describeEventLifecycle(event) && (
-                    <p className="mb-2 text-xs text-on-muted">{describeEventLifecycle(event)}</p>
+                    <p className="mt-1 text-xs text-on-muted">
+                      {describeEventLifecycle(event)}
+                    </p>
                   )}
-                  <div className="flex flex-wrap gap-4 text-sm text-on-dim">
-                    <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-on-dim">
+                    <span className="flex items-center gap-1.5">
+                      <FaCalendarAlt className="text-on-muted" />
                       {formatDate(event.date)} at {formatTime12Hour(event.time)}
                     </span>
                     {event.location && (
-                      <span className="flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
+                      <span className="flex items-center gap-1.5">
+                        <FaMapMarkerAlt className="text-on-muted" />
                         {event.location}
                       </span>
                     )}
-                    <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      {event.organizer?.name || "Unknown"}
+                    <span className="flex items-center gap-1.5">
+                      <FaUsers className="text-on-muted" />
+                      {event.organizer?.name || "Unknown organizer"}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Ends: {formatDate(event.endDate || event.date)} at{" "}
+                    <span className="text-on-muted">
+                      Ends {formatDate(event.endDate || event.date)} at{" "}
                       {formatTime12Hour(event.endTime || event.attendanceEndTime)}
                     </span>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <select
                     value={event.status}
                     onChange={(e) => updateEventStatus(event._id, e.target.value)}
-                    className="px-3 py-2 bg-card rounded-lg border border-line text-sm text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                    className="field-select w-auto py-1.5 text-xs"
+                    aria-label={`Status for ${event.title}`}
                   >
                     <option value="upcoming">Upcoming</option>
                     <option value="live">Live</option>
@@ -434,9 +458,8 @@ const ManageEvents = () => {
                     onClick={() => openEventDetails(event)}
                     variant="secondary"
                     size="sm"
-                    className="border-indigo-500/30 text-indigo-600 dark:text-indigo-400"
                   >
-                    View Attendees
+                    View attendees
                   </Button>
                   <Button
                     onClick={() => setDeleteTarget(event._id)}
@@ -447,64 +470,80 @@ const ManageEvents = () => {
                   </Button>
                 </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
 
       {showModal && selectedEvent && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden border border-line">
-            <div className="p-6 border-b border-line flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-bold">{selectedEvent.title}</h3>
-                <p className="text-sm text-on-dim">
-                  {formatDate(selectedEvent.date)} at {selectedEvent.time}
-                  {selectedEvent.location && ` - ${selectedEvent.location}`}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[var(--panel-radius)] border border-line bg-card shadow-[var(--elev-3)]">
+            <div className="flex items-start justify-between gap-3 border-b border-line p-5">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-display text-xl font-semibold tracking-tight text-on">
+                    {selectedEvent.title}
+                  </h3>
+                  <StatusChip status={selectedEvent.status} />
+                </div>
+                <p className="mt-1 text-sm text-on-dim">
+                  {formatDate(selectedEvent.date)} at {formatTime12Hour(selectedEvent.time)}
+                  {selectedEvent.location && ` · ${selectedEvent.location}`}
                 </p>
               </div>
-              <div className="flex gap-2">
-                <StatusBadge status={selectedEvent.status} />
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="p-2 hover:bg-card-alt rounded"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+              <Button
+                onClick={() => setShowModal(false)}
+                variant="ghost"
+                size="icon"
+                aria-label="Close event details"
+              >
+                <MdClose />
+              </Button>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <h4 className="text-lg font-semibold mb-4">
+            <div className="overflow-y-auto p-5">
+              <h4 className="panel-heading text-base">
                 Attendees ({attendees.length})
               </h4>
               {attendees.length === 0 ? (
-                <p className="text-on-dim text-center py-8">No attendees yet</p>
+                <EmptyState
+                  compact
+                  icon={<FaUsers />}
+                  title="No attendees yet"
+                  description="Check-ins for this event will appear here."
+                />
               ) : (
-                <div className="space-y-2">
+                <div className="mt-4 space-y-2">
                   {attendees.map((attendee) => (
                     <div
                       key={attendee._id}
-                      className="flex items-center justify-between p-4 bg-card-alt rounded-lg"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-card-alt/40 p-3.5"
                     >
-                      <div>
-                        <p className="font-medium">{attendee.student?.name}</p>
-                        <p className="text-sm text-on-dim">{attendee.student?.email}</p>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-on">
+                          {attendee.student?.name}
+                        </p>
+                        <p className="truncate text-xs text-on-dim">
+                          {attendee.student?.email}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <select
-                          value={attendee.status}
-                          onChange={(e) =>
-                            updateAttendeeStatus(selectedEvent._id, attendee.student._id, e.target.value)
-                          }
-                          className="px-3 py-1 bg-card rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                        >
-                          <option value="present">Present</option>
-                          <option value="absent">Absent</option>
-                          <option value="pending">Pending</option>
-                        </select>
-                      </div>
+                      <select
+                        value={attendee.status}
+                        onChange={(e) =>
+                          updateAttendeeStatus(
+                            selectedEvent._id,
+                            attendee.student._id,
+                            e.target.value
+                          )
+                        }
+                        className="field-select w-auto py-1.5 text-xs"
+                        aria-label={`Attendance status for ${attendee.student?.name}`}
+                      >
+                        <option value="present">Present</option>
+                        <option value="late">Late</option>
+                        <option value="absent">Absent</option>
+                        <option value="pending">Pending</option>
+                        <option value="excused">Excused</option>
+                      </select>
                     </div>
                   ))}
                 </div>

@@ -4,10 +4,11 @@
 // so a student can be verified on-site by whichever staff member is present.
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
-import { FaCheck, FaTimes, FaKey } from "react-icons/fa";
+import { FaCheck, FaKey, FaTimes, FaUserShield } from "react-icons/fa";
 import StatusBadge from "../shared/StatusBadge";
+import EmptyState from "../shared/EmptyState";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { TableSkeleton } from "../ui";
+import { Button, Card, PageHeader, TableSkeleton } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { formatDateTime } from "../../utils/helpers";
 
@@ -98,53 +99,65 @@ const PinResetRequests = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Security queue"
+        title="PIN reset requests"
+        subtitle={`${pendingCount} pending · ${requests.length} total requests`}
+      />
+
       {message && (
         <div
           role="status"
-          className={`rounded-lg border px-3.5 py-2.5 text-sm ${
-            messageType === "error"
-              ? "border-red-200 bg-red-50 text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
-              : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-          }`}
+          className={`alert ${messageType === "error" ? "alert-danger" : "alert-ok"}`}
         >
-          {message}
+          <span aria-hidden="true">{messageType === "error" ? "!" : "✓"}</span>
+          <p>{message}</p>
         </div>
       )}
 
-      <p className="text-sm text-on-dim">
-        {pendingCount} pending &middot; {requests.length} total requests
-      </p>
-
       {loading ? (
-        <TableSkeleton rows={4} />
+        <Card>
+          <TableSkeleton rows={4} />
+        </Card>
       ) : requests.length === 0 ? (
-        <div className="rounded-xl border border-line bg-card py-12 text-center text-sm text-on-dim">
-          No PIN reset requests
-        </div>
+        <Card>
+          <EmptyState
+            icon={<FaUserShield />}
+            title="No PIN reset requests"
+            description="Requests from students who cannot use face verification will appear here."
+          />
+        </Card>
       ) : (
         <div className="space-y-4">
           {requests.map((request) => {
             const label = groupLabel(request.student);
             return (
-              <div key={request._id} className="rounded-xl border border-line bg-card p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium">
-                      {request.student?.name || "Unknown student"}
-                      {label && (
-                        <span className="ml-2 rounded-full bg-card-alt px-2 py-0.5 text-xs font-medium text-on-dim">
-                          {label}
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-sm text-on-dim">{request.student?.email}</p>
+              <Card key={request._id} as="article">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
+                      <FaUserShield />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2 font-medium text-on">
+                        {request.student?.name || "Unknown student"}
+                        {label && (
+                          <span className="rounded-full border border-line bg-card-alt px-2 py-0.5 text-[11px] font-medium text-on-dim">
+                            {label}
+                          </span>
+                        )}
+                      </p>
+                      <p className="truncate text-sm text-on-dim">{request.student?.email}</p>
+                    </div>
                   </div>
                   <StatusBadge status={request.status} />
                 </div>
 
                 {request.note && (
-                  <p className="mt-4 text-sm text-on-dim">&quot;{request.note}&quot;</p>
+                  <p className="mt-4 rounded-xl border border-line bg-card-alt/40 px-3.5 py-3 text-sm leading-relaxed text-on-dim">
+                    &quot;{request.note}&quot;
+                  </p>
                 )}
 
                 <p className="mt-3 text-xs text-on-muted">
@@ -153,39 +166,41 @@ const PinResetRequests = () => {
                 </p>
 
                 {request.status === "pending" && (
-                  <div className="mt-4 flex gap-2">
-                    <button
+                  <div className="mt-4 flex gap-2 border-t border-line pt-4">
+                    <Button
                       type="button"
+                      size="sm"
                       onClick={() => {
                         setReviewNote("");
                         setClearDevices(false);
                         setApprovedPin(null);
                         setReviewTarget({ request, action: "approved" });
                       }}
-                      className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
                     >
                       <FaCheck className="text-xs" /> Approve
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      size="sm"
+                      variant="danger"
                       onClick={() => {
                         setReviewNote("");
                         setApprovedPin(null);
                         setReviewTarget({ request, action: "rejected" });
                       }}
-                      className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/20 dark:text-red-400"
                     >
                       <FaTimes className="text-xs" /> Reject
-                    </button>
+                    </Button>
                   </div>
                 )}
 
                 {request.status !== "pending" && request.responseNote && (
-                  <p className="mt-3 text-sm text-on-dim">
-                    <span className="font-medium text-on">Note:</span> {request.responseNote}
+                  <p className="mt-3 border-t border-line pt-3 text-sm text-on-dim">
+                    <span className="font-medium text-on">Note:</span>{" "}
+                    {request.responseNote}
                   </p>
                 )}
-              </div>
+              </Card>
             );
           })}
         </div>
@@ -226,7 +241,7 @@ const PinResetRequests = () => {
         onCancel={resetDialog}
       >
         {approvedPin ? (
-          <p className="mt-3 rounded-xl border border-dashed border-indigo-400/50 bg-indigo-500/5 px-4 py-3 text-center text-2xl font-bold tracking-[0.4em] text-on">
+          <p className="num mt-3 rounded-xl border border-dashed border-brand/40 bg-brand/5 px-4 py-3 text-center text-2xl font-bold tracking-[0.4em] text-on">
             {approvedPin}
           </p>
         ) : (
@@ -237,7 +252,7 @@ const PinResetRequests = () => {
                   type="checkbox"
                   checked={clearDevices}
                   onChange={(e) => setClearDevices(e.target.checked)}
-                  className="accent-indigo-600"
+                  className="accent-[var(--brand-solid)]"
                 />
                 Also remove all other trusted devices (student lost every browser)
               </label>
@@ -248,7 +263,7 @@ const PinResetRequests = () => {
                 onChange={(e) => setReviewNote(e.target.value)}
                 placeholder="Optional reason for rejection (shown to the student)..."
                 rows={2}
-                className="mt-3 w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                className="field mt-3"
               />
             )}
           </>

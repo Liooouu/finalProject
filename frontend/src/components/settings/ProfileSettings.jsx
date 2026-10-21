@@ -2,15 +2,11 @@ import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import { getUserFromToken, logout } from "../../utils/auth";
 import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
-import { FaUser, FaLock, FaImage, FaCheck, FaTimes, FaDoorOpen } from "react-icons/fa";
+import { FaUser, FaLock, FaImage, FaCheck, FaTimes, FaDoorOpen, FaCamera } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { BaseCard } from "../ui";
-import Button from "../ui/Button";
+import { Button, Card, PageHeader } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Loading from "../shared/Loading";
-
-const inputClasses =
-  "w-full rounded-lg border border-line bg-card-alt/60 px-3.5 py-2.5 text-sm text-on placeholder-on-muted focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-colors";
 
 const ProfileSettings = () => {
   const user = getUserFromToken();
@@ -140,23 +136,31 @@ const ProfileSettings = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-5xl space-y-5">
+      <PageHeader
+        eyebrow="Account"
+        title="Profile settings"
+        subtitle="Update how you appear in TrackED and manage your sign-in details."
+      />
+
       {message && (
         <div
-          className={`rounded-lg border px-3.5 py-2.5 text-sm ${
-            messageType === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300"
-              : "border-red-200 bg-red-50 text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
-          }`}
+          className={`alert ${messageType === "success" ? "alert-ok" : "alert-danger"}`}
+          role="status"
         >
-          {message}
+          <span aria-hidden="true">{messageType === "success" ? "✓" : "!"}</span>
+          <p>{message}</p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <div className="md:col-span-2">
-          <BaseCard>
-            <div className="mb-6 flex flex-col gap-4 rounded-xl bg-linear-to-br from-indigo-600 to-indigo-900 p-6 sm:flex-row sm:items-center">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <Card>
+          <div className="relative overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-[var(--brand)] to-[#312e81] p-5">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-white/10 blur-3xl"
+            />
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
               <div className="relative shrink-0">
                 {profile?.profilePicture ? (
                   <img
@@ -169,31 +173,47 @@ const ProfileSettings = () => {
                     <FaUser className="text-3xl text-white" />
                   </div>
                 )}
-                <label className="absolute -bottom-1 -right-1 cursor-pointer rounded-full bg-white p-1.5 text-indigo-700 shadow-md transition-colors hover:bg-slate-100">
-                  <FaImage className="text-xs" />
+                <label
+                  className={`absolute -bottom-1 -right-1 cursor-pointer rounded-full bg-white p-2 text-indigo-700 shadow-md transition-colors hover:bg-slate-100 ${
+                    uploadingPic ? "pointer-events-none opacity-60" : ""
+                  }`}
+                >
+                  <FaCamera className="text-xs" aria-hidden="true" />
+                  <span className="sr-only">Upload profile picture</span>
                   <input
                     type="file"
                     accept="image/*"
                     onChange={handlePictureUpload}
                     className="hidden"
                     disabled={uploadingPic}
+                    aria-label="Upload profile picture"
                   />
                 </label>
               </div>
               <div className="min-w-0 text-white">
-                <h2 className="truncate text-2xl font-bold">{profile?.name}</h2>
-                <p className="truncate text-indigo-200">{profile?.email}</p>
-                <span className="mt-2 inline-block rounded-full bg-white/20 px-3 py-0.5 text-sm capitalize">
-                  {profile?.role}
-                </span>
+                <h2 className="truncate font-display text-2xl font-semibold tracking-tight">
+                  {profile?.name}
+                </h2>
+                <p className="truncate text-sm text-white/75">{profile?.email}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-medium capitalize">
+                    {profile?.role}
+                  </span>
+                  {uploadingPic && (
+                    <span className="text-[11px] text-white/80">Uploading…</span>
+                  )}
+                </div>
               </div>
             </div>
+          </div>
 
+          <div className="mt-6">
             {editing ? (
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label htmlFor="pf-name" className="text-sm font-medium text-on">
-                    Full Name
+                <h3 className="panel-heading text-base">Edit profile</h3>
+                <div>
+                  <label htmlFor="pf-name" className="field-label">
+                    Full name
                   </label>
                   <input
                     id="pf-name"
@@ -201,13 +221,13 @@ const ProfileSettings = () => {
                     name="name"
                     value={form.name}
                     onChange={handleChange}
-                    className={inputClasses}
+                    className="field"
                     required
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <label htmlFor="pf-email" className="text-sm font-medium text-on">
-                    Email Address
+                <div>
+                  <label htmlFor="pf-email" className="field-label">
+                    Email address
                   </label>
                   <input
                     id="pf-email"
@@ -215,13 +235,13 @@ const ProfileSettings = () => {
                     name="email"
                     value={form.email}
                     onChange={handleChange}
-                    className={inputClasses}
+                    className="field"
                     required
                   />
                 </div>
-                <div className="flex gap-3">
-                  <Button type="submit" disabled={savingProfile}>
-                    <FaCheck /> {savingProfile ? "Saving…" : "Save Changes"}
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" loading={savingProfile}>
+                    <FaCheck /> {savingProfile ? "Saving…" : "Save changes"}
                   </Button>
                   <Button
                     type="button"
@@ -237,37 +257,41 @@ const ProfileSettings = () => {
               </form>
             ) : showPasswordForm ? (
               <form onSubmit={handlePasswordChange} className="space-y-4">
-                <h3 className="text-lg font-semibold text-on">Change Password</h3>
-                <div className="space-y-1.5">
-                  <label htmlFor="pw-current" className="text-sm font-medium text-on">
-                    Current Password
+                <h3 className="panel-heading text-base">Change password</h3>
+                <div>
+                  <label htmlFor="pw-current" className="field-label">
+                    Current password
                   </label>
                   <input
                     id="pw-current"
                     type="password"
                     value={passwordForm.currentPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                    className={inputClasses}
+                    onChange={(e) =>
+                      setPasswordForm({ ...passwordForm, currentPassword: e.target.value })
+                    }
+                    className="field"
                     required
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <label htmlFor="pw-new" className="text-sm font-medium text-on">
-                    New Password
+                <div>
+                  <label htmlFor="pw-new" className="field-label">
+                    New password
                   </label>
                   <input
                     id="pw-new"
                     type="password"
                     value={passwordForm.newPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                    className={inputClasses}
+                    onChange={(e) =>
+                      setPasswordForm({ ...passwordForm, newPassword: e.target.value })
+                    }
+                    className="field"
                     required
                   />
-                  <p className="text-xs text-on-muted">{PASSWORD_HINT}</p>
+                  <p className="field-hint">{PASSWORD_HINT}</p>
                 </div>
-                <div className="flex gap-3">
-                  <Button type="submit" disabled={savingPassword}>
-                    <FaCheck /> {savingPassword ? "Updating…" : "Update Password"}
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" loading={savingPassword}>
+                    <FaCheck /> {savingPassword ? "Updating…" : "Update password"}
                   </Button>
                   <Button
                     type="button"
@@ -283,46 +307,61 @@ const ProfileSettings = () => {
               </form>
             ) : (
               <div className="space-y-4">
-                {[
-                  { label: "Full Name", value: profile?.name },
-                  { label: "Email Address", value: profile?.email },
-                  {
-                    label: "Role",
-                    value: profile?.role ? profile.role[0].toUpperCase() + profile.role.slice(1) : "",
-                  },
-                ].map((field) => (
-                  <div key={field.label}>
-                    <label className="text-sm text-on-dim">{field.label}</label>
-                    <p className="text-lg font-medium text-on">{field.value}</p>
-                  </div>
-                ))}
-                <div className="flex flex-wrap gap-3">
+                <h3 className="panel-heading text-base">Account details</h3>
+                <dl className="divide-y divide-line rounded-xl border border-line">
+                  {[
+                    { label: "Full name", value: profile?.name },
+                    { label: "Email address", value: profile?.email },
+                    {
+                      label: "Role",
+                      value: profile?.role
+                        ? profile.role[0].toUpperCase() + profile.role.slice(1)
+                        : "",
+                    },
+                  ].map((field) => (
+                    <div key={field.label} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                      <dt className="text-sm text-on-dim">{field.label}</dt>
+                      <dd className="text-sm font-medium text-on">{field.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <div className="flex flex-wrap gap-2">
                   <Button onClick={() => setEditing(true)}>
-                    <FaUser /> Edit Profile
+                    <FaUser /> Edit profile
                   </Button>
-                  <Button onClick={() => setShowPasswordForm(true)} variant="secondary">
-                    <FaLock /> Change Password
+                  <Button
+                    onClick={() => setShowPasswordForm(true)}
+                    variant="secondary"
+                  >
+                    <FaLock /> Change password
                   </Button>
                 </div>
               </div>
             )}
-          </BaseCard>
-        </div>
+          </div>
+        </Card>
 
-        <div className="space-y-6">
-          <BaseCard title="Your Statistics" icon={<FaUser />}>
-            <div className="space-y-4">
+        <div className="space-y-4">
+          <Card>
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
+                <FaImage className="text-xs" />
+              </span>
+              <h3 className="text-sm font-semibold text-on">Your statistics</h3>
+            </div>
+
+            <div className="mt-4 space-y-2.5">
               {user.role === "student" && (
                 <>
-                  <div className="flex items-center justify-between rounded-lg bg-indigo-500/10 p-3">
-                    <span className="text-sm text-on-dim">Events Attended</span>
-                    <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                  <div className="flex items-center justify-between rounded-xl border border-line bg-card-alt/40 p-3.5">
+                    <span className="text-sm text-on-dim">Events attended</span>
+                    <span className="num text-lg font-semibold text-brand">
                       {stats.totalAttended || 0}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between rounded-lg bg-amber-500/10 p-3">
-                    <span className="text-sm text-on-dim">Community Service</span>
-                    <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                  <div className="flex items-center justify-between rounded-xl border border-line bg-card-alt/40 p-3.5">
+                    <span className="text-sm text-on-dim">Community service</span>
+                    <span className="num text-lg font-semibold text-warn">
                       {stats.totalHours || 0} hrs
                     </span>
                   </div>
@@ -330,28 +369,30 @@ const ProfileSettings = () => {
               )}
               {user.role === "organizer" && (
                 <>
-                  <div className="flex items-center justify-between rounded-lg bg-indigo-500/10 p-3">
-                    <span className="text-sm text-on-dim">Events Created</span>
-                    <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                  <div className="flex items-center justify-between rounded-xl border border-line bg-card-alt/40 p-3.5">
+                    <span className="text-sm text-on-dim">Events created</span>
+                    <span className="num text-lg font-semibold text-brand">
                       {stats.totalEvents || 0}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 p-3">
-                    <span className="text-sm text-on-dim">Total Attendees</span>
-                    <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  <div className="flex items-center justify-between rounded-xl border border-line bg-card-alt/40 p-3.5">
+                    <span className="text-sm text-on-dim">Total attendees</span>
+                    <span className="num text-lg font-semibold text-ok">
                       {stats.totalAttendees || 0}
                     </span>
                   </div>
                 </>
               )}
               {user.role === "admin" && (
-                <p className="text-sm text-on-dim">Admin accounts have full system access.</p>
+                <p className="text-sm leading-relaxed text-on-dim">
+                  Admin accounts have full system access.
+                </p>
               )}
             </div>
-          </BaseCard>
+          </Card>
 
-          <Button onClick={handleLogout} variant="danger" className="w-full py-2.5">
-            <FaDoorOpen /> Log Out
+          <Button onClick={handleLogout} variant="danger" className="w-full">
+            <FaDoorOpen /> Log out
           </Button>
         </div>
       </div>

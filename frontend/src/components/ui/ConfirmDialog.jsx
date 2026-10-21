@@ -106,7 +106,7 @@ const ConfirmDialog = ({
         aria-busy={busy}
         aria-labelledby="confirm-title"
         aria-describedby="confirm-message"
-        className="animate-pop relative w-full max-w-sm rounded-2xl border border-line bg-card p-6 shadow-2xl shadow-black/20"
+        className="animate-pop relative w-full max-w-sm rounded-[var(--panel-radius)] border border-line bg-card p-6 shadow-2xl shadow-black/20"
       >
         <div className="mb-4 flex items-start gap-3.5">
           <span

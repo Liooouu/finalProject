@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700;800&display=swap");
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
@@ -6,6 +6,8 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Inter Tight", "Inter", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
   --color-on: var(--on);
   --color-on-dim: var(--on-dim);
@@ -15,6 +17,19 @@
   --color-surface: var(--surface-bg);
   --color-line: var(--line-color);
   --color-line-dim: var(--line-dim-color);
+
+  /* Aurora Calm 2026 brand + semantic ramp */
+  --color-brand: var(--brand);
+  --color-brand-2: var(--brand-2);
+  --color-brand-3: var(--brand-3);
+  --color-brand-solid: var(--brand-solid);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-excused: var(--excused);
+  --color-panel: var(--panel-bg);
+  --color-panel-2: var(--panel-2-bg);
 }
 
 /* ============================================================
@@ -32,6 +47,89 @@
 
   --skeleton-bg: #e2e8f0;
   --skeleton-shine: rgba(255, 255, 255, 0.85);
+
+  /* Aurora Calm 2026 accents (AA on light surfaces) */
+  --brand: #4f46e5;
+  --brand-2: #7c3aed;
+  --brand-3: #0891b2;
+  --brand-solid: #4f46e5;
+  --ok: #047857;
+  --warn: #b45309;
+  --danger: #be123c;
+  --info: #1d4ed8;
+  --excused: #0369a1;
+
+  --panel-bg: #ffffff;
+  --panel-2-bg: #f6f8fc;
+
+  --elev-1: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --elev-2: 0 10px 30px -14px rgba(15, 23, 42, 0.22), 0 2px 8px -2px rgba(15, 23, 42, 0.06);
+  --elev-3: 0 30px 70px -24px rgba(15, 23, 42, 0.35);
+  --glow-brand: 0 0 0 1px rgba(99, 102, 241, 0.18), 0 18px 50px -24px rgba(99, 102, 241, 0.55);
+
+  /* Light mode cannot rely on glow alone, so cards get a tinted surface,
+     a visible indigo border, a coloured shadow and a gradient top hairline. */
+  --panel-radius: 5px;
+  --panel-from: #ffffff;
+  --panel-to: color-mix(in srgb, var(--card-bg) 89%, var(--brand) 11%);
+  --panel-border: color-mix(in srgb, var(--line-color) 58%, var(--brand) 42%);
+  --panel-sheen:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 1) 0%,
+      rgba(255, 255, 255, 0.58) 12%,
+      rgba(255, 255, 255, 0) 44%
+    ),
+    linear-gradient(
+      118deg,
+      transparent 34%,
+      rgba(255, 255, 255, 0.42) 46%,
+      rgba(255, 255, 255, 0.1) 54%,
+      transparent 66%
+    ),
+    radial-gradient(
+      85% 90% at 100% 0%,
+      color-mix(in srgb, var(--brand) 18%, transparent) 0%,
+      transparent 58%
+    ),
+    linear-gradient(
+      180deg,
+      transparent 58%,
+      color-mix(in srgb, var(--brand) 5%, transparent) 100%
+    );
+  --panel-highlight: inset 0 1px 0 #ffffff,
+    inset 0 2px 0 rgba(255, 255, 255, 0.52),
+    inset 1px 0 0 rgba(255, 255, 255, 0.68),
+    inset -1px 0 0 rgba(15, 23, 42, 0.05),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.11),
+    inset 0 -5px 10px -8px rgba(15, 23, 42, 0.32);
+  --panel-shadow: 0 1px 1px rgba(15, 23, 42, 0.07),
+    0 3px 5px -2px rgba(15, 23, 42, 0.1),
+    0 10px 18px -12px rgba(15, 23, 42, 0.26),
+    0 26px 42px -24px rgba(79, 70, 229, 0.42),
+    0 54px 92px -46px rgba(15, 23, 42, 0.38);
+  --panel-accent: linear-gradient(
+    180deg,
+    var(--brand) 0%,
+    var(--brand-2) 55%,
+    var(--brand-3) 100%
+  );
+  --panel-glow: 0 0 26px -8px color-mix(in srgb, var(--brand) 62%, transparent);
+  --panel-topline: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--brand) 72%, transparent) 22%,
+    color-mix(in srgb, var(--brand-2) 58%, transparent) 55%,
+    color-mix(in srgb, var(--brand-3) 58%, transparent) 78%,
+    transparent 100%
+  );
+  --panel-topline-opacity: 0.9;
+
+  --chart-present: #059669;
+  --chart-late: #d97706;
+  --chart-absent: #dc2626;
+  --chart-pending: #64748b;
+  --chart-excused: #0284c7;
 
   /* Aurora canvas */
   --app-base: #f5f7fc;
@@ -59,6 +157,85 @@
 
   --skeleton-bg: rgba(148, 163, 184, 0.16);
   --skeleton-shine: rgba(148, 163, 184, 0.22);
+
+  --brand: #a5b4fc;
+  --brand-2: #c4b5fd;
+  --brand-3: #67e8f9;
+  --brand-solid: #4f46e5;
+  --ok: #6ee7b7;
+  --warn: #fcd34d;
+  --danger: #fda4af;
+  --info: #93c5fd;
+  --excused: #7dd3fc;
+
+  --panel-bg: #0f1626;
+  --panel-2-bg: #151d30;
+
+  --elev-1: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.5);
+  --elev-2: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 18px 40px -20px rgba(0, 0, 0, 0.85);
+  --elev-3: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 40px 90px -30px rgba(0, 0, 0, 0.95);
+  --glow-brand: 0 0 0 1px rgba(129, 140, 248, 0.22), 0 22px 60px -28px rgba(99, 102, 241, 0.6);
+
+  --panel-from: color-mix(in srgb, var(--card-bg) 90%, #4f46e5 10%);
+  --panel-to: color-mix(in srgb, var(--card-bg) 97%, #020617 3%);
+  --panel-border: color-mix(in srgb, var(--line-color) 72%, var(--brand) 28%);
+  --panel-sheen:
+    linear-gradient(
+      150deg,
+      rgba(255, 255, 255, 0.075) 0%,
+      rgba(255, 255, 255, 0) 38%
+    ),
+    linear-gradient(
+      118deg,
+      transparent 38%,
+      rgba(255, 255, 255, 0.055) 47%,
+      transparent 60%
+    ),
+    radial-gradient(
+      115% 95% at 100% 0%,
+      rgba(99, 102, 241, 0.2) 0%,
+      rgba(8, 145, 178, 0.06) 38%,
+      transparent 65%
+    ),
+    radial-gradient(
+      70% 65% at 0% 100%,
+      rgba(14, 165, 233, 0.05) 0%,
+      transparent 62%
+    );
+  --panel-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 2px 0 rgba(255, 255, 255, 0.035),
+    inset 1px 0 0 rgba(255, 255, 255, 0.04),
+    inset -1px 0 0 rgba(0, 0, 0, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.62),
+    inset 0 -6px 12px -9px rgba(0, 0, 0, 0.8);
+  --panel-shadow: 0 1px 1px rgba(0, 0, 0, 0.72),
+    0 3px 7px rgba(0, 0, 0, 0.5),
+    0 16px 30px -18px rgba(0, 0, 0, 0.98),
+    0 36px 64px -34px rgba(0, 0, 0, 0.98),
+    0 64px 110px -48px rgba(0, 0, 0, 0.92),
+    0 28px 70px -38px rgba(99, 102, 241, 0.34);
+  --panel-accent: linear-gradient(
+    180deg,
+    var(--brand) 0%,
+    var(--brand-2) 55%,
+    var(--brand-3) 100%
+  );
+  --panel-glow: 0 0 30px -10px color-mix(in srgb, var(--brand) 60%, transparent);
+  --panel-topline: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--brand) 52%, transparent) 24%,
+    color-mix(in srgb, var(--brand-2) 42%, transparent) 56%,
+    color-mix(in srgb, var(--brand-3) 44%, transparent) 78%,
+    transparent 100%
+  );
+  --panel-topline-opacity: 0.62;
+
+  --chart-present: #34d399;
+  --chart-late: #fbbf24;
+  --chart-absent: #fb7185;
+  --chart-pending: #94a3b8;
+  --chart-excused: #38bdf8;
 
   --app-base: #070a12;
   --orb-1: radial-gradient(65% 65% at 50% 50%, rgba(99, 102, 241, 0.28) 0%, transparent 70%);
@@ -90,7 +267,7 @@ textarea::placeholder {
 }
 
 ::selection {
-  background: rgba(99, 102, 241, 0.25);
+  background: color-mix(in srgb, var(--brand-solid) 24%, transparent);
 }
 
 * {
@@ -100,9 +277,9 @@ textarea::placeholder {
 
 /* Accessible focus states — visible on every interactive element */
 :where(a, button, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible {
-  outline: 2px solid rgb(99 102 241 / 0.9);
+  outline: 2px solid color-mix(in srgb, var(--brand-solid) 82%, transparent);
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 /* ============================================================
@@ -119,13 +296,31 @@ textarea::placeholder {
 }
 
 .field-datetime {
-  @apply w-full rounded-lg border border-line bg-card px-3.5 py-2.5 text-sm text-on transition-colors hover:border-indigo-300 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:hover:border-indigo-500/40;
+  @apply w-full min-w-0 rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm text-on shadow-[var(--elev-1)] transition-colors hover:border-brand/30 focus:border-brand/60 focus:outline-none focus:ring-2 focus:ring-brand/25 disabled:cursor-not-allowed disabled:opacity-60;
+  min-height: 2.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25rem;
+}
+
+/* The native editor has its own padding and clear/spin controls, which makes
+   the value shift as segments gain focus. Flatten those so the field stays
+   visually still and matches .field. */
+.field-datetime::-webkit-datetime-edit,
+.field-datetime::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+.field-datetime::-webkit-inner-spin-button,
+.field-datetime::-webkit-clear-button {
+  display: none;
 }
 
 /* Keep the native picker affordance, just toned down. */
 .field-datetime::-webkit-calendar-picker-indicator {
-  opacity: 0.5;
+  margin: 0 0 0 0.35rem;
+  padding: 0;
+  opacity: 0.55;
   cursor: pointer;
+  transition: opacity 0.15s ease;
 }
 .field-datetime::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
@@ -349,4 +544,224 @@ textarea::placeholder {
     animation: none;
   }
   .wx-sun { opacity: 0.9; }
+}
+
+/* ============================================================
+   Aurora Calm 2026 — shared surface + type utilities
+   ============================================================ */
+.surface {
+  background-color: var(--card-bg);
+  border: 1px solid var(--line-color);
+  border-radius: 1rem;
+  box-shadow: var(--elev-1);
+}
+
+.surface-raised { box-shadow: var(--elev-2); }
+
+.surface-glass {
+  background-color: color-mix(in srgb, var(--card-bg) 78%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid color-mix(in srgb, var(--line-color) 80%, transparent);
+}
+
+/* ============================================================
+   Layered panel language
+   ============================================================ */
+.panel-surface {
+  position: relative;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  background-color: var(--card-bg);
+  background-image: var(--panel-sheen),
+    linear-gradient(145deg, var(--panel-from), var(--panel-to) 68%);
+  box-shadow: var(--panel-highlight), var(--panel-shadow);
+  transform: translateY(-2px);
+  transform-origin: center bottom;
+}
+
+.panel-surface::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 1px;
+  border-radius: 999px;
+  background: var(--panel-topline);
+  box-shadow: 0 0 10px -1px color-mix(in srgb, var(--brand) 55%, transparent);
+  opacity: 1;
+  pointer-events: none;
+}
+
+.panel-glass {
+  background-color: color-mix(in srgb, var(--card-bg) 82%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.panel-accent::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--panel-accent);
+  box-shadow: var(--panel-glow);
+  pointer-events: none;
+}
+
+.panel-gradient {
+  border: 1px solid color-mix(in srgb, var(--brand-2) 38%, transparent);
+  background-color: var(--brand-solid);
+  background-image: linear-gradient(
+    135deg,
+    var(--brand-solid) 0%,
+    var(--brand-2) 54%,
+    var(--brand-3) 100%
+  );
+  box-shadow: var(--glow-brand);
+  color: #fff;
+}
+
+.panel-gradient :where(.text-on, .text-on-dim, .text-on-muted) {
+  color: inherit;
+}
+
+.panel-hover {
+  will-change: transform;
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.panel-hover:hover {
+  transform: perspective(1200px) translateY(-7px) rotateX(1.4deg) scale(1.004);
+  border-color: color-mix(in srgb, var(--brand) 58%, var(--panel-border));
+  box-shadow: var(--panel-highlight), var(--elev-3),
+    0 34px 60px -32px color-mix(in srgb, var(--brand) 52%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-hover {
+    transition: none;
+    will-change: auto;
+  }
+  .panel-hover:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.num {
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.02em;
+}
+
+.brand-text {
+  background-image: linear-gradient(100deg, var(--brand), var(--brand-2) 52%, var(--brand-3));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.glow-brand { box-shadow: var(--glow-brand); }
+
+/* Shared page-level type */
+.eyebrow {
+  @apply text-[10px] font-semibold uppercase tracking-[0.18em] text-on-muted;
+}
+
+.panel-heading {
+  @apply font-display text-lg font-semibold tracking-tight text-on;
+}
+
+/* Forms — one field language for every page */
+.field {
+  @apply w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm text-on shadow-[var(--elev-1)] transition-colors placeholder:text-on-muted hover:border-brand/30 focus:border-brand/60 focus:outline-none focus:ring-2 focus:ring-brand/25 disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+.field-search {
+  padding-left: 2.5rem;
+}
+
+.field-label {
+  @apply mb-1.5 block text-[13px] font-medium text-on-dim;
+}
+
+.field-hint {
+  @apply mt-1.5 text-xs text-on-muted;
+}
+
+.field-error {
+  @apply mt-1.5 text-xs font-medium text-danger;
+}
+
+textarea.field {
+  @apply min-h-[96px] resize-y;
+}
+
+/* Alerts / inline feedback */
+.alert {
+  @apply flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm;
+}
+.alert-sm {
+  @apply px-3 py-2 text-xs;
+}
+.alert-ok {
+  @apply border-ok/25 bg-ok/10 text-ok;
+}
+.alert-warn {
+  @apply border-warn/25 bg-warn/10 text-warn;
+}
+.alert-danger {
+  @apply border-danger/25 bg-danger/10 text-danger;
+}
+.alert-info {
+  @apply border-info/25 bg-info/10 text-info;
+}
+
+/* Data tables */
+.data-table {
+  @apply w-full border-separate border-spacing-0 text-sm;
+}
+.data-table thead th {
+  @apply whitespace-nowrap border-b border-line bg-card-alt/60 px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-on-muted;
+}
+.data-table tbody td {
+  @apply border-b border-line/70 px-4 py-3 align-middle text-on-dim;
+}
+.data-table tbody tr:last-child td {
+  @apply border-b-0;
+}
+.data-table tbody tr {
+  @apply transition-colors;
+}
+.data-table tbody tr:hover td {
+  @apply bg-card-alt/50;
+}
+
+.nice-scroll { scrollbar-width: thin; scrollbar-color: var(--line-color) transparent; }
+.nice-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.nice-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--line-color);
+  border-radius: 999px;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-rise {
+  animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-fade-up,
+  .animate-pop {
+    animation: none;
+  }
 }

@@ -23,14 +23,28 @@ const {
   eventLiveNotification,
 } = require("../services/eventLifecycle");
 
-// An organizer may only act on their own events; admins act on anything. Used
-// by every mutation route so ownership can't be bypassed by calling the route
-// directly — the scan route already enforced this.
+// Strict ownership: only the creator or an admin. Destructive actions (delete)
+// stay here; normal event operations use canManageEventOrAdminCreated below.
 function canManageEvent(event, user) {
   if (!event || !user) return false;
   if (user.role === "admin") return true;
   if (user.role !== "organizer") return false;
   return String(event.organizer) === String(user._id);
+}
+
+// Organizers run their own events and events an admin created. This covers
+// attendance plus editing/status changes; deleting an admin-created event still
+// requires the admin or the event's original creator.
+async function canManageEventOrAdminCreated(event, user) {
+  if (!event || !user) return false;
+  if (user.role === "admin") return true;
+  if (user.role !== "organizer") return false;
+
+  const ownerId = event.organizer?._id || event.organizer;
+  if (String(ownerId) === String(user._id)) return true;
+
+  const creator = await User.findById(ownerId).select("role").lean();
+  return creator?.role === "admin";
 }
 
 // Age of a scanned QR payload in milliseconds, or null when no timestamp was
@@ -224,7 +238,7 @@ router.get("/all", protect, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
     const events = await Event.find()
-      .populate("organizer", "name email")
+      .populate("organizer", "name email role")
       .sort({ createdAt: -1 });
     const eventIds = events.map((e) => e._id);
     const counts = await Attendance.aggregate([
@@ -257,8 +271,8 @@ router.patch("/:id/status", protect, async (req, res) => {
     const oldEvent = await Event.findById(req.params.id);
 
     if (!oldEvent) return res.status(404).json({ error: "Event not found" });
-    if (!canManageEvent(oldEvent, req.user)) {
-      return res.status(403).json({ error: "You are not the organizer of this event" });
+    if (!(await canManageEventOrAdminCreated(oldEvent, req.user))) {
+      return res.status(403).json({ error: "You are not allowed to manage this event" });
     }
 
     const update = { status };
@@ -327,8 +341,8 @@ router.patch("/:id/automation", protect, async (req, res) => {
 
     const existing = await Event.findById(req.params.id);
     if (!existing) return res.status(404).json({ error: "Event not found" });
-    if (!canManageEvent(existing, req.user)) {
-      return res.status(403).json({ error: "You are not the organizer of this event" });
+    if (!(await canManageEventOrAdminCreated(existing, req.user))) {
+      return res.status(403).json({ error: "You are not allowed to manage this event" });
     }
 
     const event = await Event.findByIdAndUpdate(
@@ -379,7 +393,7 @@ router.get("/my-attendance", protect, async (req, res) => {
 // GET SINGLE EVENT
 router.get("/:id", protect, async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id).populate("organizer", "name email");
+    const event = await Event.findById(req.params.id).populate("organizer", "name email role");
     if (!event) return res.status(404).json({ error: "Event not found" });
     res.json(event);
   } catch (err) {
@@ -512,12 +526,8 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    if (req.user.role !== "organizer" && req.user.role !== "admin") {
-      return res.status(403).json({ error: "Only organizers and admins can scan attendance" });
-    }
-
-    if (req.user.role === "organizer" && event.organizer.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ error: "You are not the organizer of this event" });
+    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+      return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 
     const now = new Date();
@@ -636,14 +646,10 @@ router.post("/:id/attendance/scan", protect, async (req, res) => {
 // GET ATTENDEES (organizers)
 router.get("/:id/attendees", protect, async (req, res) => {
   try {
-    if (req.user.role !== "organizer" && req.user.role !== "admin") {
-      return res.status(403).json({ error: "Not authorized" });
-    }
-
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!canManageEvent(event, req.user)) {
-      return res.status(403).json({ error: "You are not the organizer of this event" });
+    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+      return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 
     const attendees = await Attendance.find({ event: req.params.id })
@@ -659,15 +665,10 @@ router.get("/:id/attendees", protect, async (req, res) => {
 // GET ATTENDEES GROUPED BY PROGRAM-YEAR-SECTION (organizer/admin)
 router.get("/:id/attendees/groups", protect, async (req, res) => {
   try {
-    if (req.user.role !== "organizer" && req.user.role !== "admin") {
-      return res.status(403).json({ error: "Not authorized" });
-    }
-
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
-
-    if (req.user.role === "organizer" && event.organizer.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ error: "You are not the organizer of this event" });
+    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+      return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 
     const groups = await Attendance.aggregate([
@@ -725,14 +726,10 @@ router.get("/:id/attendees/groups", protect, async (req, res) => {
 // UPDATE ATTENDEE STATUS (organizers)
 router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
   try {
-    if (req.user.role !== "organizer" && req.user.role !== "admin") {
-      return res.status(403).json({ error: "Not authorized" });
-    }
-
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!canManageEvent(event, req.user)) {
-      return res.status(403).json({ error: "You are not the organizer of this event" });
+    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+      return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 
     const { status } = req.body;
@@ -833,14 +830,10 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
 // the given hours if the student has no attendance record for this event yet.
 router.patch("/:id/attendees/:studentId/community-service", protect, async (req, res) => {
   try {
-    if (req.user.role !== "organizer" && req.user.role !== "admin") {
-      return res.status(403).json({ error: "Not authorized" });
-    }
-
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!canManageEvent(event, req.user)) {
-      return res.status(403).json({ error: "You are not the organizer of this event" });
+    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+      return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 
     const hours = Number(req.body.hours);
@@ -906,14 +899,10 @@ router.patch("/:id/attendees/:studentId/community-service", protect, async (req,
 // With `hours` = remove that many hours from this event's record only.
 router.patch("/:id/attendees/:studentId/community-service/remove", protect, async (req, res) => {
   try {
-    if (req.user.role !== "organizer" && req.user.role !== "admin") {
-      return res.status(403).json({ error: "Not authorized" });
-    }
-
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!canManageEvent(event, req.user)) {
-      return res.status(403).json({ error: "You are not the organizer of this event" });
+    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+      return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 
     const attendance = await Attendance.findOne({ event: req.params.id, student: req.params.studentId });
@@ -983,14 +972,10 @@ router.patch("/:id/attendees/:studentId/community-service/remove", protect, asyn
 // MANUAL ATTENDANCE (organizers add student manually)
 router.post("/:id/attendees/manual", protect, async (req, res) => {
   try {
-    if (req.user.role !== "organizer" && req.user.role !== "admin") {
-      return res.status(403).json({ error: "Not authorized" });
-    }
-
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!canManageEvent(event, req.user)) {
-      return res.status(403).json({ error: "You are not the organizer of this event" });
+    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+      return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 
     const { studentId, status } = req.body;
@@ -1065,8 +1050,8 @@ router.put("/:id", protect, async (req, res) => {
 
     const existing = await Event.findById(req.params.id);
     if (!existing) return res.status(404).json({ error: "Event not found" });
-    if (!canManageEvent(existing, req.user)) {
-      return res.status(403).json({ error: "You are not the organizer of this event" });
+    if (!(await canManageEventOrAdminCreated(existing, req.user))) {
+      return res.status(403).json({ error: "You are not allowed to edit this event" });
     }
 
     const { title, description, date, time, endDate, endTime, location, mapQuery, status, attendanceStartTime, attendanceEndTime } = req.body;

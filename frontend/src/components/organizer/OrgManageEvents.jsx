@@ -7,12 +7,27 @@ import {
   describeEventLifecycle,
   formatDate,
 } from "../../utils/helpers";
-import { FaPlus, FaCalendarAlt, FaMapMarkerAlt, FaClock, FaTrash, FaUndo, FaChevronDown, FaChevronRight } from "react-icons/fa";
+import { getUserFromToken } from "../../utils/auth";
+import {
+  FaCalendarAlt,
+  FaChevronDown,
+  FaChevronRight,
+  FaClock,
+  FaMapMarkerAlt,
+  FaPlus,
+  FaTrash,
+  FaUndo,
+} from "react-icons/fa";
 import { MdClose } from "react-icons/md";
 import { BsClipboardCheck } from "react-icons/bs";
 import { usePageMeta } from "../../context/PageMetaContext";
-import Button from "../ui/Button";
-import StatusChip from "../ui/StatusChip";
+import {
+  Button,
+  Card,
+  PageHeader,
+  SegmentedControl,
+  StatusChip,
+} from "../ui";
 import EmptyState from "../shared/EmptyState";
 import MapPicker from "../shared/MapPicker";
 import ConfirmDialog from "../ui/ConfirmDialog";
@@ -26,8 +41,18 @@ const STATUS_FILTERS = [
   { key: "closed", label: "Closed" },
 ];
 
-const inputClasses =
-  "rounded-lg border border-line bg-card px-3 py-2 text-sm text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40";
+const EMPTY_FORM = {
+  title: "",
+  description: "",
+  location: "",
+  mapQuery: "",
+  date: "",
+  time: "",
+  endDate: "",
+  endTime: "",
+  attendanceStartTime: "",
+  attendanceEndTime: "",
+};
 
 const OrgManageEvents = () => {
   const navigate = useNavigate();
@@ -42,20 +67,17 @@ const OrgManageEvents = () => {
   const [eventGroups, setEventGroups] = useState({});
   const [loadingGroups, setLoadingGroups] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    location: "",
-    mapQuery: "",
-    date: "",
-    time: "",
-    endDate: "",
-    endTime: "",
-    attendanceStartTime: "",
-    attendanceEndTime: "",
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
 
   usePageMeta("Manage Events", "Create and manage your events.");
+
+  const currentUserId = getUserFromToken()?.id;
+  const isOwnEvent = (event) => {
+    const ownerId = event.organizer?._id || event.organizer;
+    return Boolean(currentUserId && ownerId && String(ownerId) === String(currentUserId));
+  };
+  const canTakeAttendance = (event) =>
+    isOwnEvent(event) || event.organizer?.role === "admin";
 
   const fetchEvents = useCallback(() => {
     const endpoint = viewMode === "my" ? "/events/my-events" : "/events/all";
@@ -105,18 +127,7 @@ const OrgManageEvents = () => {
       await api.post("/events", form);
       setMessage("Event created successfully!");
       setMessageType("success");
-      setForm({
-        title: "",
-        description: "",
-        location: "",
-        mapQuery: "",
-        date: "",
-        time: "",
-        endDate: "",
-        endTime: "",
-        attendanceStartTime: "",
-        attendanceEndTime: "",
-      });
+      setForm(EMPTY_FORM);
       setShowForm(false);
       fetchEvents();
     } catch (err) {
@@ -170,50 +181,43 @@ const OrgManageEvents = () => {
     });
   }, [events, statusFilter]);
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-on-dim">
-          {events.length} {events.length === 1 ? "event" : "events"} •{" "}
-          {events.reduce((sum, e) => sum + (e.attendeeCount || 0), 0)} total {events.reduce((sum, e) => sum + (e.attendeeCount || 0), 0) === 1 ? "attendee" : "attendees"}
-        </p>
-        <Button
-          onClick={() => setShowForm(!showForm)}
-          variant={showForm ? "secondary" : "primary"}
-          size="sm"
-        >
-          {showForm ? <MdClose /> : <FaPlus className="text-xs" />}
-          {showForm ? "Cancel" : "Create Event"}
-        </Button>
-      </div>
+  const attendeeTotal = events.reduce((sum, e) => sum + (e.attendeeCount || 0), 0);
 
-      {/* View Toggle */}
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Organizer events"
+        title="Events"
+        subtitle={`${events.length} ${events.length === 1 ? "event" : "events"} · ${attendeeTotal} total ${
+          attendeeTotal === 1 ? "attendee" : "attendees"
+        }`}
+        actions={
+          <Button
+            onClick={() => setShowForm(!showForm)}
+            variant={showForm ? "secondary" : "primary"}
+            size="sm"
+          >
+            {showForm ? <MdClose /> : <FaPlus className="text-xs" />}
+            {showForm ? "Cancel" : "Create event"}
+          </Button>
+        }
+      />
+
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          onClick={() => setViewMode("my")}
-          className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
-            viewMode === "my"
-              ? "bg-indigo-600 text-white shadow-sm"
-              : "bg-card text-on-dim hover:bg-card-alt hover:text-on border border-line"
-          }`}
-        >
-          My Events
-        </button>
-        <button
-          onClick={() => setViewMode("all")}
-          className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
-            viewMode === "all"
-              ? "bg-indigo-600 text-white shadow-sm"
-              : "bg-card text-on-dim hover:bg-card-alt hover:text-on border border-line"
-          }`}
-        >
-          All Events
-        </button>
+        <SegmentedControl
+          ariaLabel="Event ownership"
+          value={viewMode}
+          onChange={setViewMode}
+          options={[
+            { value: "my", label: "My events" },
+            { value: "all", label: "All events" },
+          ]}
+        />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           aria-label="Filter by status"
-          className={`${inputClasses} ml-auto`}
+          className="field-select ml-auto max-w-[180px]"
         >
           {STATUS_FILTERS.map((filter) => (
             <option key={filter.key} value={filter.key}>
@@ -223,51 +227,61 @@ const OrgManageEvents = () => {
         </select>
       </div>
 
-      {/* Message */}
       {message && (
-        <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${messageType === "error" ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
-          {message}
+        <div
+          className={`alert ${messageType === "error" ? "alert-danger" : "alert-ok"}`}
+          role="status"
+        >
+          <span aria-hidden="true">{messageType === "error" ? "!" : "✓"}</span>
+          <p>{message}</p>
         </div>
       )}
 
-      {/* Create Form */}
       {showForm && (
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-5 rounded-xl border border-line bg-card p-6"
-        >
-          <h2 className="text-lg font-semibold text-on">Create New Event</h2>
+        <Card as="form" onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <h2 className="panel-heading">Create new event</h2>
+            <p className="mt-1 text-sm text-on-dim">
+              Publish the schedule, location and attendance window in one pass.
+            </p>
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
+              <label htmlFor="event-title" className="field-label">Event title</label>
               <input
+                id="event-title"
                 type="text"
                 name="title"
-                placeholder="Event Title"
+                placeholder="e.g. Coastal Clean-Up 2026"
                 value={form.title}
                 onChange={handleChange}
                 required
-                className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                className="field"
               />
             </div>
             <div className="md:col-span-2">
+              <label htmlFor="event-description" className="field-label">Description</label>
               <textarea
+                id="event-description"
                 name="description"
-                placeholder="Description"
+                placeholder="What should students expect?"
                 value={form.description}
                 onChange={handleChange}
                 rows={3}
-                className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                className="field"
               />
             </div>
             <div className="md:col-span-2">
+              <label htmlFor="event-location" className="field-label">Location</label>
               <input
+                id="event-location"
                 type="text"
                 name="location"
-                placeholder="Location"
+                placeholder="Venue or address"
                 value={form.location}
                 onChange={handleChange}
-                className="w-full bg-card border border-line rounded-lg px-3.5 py-2.5 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+                className="field"
               />
             </div>
             <div className="md:col-span-2">
@@ -279,13 +293,13 @@ const OrgManageEvents = () => {
             </div>
           </div>
 
-          {/* Event Starts — when the event itself begins */}
-          <div className="border-t border-line pt-4">
-            <h3 className="text-sm font-semibold text-on-dim mb-3">Event Starts</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="border-t border-line pt-5">
+            <h3 className="text-sm font-semibold text-on">Event starts</h3>
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-xs text-on-muted block mb-1">Start Date</label>
+                <label htmlFor="event-date" className="field-label">Start date</label>
                 <input
+                  id="event-date"
                   type="date"
                   name="date"
                   value={form.date}
@@ -295,8 +309,9 @@ const OrgManageEvents = () => {
                 />
               </div>
               <div>
-                <label className="text-xs text-on-muted block mb-1">Start Time</label>
+                <label htmlFor="event-time" className="field-label">Start time</label>
                 <input
+                  id="event-time"
                   type="time"
                   name="time"
                   value={form.time}
@@ -308,13 +323,13 @@ const OrgManageEvents = () => {
             </div>
           </div>
 
-          {/* Event Ends — when the event itself finishes */}
-          <div className="border-t border-line pt-4">
-            <h3 className="text-sm font-semibold text-on-dim mb-3">Event Ends</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="border-t border-line pt-5">
+            <h3 className="text-sm font-semibold text-on">Event ends</h3>
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-xs text-on-muted block mb-1">End Date</label>
+                <label htmlFor="event-end-date" className="field-label">End date</label>
                 <input
+                  id="event-end-date"
                   type="date"
                   name="endDate"
                   value={form.endDate}
@@ -323,8 +338,9 @@ const OrgManageEvents = () => {
                 />
               </div>
               <div>
-                <label className="text-xs text-on-muted block mb-1">End Time</label>
+                <label htmlFor="event-end-time" className="field-label">End time</label>
                 <input
+                  id="event-end-time"
                   type="time"
                   name="endTime"
                   value={form.endTime}
@@ -333,7 +349,7 @@ const OrgManageEvents = () => {
                 />
               </div>
             </div>
-            <p className="text-xs text-on-muted mt-2">
+            <p className="field-hint">
               This event ends on{" "}
               <span className="font-medium text-on-dim">
                 {form.endDate || form.date || "—"} at {form.endTime || form.attendanceEndTime || "—"}
@@ -342,12 +358,13 @@ const OrgManageEvents = () => {
             </p>
           </div>
 
-          <div className="border-t border-line pt-4">
-            <h3 className="text-sm font-semibold text-on-dim mb-3">Attendance Window</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="border-t border-line pt-5">
+            <h3 className="text-sm font-semibold text-on">Attendance window</h3>
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-xs text-on-muted block mb-1">Start Time</label>
+                <label htmlFor="attendance-start" className="field-label">Start time</label>
                 <input
+                  id="attendance-start"
                   type="time"
                   name="attendanceStartTime"
                   value={form.attendanceStartTime}
@@ -357,8 +374,9 @@ const OrgManageEvents = () => {
                 />
               </div>
               <div>
-                <label className="text-xs text-on-muted block mb-1">End Time</label>
+                <label htmlFor="attendance-end" className="field-label">End time</label>
                 <input
+                  id="attendance-end"
                   type="time"
                   name="attendanceEndTime"
                   value={form.attendanceEndTime}
@@ -368,20 +386,15 @@ const OrgManageEvents = () => {
                 />
               </div>
             </div>
-            <p className="text-xs text-on-muted mt-2">Students can only mark attendance within this time window.</p>
+            <p className="field-hint">Students can only mark attendance within this window.</p>
           </div>
 
-          <Button
-            type="submit"
-            disabled={submitting}
-            className="w-full py-2.5"
-          >
-            {submitting ? "Creating..." : "Create Event"}
+          <Button type="submit" loading={submitting} className="w-full">
+            {submitting ? "Creating..." : "Create event"}
           </Button>
-        </form>
+        </Card>
       )}
 
-      {/* Events List */}
       {visibleEvents.length === 0 ? (
         <EmptyState
           icon={<FaCalendarAlt />}
@@ -391,25 +404,35 @@ const OrgManageEvents = () => {
               ? "Create your first event to start tracking attendance."
               : "No events match this view."
           }
+          action={
+            viewMode === "my" && (
+              <Button size="sm" onClick={() => setShowForm(true)}>
+                <FaPlus className="text-xs" /> Create event
+              </Button>
+            )
+          }
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {visibleEvents.map((event) => {
             const lifecycleNote = describeEventLifecycle(event);
-            const canReopen = isTerminalStatus(event.status);
+            const ownedByMe = isOwnEvent(event);
+            const canManageAttendance = canTakeAttendance(event);
+            const canReopen = canManageAttendance && isTerminalStatus(event.status);
             return (
-              <div
+              <Card
                 key={event._id}
+                as="article"
                 onClick={() => navigate(`/organizer/dashboard/events/${event._id}`)}
-                className="group flex cursor-pointer flex-col rounded-xl border border-line bg-card p-6 transition-all duration-300 hover:border-indigo-500/40 hover:shadow-lg hover:shadow-indigo-900/10"
+                className="group flex cursor-pointer flex-col transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-[var(--elev-2)] motion-reduce:hover:translate-y-0"
               >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
-                      <FaCalendarAlt className="text-lg" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-on transition-colors group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
+                      <FaCalendarAlt />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="truncate font-display text-[17px] font-semibold tracking-tight text-on transition-colors group-hover:text-brand">
                         {event.title}
                       </h3>
                       <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -420,7 +443,7 @@ const OrgManageEvents = () => {
                               e.stopPropagation();
                               handleReopen(event._id);
                             }}
-                            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-500/10 dark:text-indigo-400"
+                            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-brand transition-colors hover:bg-brand/10"
                           >
                             <FaUndo className="text-[10px]" />
                             Reopen
@@ -432,74 +455,96 @@ const OrgManageEvents = () => {
                       )}
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteTarget(event._id);
-                    }}
-                    className="rounded-lg p-2 text-on-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
-                    aria-label="Delete event"
-                  >
-                    <FaTrash className="text-sm" />
-                  </button>
-                </div>
-
-                <p className="text-on-dim text-sm mb-4 line-clamp-2">
-                  {event.description || "No description"}
-                </p>
-
-                <div className="flex flex-wrap gap-4 text-sm text-on-dim mb-4">
-                  <span className="flex items-center gap-1"><FaMapMarkerAlt /> {event.location || "TBA"}</span>
-                  <span className="flex items-center gap-1"><FaCalendarAlt /> {formatDate(event.date)}</span>
-                  <span className="flex items-center gap-1"><FaClock /> {formatTime12Hour(event.time)}</span>
-                  <span className="flex items-center gap-1"><BsClipboardCheck /> {event.attendeeCount ?? 0}+ {event.attendeeCount === 1 ? "attendee" : "attendees"}</span>
-                </div>
-                <p className="text-xs text-on-muted mb-4">
-                  Ends: {formatDate(event.endDate || event.date)} at {formatTime12Hour(event.endTime || event.attendanceEndTime)}
-                </p>
-
-                <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
-                  <p className="text-yellow-400 text-xs">
-                    <BsClipboardCheck /> Attendance: {formatTime12Hour(event.attendanceStartTime)} - {formatTime12Hour(event.attendanceEndTime)}
-                  </p>
-                </div>
-
-                <div className="mt-4 pt-4 border-t border-line">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleGroups(event._id);
-                    }}
-                    className="flex items-center gap-2 text-sm text-on-dim hover:text-on transition-colors"
-                  >
-                    {expandedEvent === event._id ? <FaChevronDown /> : <FaChevronRight />}
-                    Attendees by group
-                  </button>
-                  {expandedEvent === event._id && (
-                    <div className="mt-3 space-y-2">
-                      {loadingGroups[event._id] ? (
-                        <p className="text-xs text-on-muted">Loading...</p>
-                      ) : (eventGroups[event._id] || []).length > 0 ? (
-                        (eventGroups[event._id] || []).map((g) => (
-                          <div key={g.key || g.label} className="flex items-center justify-between rounded-lg bg-card-alt/40 border border-line px-3 py-2 text-sm">
-                            <span className="text-on-dim">{g.label || "Unassigned"}</span>
-                            <span className="text-on">{g.attended || 0} {g.attended === 1 ? "student has" : "students have"} attended</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-xs text-on-muted">No groups found.</p>
-                      )}
-                    </div>
+                  {ownedByMe && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget(event._id);
+                      }}
+                      className="shrink-0 rounded-lg p-2 text-on-muted transition-colors hover:bg-danger/10 hover:text-danger"
+                      aria-label="Delete event"
+                    >
+                      <FaTrash className="text-sm" />
+                    </button>
                   )}
                 </div>
 
+                <p className="mt-4 line-clamp-2 text-sm text-on-dim">
+                  {event.description || "No description"}
+                </p>
+
+                <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-on-dim">
+                  <span className="flex items-center gap-1.5">
+                    <FaMapMarkerAlt className="text-on-muted" /> {event.location || "TBA"}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <FaCalendarAlt className="text-on-muted" /> {formatDate(event.date)}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <FaClock className="text-on-muted" /> {formatTime12Hour(event.time)}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <BsClipboardCheck className="text-on-muted" /> {event.attendeeCount ?? 0}{" "}
+                    {event.attendeeCount === 1 ? "attendee" : "attendees"}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-on-muted">
+                  Ends: {formatDate(event.endDate || event.date)} at{" "}
+                  {formatTime12Hour(event.endTime || event.attendanceEndTime)}
+                </p>
+
+                <div className="alert alert-warn alert-sm mt-4">
+                  <BsClipboardCheck className="mt-0.5 shrink-0" />
+                  <p>
+                    Attendance: {formatTime12Hour(event.attendanceStartTime)} –{" "}
+                    {formatTime12Hour(event.attendanceEndTime)}
+                  </p>
+                </div>
+
+                {canManageAttendance && (
+                  <div className="mt-auto border-t border-line pt-4">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleGroups(event._id);
+                      }}
+                      className="flex items-center gap-2 text-sm text-on-dim transition-colors hover:text-on"
+                    >
+                      {expandedEvent === event._id ? <FaChevronDown /> : <FaChevronRight />}
+                      Attendees by group
+                    </button>
+                    {expandedEvent === event._id && (
+                      <div className="mt-3 space-y-2">
+                        {loadingGroups[event._id] ? (
+                          <p className="text-xs text-on-muted">Loading...</p>
+                        ) : (eventGroups[event._id] || []).length > 0 ? (
+                          (eventGroups[event._id] || []).map((g) => (
+                            <div
+                              key={g.key || g.label}
+                              className="flex items-center justify-between gap-3 rounded-lg border border-line bg-card-alt/40 px-3 py-2 text-sm"
+                            >
+                              <span className="text-on-dim">{g.label || "Unassigned"}</span>
+                              <span className="num text-on">
+                                {g.attended || 0}{" "}
+                                {g.attended === 1 ? "student" : "students"}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-on-muted">No groups found.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {viewMode === "all" && event.organizer && (
-                  <p className="text-xs text-on-muted mt-4 pt-4 border-t border-line">
-                    Created by: <span className="text-on-dim">{event.organizer.name}</span>
+                  <p className="mt-4 border-t border-line pt-4 text-xs text-on-muted">
+                    Created by <span className="text-on-dim">{event.organizer.name}</span>
                   </p>
                 )}
-              </div>
+              </Card>
             );
           })}
         </div>

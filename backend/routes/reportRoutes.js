@@ -23,6 +23,34 @@ const fmtDateTime = new Intl.DateTimeFormat("en-PH", {
   hour: "numeric",
   minute: "2-digit",
 });
+const fmtEventDay = new Intl.DateTimeFormat("en-PH", {
+  timeZone: "Asia/Manila",
+  weekday: "short",
+  year: "numeric",
+  month: "short",
+  day: "2-digit",
+});
+
+// Programs and sections offered by the college. Reports use these fixed option
+// sets so stale or legacy user records cannot add unsupported choices.
+const PROGRAM_VALUES = ["BSEMC", "BSIT", "BSCS"];
+const SECTION_VALUES = ["A", "B", "C"];
+const YEAR_LEVEL_VALUES = [1, 2, 3, 4];
+
+function isActiveFilter(value) {
+  return value !== undefined && value !== null && value !== "" && value !== "all";
+}
+
+function formatEventTime(value) {
+  if (typeof value !== "string") return "";
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return value;
+  const hours = Number(match[1]);
+  const minutes = match[2];
+  if (hours > 23 || Number(minutes) > 59) return value;
+  return `${hours % 12 || 12}:${minutes} ${hours >= 12 ? "PM" : "AM"}`;
+}
+
 
 // Safe account fields for reports: never hashes, PINs, device ids, or photos.
 const REPORT_USER_FIELDS = "name email role program yearLevel section createdAt";
@@ -61,6 +89,72 @@ function buildMatch({ startDate, endDate, eventId }) {
   return match;
 }
 
+// Demographic filters are stored on the student, so resolve them to User ids
+// once and apply that id set to every attendance query (records, stats, charts
+// and exports) to keep the whole report consistent.
+function buildStudentFilter(query = {}) {
+  const filter = { role: "student" };
+
+  if (isActiveFilter(query.program)) {
+    const program = String(query.program).trim().toUpperCase();
+    if (!PROGRAM_VALUES.includes(program)) throw badRequest("Invalid program");
+    filter.program = program;
+  }
+
+  if (isActiveFilter(query.yearLevel)) {
+    const yearLevel = Number(query.yearLevel);
+    if (!Number.isInteger(yearLevel) || yearLevel < 1 || yearLevel > 4) {
+      throw badRequest("Year level must be between 1 and 4");
+    }
+    filter.yearLevel = yearLevel;
+  }
+
+  if (isActiveFilter(query.section)) {
+    const section = String(query.section).trim().toUpperCase();
+    if (!SECTION_VALUES.includes(section)) {
+      throw badRequest("Section must be A, B, or C");
+    }
+    filter.section = section;
+  }
+
+  return filter;
+}
+
+async function buildAttendanceMatch(query = {}) {
+  const match = buildMatch(query);
+  const studentFilter = buildStudentFilter(query);
+
+  if (Object.keys(studentFilter).length > 1) {
+    match.student = { $in: await User.distinct("_id", studentFilter) };
+  }
+
+  return { match, studentFilter };
+}
+
+function loadFilterOptions() {
+  return {
+    programs: PROGRAM_VALUES,
+    yearLevels: YEAR_LEVEL_VALUES,
+    sections: SECTION_VALUES,
+  };
+}
+
+function attendanceFilename(studentFilter, event) {
+  const parts = ["attendance"];
+  if (event?.title) {
+    const title = String(event.title)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 50);
+    if (title) parts.push(title);
+  }
+  if (studentFilter.program) parts.push(studentFilter.program);
+  if (studentFilter.yearLevel) parts.push(`year${studentFilter.yearLevel}`);
+  if (studentFilter.section) parts.push(studentFilter.section);
+  return `${parts.join("-")}.csv`;
+}
+
 // CSV cell: always quoted, embedded quotes doubled, newlines flattened, and
 // leading =/+/-/@ neutralized so a spreadsheet never evaluates user text.
 function csvCell(value) {
@@ -76,8 +170,9 @@ function csvFromRows(rows) {
 
 function sendCsv(res, filename, rows) {
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
-  res.send(csvFromRows(rows));
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  // BOM keeps Excel from guessing the wrong encoding for accented names.
+  res.send(`\uFEFF${csvFromRows(rows)}`);
 }
 
 function fail(res, error) {
@@ -89,81 +184,88 @@ function fail(res, error) {
 
 router.get("/attendance", async (req, res) => {
   try {
-    const match = buildMatch(req.query);
+    const { match, studentFilter } = await buildAttendanceMatch(req.query);
 
-    const attendance = await Attendance.find(match)
-      .populate("event", "title date")
-      .populate("student", "name email")
-      .sort({ attendedAt: -1 });
-
-    const stats = await Attendance.aggregate([
-      { $match: match },
-      { $group: { _id: "$status", count: { $sum: 1 } } },
-    ]);
-
-    const statsMap = { present: 0, late: 0, absent: 0, pending: 0, excused: 0 };
-    stats.forEach((s) => {
-      statsMap[s._id] = s.count;
-    });
-
-    const byEvent = await Attendance.aggregate([
-      { $match: match },
-      {
-        $group: {
-          _id: "$event",
-          total: { $sum: 1 },
-          present: { $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] } },
-          late: { $sum: { $cond: [{ $eq: ["$status", "late"] }, 1, 0] } },
-          absent: { $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] } },
-          pending: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
-          excused: { $sum: { $cond: [{ $eq: ["$status", "excused"] }, 1, 0] } },
-        },
-      },
-      {
-        $lookup: {
-          from: "events",
-          localField: "_id",
-          foreignField: "_id",
-          as: "event",
-        },
-      },
-      { $unwind: "$event" },
-      {
-        $project: {
-          eventTitle: "$event.title",
-          eventDate: "$event.date",
-          total: 1,
-          present: 1,
-          late: 1,
-          absent: 1,
-          pending: 1,
-          excused: 1,
-          attendanceRate: {
-            $cond: [
-              { $gt: ["$total", 0] },
-              {
-                $round: [
+    const [attendance, statusStats, byEvent, students, matchedStudents, filters, events] =
+      await Promise.all([
+        Attendance.find(match)
+          .populate("event", "title date time")
+          .populate("student", "name email program yearLevel section")
+          .sort({ attendedAt: -1 }),
+        Attendance.aggregate([
+          { $match: match },
+          { $group: { _id: "$status", count: { $sum: 1 } } },
+        ]),
+        Attendance.aggregate([
+          { $match: match },
+          {
+            $group: {
+              _id: "$event",
+              total: { $sum: 1 },
+              present: { $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] } },
+              late: { $sum: { $cond: [{ $eq: ["$status", "late"] }, 1, 0] } },
+              absent: { $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] } },
+              pending: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
+              excused: { $sum: { $cond: [{ $eq: ["$status", "excused"] }, 1, 0] } },
+            },
+          },
+          {
+            $lookup: {
+              from: "events",
+              localField: "_id",
+              foreignField: "_id",
+              as: "event",
+            },
+          },
+          { $unwind: "$event" },
+          {
+            $project: {
+              eventTitle: "$event.title",
+              eventDate: "$event.date",
+              total: 1,
+              present: 1,
+              late: 1,
+              absent: 1,
+              pending: 1,
+              excused: 1,
+              attendanceRate: {
+                $cond: [
+                  { $gt: ["$total", 0] },
                   {
-                    $multiply: [
-                      { $divide: [{ $add: ["$present", "$late"] }, "$total"] },
-                      100,
+                    $round: [
+                      {
+                        $multiply: [
+                          { $divide: [{ $add: ["$present", "$late"] }, "$total"] },
+                          100,
+                        ],
+                      },
+                      1,
                     ],
                   },
-                  1,
+                  0,
                 ],
               },
-              0,
-            ],
+            },
           },
-        },
-      },
-      { $sort: { eventDate: -1 } },
-    ]);
+          { $sort: { eventDate: -1 } },
+        ]),
+        User.countDocuments(studentFilter),
+        Attendance.distinct("student", match),
+        loadFilterOptions(),
+        Event.find({}, "title date").sort({ date: -1 }).limit(250).lean(),
+      ]);
+
+    const statsMap = { present: 0, late: 0, absent: 0, pending: 0, excused: 0 };
+    statusStats.forEach((s) => {
+      statsMap[s._id] = s.count;
+    });
 
     res.json({
       records: attendance,
       stats: {
         total: attendance.length,
+        students,
+        studentsWithRecords: matchedStudents.length,
         present: statsMap.present,
         late: statsMap.late,
         absent: statsMap.absent,
@@ -171,6 +273,7 @@ router.get("/attendance", async (req, res) => {
         excused: statsMap.excused,
       },
       byEvent,
+      filters: { ...filters, events },
     });
   } catch (error) {
     fail(res, error);
@@ -179,26 +282,95 @@ router.get("/attendance", async (req, res) => {
 
 router.get("/attendance/export", async (req, res) => {
   try {
+    const studentFilter = buildStudentFilter(req.query);
     const match = buildMatch(req.query);
 
+    const [students, selectedEvent] = await Promise.all([
+      User.find(studentFilter)
+        .select("name email program yearLevel section")
+        .sort({ program: 1, yearLevel: 1, section: 1, name: 1 })
+        .lean(),
+      isActiveFilter(req.query.eventId)
+        ? Event.findById(req.query.eventId).select("title date time").lean()
+        : null,
+    ]);
+
+    match.student = { $in: students.map((student) => student._id) };
+
     const attendance = await Attendance.find(match)
-      .populate("event", "title date")
-      .populate("student", "name email")
-      .sort({ attendedAt: -1 });
+      .populate("event", "title date time")
+      .lean();
+
+    const byStudent = new Map();
+    for (const record of attendance) {
+      const key = String(record.student);
+      if (!byStudent.has(key)) byStudent.set(key, []);
+      byStudent.get(key).push(record);
+    }
+
+    for (const records of byStudent.values()) {
+      records.sort((a, b) => {
+        const aDate = new Date(a.event?.date || a.eventDate || 0).getTime() || 0;
+        const bDate = new Date(b.event?.date || b.eventDate || 0).getTime() || 0;
+        if (aDate !== bDate) return aDate - bDate;
+        return String(a.event?.title || a.eventTitle || "").localeCompare(
+          String(b.event?.title || b.eventTitle || "")
+        );
+      });
+    }
 
     const rows = [
-      ["Event", "Event Date", "Student Name", "Student Email", "Status", "Marked At"],
-      ...attendance.map((a) => [
-        a.event?.title || "",
-        a.event?.date ? fmtDate.format(new Date(a.event.date)) : "",
-        a.student?.name || "",
-        a.student?.email || "",
-        a.status,
-        a.attendedAt ? fmtDateTime.format(new Date(a.attendedAt)) : "",
-      ]),
+      [
+        "Student Name",
+        "Student Email",
+        "Program",
+        "Year Level",
+        "Section",
+        "Event Name",
+        "Event Day",
+        "Event Time",
+        "Attendance Status",
+        "Marked At",
+      ],
     ];
 
-    sendCsv(res, "attendance-report.csv", rows);
+    for (const student of students) {
+      const records = byStudent.get(String(student._id)) || [];
+
+      if (!records.length) {
+        rows.push([
+          student.name,
+          student.email,
+          student.program || "",
+          student.yearLevel ?? "",
+          student.section || "",
+          selectedEvent?.title || "",
+          selectedEvent?.date ? fmtEventDay.format(new Date(selectedEvent.date)) : "",
+          selectedEvent?.time ? formatEventTime(selectedEvent.time) : "",
+          "No attendance",
+          "",
+        ]);
+        continue;
+      }
+
+      for (const record of records) {
+        const eventDate = record.event?.date || record.eventDate;
+        rows.push([
+          student.name,
+          student.email,
+          student.program || "",
+          student.yearLevel ?? "",
+          student.section || "",
+          record.event?.title || record.eventTitle || "",
+          eventDate ? fmtEventDay.format(new Date(eventDate)) : "",
+          record.event?.time ? formatEventTime(record.event.time) : "",
+          record.status || "",
+          record.attendedAt ? fmtDateTime.format(new Date(record.attendedAt)) : "",
+        ]);
+      }
+    }
+
+    sendCsv(res, attendanceFilename(studentFilter, selectedEvent), rows);
   } catch (error) {
     fail(res, error);
   }

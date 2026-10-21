@@ -1,13 +1,12 @@
 import React, { useEffect, useState, useCallback } from "react";
 import api from "../../api/axios";
 import { usePageMeta } from "../../context/PageMetaContext";
-import Button from "../ui/Button";
+import { Button, Card, PageHeader } from "../ui";
 import {
   FaEnvelope,
   FaPaperPlane,
   FaEye,
   FaEyeSlash,
-  FaTimes,
   FaChevronDown,
   FaChevronUp,
 } from "react-icons/fa";
@@ -48,16 +47,9 @@ function fillSample(text) {
   );
 }
 
-const inputCls = (hasError) =>
-  `w-full px-4 py-2.5 bg-card dark:bg-black rounded-lg border ${
-    hasError ? "border-red-500" : "border-line"
-  } text-on placeholder-on-muted focus:outline-none focus:ring-2 ${
-    hasError ? "focus:ring-red-500/40" : "focus:ring-indigo-500/40"
-  } focus:border-transparent transition-colors`;
-
 const EnvHint = ({ show }) =>
   show ? (
-    <span className="ml-2 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+    <span className="ml-2 rounded-full bg-warn/10 px-2 py-0.5 text-[10px] font-medium text-warn">
       using environment value
     </span>
   ) : null;
@@ -67,52 +59,53 @@ const TemplateCard = ({ kind, value, onChange }) => {
   const meta = TEMPLATE_META[kind];
 
   return (
-    <div className="border border-line rounded-xl overflow-hidden bg-card">
+    <div className="panel-surface overflow-hidden rounded-[var(--panel-radius)]">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-card-alt transition-colors"
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-card-alt/60"
       >
         <div>
-          <p className="font-semibold text-on text-sm">{meta.label}</p>
-          <p className="text-xs text-on-dim mt-0.5">{meta.description}</p>
+          <p className="text-sm font-semibold text-on">{meta.label}</p>
+          <p className="mt-0.5 text-xs text-on-dim">{meta.description}</p>
         </div>
         {open ? (
-          <FaChevronUp className="w-4 h-4 text-on-muted shrink-0" />
+          <FaChevronUp className="shrink-0 text-xs text-on-muted" />
         ) : (
-          <FaChevronDown className="w-4 h-4 text-on-muted shrink-0" />
+          <FaChevronDown className="shrink-0 text-xs text-on-muted" />
         )}
       </button>
 
       {open && (
-        <div className="px-5 pb-5 space-y-4 border-t border-line pt-4">
+        <div className="space-y-4 border-t border-line px-4 pb-4 pt-4">
           <div>
-            <label className="block text-xs font-medium text-on-dim mb-1.5">Subject</label>
+            <label className="field-label">Subject</label>
             <input
               type="text"
               value={value.subject}
-              placeholder={meta.subjectPlaceholder || "Leave blank for the default"}
-              className={inputCls(false)}
+              placeholder="Leave blank for the default"
+              className="field"
               onChange={(e) => onChange(kind, "subject", e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-on-dim mb-1.5">Heading</label>
+            <label className="field-label">Heading</label>
             <input
               type="text"
               value={value.title}
               placeholder="Leave blank for the default"
-              className={inputCls(false)}
+              className="field"
               onChange={(e) => onChange(kind, "title", e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-on-dim mb-1.5">Body text</label>
+            <label className="field-label">Body text</label>
             <textarea
               rows={3}
               value={value.body}
               placeholder="Leave blank for the default"
-              className={`${inputCls(false)} resize-y`}
+              className="field"
               onChange={(e) => onChange(kind, "body", e.target.value)}
             />
           </div>
@@ -121,20 +114,24 @@ const TemplateCard = ({ kind, value, onChange }) => {
             {meta.placeholders.map((p) => (
               <code
                 key={p}
-                className="px-2 py-0.5 rounded bg-card-alt border border-line text-[11px] text-on-dim"
+                className="rounded-md border border-line bg-card-alt px-1.5 py-0.5 text-[11px] text-on-dim"
               >
                 {p}
               </code>
             ))}
           </div>
 
-          <div className="rounded-lg bg-card-alt border border-line p-4">
-            <p className="text-[11px] uppercase tracking-wide text-on-muted font-semibold mb-2">
-              Preview (sample values)
+          <div className="rounded-xl border border-line bg-card-alt/50 p-4">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-on-muted">
+              Preview · sample values
             </p>
-            <p className="text-sm font-semibold text-on">{fillSample(value.subject) || "(default subject)"}</p>
-            <p className="text-sm font-bold text-on mt-1">{fillSample(value.title) || "(default heading)"}</p>
-            <p className="text-sm text-on-dim mt-1 whitespace-pre-line">
+            <p className="text-sm font-semibold text-on">
+              {fillSample(value.subject) || "(default subject)"}
+            </p>
+            <p className="mt-1 text-sm font-bold text-on">
+              {fillSample(value.title) || "(default heading)"}
+            </p>
+            <p className="mt-1 whitespace-pre-line text-sm text-on-dim">
               {fillSample(value.body) || "(default body)"}
             </p>
           </div>
@@ -284,67 +281,93 @@ const EmailSettings = () => {
   };
 
   if (loading) {
-    return <div className="p-8 text-center text-on-dim">Loading email settings…</div>;
+    return (
+      <div className="mx-auto max-w-4xl space-y-4">
+        <PageHeader
+          eyebrow="Settings"
+          title="Email settings"
+          subtitle="Loading the current SMTP configuration and templates…"
+        />
+        <Card>
+          <div className="space-y-3" role="status" aria-label="Loading email settings">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-10 animate-pulse rounded-xl bg-card-alt" />
+            ))}
+          </div>
+        </Card>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <form onSubmit={save} className="space-y-6">
-        {/* SMTP connection */}
-        <div className="bg-card rounded-xl border border-line overflow-hidden">
-          <div className="p-6 border-b border-line flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-indigo-500/15 flex items-center justify-center ring-1 ring-indigo-500/25">
-              <FaEnvelope className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            </div>
+    <div className="mx-auto max-w-4xl space-y-5">
+      <PageHeader
+        eyebrow="Settings"
+        title="Email settings"
+        subtitle="Choose where outgoing mail is sent from and edit the wording of each message."
+      />
+
+      {message && (
+        <div
+          className={`alert ${message.type === "success" ? "alert-ok" : "alert-danger"}`}
+          role="status"
+        >
+          <span aria-hidden="true">{message.type === "success" ? "✓" : "!"}</span>
+          <p>{message.text}</p>
+        </div>
+      )}
+
+      <form onSubmit={save} className="space-y-5">
+        <Card padding="none">
+          <div className="flex items-center gap-3.5 border-b border-line p-5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
+              <FaEnvelope />
+            </span>
             <div>
-              <h2 className="text-xl font-bold text-on">SMTP Connection</h2>
-              <p className="text-sm text-on-dim">Where outgoing emails are sent from</p>
+              <h2 className="panel-heading text-base">SMTP connection</h2>
+              <p className="text-sm text-on-dim">Where outgoing emails are sent from.</p>
             </div>
           </div>
 
-          <div className="p-6 space-y-4">
-            {message && (
-              <div
-                className={`p-4 rounded-lg text-sm ${
-                  message.type === "success"
-                    ? "dark:bg-green-900/30 bg-green-50 dark:border-green-800 border-green-300 dark:text-green-400 text-green-600"
-                    : "dark:bg-red-900/30 bg-red-50 dark:border-red-800 border-red-300 dark:text-red-400 text-red-600"
-                }`}
-              >
-                {message.text}
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-4 p-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-on-dim mb-2">
-                  SMTP Host<EnvHint show={envFallback.host} />
+                <label htmlFor="smtp-host" className="field-label">
+                  SMTP host
+                  <EnvHint show={envFallback.host} />
                 </label>
                 <input
+                  id="smtp-host"
                   type="text"
                   value={smtp.host}
                   placeholder="smtp.gmail.com"
-                  className={inputCls(false)}
+                  className="field"
                   onChange={(e) => setSmtpField("host", e.target.value)}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-on-dim mb-2">Port</label>
+                <label htmlFor="smtp-port" className="field-label">
+                  Port
+                </label>
                 <input
+                  id="smtp-port"
                   type="number"
                   value={smtp.port}
                   placeholder="465"
-                  className={inputCls(false)}
+                  className="field"
                   onChange={(e) => setSmtpField("port", e.target.value)}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-on-dim mb-2">Security</label>
+              <label htmlFor="smtp-security" className="field-label">
+                Security
+              </label>
               <select
+                id="smtp-security"
                 value={smtp.secure}
-                className={inputCls(false)}
+                className="field-select"
                 onChange={(e) => setSmtpField("secure", e.target.value)}
               >
                 <option value="">Auto (SSL when port is 465)</option>
@@ -353,26 +376,29 @@ const EmailSettings = () => {
               </select>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-on-dim mb-2">
-                  Username<EnvHint show={envFallback.user} />
+                <label htmlFor="smtp-user" className="field-label">
+                  Username
+                  <EnvHint show={envFallback.user} />
                 </label>
                 <input
+                  id="smtp-user"
                   type="text"
                   value={smtp.user}
                   placeholder="your-sending-address@gmail.com"
-                  className={inputCls(false)}
+                  className="field"
                   onChange={(e) => setSmtpField("user", e.target.value)}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-on-dim mb-2">
+                <label htmlFor="smtp-password" className="field-label">
                   Password
                   <EnvHint show={envFallback.password && !hasSmtpPassword} />
                 </label>
                 <div className="relative">
                   <input
+                    id="smtp-password"
                     type={showPassword ? "text" : "password"}
                     value={smtp.password}
                     placeholder={
@@ -381,20 +407,20 @@ const EmailSettings = () => {
                         : "App password"
                     }
                     disabled={clearSmtpPassword}
-                    className={`${inputCls(false)} pr-10`}
+                    className="field pr-10"
                     onChange={(e) => setSmtpField("password", e.target.value)}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-on-muted hover:text-on-dim"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-on-muted transition-colors hover:text-on-dim"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
-                    {showPassword ? <FaEyeSlash className="w-4 h-4" /> : <FaEye className="w-4 h-4" />}
+                    {showPassword ? <FaEyeSlash /> : <FaEye />}
                   </button>
                 </div>
                 {hasSmtpPassword && (
-                  <label className="mt-2 flex items-center gap-2 text-xs text-on-dim cursor-pointer">
+                  <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-on-dim">
                     <input
                       type="checkbox"
                       checked={clearSmtpPassword}
@@ -402,7 +428,7 @@ const EmailSettings = () => {
                         setClearSmtpPassword(e.target.checked);
                         if (e.target.checked) setSmtpField("password", "");
                       }}
-                      className="rounded border-line"
+                      className="accent-[var(--brand-solid)]"
                     />
                     Remove saved password (fall back to environment)
                   </label>
@@ -410,91 +436,104 @@ const EmailSettings = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-on-dim mb-2">
-                  From address<EnvHint show={envFallback.from} />
+                <label htmlFor="smtp-from" className="field-label">
+                  From address
+                  <EnvHint show={envFallback.from} />
                 </label>
                 <input
+                  id="smtp-from"
                   type="text"
                   value={smtp.from}
                   placeholder="TrackED <your-sending-address@gmail.com>"
-                  className={inputCls(false)}
+                  className="field"
                   onChange={(e) => setSmtpField("from", e.target.value)}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-on-dim mb-2">
-                  App URL<EnvHint show={envFallback.appUrl} />
+                <label htmlFor="smtp-app-url" className="field-label">
+                  App URL
+                  <EnvHint show={envFallback.appUrl} />
                 </label>
                 <input
+                  id="smtp-app-url"
                   type="text"
                   value={smtp.appUrl}
                   placeholder="https://track-ed.vispo.me"
-                  className={inputCls(false)}
+                  className="field"
                   onChange={(e) => setSmtpField("appUrl", e.target.value)}
                 />
               </div>
             </div>
           </div>
-        </div>
+        </Card>
 
-        {/* Test email */}
-        <div className="bg-card rounded-xl border border-line p-6 space-y-4">
-          <div>
-            <h2 className="text-lg font-bold text-on">Send a Test Email</h2>
-            <p className="text-sm text-on-dim">
-              Sends a short message using the settings above (save first to test new values).
-            </p>
+        <Card>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="panel-heading text-base">Send a test email</h2>
+              <p className="mt-1 text-sm text-on-dim">
+                Uses the saved settings — save first to test new values.
+              </p>
+            </div>
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-info/10 text-info ring-1 ring-inset ring-info/20">
+              <FaPaperPlane />
+            </span>
           </div>
+
           {testResult && (
             <div
-              className={`p-4 rounded-lg text-sm ${
-                testResult.type === "success"
-                  ? "dark:bg-green-900/30 bg-green-50 dark:border-green-800 border-green-300 dark:text-green-400 text-green-600"
-                  : "dark:bg-red-900/30 bg-red-50 dark:border-red-800 border-red-300 dark:text-red-400 text-red-600"
+              className={`alert alert-sm mt-4 ${
+                testResult.type === "success" ? "alert-ok" : "alert-danger"
               }`}
+              role="status"
             >
-              {testResult.text}
+              <span aria-hidden="true">{testResult.type === "success" ? "✓" : "!"}</span>
+              <p>{testResult.text}</p>
             </div>
           )}
-          <div className="flex flex-col sm:flex-row gap-3">
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <input
               type="email"
               value={testEmail}
               placeholder="Where to send the test email"
-              className={`${inputCls(false)} flex-1`}
+              aria-label="Test email recipient"
+              className="field flex-1"
               onChange={(e) => setTestEmail(e.target.value)}
             />
             <Button
               type="button"
               variant="secondary"
               onClick={sendTest}
-              disabled={testLoading || !testEmail.trim()}
+              loading={testLoading}
+              disabled={!testEmail.trim()}
             >
-              <FaPaperPlane className="w-4 h-4" />
-              {testLoading ? "Sending…" : "Send Test"}
+              <FaPaperPlane className="text-xs" />
+              {testLoading ? "Sending…" : "Send test"}
             </Button>
           </div>
-        </div>
+        </Card>
 
-        {/* Templates */}
-        <div className="bg-card rounded-xl border border-line p-6 space-y-4">
-          <div>
-            <h2 className="text-lg font-bold text-on">Email Content</h2>
-            <p className="text-sm text-on-dim">
-              Edit the subject, heading, and body of each email. Leave any field blank to keep the
-              built-in wording. Placeholders are replaced when the email is sent.
+        <Card>
+          <div className="mb-4">
+            <h2 className="panel-heading text-base">Email content</h2>
+            <p className="mt-1 text-sm text-on-dim">
+              Leave any field blank to keep the built-in wording. Placeholders are replaced when
+              the email is sent.
             </p>
           </div>
-          <TemplateCard kind="verification" value={templates.verification} onChange={changeTemplate} />
-          <TemplateCard kind="passwordReset" value={templates.passwordReset} onChange={changeTemplate} />
-          <TemplateCard kind="notification" value={templates.notification} onChange={changeTemplate} />
-        </div>
+          <div className="space-y-2.5">
+            <TemplateCard kind="verification" value={templates.verification} onChange={changeTemplate} />
+            <TemplateCard kind="passwordReset" value={templates.passwordReset} onChange={changeTemplate} />
+            <TemplateCard kind="notification" value={templates.notification} onChange={changeTemplate} />
+          </div>
+        </Card>
 
         <div className="flex justify-end">
-          <Button type="submit" disabled={saving}>
-            {saving ? "Saving…" : "Save Settings"}
+          <Button type="submit" loading={saving}>
+            {saving ? "Saving…" : "Save settings"}
           </Button>
         </div>
       </form>

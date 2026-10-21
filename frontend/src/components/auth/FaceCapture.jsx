@@ -108,11 +108,9 @@ const FaceCapture = ({
       </p>
 
       {error && (
-        <div
-          role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
-        >
-          {error}
+        <div role="alert" className="alert alert-danger alert-sm">
+          <span aria-hidden="true">!</span>
+          <p>{error}</p>
         </div>
       )}
 
@@ -140,7 +138,7 @@ const FaceCapture = ({
 
       <div className="flex items-center justify-between gap-3">
         {onCancel ? (
-          <Button variant="ghost" onClick={onCancel} className="border border-line">
+          <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
             Cancel
           </Button>
         ) : (
@@ -148,21 +146,26 @@ const FaceCapture = ({
         )}
         <div className="flex gap-2">
           {error && !preview && (
-            <Button variant="ghost" onClick={startCamera} className="border border-line">
+            <Button type="button" variant="secondary" size="sm" onClick={startCamera}>
               <FaRedo className="text-xs" /> Try again
             </Button>
           )}
           {preview && (
-            <Button variant="ghost" onClick={startCamera} className="border border-line">
+            <Button type="button" variant="secondary" size="sm" onClick={startCamera}>
               <FaRedo className="text-xs" /> Retake
             </Button>
           )}
           {preview ? (
-            <Button onClick={usePhoto} disabled={loading}>
+            <Button type="button" size="sm" onClick={usePhoto} loading={loading}>
               {loading ? loadingLabel : "Use this photo"}
             </Button>
           ) : (
-            <Button onClick={capture} disabled={!!error || loading}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={capture}
+              disabled={!!error || loading}
+            >
               <FaCamera className="text-xs" /> {title}
             </Button>
           )}

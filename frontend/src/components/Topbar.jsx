@@ -1,13 +1,24 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FaBars, FaMoon, FaSun, FaIdBadge, FaSignOutAlt, FaChevronDown } from "react-icons/fa";
+import {
+  FaBars,
+  FaMoon,
+  FaSun,
+  FaIdBadge,
+  FaSignOutAlt,
+  FaChevronDown,
+  FaSearch,
+} from "react-icons/fa";
 import api from "../api/axios";
 import { getUserFromToken, logout } from "../utils/auth";
-import { portalName, profilePathFor, getPageTitle } from "../utils/nav";
+import { profilePathFor, getPageTitle } from "../utils/nav";
+import { breadcrumbTrail, flatNavItems } from "../utils/navItems";
 import { useTheme } from "../context/ThemeContext";
 import { usePageMeta } from "../context/PageMetaContext";
 import NotificationBell from "./NotificationBell";
 import ConfirmDialog from "./ui/ConfirmDialog";
+import Breadcrumbs from "./ui/Breadcrumbs";
+import CommandPalette from "./ui/CommandPalette";
 
 const Topbar = ({ onOpenSidebar }) => {
   const navigate = useNavigate();
@@ -16,14 +27,12 @@ const Topbar = ({ onOpenSidebar }) => {
   const { meta } = usePageMeta();
   const user = getUserFromToken();
   const role = user?.role || getContextRoleFallback();
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const menuRef = useRef(null);
-
-  // The JWT only carries { id, role }, so the real name, email, and profile
-  // picture are loaded from /account. Re-fetched on navigation so a picture
-  // uploaded on the profile page shows up without a reload.
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [account, setAccount] = useState(null);
+  const menuRef = useRef(null);
 
   // Close the user dropdown when navigating to another route.
   const [prevPath, setPrevPath] = useState(location.pathname);
@@ -33,8 +42,8 @@ const Topbar = ({ onOpenSidebar }) => {
   }
 
   useEffect(() => {
-    const handleOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
+    const handleOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
         setMenuOpen(false);
       }
     };
@@ -42,6 +51,20 @@ const Topbar = ({ onOpenSidebar }) => {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // The JWT only carries { id, role }, so the real name, email, and profile
+  // picture are loaded from /account. Re-fetched on navigation so a picture
+  // uploaded on the profile page shows up without a reload.
   useEffect(() => {
     let alive = true;
     api
@@ -56,11 +79,15 @@ const Topbar = ({ onOpenSidebar }) => {
   }, [location.pathname]);
 
   const title = meta.title || getPageTitle(role, location.pathname);
-  const subtitle = meta.subtitle || portalName[role] || "";
+  const subtitle = meta.subtitle || "";
+  const paletteItems = useMemo(() => flatNavItems(role), [role]);
 
-  // Initials come from the real name ("Lio Apiado" -> "LA"). Before the
-  // account loads, fall back to the role's first letter instead of the old
-  // ObjectId tail, which produced meaningless values like "93".
+  const trail = useMemo(() => {
+    const base = breadcrumbTrail(role, location.pathname);
+    const last = base[base.length - 1];
+    return last && last.label === title ? base : [...base, { label: title }];
+  }, [role, location.pathname, title]);
+
   const initials = account?.name
     ? String(account.name)
         .trim()
@@ -77,96 +104,146 @@ const Topbar = ({ onOpenSidebar }) => {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-line bg-[var(--app-base)]/85 px-4 backdrop-blur-md md:px-6">
-      {/* Mobile: open the sidebar drawer */}
-      <button
-        onClick={onOpenSidebar}
-        aria-label="Open navigation"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line text-on-dim hover:bg-card-alt hover:text-on md:hidden"
-      >
-        <FaBars className="text-sm" />
-      </button>
-
-      {/* Page title from the active page */}
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[15px] font-semibold tracking-tight text-on leading-tight">
-          {title}
-        </div>
-        {subtitle && (
-          <div className="truncate text-xs text-on-dim">{subtitle}</div>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        <NotificationBell role={role} />
-
+    <header className="sticky top-0 z-30 border-b border-line bg-[var(--app-base)]/75 backdrop-blur-xl">
+      <div className="flex h-16 items-center gap-2 px-4 sm:gap-3 md:px-6">
+        {/* Mobile: open the sidebar drawer */}
         <button
-          onClick={toggleTheme}
-          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line text-on-dim hover:bg-card-alt hover:text-on"
+          onClick={onOpenSidebar}
+          aria-label="Open navigation"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-card/60 text-on-dim transition-colors hover:bg-card-alt hover:text-on md:hidden"
         >
-          {isDark ? <FaSun /> : <FaMoon className="text-sm" />}
+          <FaBars className="text-sm" />
         </button>
 
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label="Account menu"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            className="flex items-center gap-2 rounded-lg border border-line py-1 pl-1 pr-2.5 hover:bg-card-alt"
-          >
-            {account?.profilePicture ? (
-              <img
-                src={account.profilePicture}
-                alt=""
-                className="h-7 w-7 rounded-md object-cover"
-              />
-            ) : (
-              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-600 text-[12px] font-bold text-white">
-                {initials}
+        {/* Breadcrumb + page title */}
+        <div className="min-w-0 flex-1">
+          <Breadcrumbs items={trail} />
+          <div className="mt-0.5 flex items-baseline gap-2">
+            <h1 className="truncate font-display text-[15px] font-semibold tracking-tight text-on">
+              {title}
+            </h1>
+            {subtitle && (
+              <span className="hidden max-w-[280px] truncate text-xs text-on-muted lg:inline">
+                · {subtitle}
               </span>
             )}
-            <span className="hidden text-sm font-medium text-on sm:block capitalize">
-              {role}
-            </span>
-            <FaChevronDown className="hidden text-[10px] text-on-muted sm:block" />
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            className="hidden items-center gap-2 rounded-xl border border-line bg-card/60 px-3 py-2 text-xs text-on-muted transition-colors hover:border-brand/30 hover:text-on sm:inline-flex"
+            aria-label="Open command menu"
+          >
+            <FaSearch className="text-[11px]" />
+            <span>Search</span>
+            <kbd className="ml-1 rounded border border-line bg-card-alt px-1.5 py-0.5 text-[10px] font-medium">
+              Ctrl K
+            </kbd>
           </button>
 
-          {menuOpen && (
-            <div
-              role="menu"
-              className="absolute right-0 top-12 w-52 overflow-hidden rounded-xl border border-line bg-card shadow-xl shadow-black/10 animate-fade-up"
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Search pages"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-card/60 text-on-dim transition-colors hover:bg-card-alt hover:text-on sm:hidden"
+          >
+            <FaSearch className="text-sm" />
+          </button>
+
+          <NotificationBell role={role} />
+
+          <button
+            onClick={toggleTheme}
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-card/60 text-on-dim transition-colors hover:bg-card-alt hover:text-on"
+          >
+            {isDark ? <FaSun className="text-sm" /> : <FaMoon className="text-sm" />}
+          </button>
+
+          <span className="mx-0.5 hidden h-6 w-px bg-line sm:block" aria-hidden="true" />
+
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label="Account menu"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              className="flex items-center gap-2 rounded-xl border border-line bg-card/60 py-1 pl-1 pr-2 transition-colors hover:border-brand/30"
             >
-              <div className="border-b border-line px-4 py-3">
-                <p className="truncate text-sm font-medium text-on">
+              {account?.profilePicture ? (
+                <img
+                  src={account.profilePicture}
+                  alt=""
+                  className="h-7 w-7 rounded-lg object-cover"
+                />
+              ) : (
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-[11px] font-bold text-white">
+                  {initials}
+                </span>
+              )}
+              <span className="hidden max-w-[120px] truncate text-left md:block">
+                <span className="block truncate text-[12px] font-semibold leading-tight text-on">
                   {account?.name || `${role} account`}
-                </p>
-                <p className="truncate text-xs text-on-dim">
-                  {account?.email || "Signed in"}
-                </p>
+                </span>
+                <span className="block text-[10px] capitalize leading-tight text-on-muted">
+                  {role}
+                </span>
+              </span>
+              <FaChevronDown className="hidden text-[9px] text-on-muted sm:block" />
+            </button>
+
+            {menuOpen && (
+              <div
+                role="menu"
+                className="animate-fade-up absolute right-0 top-12 w-60 overflow-hidden rounded-[var(--panel-radius)] border border-line bg-[var(--panel-bg)] p-1.5 shadow-[var(--elev-3)]"
+              >
+                <div className="flex items-center gap-3 rounded-xl bg-card-alt/60 px-3 py-3">
+                  {account?.profilePicture ? (
+                    <img
+                      src={account.profilePicture}
+                      alt=""
+                      className="h-9 w-9 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-[12px] font-bold text-white">
+                      {initials}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-on">
+                      {account?.name || `${role} account`}
+                    </p>
+                    <p className="truncate text-[11px] text-on-muted">
+                      {account?.email || "Signed in"}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  role="menuitem"
+                  onClick={openProfile}
+                  className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-on-dim transition-colors hover:bg-card-alt hover:text-on"
+                >
+                  <FaIdBadge className="text-xs" /> My Profile
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setConfirmLogout(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-danger transition-colors hover:bg-danger/10"
+                >
+                  <FaSignOutAlt className="text-xs" /> Log Out
+                </button>
               </div>
-              <button
-                role="menuitem"
-                onClick={openProfile}
-                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-on-dim hover:bg-card-alt hover:text-on"
-              >
-                <FaIdBadge /> My Profile
-              </button>
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setConfirmLogout(true);
-                }}
-                className="flex w-full items-center gap-2.5 border-t border-line px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40"
-              >
-                <FaSignOutAlt /> Log Out
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -179,6 +256,12 @@ const Topbar = ({ onOpenSidebar }) => {
         variant="danger"
         onConfirm={logout}
         onCancel={() => setConfirmLogout(false)}
+      />
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        items={paletteItems}
       />
     </header>
   );

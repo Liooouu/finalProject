@@ -1,11 +1,32 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { FaBook, FaCheck, FaFileAlt, FaCalendarTimes, FaCalendarPlus } from "react-icons/fa";
+import {
+  FaBook,
+  FaCalendarPlus,
+  FaCalendarTimes,
+  FaCheck,
+  FaFileAlt,
+} from "react-icons/fa";
 import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { isTerminalStatus, formatDate } from "../../utils/helpers";
-import Button from "../ui/Button";
+import { BaseCard, Button, Card, PageHeader } from "../ui";
+
+const GUIDELINES = {
+  absence: [
+    "Submit your excuse within 24 hours after the event.",
+    "Attach supporting documents (medical certificate, etc.) if available.",
+    "Provide a clear and detailed explanation.",
+    "Approved excuses remove your community service hours for that event.",
+  ],
+  advance: [
+    "File before the event happens if you know you can't attend.",
+    "Once approved, you won't receive community service hours for missing it.",
+    "If you attend anyway, your attendance will simply be recorded as usual.",
+    "Your excuse will be reviewed by the event organizer.",
+  ],
+};
 
 const SubmitExcuse = () => {
   const navigate = useNavigate();
@@ -141,224 +162,241 @@ const SubmitExcuse = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
-      {/* Guidelines */}
-      <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-6">
-        <h3 className="text-lg font-semibold text-on mb-3 flex items-center gap-2">
-          <span><FaBook /></span> Important Guidelines
-        </h3>
-        {isAdvance ? (
-          <ul className="text-sm text-on-dim space-y-2">
-            <li className="flex items-start gap-2">
-              <span className="dark:text-blue-400 text-blue-600">•</span>
-              File before the event happens if you know you can't attend
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="dark:text-blue-400 text-blue-600">•</span>
-              Once approved, you won't receive community service hours for missing it
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="dark:text-blue-400 text-blue-600">•</span>
-              If you attend anyway, your attendance will simply be recorded as usual
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="dark:text-blue-400 text-blue-600">•</span>
-              Your excuse will be reviewed by the event organizer
-            </li>
-          </ul>
-        ) : (
-          <ul className="text-sm text-on-dim space-y-2">
-            <li className="flex items-start gap-2">
-              <span className="dark:text-blue-400 text-blue-600">•</span>
-              Submit your excuse within 24 hours after the event
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="dark:text-blue-400 text-blue-600">•</span>
-              Attach supporting documents (medical certificate, etc.) if available
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="dark:text-blue-400 text-blue-600">•</span>
-              Provide a clear and detailed explanation
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="dark:text-blue-400 text-blue-600">•</span>
-              Approved excuses remove your community service hours for that event
-            </li>
-          </ul>
-        )}
-      </div>
+    <div className="mx-auto max-w-5xl space-y-5">
+      <PageHeader
+        eyebrow="Student request"
+        title="Submit an excuse"
+        subtitle="File for a missed event or let an organizer know you cannot attend."
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => navigate(-1)}>
+            Back
+          </Button>
+        }
+      />
 
-      {/* Message */}
       {message && (
-        <div className={`p-4 rounded-xl ${messageType === "error" ? "bg-red-500/20 border border-red-500/30 dark:text-red-400 text-red-600" : "bg-green-500/20 border border-green-500/30 dark:text-green-400 text-green-600"}`}>
-          {message}
+        <div
+          className={`alert ${messageType === "error" ? "alert-danger" : "alert-ok"}`}
+          role="status"
+        >
+          <span aria-hidden="true">{messageType === "error" ? "!" : <FaCheck />}</span>
+          <p>{message}</p>
         </div>
       )}
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="rounded-xl border border-line bg-card p-6 space-y-6">
-        {/* Mode Toggle */}
-        <div>
-          <label className="block text-sm font-semibold text-on mb-2">Excuse Type</label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => switchMode("absence")}
-              className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl border font-medium text-sm transition-all ${
-                mode === "absence"
-                  ? "bg-red-500/20 border-red-500/40 dark:text-red-400 text-red-600"
-                  : "bg-card border-line text-on-dim hover:text-on"
-              }`}
-            >
-              <FaCalendarTimes /> Missed Event
-            </button>
-            <button
-              type="button"
-              onClick={() => switchMode("advance")}
-              className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl border font-medium text-sm transition-all ${
-                mode === "advance"
-                  ? "bg-blue-500/20 border-blue-500/40 dark:text-blue-400 text-blue-600"
-                  : "bg-card border-line text-on-dim hover:text-on"
-              }`}
-            >
-              <FaCalendarPlus /> Upcoming Event
-            </button>
-          </div>
-        </div>
-
-        {/* Event Selection */}
-        <div>
-          <label className="block text-sm font-semibold text-on mb-2">
-            Select Event {isAdvance ? "(Upcoming)" : "(Absences Only)"}
-          </label>
-          <select
-            value={selectedEvent}
-            onChange={(e) => setSelectedEvent(e.target.value)}
-            className="field-select"
-            required
+      <div className="grid items-start gap-5 lg:grid-cols-[320px_1fr]">
+        <div className="space-y-5">
+          <BaseCard
+            title="Important guidelines"
+            description={isAdvance ? "For upcoming events" : "For missed events"}
+            icon={<FaBook />}
           >
-            <option value="">-- Select an event --</option>
-            {eventOptions.length === 0 ? (
-              <option value="" disabled>
-                {isAdvance ? "No upcoming events found" : "No absent events found"}
-              </option>
-            ) : (
-              eventOptions.map((item) => {
-                const event = isAdvance ? item : item.event;
-                return (
-                  <option key={event._id} value={event._id}>
-                    {event.title} - {formatDate(event.date)}
-                  </option>
-                );
-              })
-            )}
-          </select>
-          {eventOptions.length === 0 && (
-            <p className="text-sm text-on-dim mt-2">
-              {isAdvance
-                ? "You have no upcoming events to file an advance excuse for."
-                : "You don't have any absent events to excuse."}
-            </p>
-          )}
-        </div>
-
-        {/* Excuse Text */}
-        <div>
-          <label className="block text-sm font-semibold text-on mb-2">Excuse Description</label>
-          <textarea
-            value={excuseText}
-            onChange={(e) => setExcuseText(e.target.value)}
-            rows={5}
-            placeholder={
-              isAdvance
-                ? "Explain why you won't be able to attend this event..."
-                : "Please provide a detailed explanation for your absence..."
-            }
-            className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on placeholder-on-muted focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
-            required
-          />
-        </div>
-
-        {/* File Upload */}
-        <div>
-          <label className="block text-sm font-semibold text-on mb-2">
-            Attach Documents (Optional) <span className="text-on-muted font-normal">- up to 5 files</span>
-          </label>
-          <div className="border-2 border-dashed border-line rounded-xl p-6 text-center hover:border-indigo-500/40 transition-colors">
-            <input
-              type="file"
-              multiple
-              onChange={handleFileChange}
-              className="hidden"
-              id="file-upload"
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-            />
-            <label htmlFor="file-upload" className="cursor-pointer block">
-              <span className="text-4xl"><FaFileAlt /></span>
-              <p className="text-on-dim mt-2">Click to upload or drag and drop</p>
-              <p className="text-xs text-on-muted">PDF, DOC, JPG, PNG (max 5MB each)</p>
-            </label>
-          </div>
-
-          {files.length > 0 && (
-            <div className="mt-3 space-y-2">
-              {files.map((f, i) => (
-                <div key={i} className="flex items-center justify-between gap-3 rounded-lg border border-line bg-card-alt px-3.5 py-2">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="dark:text-green-400 text-green-600"><FaCheck /></span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-on truncate">{f.name}</p>
-                      <p className="text-xs text-on-dim">{(f.size / 1024 / 1024).toFixed(2)} MB</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeFile(i)}
-                    className="shrink-0 text-sm font-medium text-red-600 transition-colors hover:text-red-500 dark:text-red-400"
-                  >
-                    Remove
-                  </button>
-                </div>
+            <ul className="space-y-2.5">
+              {GUIDELINES[isAdvance ? "advance" : "absence"].map((line) => (
+                <li key={line} className="flex items-start gap-2 text-sm text-on-dim">
+                  <span
+                    aria-hidden="true"
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand"
+                  />
+                  <span className="leading-relaxed">{line}</span>
+                </li>
               ))}
+            </ul>
+          </BaseCard>
+
+          <div className="alert alert-warn">
+            <span aria-hidden="true" className="mt-0.5 font-semibold">!</span>
+            <p>
+              <strong>Note:</strong> Submitting false or misleading information may
+              result in disciplinary action.
+            </p>
+          </div>
+        </div>
+
+        <Card>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <p className="field-label">Excuse type</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => switchMode("absence")}
+                  className={`flex flex-col items-start gap-1 rounded-xl border p-3.5 text-left transition-colors ${
+                    mode === "absence"
+                      ? "border-danger/35 bg-danger/10"
+                      : "border-line bg-card hover:border-brand/25 hover:bg-card-alt/50"
+                  }`}
+                >
+                  <span
+                    className={`flex items-center gap-2 text-sm font-medium ${
+                      mode === "absence" ? "text-danger" : "text-on"
+                    }`}
+                  >
+                    <FaCalendarTimes /> Missed event
+                  </span>
+                  <span className="text-xs text-on-muted">
+                    Something already happened
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchMode("advance")}
+                  className={`flex flex-col items-start gap-1 rounded-xl border p-3.5 text-left transition-colors ${
+                    mode === "advance"
+                      ? "border-info/35 bg-info/10"
+                      : "border-line bg-card hover:border-brand/25 hover:bg-card-alt/50"
+                  }`}
+                >
+                  <span
+                    className={`flex items-center gap-2 text-sm font-medium ${
+                      mode === "advance" ? "text-info" : "text-on"
+                    }`}
+                  >
+                    <FaCalendarPlus /> Upcoming event
+                  </span>
+                  <span className="text-xs text-on-muted">
+                    Let them know in advance
+                  </span>
+                </button>
+              </div>
             </div>
-          )}
-          {files.length === 0 && (
-            <p className="text-xs text-on-muted mt-2">No files selected</p>
-          )}
-        </div>
 
-        {/* Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <Button
-            type="submit"
-            disabled={submitting || eventOptions.length === 0}
-            className="flex-1 py-2.5"
-          >
-            {submitting ? (
-              <>
-                <span className="skeleton h-4 w-4 rounded-full" />
-                Submitting...
-              </>
-            ) : (
-              "Submit Excuse"
-            )}
-          </Button>
-          <Button
-            type="button"
-            onClick={() => navigate(-1)}
-            variant="secondary"
-            className="px-8"
-          >
-            Cancel
-          </Button>
-        </div>
-      </form>
+            <div>
+              <label htmlFor="excuse-event" className="field-label">
+                Select event {isAdvance ? "(upcoming)" : "(absences only)"}
+              </label>
+              <select
+                id="excuse-event"
+                value={selectedEvent}
+                onChange={(e) => setSelectedEvent(e.target.value)}
+                className="field-select"
+                required
+              >
+                <option value="">-- Select an event --</option>
+                {eventOptions.length === 0 ? (
+                  <option value="" disabled>
+                    {isAdvance ? "No upcoming events found" : "No absent events found"}
+                  </option>
+                ) : (
+                  eventOptions.map((item) => {
+                    const event = isAdvance ? item : item.event;
+                    return (
+                      <option key={event._id} value={event._id}>
+                        {event.title} - {formatDate(event.date)}
+                      </option>
+                    );
+                  })
+                )}
+              </select>
+              {eventOptions.length === 0 && (
+                <p className="field-hint">
+                  {isAdvance
+                    ? "You have no upcoming events to file an advance excuse for."
+                    : "You don't have any absent events to excuse."}
+                </p>
+              )}
+            </div>
 
-      {/* Warning */}
-      <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-xl">
-        <p className="dark:text-yellow-400 text-yellow-600 text-sm">
-          <strong>Note:</strong> Submitting false or misleading information may result in disciplinary action.
-        </p>
+            <div>
+              <label htmlFor="excuse-text" className="field-label">
+                Excuse description
+              </label>
+              <textarea
+                id="excuse-text"
+                value={excuseText}
+                onChange={(e) => setExcuseText(e.target.value)}
+                rows={5}
+                placeholder={
+                  isAdvance
+                    ? "Explain why you won't be able to attend this event..."
+                    : "Please provide a detailed explanation for your absence..."
+                }
+                className="field"
+                required
+              />
+              <p className="field-hint">
+                Be specific — organizers use this to decide on your request.
+              </p>
+            </div>
+
+            <div>
+              <p className="field-label">
+                Attach documents (optional){" "}
+                <span className="font-normal text-on-muted">— up to 5 files</span>
+              </p>
+              <div className="rounded-xl border-2 border-dashed border-line p-6 text-center transition-colors hover:border-brand/40 hover:bg-card-alt/30">
+                <input
+                  type="file"
+                  multiple
+                  onChange={handleFileChange}
+                  className="hidden"
+                  id="file-upload"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                />
+                <label htmlFor="file-upload" className="block cursor-pointer">
+                  <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
+                    <FaFileAlt />
+                  </span>
+                  <p className="mt-2 text-sm font-medium text-on">
+                    Click to upload
+                  </p>
+                  <p className="mt-0.5 text-xs text-on-muted">
+                    PDF, DOC, JPG or PNG · max 5MB each
+                  </p>
+                </label>
+              </div>
+
+              {files.length > 0 ? (
+                <ul className="mt-3 space-y-2">
+                  {files.map((f, i) => (
+                    <li
+                      key={i}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-line bg-card-alt/60 px-3.5 py-2"
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <FaCheck className="shrink-0 text-xs text-ok" />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-on">{f.name}</p>
+                          <p className="text-xs text-on-muted">
+                            {(f.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(i)}
+                        className="shrink-0 text-xs font-medium text-danger transition-opacity hover:opacity-75"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-xs text-on-muted">No files selected</p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row">
+              <Button
+                type="submit"
+                loading={submitting}
+                disabled={eventOptions.length === 0}
+                className="flex-1"
+              >
+                {submitting ? "Submitting..." : "Submit excuse"}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => navigate(-1)}
+                variant="secondary"
+                className="px-8"
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Card>
       </div>
     </div>
   );

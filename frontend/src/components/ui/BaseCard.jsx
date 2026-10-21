@@ -1,17 +1,19 @@
 import React from "react";
+import Card from "./Card";
 
 /**
  * BaseCard — shared card shell enforcing a consistent look across the app:
- * - same border-radius (rounded-xl)
- * - same body padding scale (p-5 for the card body, p-4 for compact widgets)
- * - same subtle elevation (border + soft shadow, matching the dark theme tokens)
- * - same header row: icon + title (left) and optional "..." menu (right)
+ * - same surface, radius, hairline and elevation as every other panel
+ * - same header row: icon chip + title (left) and optional menu (right)
+ * - body padding inherited from Card unless a page overrides it
  *
- * Every card on the dashboards should use this instead of hand-rolled Tailwind.
+ * Every card on the dashboards and settings pages should use this instead of
+ * hand-rolled Tailwind.
  */
 const BaseCard = ({
   icon,
   title,
+  description,
   menu,
   className = "",
   bodyClassName = "",
@@ -20,34 +22,43 @@ const BaseCard = ({
   centerTitle = false,
 }) => {
   return (
-    <div
-      className={`bg-card border border-line rounded-xl shadow-sm shadow-black/5 ${
-        compact ? "" : "p-5"
-      } ${className}`}
+    <Card
+      as="section"
+      padding={compact ? "none" : "lg"}
+      className={className}
     >
       {(icon || title || menu) && (
         <div
-          className={`flex items-center mb-4 ${
-            centerTitle ? "justify-center" : "justify-between"
-          }`}
+          className={`flex items-start gap-3 ${
+            centerTitle ? "justify-center text-center" : "justify-between"
+          } ${compact ? "p-5 pb-0" : "mb-4"}`}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            {icon && <span className="text-on-dim text-lg flex-shrink-0">{icon}</span>}
-            {title && (
-              <h3
-                className={`text-on font-semibold text-base truncate ${
-                  centerTitle ? "text-center" : ""
-                }`}
-              >
-                {title}
-              </h3>
+          <div className="flex min-w-0 items-center gap-3">
+            {icon && (
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[5px] bg-gradient-to-br from-[var(--brand-solid)] to-[var(--brand-2)] text-[15px] text-[var(--card-bg)] shadow-[0_10px_24px_-14px_rgba(15,23,42,0.65)] ring-1 ring-inset ring-white/25">
+                {icon}
+              </span>
+            )}
+            {(title || description) && (
+              <div className="min-w-0">
+                {title && (
+                  <h3 className="truncate font-display text-[15px] font-semibold tracking-tight text-on">
+                    {title}
+                  </h3>
+                )}
+                {description && (
+                  <p className="mt-0.5 truncate text-xs text-on-muted">{description}</p>
+                )}
+              </div>
             )}
           </div>
-          {menu && !centerTitle && <div className="flex-shrink-0">{menu}</div>}
+          {menu && !centerTitle && <div className="shrink-0">{menu}</div>}
         </div>
       )}
-      <div className={bodyClassName}>{children}</div>
-    </div>
+      <div className={`${compact && (icon || title || menu) ? "p-5 pt-4" : ""} ${bodyClassName}`}>
+        {children}
+      </div>
+    </Card>
   );
 };
 

@@ -8,10 +8,17 @@ import {
   FaBolt,
   FaCircleQuestion,
 } from "react-icons/fa6";
-import { FaArrowRight, FaClipboardCheck } from "react-icons/fa";
+import { FaArrowRight, FaCalendarCheck } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { KpiCard, PageHeader, BaseCard } from "../ui";
-import Button from "../ui/Button";
+import {
+  BaseCard,
+  Button,
+  PageHeader,
+  ProgressBar,
+  StatTile,
+} from "../ui";
+import EmptyState from "../shared/EmptyState";
+import Loading from "../shared/Loading";
 import { formatDate } from "../../utils/helpers";
 
 const OrganizerHome = () => {
@@ -21,11 +28,15 @@ const OrganizerHome = () => {
     pendingExcuses: 0,
     attendeesPerEvent: [],
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   usePageMeta("Organizer Overview", "Manage your events and track attendance.");
 
   useEffect(() => {
     const fetchStats = async () => {
+      setLoading(true);
+      setError("");
       try {
         const res = await api.get("/organizer/stats");
         setStats({
@@ -35,7 +46,14 @@ const OrganizerHome = () => {
           attendeesPerEvent: res.data.attendeesPerEvent ?? [],
         });
       } catch (err) {
+        setError(
+          err.response?.data?.error ||
+            err.message ||
+            "Could not load organizer statistics."
+        );
         console.error(err.response?.data || err.message);
+      } finally {
+        setLoading(false);
       }
     };
     fetchStats();
@@ -58,102 +76,147 @@ const OrganizerHome = () => {
     },
   ];
 
+  const avgAttendance = stats.totalEvents
+    ? Math.round((stats.totalAttendees / stats.totalEvents) * 10) / 10
+    : 0;
+  const maxAttendees = Math.max(
+    1,
+    ...stats.attendeesPerEvent.map((event) => event.attendeeCount || 0)
+  );
+
+  if (loading) return <Loading label="Loading organizer overview..." />;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
-        title="Organizer Overview"
-        subtitle="Manage your events and track attendance."
+        eyebrow="Organizer workspace"
+        title="Keep every event on track"
+        subtitle="Your events, attendance and pending decisions in one place."
         actions={
-          <Button as={Link} to="/organizer/dashboard/events" variant="primary" size="sm">
+          <Button as={Link} to="/organizer/dashboard/events" size="sm">
             <FaCalendarDays className="text-xs" />
-            Manage Events
+            Manage events
           </Button>
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <KpiCard
-          label="Total Events"
+      {error && (
+        <div className="alert alert-danger" role="alert">
+          <span aria-hidden="true">!</span>
+          <p>{error}</p>
+        </div>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          label="Your events"
           value={stats.totalEvents}
           icon={<FaCalendarDays />}
-          hint="Events you organize"
+          hint="Created and managed by you"
+          tone="brand"
+          to="/organizer/dashboard/events"
         />
-        <KpiCard
-          label="Total Attendees"
+        <StatTile
+          label="Total attendees"
           value={stats.totalAttendees}
           icon={<FaUsers />}
-          hint="Across all events"
+          hint="Across every event"
+          tone="info"
         />
-        <KpiCard
-          label="Pending Excuses"
+        <StatTile
+          label="Avg per event"
+          value={avgAttendance}
+          icon={<FaCalendarCheck />}
+          hint="Mean check-ins"
+          tone="ok"
+        />
+        <StatTile
+          label="Pending excuses"
           value={stats.pendingExcuses}
           icon={<FaInbox />}
-          hint={stats.pendingExcuses > 0 ? "Action needed" : "All caught up"}
+          hint={stats.pendingExcuses > 0 ? "Needs your review" : "All caught up"}
+          tone={stats.pendingExcuses > 0 ? "warn" : "ok"}
+          to="/organizer/dashboard/excuses"
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {resources.map((item) => (
-          <BaseCard key={item.title} title={item.title} icon={item.icon}>
-            <p className="text-sm leading-relaxed text-on-dim">{item.text}</p>
-            <Button
-              as={Link}
-              to={item.to}
-              variant="secondary"
-              size="sm"
-              className="mt-4"
+      <div className="grid gap-5 xl:grid-cols-3">
+        <BaseCard
+          title="Attendance by event"
+          description="Relative to your busiest event."
+          icon={<FaUsers />}
+          className="xl:col-span-2"
+          menu={
+            <Link
+              to="/organizer/dashboard/events"
+              className="text-xs font-medium text-brand hover:opacity-80"
             >
-              {item.cta}
-              <FaArrowRight className="text-[10px]" />
-            </Button>
-          </BaseCard>
-        ))}
-      </div>
+              View all
+            </Link>
+          }
+        >
+          {!stats.attendeesPerEvent.length ? (
+            <EmptyState
+              compact
+              title="No attendee data yet"
+              description="Attendance appears once students check in to one of your events."
+              action={
+                <Button as={Link} to="/organizer/dashboard/events" size="sm" variant="secondary">
+                  Create an event
+                </Button>
+              }
+            />
+          ) : (
+            <ul className="space-y-4">
+              {stats.attendeesPerEvent.map((event) => (
+                <li key={event._id}>
+                  <div className="flex items-end justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-on">{event.title}</p>
+                      <p className="truncate text-xs text-on-muted">
+                        {formatDate(event.date, {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
+                    </div>
+                    <span className="num shrink-0 text-sm font-semibold text-on">
+                      {event.attendeeCount}
+                      <span className="ml-1 text-[11px] font-medium text-on-muted">checked in</span>
+                    </span>
+                  </div>
+                  <ProgressBar
+                    className="mt-2"
+                    current={event.attendeeCount || 0}
+                    target={maxAttendees}
+                    showLabel={false}
+                    tone="brand"
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </BaseCard>
 
-      <BaseCard
-        title="Attendees per Event"
-        icon={<FaUsers />}
-        menu={
-          <Link
-            to="/organizer/dashboard/events"
-            className="text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
-          >
-            View all
-          </Link>
-        }
-      >
-        {stats.attendeesPerEvent.length === 0 ? (
-          <p className="py-8 text-center text-sm text-on-dim">
-            No events with attendees yet.
-          </p>
-        ) : (
-          <ul className="divide-y divide-line">
-            {stats.attendeesPerEvent.map((event) => (
-              <li
-                key={event._id}
-                className="flex items-center justify-between gap-3 py-3"
+        <div className="space-y-5">
+          {resources.map((item) => (
+            <BaseCard key={item.title} title={item.title} icon={item.icon}>
+              <p className="text-sm leading-relaxed text-on-dim">{item.text}</p>
+              <Button
+                as={Link}
+                to={item.to}
+                variant="secondary"
+                size="sm"
+                className="mt-4"
               >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-on">
-                    {event.title}
-                  </p>
-                  <p className="truncate text-xs text-on-dim">
-                    {formatDate(event.date, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </p>
-                </div>
-                <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-indigo-600 dark:text-indigo-400">
-                  <FaClipboardCheck className="text-xs" />
-                  {event.attendeeCount}+ attendees
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </BaseCard>
+                {item.cta}
+                <FaArrowRight className="text-[10px]" />
+              </Button>
+            </BaseCard>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

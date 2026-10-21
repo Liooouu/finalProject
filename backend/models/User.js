@@ -153,7 +153,7 @@ const userSchema = new mongoose.Schema(
       required: function () {
         return this.role === "student";
       },
-      match: [/^[A-Z]{1,2}$/, "Section must be 1–2 letters (e.g., A, B)"],
+      match: [/^[ABC]$/, "Section must be A, B, or C"],
     },
   },
   { timestamps: true }

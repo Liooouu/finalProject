@@ -3,6 +3,7 @@ import { Html5Qrcode } from "html5-qrcode";
 import api from "../../api/axios";
 import { FaCamera, FaTimes, FaCheck, FaExclamationTriangle } from "react-icons/fa";
 import { describeCameraError } from "../../utils/camera";
+import { Button, Card } from "../ui";
 
 const statusLabel = (status) =>
   status ? status.charAt(0).toUpperCase() + status.slice(1) : "";
@@ -224,72 +225,78 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
   };
 
   return (
-    <div className="rounded-xl border border-line bg-card p-6">
+    <Card>
       {feedback && (
-        <div className="fixed inset-x-0 top-6 z-[100] flex justify-center px-4 pointer-events-none">
+        <div className="pointer-events-none fixed inset-x-0 top-6 z-[100] flex justify-center px-4">
           <div
-            className={`pointer-events-auto flex items-center gap-3 rounded-xl border px-5 py-4 shadow-2xl backdrop-blur ${
-              feedback.ok
-                ? "bg-green-600/95 border-green-400 text-white"
-                : "bg-red-600/95 border-red-400 text-white"
+            className={`pointer-events-auto flex items-center gap-3 rounded-xl border bg-card px-5 py-4 shadow-[var(--elev-3)] backdrop-blur ${
+              feedback.ok ? "border-ok/40" : "border-danger/40"
             }`}
+            role="status"
           >
-            <span className="text-2xl shrink-0">
+            <span
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg ${
+                feedback.ok
+                  ? "bg-ok/10 text-ok ring-1 ring-inset ring-ok/25"
+                  : "bg-danger/10 text-danger ring-1 ring-inset ring-danger/25"
+              }`}
+            >
               {feedback.ok ? <FaCheck /> : <FaExclamationTriangle />}
             </span>
             {feedback.ok ? (
               <div>
-                <p className="font-bold leading-tight">Attendance recorded</p>
-                <p className="text-sm">
+                <p className="font-semibold leading-tight text-on">Attendance recorded</p>
+                <p className="text-sm text-on-dim">
                   {feedback.name} — {statusLabel(feedback.status)}
                 </p>
               </div>
             ) : (
-              <p className="font-semibold text-sm">{feedback.message}</p>
+              <p className="text-sm font-medium text-danger">{feedback.message}</p>
             )}
           </div>
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-on flex items-center gap-2">
-          <FaCamera className="text-indigo-500" />
-          Scan Student QR
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="flex items-center gap-2.5 font-display text-[17px] font-semibold tracking-tight text-on">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
+            <FaCamera />
+          </span>
+          Scan student QR
         </h3>
         {isScanning && (
-          <button
+          <Button
             onClick={stopScanner}
-            className="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors"
+            variant="danger"
+            size="icon"
+            aria-label="Stop scanner"
           >
             <FaTimes />
-          </button>
+          </Button>
         )}
       </div>
 
       {!showReader ? (
-        <button
-          onClick={startScanner}
-          className="w-full rounded-lg bg-indigo-600 py-2.5 text-white shadow-sm transition-colors hover:bg-indigo-700 active:bg-indigo-800 inline-flex items-center justify-center gap-2 font-medium"
-        >
+        <Button onClick={startScanner} className="w-full">
           <FaCamera />
-          Start Scanner
-        </button>
+          Start scanner
+        </Button>
       ) : (
         <div className="space-y-4">
-          <div id="qr-reader" className="rounded-xl overflow-hidden bg-black" ref={scannerRef} />
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="flex items-center gap-2 dark:text-gray-400 text-on-muted">
+          <div id="qr-reader" className="overflow-hidden rounded-xl bg-black" ref={scannerRef} />
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <span className="flex items-center gap-2 text-on-muted">
               <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ok opacity-75 motion-reduce:animate-none" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-ok" />
               </span>
               {isScanning
-                ? "Scanning — point camera at student's QR code"
+                ? "Scanning — point the camera at the student's QR code"
                 : "Starting camera…"}
             </span>
             {sessionCount > 0 && (
-              <span className="shrink-0 text-on-dim font-medium">
-                Scanned this session: {sessionCount}
+              <span className="num shrink-0 font-medium text-on-dim">
+                Scanned: {sessionCount}
               </span>
             )}
           </div>
@@ -297,23 +304,23 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
       )}
 
       {error && (
-        <div className="mt-4 p-3 bg-red-500/20 border border-red-500/30 rounded-xl flex items-center gap-2 text-red-400">
-          <FaExclamationTriangle />
-          <span className="text-sm">{error}</span>
+        <div className="alert alert-danger mt-4" role="alert">
+          <FaExclamationTriangle className="mt-0.5 shrink-0" />
+          <p>{error}</p>
         </div>
       )}
 
       {lastScan && (
-        <div className="mt-4 p-4 bg-green-500/10 border border-green-500/30 rounded-xl flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-500/20 text-green-500 text-lg">
+        <div className="mt-4 flex items-center gap-3 rounded-xl border border-ok/25 bg-ok/10 p-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ok/15 text-lg text-ok ring-1 ring-inset ring-ok/25">
             <FaCheck />
           </span>
           <div className="min-w-0">
-            <p className="text-xs uppercase tracking-wide text-on-muted">Last recorded</p>
-            <p className="font-bold text-on truncate">{lastScan.name}</p>
+            <p className="eyebrow">Last recorded</p>
+            <p className="truncate font-semibold text-on">{lastScan.name}</p>
             <p
               className={`text-sm font-medium ${
-                lastScan.status === "present" ? "text-green-500" : "text-yellow-500"
+                lastScan.status === "present" ? "text-ok" : "text-warn"
               }`}
             >
               {statusLabel(lastScan.status)} · {lastScan.time}
@@ -321,7 +328,7 @@ const QRScanner = ({ eventId, onScanSuccess }) => {
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 };
 

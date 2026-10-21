@@ -363,10 +363,12 @@ const TodayCard = ({
         {/* Live clock + date */}
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-3xl font-bold text-on tabular-nums tracking-tight">{timeStr}</p>
-            <p className="mt-0.5 text-sm text-on-dim truncate">{dateStr}</p>
+            <p className="num font-display text-[32px] font-bold leading-none tracking-tight text-on">
+              {timeStr}
+            </p>
+            <p className="mt-1 truncate text-sm text-on-dim">{dateStr}</p>
           </div>
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
             <FaClock className="text-lg" />
           </span>
         </div>
@@ -383,7 +385,7 @@ const TodayCard = ({
           <div className="relative z-10 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-4xl font-bold tabular-nums leading-none">
+                <p className="num text-4xl font-bold leading-none">
                   {weather.loaded ? `${weather.temp}°C` : "--"}
                 </p>
                 <p className="mt-1.5 text-sm font-medium opacity-90">{weather.condition}</p>
@@ -451,8 +453,8 @@ const TodayCard = ({
         {/* Month calendar */}
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-semibold text-on">{monthTitle}</p>
-            <FaCalendarAlt className="text-on-muted text-sm" />
+            <p className="font-display text-sm font-semibold text-on">{monthTitle}</p>
+            <FaCalendarAlt className="text-sm text-on-muted" />
           </div>
           <div className="rounded-xl border border-line p-2">
             <div className="grid grid-cols-7 gap-1 text-center">
@@ -475,9 +477,9 @@ const TodayCard = ({
                     onClick={() => onSelectEvent(evIdxs[0])}
                     className={`relative mx-auto flex h-9 w-full max-w-9 items-center justify-center rounded-lg text-sm transition-colors ${
                       isSelected
-                        ? "bg-indigo-600 font-bold text-white shadow"
+                        ? "bg-brand-solid font-bold text-white shadow-[var(--elev-2)]"
                         : isToday
-                          ? "font-bold text-indigo-600 ring-2 ring-inset ring-indigo-500/60 dark:text-indigo-400"
+                          ? "font-bold text-brand ring-2 ring-inset ring-brand/50"
                           : evIdxs?.length
                             ? "cursor-pointer text-on hover:bg-card-alt"
                             : "text-on-muted"
@@ -487,7 +489,7 @@ const TodayCard = ({
                     {evIdxs?.length && (
                       <span
                         className={`absolute bottom-0.5 h-1 w-1 rounded-full ${
-                          isSelected ? "bg-white" : "bg-indigo-500"
+                          isSelected ? "bg-white" : "bg-brand"
                         }`}
                       />
                     )}
@@ -507,7 +509,7 @@ const TodayCard = ({
             <button
               key={a.label}
               onClick={() => navigate(a.path)}
-              className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors hover:-translate-y-0.5 ${a.color}`}
+              className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-150 hover:-translate-y-0.5 hover:shadow-[var(--elev-1)] motion-reduce:hover:translate-y-0 ${a.color}`}
             >
               {a.icon}
               <span>{a.label}</span>

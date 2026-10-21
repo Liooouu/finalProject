@@ -58,7 +58,8 @@ const securityPoints = [
   },
 ];
 
-const eyebrow = "text-xs font-semibold uppercase tracking-[0.2em] text-indigo-500";
+const eyebrow =
+  "text-[10px] font-semibold uppercase tracking-[0.2em] text-brand";
 
 /**
  * LandingPage — the pre-login front page at "/". Free scrolling with soft
@@ -92,16 +93,16 @@ const LandingPage = () => {
       {/* Top bar — brand + sign in, stays put while the page scrolls under it */}
       <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-between px-5 py-4 sm:px-8">
         <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/10 ring-1 ring-inset ring-indigo-500/20">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
             <TrackMark className="h-5 w-5" />
           </span>
-          <span className="text-lg font-bold tracking-tight text-on">
-            Track<span className="text-indigo-500">ED</span>
+          <span className="font-display text-lg font-bold tracking-tight text-on">
+            Track<span className="text-brand">ED</span>
           </span>
         </div>
         <button
           onClick={goAuth}
-          className="rounded-full border border-line bg-card/70 px-4 py-2 text-sm font-medium text-on backdrop-blur transition-colors hover:border-indigo-300 hover:text-indigo-600 dark:hover:border-indigo-500/40"
+          className="rounded-full border border-line bg-card/70 px-4 py-2 text-sm font-medium text-on backdrop-blur transition-colors hover:border-brand/30 hover:text-brand"
         >
           Sign in
         </button>
@@ -121,7 +122,7 @@ const LandingPage = () => {
             className="absolute inset-0"
             style={{
               mixBlendMode: "color",
-              background: "#6366f1",
+              background: "var(--brand)",
               opacity: isDark ? 0.35 : 0.28,
             }}
           />
@@ -136,9 +137,9 @@ const LandingPage = () => {
             </Reveal>
 
             <Reveal delay={90}>
-              <h1 className="mt-8 max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-tight text-on sm:text-5xl lg:text-6xl">
+              <h1 className="mt-8 max-w-3xl font-display text-4xl font-extrabold leading-[1.08] tracking-tight text-on sm:text-5xl lg:text-6xl">
                 Track every{" "}
-                <span className="text-indigo-500">event</span> and community
+                <span className="text-brand">event</span> and community
                 hour.
               </h1>
             </Reveal>
@@ -153,7 +154,7 @@ const LandingPage = () => {
             <Reveal delay={270}>
               <button
                 onClick={goAuth}
-                className="mt-8 inline-flex items-center gap-2 rounded-full border border-line bg-card/80 px-6 py-3 text-sm font-semibold text-on backdrop-blur transition-colors hover:border-indigo-300 hover:text-indigo-600 dark:hover:border-indigo-500/40"
+                className="mt-8 inline-flex items-center gap-2 rounded-full border border-line bg-card/80 px-6 py-3 text-sm font-semibold text-on backdrop-blur transition-colors hover:border-brand/30 hover:text-brand"
               >
                 I already have an account
                 <FaArrowRight className="text-xs" />
@@ -177,7 +178,7 @@ const LandingPage = () => {
           <div className="mx-auto w-full max-w-6xl">
             <Reveal>
               <p className={eyebrow}>Features</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight text-on sm:text-4xl">
+              <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-on sm:text-4xl">
                 Everything attendance, in one place
               </h2>
               <p className="mt-4 max-w-2xl text-on-dim">
@@ -192,9 +193,9 @@ const LandingPage = () => {
                   key={f.title}
                   variant="scale"
                   delay={i * 90}
-                  className="rounded-2xl border border-line bg-card/75 p-5 shadow-sm backdrop-blur-sm"
+                  className="panel-surface panel-glass rounded-[var(--panel-radius)] p-5"
                 >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
                     {f.icon}
                   </span>
                   <p className="mt-4 font-semibold text-on">{f.title}</p>
@@ -210,7 +211,7 @@ const LandingPage = () => {
           <div className="mx-auto w-full max-w-6xl">
             <Reveal>
               <p className={eyebrow}>How it works</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight text-on sm:text-4xl">
+              <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-on sm:text-4xl">
                 One system, three vantage points
               </h2>
             </Reveal>
@@ -221,15 +222,15 @@ const LandingPage = () => {
                   key={s.n}
                   variant={i % 2 === 0 ? "left" : "right"}
                   delay={i * 110}
-                  className="relative overflow-hidden rounded-2xl border border-line bg-card/75 p-6 backdrop-blur-sm"
+                  className="panel-surface panel-glass relative overflow-hidden rounded-[var(--panel-radius)] p-6"
                 >
-                  <span className="absolute right-5 top-4 text-5xl font-extrabold text-indigo-500/10">
+                  <span className="absolute right-5 top-4 font-display text-5xl font-extrabold text-brand/10">
                     {s.n}
                   </span>
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/25">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--brand-solid)] text-white shadow-[var(--elev-2)]">
                     {s.icon}
                   </span>
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-500">
+                  <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand">
                     Step {s.n}
                   </p>
                   <p className="mt-1.5 font-semibold text-on">{s.title}</p>
@@ -245,7 +246,7 @@ const LandingPage = () => {
           <div className="mx-auto w-full max-w-6xl">
             <Reveal>
               <p className={eyebrow}>Security</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight text-on sm:text-4xl">
+              <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-on sm:text-4xl">
                 Locked down — and never a dead end
               </h2>
               <p className="mt-4 max-w-2xl text-on-dim">
@@ -261,9 +262,9 @@ const LandingPage = () => {
                   key={p.title}
                   variant={i % 2 === 0 ? "right" : "left"}
                   delay={i * 110}
-                  className="rounded-2xl border border-line bg-card/75 p-6 backdrop-blur-sm"
+                  className="panel-surface panel-glass rounded-[var(--panel-radius)] p-6"
                 >
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
                     {p.icon}
                   </span>
                   <p className="mt-4 font-semibold text-on">{p.title}</p>
@@ -280,10 +281,10 @@ const LandingPage = () => {
           className="flex min-h-full w-full snap-start flex-col items-center justify-center px-6 py-24 text-center"
         >
           <Reveal variant="scale">
-            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10 ring-1 ring-inset ring-indigo-500/20">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
               <TrackMark className="h-9 w-9" />
             </span>
-            <h2 className="mt-7 text-3xl font-extrabold tracking-tight text-on sm:text-5xl">
+            <h2 className="mt-7 font-display text-3xl font-extrabold tracking-tight text-on sm:text-5xl">
               Ready to get started?
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-on-dim">
@@ -292,7 +293,7 @@ const LandingPage = () => {
             </p>
             <button
               onClick={goSignup}
-              className="mt-8 inline-flex items-center gap-2.5 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-8 py-4 text-base font-semibold text-white shadow-xl shadow-indigo-600/30 transition-all hover:from-indigo-500 hover:to-violet-500"
+              className="mt-8 inline-flex items-center gap-2.5 rounded-full bg-gradient-to-r from-[var(--brand)] to-[var(--brand-2)] px-8 py-4 text-base font-semibold text-white shadow-[var(--elev-3)] transition-all hover:brightness-110"
             >
               Get Started
               <FaArrowRight />
@@ -310,7 +311,7 @@ const LandingPage = () => {
         onClick={goSignup}
         aria-hidden={ctaInCtaSection}
         tabIndex={ctaInCtaSection ? -1 : 0}
-        className={`fixed bottom-6 left-1/2 z-40 flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-3.5 text-sm font-semibold text-white shadow-xl shadow-indigo-600/35 transition-all duration-300 hover:from-indigo-500 hover:to-violet-500 ${
+        className={`fixed bottom-6 left-1/2 z-40 flex items-center gap-2 rounded-full bg-gradient-to-r from-[var(--brand)] to-[var(--brand-2)] px-6 py-3.5 text-sm font-semibold text-white shadow-[var(--elev-3)] transition-all duration-300 hover:brightness-110 ${
           ctaInCtaSection
             ? "pointer-events-none -translate-x-1/2 translate-y-5 opacity-0"
             : "-translate-x-1/2 opacity-100"

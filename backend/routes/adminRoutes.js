@@ -152,8 +152,8 @@ router.patch("/users/:id", protect, authorize("admin"), async (req, res) => {
           return res.status(400).json({ message: "Year level must be between 1 and 4" });
         }
       }
-      if (user.section && !/^[A-Z]{1,2}$/.test(user.section)) {
-        return res.status(400).json({ message: "Section must be 1-2 letters" });
+      if (user.section && !/^[ABC]$/.test(user.section)) {
+        return res.status(400).json({ message: "Section must be A, B, or C" });
       }
     }
 

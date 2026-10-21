@@ -34,22 +34,22 @@ import techLight from "../../assets/images/tech-bg-light.jpg";
 // on the phone gradient backdrop (the mobile mockup look) without changing a
 // single flow or field.
 const panelClasses =
-  "animate-fade-up lg:rounded-2xl lg:border lg:border-line lg:bg-card lg:p-8 lg:shadow-xl lg:shadow-black/5";
+  "animate-fade-up lg:rounded-[var(--panel-radius)] lg:border lg:border-line lg:bg-card lg:p-8 lg:shadow-[var(--panel-shadow)]";
 
 const PinPanel = ({ pin, isRotated, message, onContinue, loading }) => (
   <div className={panelClasses}>
     <div className="mb-5 flex items-start gap-3.5">
       <span
-        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg ${
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg ring-1 ring-inset ${
           isRotated
-            ? "bg-amber-500/10 text-amber-600 ring-1 ring-inset ring-amber-500/20 dark:text-amber-400"
-            : "bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400"
+            ? "bg-warn/10 text-warn ring-warn/20"
+            : "bg-brand/10 text-brand ring-brand/20"
         }`}
       >
         <FaKey />
       </span>
       <div>
-        <h1 className="text-lg font-bold tracking-tight text-on">
+        <h1 className="font-display text-lg font-bold tracking-tight text-on">
           {isRotated ? "Your security PIN changed" : "Save your security PIN"}
         </h1>
         <p className="mt-1 text-sm text-on-dim">
@@ -61,19 +61,19 @@ const PinPanel = ({ pin, isRotated, message, onContinue, loading }) => (
       </div>
     </div>
 
-    <div className="rounded-xl border border-dashed border-indigo-400/50 bg-indigo-500/5 px-4 py-5 text-center">
-      <p className="text-2xl font-bold tracking-[0.45em] text-on sm:text-3xl">{pin}</p>
+    <div className="rounded-xl border border-dashed border-brand/40 bg-brand/5 px-4 py-5 text-center">
+      <p className="num text-2xl font-bold tracking-[0.45em] text-on sm:text-3xl">{pin}</p>
     </div>
 
-    <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-line bg-card-alt/60 px-3.5 py-3 text-sm text-on-dim">
-      <FaShieldAlt className="mt-0.5 shrink-0 text-indigo-500" />
+    <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-line bg-card-alt/60 px-3.5 py-3 text-sm text-on-dim">
+      <FaShieldAlt className="mt-0.5 shrink-0 text-brand" />
       <p>
         Do not share your PIN. Because it rotates after each new-device sign-in, someone using only
         your login credentials still can't get in.
       </p>
     </div>
 
-    <Button onClick={onContinue} disabled={loading} className="mt-6 w-full py-2.5">
+    <Button onClick={onContinue} disabled={loading} className="mt-6 w-full">
       {isRotated ? "Got it, continue" : "I've saved it, continue"}
     </Button>
   </div>
@@ -644,10 +644,8 @@ const AuthPage = () => {
     }
   };
 
-  // Phone: white pill inputs with a soft shadow (mockup). Desktop: unchanged
-  // bordered input inside the card.
-  const inputClasses =
-    "w-full rounded-xl border border-transparent bg-white px-3.5 py-3 text-sm text-on shadow-sm placeholder-on-muted focus:border-transparent focus:outline-none transition-colors dark:bg-card-alt/60 lg:rounded-lg lg:border lg:border-line lg:bg-card-alt/60 lg:py-2.5 lg:shadow-none";
+  // One field language for every auth screen, matching the rest of the app.
+  const inputClasses = "field";
 
   return (
     <AppBackground>
@@ -668,7 +666,7 @@ const AuthPage = () => {
             className="absolute inset-0"
             style={{
               mixBlendMode: "color",
-              background: "#6366f1",
+              background: "var(--brand)",
               opacity: isDark ? 0.55 : 0.45,
             }}
           />
@@ -682,12 +680,12 @@ const AuthPage = () => {
             <BrandMark onLight />
 
             <div key={isLogin ? "panel-login" : "panel-signup"} className="animate-fade-up">
-              <h2 className="max-w-md text-3xl font-bold leading-tight text-white xl:text-4xl">
+              <h2 className="max-w-md font-display text-3xl font-bold leading-tight text-white xl:text-4xl">
                 {isLogin
                   ? "Track every event and community service hour."
                   : "New here? Create your account in about a minute."}
               </h2>
-              <p className="mt-3 max-w-md text-indigo-100/80">
+              <p className="mt-3 max-w-md text-white/80">
                 {isLogin
                   ? "TrackED keeps event attendance in clear focus for students, organizers, and admins."
                   : "Register with your school email, verify it with a 6-digit code, and your next event is one scan away."}
@@ -699,19 +697,19 @@ const AuthPage = () => {
                     key={f.title}
                     className="flex items-start gap-3.5 rounded-2xl border border-white/20 bg-white/15 p-4 backdrop-blur-sm"
                   >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-500/40 text-indigo-100 ring-1 ring-inset ring-white/10">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20 text-white ring-1 ring-inset ring-white/10">
                       {f.icon}
                     </span>
                     <div>
                       <p className="font-semibold text-white">{f.title}</p>
-                      <p className="mt-0.5 text-sm text-indigo-100/75">{f.desc}</p>
+                      <p className="mt-0.5 text-sm text-white/75">{f.desc}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <p className="text-xs text-indigo-100/60">
+            <p className="text-xs text-white/60">
               © {new Date().getFullYear()} TrackED · Events Attendance Management System
             </p>
           </div>
@@ -741,14 +739,14 @@ const AuthPage = () => {
               className="absolute inset-0"
               style={{
                 mixBlendMode: "color",
-                background: "#6366f1",
+                background: "var(--brand)",
                 opacity: isDark ? 0.4 : 0.3,
               }}
             />
             {/* Legibility scrim — keeps every auth state readable over the photo */}
             <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/60 to-white/88 dark:from-[#0b1020]/80 dark:via-[#0b1020]/60 dark:to-[#0a1024]/88" />
-            <div className="absolute -right-24 top-1/4 h-96 w-96 rotate-45 rounded-[4rem] bg-indigo-400/20 blur-3xl dark:bg-indigo-500/15" />
-            <div className="absolute -left-20 bottom-8 h-72 w-72 -rotate-12 rounded-[3rem] bg-violet-400/25 blur-3xl dark:bg-violet-500/15" />
+            <div className="absolute -right-24 top-1/4 h-96 w-96 rotate-45 rounded-[4rem] bg-[var(--brand)]/20 blur-3xl dark:bg-[var(--brand)]/15" />
+            <div className="absolute -left-20 bottom-8 h-72 w-72 -rotate-12 rounded-[3rem] bg-[var(--brand-2)]/25 blur-3xl dark:bg-[var(--brand-2)]/15" />
             <div className="absolute inset-x-0 top-1/3 h-40 -rotate-6 bg-white/40 blur-2xl dark:bg-white/5" />
           </div>
 
@@ -773,11 +771,11 @@ const AuthPage = () => {
             ) : flow === "verifyEmail" ? (
               <div className={panelClasses}>
                 <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
                     <FaShieldAlt />
                   </span>
                   <div>
-                    <h1 className="text-xl font-bold tracking-tight text-on">
+                    <h1 className="font-display text-xl font-bold tracking-tight text-on">
                       Verify your email
                     </h1>
                     <p className="mt-1.5 text-sm text-on-dim">
@@ -791,7 +789,7 @@ const AuthPage = () => {
                 {error && (
                   <div
                     role="alert"
-                    className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
+                    className="alert alert-danger mb-5"
                   >
                     {error}
                   </div>
@@ -852,11 +850,11 @@ const AuthPage = () => {
             ) : flow === "forgot" ? (
               <div className={panelClasses}>
                 <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 ring-1 ring-inset ring-amber-500/20 dark:text-amber-400">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-warn/10 text-warn ring-1 ring-inset ring-warn/20">
                     <FaCamera />
                   </span>
                   <div>
-                    <h1 className="text-xl font-bold tracking-tight text-on">
+                    <h1 className="font-display text-xl font-bold tracking-tight text-on">
                       Forgot your security PIN?
                     </h1>
                     <p className="mt-1.5 text-sm text-on-dim">
@@ -869,7 +867,7 @@ const AuthPage = () => {
                 {error && forgotStage !== "capture" && (
                   <div
                     role="alert"
-                    className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
+                    className="alert alert-danger mb-5"
                   >
                     {error}
                   </div>
@@ -880,7 +878,7 @@ const AuthPage = () => {
                     {resetDone ? (
                       <div
                         role="status"
-                        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-600 dark:text-emerald-400"
+                        className="alert alert-ok alert-sm"
                       >
                         {resetMessage}
                       </div>
@@ -912,7 +910,7 @@ const AuthPage = () => {
                           <button
                             type="button"
                             onClick={() => setResetOpen(true)}
-                            className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                            className="text-sm font-medium text-brand hover:underline"
                           >
                             No camera? Request a PIN reset instead
                           </button>
@@ -925,10 +923,8 @@ const AuthPage = () => {
                     {forgotInfo && (
                       <div
                         role="status"
-                        className={`mb-5 rounded-lg border px-3.5 py-2.5 text-sm ${
-                          forgotInfo.enrolled
-                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                        className={`alert alert-sm mb-5 ${
+                          forgotInfo.enrolled ? "alert-ok" : "alert-warn"
                         }`}
                       >
                         {forgotInfo.locked
@@ -994,7 +990,7 @@ const AuthPage = () => {
                         </div>
                         <div className="space-y-1.5">
                           <label htmlFor="section" className="text-sm font-medium text-on">Section</label>
-                          <input id="section" type="text" name="section" value={formData.section} onChange={(e)=>setFormData({...formData,section:e.target.value.toUpperCase()})} placeholder="A" maxLength={2} className={inputClasses} required />
+                          <input id="section" type="text" name="section" value={formData.section} onChange={(e)=>setFormData({...formData,section:e.target.value.toUpperCase().replace(/[^ABC]/g,"")})} placeholder="A" maxLength={1} className={inputClasses} required />
                         </div>
                       </div>
                     </>
@@ -1009,7 +1005,7 @@ const AuthPage = () => {
                         {resetDone ? (
                           <div
                             role="status"
-                            className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-600 dark:text-emerald-400"
+                            className="alert alert-ok alert-sm"
                           >
                             {resetMessage}
                           </div>
@@ -1020,7 +1016,7 @@ const AuthPage = () => {
                             {appealDone ? (
                               <div
                                 role="status"
-                                className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-600 dark:text-emerald-400"
+                                className="alert alert-ok alert-sm"
                               >
                                 Appeal submitted. An admin will review your proof photo and unlock your
                                 face verification.
@@ -1028,8 +1024,8 @@ const AuthPage = () => {
                             ) : forgotAppealOpen ? (
                               renderAppealBox()
                             ) : forgotInfo.locked ? (
-                              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-                                <p className="text-sm text-amber-700 dark:text-amber-400">
+                              <div className="rounded-xl border border-warn/30 bg-warn/10 p-4">
+                                <p className="text-sm text-warn">
                                   Camera not working while you wait? Submit an appeal with a proof photo
                                   and an admin will review it, then unlock you.
                                 </p>
@@ -1044,11 +1040,11 @@ const AuthPage = () => {
                             ) : null}
 
                             <div
-                              className={`rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4 ${
+                              className={`rounded-xl border border-brand/30 bg-brand/10 p-4 ${
                                 appealDone || forgotAppealOpen || forgotInfo.locked ? "mt-4" : ""
                               }`}
                             >
-                              <p className="text-sm text-indigo-700 dark:text-indigo-400">
+                              <p className="text-sm text-brand">
                                 No camera, or no face photo enrolled? Ask an admin or event organizer to
                                 verify you in person and reset your security PIN.
                               </p>
@@ -1108,11 +1104,11 @@ const AuthPage = () => {
             ) : flow === "enrollFace" ? (
               <div className={panelClasses}>
                 <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
                     <FaShieldAlt />
                   </span>
                   <div>
-                    <h1 className="text-xl font-bold tracking-tight text-on">
+                    <h1 className="font-display text-xl font-bold tracking-tight text-on">
                       Set up face verification
                     </h1>
                     <p className="mt-1.5 text-sm text-on-dim">
@@ -1140,11 +1136,11 @@ const AuthPage = () => {
             ) : flow === "verifyPin" ? (
               <div className={panelClasses}>
                 <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/20 dark:text-indigo-400">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
                     <FaShieldAlt />
                   </span>
                   <div>
-                    <h1 className="text-xl font-bold tracking-tight text-on">
+                    <h1 className="font-display text-xl font-bold tracking-tight text-on">
                       New device detected
                     </h1>
                     <p className="mt-1.5 text-sm text-on-dim">
@@ -1157,7 +1153,7 @@ const AuthPage = () => {
                 {error && (
                   <div
                     role="alert"
-                    className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
+                    className="alert alert-danger mb-5"
                   >
                     {error}
                   </div>
@@ -1214,7 +1210,7 @@ const AuthPage = () => {
                         </div>
                         <div className="space-y-1.5">
                           <label htmlFor="section" className="text-sm font-medium text-on">Section</label>
-                          <input id="section" type="text" name="section" value={formData.section} onChange={(e)=>setFormData({...formData,section:e.target.value.toUpperCase()})} placeholder="A" maxLength={2} className={inputClasses} required />
+                          <input id="section" type="text" name="section" value={formData.section} onChange={(e)=>setFormData({...formData,section:e.target.value.toUpperCase().replace(/[^ABC]/g,"")})} placeholder="A" maxLength={1} className={inputClasses} required />
                         </div>
                       </div>
                     </>
@@ -1240,7 +1236,7 @@ const AuthPage = () => {
                   <button
                     type="button"
                     onClick={openForgot}
-                    className="font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                    className="font-medium text-brand hover:underline"
                   >
                     Forgot your security PIN?
                   </button>
@@ -1262,13 +1258,13 @@ const AuthPage = () => {
                 {/* The mockup's illustration spot: TrackED's mark in a soft
                     indigo circle. No stock illustration ships with the app. */}
                 <div className="mb-5 flex justify-center lg:justify-start">
-                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/80 shadow-sm ring-1 ring-indigo-200 dark:bg-card-alt dark:ring-indigo-400/30">
+                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/80 text-brand shadow-[var(--elev-1)] ring-1 ring-brand/20 dark:bg-card-alt dark:ring-brand/30">
                     <TrackMark className="h-9 w-9" />
                   </span>
                 </div>
 
                 <div className="mb-6 text-center lg:text-left">
-                  <h1 className="text-2xl font-bold tracking-tight text-on">Forgot Password?</h1>
+                  <h1 className="font-display text-2xl font-bold tracking-tight text-on">Forgot Password?</h1>
                   <p className="mt-1.5 text-sm text-on-dim">
                     {fpStage === "form" ? (
                       "Don't worry — it happens. Please enter the email address linked with your account."
@@ -1285,7 +1281,7 @@ const AuthPage = () => {
                 {error && (
                   <div
                     role="alert"
-                    className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
+                    className="alert alert-danger mb-5"
                   >
                     {error}
                   </div>
@@ -1428,7 +1424,7 @@ const AuthPage = () => {
             ) : (
               <div key={isLogin ? "signin" : "signup"} className={panelClasses}>
                 <div className="mb-6 text-center lg:text-left">
-                  <h1 className="text-2xl font-bold tracking-tight text-on">
+                  <h1 className="font-display text-2xl font-bold tracking-tight text-on">
                     {isLogin ? "Sign in to your account" : "Create your account"}
                   </h1>
                   <p className="mt-1.5 text-sm text-on-dim">
@@ -1441,7 +1437,7 @@ const AuthPage = () => {
                 {fpNotice && !error && isLogin && (
                   <div
                     role="status"
-                    className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-400"
+                    className="alert alert-ok mb-5"
                   >
                     {fpNotice}
                   </div>
@@ -1450,7 +1446,7 @@ const AuthPage = () => {
                 {error && (
                   <div
                     role="alert"
-                    className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400"
+                    className="alert alert-danger mb-5"
                   >
                     {error}
                   </div>
@@ -1502,7 +1498,7 @@ const AuthPage = () => {
                         <button
                           type="button"
                           onClick={openForgotPassword}
-                          className="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                          className="text-xs font-medium text-brand hover:underline"
                         >
                           Forgot Password?
                         </button>
@@ -1587,7 +1583,7 @@ const AuthPage = () => {
                         </div>
                         <div className="space-y-1.5">
                           <label htmlFor="section" className="text-sm font-medium text-on">Section</label>
-                          <input id="section" type="text" name="section" value={formData.section} onChange={(e)=>setFormData({...formData,section:e.target.value.toUpperCase()})} placeholder="A" maxLength={2} className={inputClasses} required />
+                          <input id="section" type="text" name="section" value={formData.section} onChange={(e)=>setFormData({...formData,section:e.target.value.toUpperCase().replace(/[^ABC]/g,"")})} placeholder="A" maxLength={1} className={inputClasses} required />
                         </div>
                       </div>
                     </>
@@ -1629,7 +1625,7 @@ const AuthPage = () => {
                           showSignup();
                           setError("");
                         }}
-                        className="font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+                        className="font-semibold text-brand hover:underline"
                       >
                         Sign up
                       </button>
@@ -1643,7 +1639,7 @@ const AuthPage = () => {
                             showLogin();
                             setError("");
                           }}
-                        className="font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+                        className="font-semibold text-brand hover:underline"
                       >
                         Sign in
                       </button>

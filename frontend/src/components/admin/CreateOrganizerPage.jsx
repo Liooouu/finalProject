@@ -2,8 +2,14 @@ import React, { useState } from "react";
 import api from "../../api/axios";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
-import { FaUserPlus } from "react-icons/fa";
-import Button from "../ui/Button";
+import { FaUserPlus, FaCheck, FaShieldAlt } from "react-icons/fa";
+import { Button, Card, PageHeader } from "../ui";
+
+const CAPABILITIES = [
+  "Create and manage events",
+  "View and update attendance",
+  "Can't access the admin dashboard or manage users",
+];
 
 const CreateOrganizerPage = () => {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
@@ -15,7 +21,7 @@ const CreateOrganizerPage = () => {
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!form.name.trim()) {
       newErrors.name = "Name is required";
     } else if (form.name.trim().length < 2) {
@@ -83,172 +89,148 @@ const CreateOrganizerPage = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-card rounded-xl border border-line overflow-hidden">
-        <div className="p-6 border-b border-line">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-indigo-500/15 flex items-center justify-center ring-1 ring-indigo-500/25">
-              <FaUserPlus className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            </div>
+    <div className="mx-auto max-w-5xl space-y-5">
+      <PageHeader
+        eyebrow="People & access"
+        title="Create organizer"
+        subtitle="Organizer accounts are created by admins and can manage events and attendance."
+      />
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <Card>
+          <div className="mb-6 flex items-center gap-3.5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
+              <FaUserPlus />
+            </span>
             <div>
-              <h2 className="text-xl font-bold text-on">Create Organizer</h2>
-              <p className="text-sm text-on-dim">Add a new organizer account to manage events</p>
+              <h2 className="panel-heading text-base">Account details</h2>
+              <p className="text-sm text-on-dim">
+                They will be able to sign in as soon as you create the account.
+              </p>
             </div>
           </div>
-        </div>
 
-        <form onSubmit={createOrganizer} className="p-6 space-y-5">
-          {errors.general && (
-            <div className="p-4 dark:bg-red-900/30 bg-red-50 dark:border-red-800 border-red-300 rounded-lg dark:text-red-400 text-red-600 text-sm">
-              {errors.general}
-            </div>
-          )}
-
-          {success && (
-            <div className="p-4 dark:bg-green-900/30 bg-green-50 dark:border-green-800 border-green-300 rounded-lg">
-              <div className="flex items-center gap-2 dark:text-green-400 text-green-600 mb-1">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span className="font-medium">{success.message}</span>
+          <form onSubmit={createOrganizer} className="space-y-5">
+            {errors.general && (
+              <div className="alert alert-danger" role="alert">
+                <span aria-hidden="true">!</span>
+                <p>{errors.general}</p>
               </div>
-              <p className="text-sm text-on-dim">Email: {success.email}</p>
-            </div>
-          )}
+            )}
 
-          <div>
-            <label className="block text-sm font-medium text-on-dim mb-2">
-              Full Name
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="w-5 h-5 text-on-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
+            {success && (
+              <div className="alert alert-ok" role="status">
+                <span aria-hidden="true">✓</span>
+                <div>
+                  <p className="font-medium">{success.message}</p>
+                  <p className="text-sm opacity-80">Email: {success.email}</p>
+                </div>
               </div>
+            )}
+
+            <div>
+              <label htmlFor="organizer-name" className="field-label">
+                Full name
+              </label>
               <input
+                id="organizer-name"
                 type="text"
                 value={form.name}
                 placeholder="Enter full name"
-                className={`w-full pl-10 pr-4 py-3 bg-card dark:bg-black rounded-lg border ${
-                  errors.name ? "border-red-500" : "border-line"
-                } bg-card text-on placeholder-on-muted focus:outline-none ${
-                  errors.name ? "focus:ring-2 focus:ring-red-500/40" : "focus:ring-2 focus:ring-indigo-500/40"
-                } focus:border-transparent transition-colors`}
                 onChange={(e) => handleInputChange("name", e.target.value)}
+                className={`field ${errors.name ? "border-danger/60" : ""}`}
+                aria-invalid={!!errors.name}
+                aria-describedby={errors.name ? "organizer-name-error" : undefined}
               />
+              {errors.name && (
+                <p id="organizer-name-error" className="field-error">
+                  {errors.name}
+                </p>
+              )}
             </div>
-            {errors.name && (
-              <p className="mt-1 text-sm dark:text-red-400 text-red-600">{errors.name}</p>
-            )}
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-on-dim mb-2">
-              Email Address
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="w-5 h-5 text-on-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
+            <div>
+              <label htmlFor="organizer-email" className="field-label">
+                Email address
+              </label>
               <input
+                id="organizer-email"
                 type="email"
                 value={form.email}
                 placeholder="Enter email address"
-                className={`w-full pl-10 pr-4 py-3 bg-card dark:bg-black rounded-lg border ${
-                  errors.email ? "border-red-500" : "border-line"
-                } bg-card text-on placeholder-on-muted focus:outline-none ${
-                  errors.email ? "focus:ring-2 focus:ring-red-500/40" : "focus:ring-2 focus:ring-indigo-500/40"
-                } focus:border-transparent transition-colors`}
                 onChange={(e) => handleInputChange("email", e.target.value)}
+                className={`field ${errors.email ? "border-danger/60" : ""}`}
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? "organizer-email-error" : undefined}
               />
+              {errors.email && (
+                <p id="organizer-email-error" className="field-error">
+                  {errors.email}
+                </p>
+              )}
             </div>
-            {errors.email && (
-              <p className="mt-1 text-sm dark:text-red-400 text-red-600">{errors.email}</p>
-            )}
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-on-dim mb-2">
-              Password
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="w-5 h-5 text-on-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
+            <div>
+              <label htmlFor="organizer-password" className="field-label">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="organizer-password"
+                  type="text"
+                  value={form.password}
+                  placeholder="Enter password"
+                  onChange={(e) => handleInputChange("password", e.target.value)}
+                  className={`field pr-24 ${
+                    errors.password ? "border-danger/60" : ""
+                  }`}
+                  aria-invalid={!!errors.password}
+                  aria-describedby="organizer-password-hint"
+                />
+                <button
+                  type="button"
+                  onClick={generatePassword}
+                  className="absolute inset-y-1.5 right-1.5 rounded-lg border border-line bg-card-alt px-3 py-1 text-xs font-medium text-on-dim transition-colors hover:text-on"
+                >
+                  Generate
+                </button>
               </div>
-              <input
-                type="text"
-                value={form.password}
-                placeholder="Enter password"
-                className={`w-full pl-10 pr-24 py-3 bg-card dark:bg-black rounded-lg border ${
-                  errors.password ? "border-red-500" : "border-line"
-                } bg-card text-on placeholder-on-muted focus:outline-none ${
-                  errors.password ? "focus:ring-2 focus:ring-red-500/40" : "focus:ring-2 focus:ring-indigo-500/40"
-                } focus:border-transparent transition-colors`}
-                onChange={(e) => handleInputChange("password", e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={generatePassword}
-                className="absolute inset-y-1 right-1 px-3 py-1 bg-card-alt hover:bg-card-alt rounded text-xs text-on-dim transition-colors"
-              >
-                Generate
-              </button>
+              {errors.password && <p className="field-error">{errors.password}</p>}
+              <p id="organizer-password-hint" className="field-hint">
+                {PASSWORD_HINT}. Use “Generate” for a secure random password.
+              </p>
             </div>
-            {errors.password && (
-              <p className="mt-1 text-sm dark:text-red-400 text-red-600">{errors.password}</p>
-            )}
-            <p className="mt-1 text-xs text-on-muted">
-              {PASSWORD_HINT}. Use &quot;Generate&quot; for a secure random password.
+
+            <Button type="submit" loading={loading} className="w-full">
+              {loading ? "Creating..." : "Create organizer"}
+            </Button>
+          </form>
+        </Card>
+
+        <div className="space-y-4">
+          <Card variant="inset">
+            <div className="flex items-center gap-2.5">
+              <FaShieldAlt className="text-brand" />
+              <h3 className="text-sm font-semibold text-on">Role capabilities</h3>
+            </div>
+            <ul className="mt-3 space-y-2.5">
+              {CAPABILITIES.map((item) => (
+                <li key={item} className="flex items-start gap-2.5 text-sm text-on-dim">
+                  <FaCheck className="mt-0.5 shrink-0 text-[11px] text-ok" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+          <div className="rounded-2xl border border-line bg-gradient-to-br from-[var(--brand)]/10 via-transparent to-transparent p-5">
+            <p className="eyebrow">Security note</p>
+            <p className="mt-1.5 text-sm leading-relaxed text-on-dim">
+              Share the initial password through a private channel. Organizers can change it from
+              their account settings after signing in.
             </p>
           </div>
-
-          <Button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3"
-          >
-            {loading ? (
-              <>
-                <span className="skeleton h-4 w-4 rounded-full" />
-                Creating...
-              </>
-            ) : (
-              <>
-                <FaUserPlus className="text-sm" />
-                Create Organizer
-              </>
-            )}
-          </Button>
-        </form>
-      </div>
-
-      <div className="mt-6 p-4 bg-card/50 rounded-xl border border-line">
-        <h3 className="text-sm font-medium text-on-dim mb-2">Organizer Capabilities</h3>
-        <ul className="text-sm text-on-dim space-y-1">
-          <li className="flex items-center gap-2">
-            <svg className="w-4 h-4 dark:text-green-400 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            Create and manage events
-          </li>
-          <li className="flex items-center gap-2">
-            <svg className="w-4 h-4 dark:text-green-400 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            View and update attendance
-          </li>
-          <li className="flex items-center gap-2">
-            <svg className="w-4 h-4 dark:text-green-400 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            Cannot access admin dashboard or manage users
-          </li>
-        </ul>
+        </div>
       </div>
     </div>
   );

@@ -1,19 +1,51 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
-import { FaKey, FaCheck, FaTimes, FaShieldAlt } from "react-icons/fa";
-import StatusBadge from "../shared/StatusBadge";
+import {
+  FaKey,
+  FaCheck,
+  FaTimes,
+  FaEye,
+  FaFilter,
+  FaShieldAlt,
+  FaTrash,
+  FaUnlock,
+  FaUsers,
+  FaUserGraduate,
+  FaUserTie,
+} from "react-icons/fa";
 import PrivateImage from "../shared/PrivateImage";
+import EmptyState from "../shared/EmptyState";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { TableSkeleton } from "../ui";
+import {
+  Button,
+  Card,
+  PageHeader,
+  StatTile,
+  StatusChip,
+  TableSkeleton,
+  Tabs,
+} from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
-import Button from "../ui/Button";
 import { formatDate, formatDateTime } from "../../utils/helpers";
+
+const roleStyles = {
+  admin: "border-brand/25 bg-brand/10 text-brand",
+  organizer: "border-warn/25 bg-warn/10 text-warn",
+  student: "border-info/25 bg-info/10 text-info",
+};
+
+const PROGRAM_OPTIONS = ["BSEMC", "BSIT", "BSCS"];
+const YEAR_OPTIONS = [1, 2, 3, 4];
+const SECTION_OPTIONS = ["A", "B", "C"];
 
 const ManageUsers = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
+  const [programFilter, setProgramFilter] = useState("all");
+  const [yearFilter, setYearFilter] = useState("all");
+  const [sectionFilter, setSectionFilter] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [userAttendance, setUserAttendance] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -78,8 +110,6 @@ const ManageUsers = () => {
     if (p && y && sec) return `${p}-${y}${sec}`;
     return "Unassigned";
   };
-
-  const PROGRAMS = ["BSIT", "BSCS", "IT", "BSIS", "BSEMC", "OTHER"];
 
   const unlockFace = async (target) => {
     try {
@@ -231,26 +261,367 @@ const ManageUsers = () => {
     }
   };
 
-  const filteredUsers = users.filter((user) => {
+  const hasActiveFilters =
+    searchTerm ||
+    programFilter !== "all" ||
+    yearFilter !== "all" ||
+    sectionFilter !== "all";
+
+  const activeFilterCount =
+    (searchTerm ? 1 : 0) +
+    (programFilter !== "all" ? 1 : 0) +
+    (yearFilter !== "all" ? 1 : 0) +
+    (sectionFilter !== "all" ? 1 : 0);
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setProgramFilter("all");
+    setYearFilter("all");
+    setSectionFilter("all");
+  };
+
+  const staffUsers = users.filter(
+    (user) => user.role === "admin" || user.role === "organizer"
+  );
+  const studentUsers = users.filter((user) => {
+    if (user.role !== "student") return false;
+    const term = searchTerm.toLowerCase();
     const matchesSearch =
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === "all" || user.role === roleFilter;
-    return matchesSearch && matchesRole;
+      user.name.toLowerCase().includes(term) ||
+      user.email.toLowerCase().includes(term);
+    const matchesProgram =
+      programFilter === "all" ||
+      String(user.program || "").toUpperCase() === programFilter;
+    const matchesYear =
+      yearFilter === "all" ||
+      String(user.yearLevel) === String(yearFilter);
+    const matchesSection =
+      sectionFilter === "all" ||
+      String(user.section || "").toUpperCase() === sectionFilter;
+    return matchesSearch && matchesProgram && matchesYear && matchesSection;
   });
 
-  const getRoleBadge = (role) => {
-  const styles = {
-    admin: "dark:bg-cyan-900/50 bg-cyan-100 dark:text-cyan-400 text-cyan-700 dark:border-cyan-700 border-cyan-300",
-    organizer: "dark:bg-yellow-900/50 bg-yellow-100 dark:text-yellow-400 text-yellow-700 dark:border-yellow-700 border-yellow-300",
-    student: "dark:bg-purple-900/50 bg-purple-100 dark:text-purple-400 text-purple-700 dark:border-purple-700 border-purple-300",
-  };
-  return (
-    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${styles[role] || styles.student}`}>
+  const getRoleBadge = (role) => (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium capitalize ${
+        roleStyles[role] || roleStyles.student
+      }`}
+    >
       {role}
     </span>
   );
-};
+
+  const openResetPin = (user) => {
+    setResetClearDevices(false);
+    setResetPin(null);
+    setResetTarget(user);
+  };
+
+  const renderUserActions = (user, compact = false) => {
+    const showUnlock = user.role === "student" && isFaceLocked(user);
+    const actionCount =
+      1 +
+      (user.role === "student" ? 1 : 0) +
+      (showUnlock ? 1 : 0) +
+      (user.role !== "admin" ? 1 : 0);
+
+    if (compact) {
+      return (
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            onClick={() => openUserDetails(user)}
+            variant="secondary"
+            size="icon"
+            style={{ width: 28, height: 28 }}
+            title="View details"
+            aria-label={`View ${user.name}`}
+          >
+            <FaEye className="text-[11px]" />
+          </Button>
+          {user.role === "student" && (
+            <Button
+              onClick={() => openResetPin(user)}
+              variant="secondary"
+              size="icon"
+              style={{ width: 28, height: 28 }}
+              title="Reset PIN"
+              aria-label={`Reset PIN for ${user.name}`}
+            >
+              <FaKey className="text-[11px]" />
+            </Button>
+          )}
+          {showUnlock && (
+            <Button
+              onClick={() => setUnlockTarget(user)}
+              variant="secondary"
+              size="icon"
+              style={{ width: 28, height: 28 }}
+              title="Clear face-verification lockout"
+              aria-label={`Unlock face verification for ${user.name}`}
+            >
+              <FaUnlock className="text-[11px]" />
+            </Button>
+          )}
+          {user.role !== "admin" && (
+            <Button
+              onClick={() => setDeleteTarget(user._id)}
+              variant="danger"
+              size="icon"
+              style={{ width: 28, height: 28 }}
+              title="Delete account"
+              aria-label={`Delete ${user.name}`}
+            >
+              <FaTrash className="text-[11px]" />
+            </Button>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button
+          onClick={() => openUserDetails(user)}
+          variant="secondary"
+          size="sm"
+          className={`w-full ${actionCount === 1 ? "col-span-2" : ""}`}
+        >
+          <FaEye className="text-[11px]" />
+          View
+        </Button>
+        {user.role === "student" && (
+          <Button
+            onClick={() => openResetPin(user)}
+            variant="secondary"
+            size="sm"
+            className="w-full"
+          >
+            <FaKey className="text-[11px]" />
+            Reset PIN
+          </Button>
+        )}
+        {showUnlock && (
+          <Button
+            onClick={() => setUnlockTarget(user)}
+            variant="secondary"
+            size="sm"
+            className="w-full"
+          >
+            <FaUnlock className="text-[11px]" />
+            Unlock
+          </Button>
+        )}
+        {user.role !== "admin" && (
+          <Button
+            onClick={() => setDeleteTarget(user._id)}
+            variant="danger"
+            size="sm"
+            className={`w-full ${actionCount === 3 ? "col-span-2" : ""}`}
+          >
+            <FaTrash className="text-[11px]" />
+            Delete
+          </Button>
+        )}
+      </div>
+    );
+  };
+
+  const renderUserTable = (
+    list,
+    {
+      title,
+      subtitle,
+      emptyTitle,
+      showGroup = false,
+      filters = null,
+      filtersId,
+      filtersOpen = false,
+      onToggleFilters,
+      activeFilterCount = 0,
+    }
+  ) => (
+    <Card padding="none" className="flex h-[34rem] min-h-0 flex-col overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3.5">
+        <div>
+          <h2 className="text-sm font-semibold text-on">{title}</h2>
+          <p className="text-xs text-on-muted">{subtitle}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {onToggleFilters && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onToggleFilters}
+              aria-expanded={filtersOpen}
+              aria-controls={filtersId}
+            >
+              <FaFilter aria-hidden="true" />
+              {filtersOpen ? "Hide filters" : "Filters"}
+              {activeFilterCount > 0 && (
+                <span className="rounded-full bg-brand/10 px-1.5 text-[10px] font-semibold text-brand">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+          )}
+          <span className="rounded-full border border-line bg-card-alt px-2.5 py-0.5 text-xs font-medium text-on-dim">
+            {list.length}
+          </span>
+        </div>
+      </div>
+
+      {filters && filtersOpen && (
+        <div
+          id={filtersId}
+          className="border-b border-line bg-card-alt/40 px-4 py-3"
+        >
+          {filters}
+        </div>
+      )}
+
+      <div className="min-h-0 flex-1 overflow-auto">
+        {loading ? (
+        <div className="p-4">
+          <TableSkeleton rows={4} />
+        </div>
+      ) : list.length === 0 ? (
+        <EmptyState
+          icon={<FaUsers />}
+          title={emptyTitle}
+          description={
+            showGroup
+              ? "Try a different search term or filter."
+              : "Staff accounts will appear here once created."
+          }
+        />
+      ) : (
+        <>
+          <div className="space-y-2.5 p-3 sm:hidden">
+            {list.map((user) => (
+              <article
+                key={user._id}
+                className="relative overflow-hidden rounded-xl border border-line/80 bg-card-alt/35 p-3.5"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand)] to-[var(--brand-2)] text-sm font-semibold text-white shadow-[var(--glow-brand)]">
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-on">
+                          {user.name}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-on-muted">
+                          {user.email}
+                        </p>
+                      </div>
+                      <div className="shrink-0">
+                        {showGroup ? (
+                          <span className="inline-flex items-center rounded-full border border-brand/20 bg-brand/10 px-2 py-0.5 text-[10px] font-semibold text-brand">
+                            {getGroupLabel(user)}
+                          </span>
+                        ) : (
+                          getRoleBadge(user.role)
+                        )}
+                      </div>
+                    </div>
+
+                    {showGroup && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span className="rounded-full border border-line bg-card px-2 py-0.5 text-[10px] font-medium text-on-dim">
+                          {user.program || "No program"}
+                        </span>
+                        <span className="rounded-full border border-line bg-card px-2 py-0.5 text-[10px] font-medium text-on-dim">
+                          Year {user.yearLevel ?? "?"}
+                        </span>
+                        <span className="rounded-full border border-line bg-card px-2 py-0.5 text-[10px] font-medium text-on-dim">
+                          Section {user.section || "?"}
+                        </span>
+                      </div>
+                    )}
+
+                    {user.role === "student" && isFaceLocked(user) && (
+                      <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-danger/10 px-2 py-0.5 text-[10px] font-medium text-danger">
+                        <FaShieldAlt className="text-[9px]" />
+                        Face locked
+                      </span>
+                    )}
+
+                    {renderUserActions(user)}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <table className="data-table hidden table-fixed sm:table">
+            <colgroup>
+              <col />
+              <col className="w-[128px]" />
+              <col className="w-[156px]" />
+            </colgroup>
+            <thead className="sticky top-0 z-10 bg-card">
+              <tr>
+                <th>Name / Email</th>
+                {showGroup ? <th>Academic group</th> : <th>Role</th>}
+                <th
+                  className="text-right"
+                  style={{ paddingLeft: 8, paddingRight: 8 }}
+                >
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((user) => (
+                <tr key={user._id}>
+                  <td>
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand)] to-[var(--brand-2)] text-xs font-semibold text-white">
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-on" title={user.name}>
+                          {user.name}
+                        </p>
+                        <p className="truncate text-xs text-on-muted" title={user.email}>
+                          {user.email}
+                        </p>
+                        {user.role === "student" && isFaceLocked(user) && (
+                          <span className="mt-0.5 inline-flex items-center rounded-full bg-danger/10 px-2 py-0.5 text-[10px] font-medium text-danger">
+                            Face locked
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    {showGroup ? (
+                      <div>
+                        <p className="text-on-dim">{getGroupLabel(user)}</p>
+                        <p className="truncate text-xs text-on-muted">
+                          {user.program || "?"} · Year {user.yearLevel ?? "?"} · Section{" "}
+                          {user.section || "?"}
+                        </p>
+                      </div>
+                    ) : (
+                      getRoleBadge(user.role)
+                    )}
+                  </td>
+                  <td style={{ paddingLeft: 8, paddingRight: 8 }}>
+                    {renderUserActions(user, true)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+      </div>
+    </Card>
+  );
 
   const stats = {
     total: users.length,
@@ -261,254 +632,249 @@ const ManageUsers = () => {
 
   const pendingCount = appeals.filter((a) => a.status === "pending").length;
 
-  const inputClasses =
-    "px-3.5 py-2 bg-card rounded-lg border border-line text-sm text-on placeholder-on-muted focus:outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500/40 transition-colors";
+  const studentFilters = (
+    <div className="grid grid-cols-2 gap-2.5">
+      <div className="col-span-2">
+        <label htmlFor="user-search" className="field-label">
+          Search students
+        </label>
+        <input
+          id="user-search"
+          type="text"
+          placeholder="Search by name or email..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="field"
+        />
+      </div>
+
+      <div className="min-w-0">
+        <label htmlFor="user-program-filter" className="field-label">
+          Program
+        </label>
+        <select
+          id="user-program-filter"
+          value={programFilter}
+          onChange={(e) => setProgramFilter(e.target.value)}
+          className="field-select"
+        >
+          <option value="all">All programs</option>
+          {PROGRAM_OPTIONS.map((program) => (
+            <option key={program} value={program}>
+              {program}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="min-w-0">
+        <label htmlFor="user-year-filter" className="field-label">
+          Year level
+        </label>
+        <select
+          id="user-year-filter"
+          value={yearFilter}
+          onChange={(e) => setYearFilter(e.target.value)}
+          className="field-select"
+        >
+          <option value="all">All years</option>
+          {YEAR_OPTIONS.map((year) => (
+            <option key={year} value={year}>
+              Year {year}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="min-w-0">
+        <label htmlFor="user-section-filter" className="field-label">
+          Section
+        </label>
+        <select
+          id="user-section-filter"
+          value={sectionFilter}
+          onChange={(e) => setSectionFilter(e.target.value)}
+          className="field-select"
+        >
+          <option value="all">All sections</option>
+          {SECTION_OPTIONS.map((section) => (
+            <option key={section} value={section}>
+              Section {section}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex min-w-0 items-end">
+        <Button
+          variant="secondary"
+          size="lg"
+          onClick={resetFilters}
+          disabled={!hasActiveFilters}
+          className="w-full"
+        >
+          Reset filters
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="People & access"
+        title="Manage users"
+        subtitle={`${staffUsers.length} admin & event organizer accounts · ${studentUsers.length} of ${stats.student} students`}
+      />
+
       {message && (
-        <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${messageType === "error" ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
-          {message}
+        <div
+          className={`alert ${messageType === "error" ? "alert-danger" : "alert-ok"}`}
+          role="status"
+        >
+          <span aria-hidden="true">{messageType === "error" ? "!" : "✓"}</span>
+          <p>{message}</p>
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2 border-b border-line pb-4">
-        <button
-          type="button"
-          onClick={() => setActiveTab("users")}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === "users"
-              ? "bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/30 dark:text-indigo-400"
-              : "text-on-dim hover:text-on"
-          }`}
-        >
-          Users
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("appeals")}
-          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === "appeals"
-              ? "bg-indigo-500/10 text-indigo-600 ring-1 ring-inset ring-indigo-500/30 dark:text-indigo-400"
-              : "text-on-dim hover:text-on"
-          }`}
-        >
-          Face appeals
-          {pendingCount > 0 && (
-            <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
-              {pendingCount}
-            </span>
-          )}
-        </button>
-      </div>
+
+      <Tabs
+        active={activeTab}
+        onChange={setActiveTab}
+        tabs={[
+          { key: "users", label: "Users", count: users.length },
+          { key: "appeals", label: "Face appeals", count: pendingCount || undefined },
+        ]}
+      />
 
       {activeTab === "users" ? (
         <>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-on-dim">
-          {filteredUsers.length} of {users.length} accounts
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <input
-            type="text"
-            placeholder="Search by name or email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className={inputClasses}
-          />
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className={`${inputClasses} bg-card`}
+          <div
+            role="note"
+            aria-label="User action icon guide"
+            className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[var(--panel-radius)] border border-line bg-card-alt/40 px-4 py-3 text-xs text-on-dim"
           >
-            <option value="all">All Roles</option>
-            <option value="admin">Admin</option>
-            <option value="organizer">Organizer</option>
-            <option value="student">Student</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <div className="rounded-xl border border-line bg-card p-4">
-          <p className="text-sm text-on-dim">Total Users</p>
-          <p className="text-2xl font-bold text-on">{stats.total}</p>
-        </div>
-        <div className="rounded-xl border border-line bg-card p-4">
-          <p className="text-sm text-cyan-600 dark:text-cyan-400">Admins</p>
-          <p className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{stats.admin}</p>
-        </div>
-        <div className="rounded-xl border border-line bg-card p-4">
-          <p className="text-sm text-amber-600 dark:text-amber-400">Organizers</p>
-          <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.organizer}</p>
-        </div>
-        <div className="rounded-xl border border-line bg-card p-4">
-          <p className="text-sm text-violet-600 dark:text-violet-400">Students</p>
-          <p className="text-2xl font-bold text-violet-600 dark:text-violet-400">{stats.student}</p>
-        </div>
-      </div>
-
-      {loading ? (
-        <TableSkeleton rows={6} />
-      ) : filteredUsers.length === 0 ? (
-        <div className="rounded-xl border border-line bg-card py-12 text-center text-sm text-on-dim">
-          No users found
-        </div>
-      ) : (
-        <div className="bg-card rounded-xl border border-line overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-line bg-card-alt">
-                  <th className="text-left p-4 font-medium text-on-dim">Name</th>
-                  <th className="text-left p-4 font-medium text-on-dim">Email</th>
-                  <th className="text-left p-4 font-medium text-on-dim">Role</th>
-                  <th className="text-left p-4 font-medium text-on-dim">Program/Year/Section</th>
-                  <th className="text-left p-4 font-medium text-on-dim">Created</th>
-                  <th className="text-left p-4 font-medium text-on-dim">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map((user) => (
-                  <tr
-                    key={user._id}
-                    className="border-b border-line hover:bg-card-alt transition-colors"
-                  >
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-500 to-indigo-800 flex items-center justify-center text-white font-bold">
-                          {user.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <span className="font-medium">{user.name}</span>
-                          {user.role === "student" && isFaceLocked(user) && (
-                            <span className="ml-2 inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">
-                              Face locked
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4 text-on-dim">{user.email}</td>
-                    <td className="p-4">{getRoleBadge(user.role)}</td>
-                    <td className="p-4 text-on-dim text-sm">
-                      {user.role === "student" ? (
-                        <div>
-                          <p>{getGroupLabel(user)}</p>
-                          {(user.program || user.yearLevel || user.section) ? (
-                            <p className="text-xs text-on-muted">
-                              {user.program || "?"}-{user.yearLevel ?? "?"}-{user.section || "?"}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-on-muted">Unassigned</p>
-                          )}
-                        </div>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td className="p-4 text-on-dim text-sm">
-                      {formatDate(user.createdAt)}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openUserDetails(user)}
-                          className="px-3 py-1 dark:bg-gray-800 dark:hover:bg-gray-700 bg-gray-200 hover:bg-gray-300 rounded text-sm transition-colors"
-                        >
-                          View
-                        </button>
-                        {user.role === "student" && (
-                          <button
-                            onClick={() => {
-                              setResetClearDevices(false);
-                              setResetPin(null);
-                              setResetTarget(user);
-                            }}
-                            className="px-3 py-1 dark:bg-indigo-900/30 bg-indigo-50 dark:hover:bg-indigo-900/50 hover:bg-indigo-100 dark:text-indigo-400 text-indigo-600 dark:border-indigo-900 border-indigo-300 border rounded text-sm transition-colors"
-                          >
-                            Reset PIN
-                          </button>
-                        )}
-                        {user.role === "student" && isFaceLocked(user) && (
-                          <button
-                            onClick={() => setUnlockTarget(user)}
-                            className="px-3 py-1 dark:bg-red-900/30 bg-red-50 dark:hover:bg-red-900/50 hover:bg-red-100 dark:text-red-400 text-red-600 dark:border-red-900 border-red-300 border rounded text-sm transition-colors"
-                            title="Clear face-verification lockout"
-                          >
-                            Unlock
-                          </button>
-                        )}
-                        {user.role !== "admin" && (
-                          <button
-                            onClick={() => setDeleteTarget(user._id)}
-                            className="px-3 py-1 dark:bg-red-900/30 bg-red-50 dark:hover:bg-red-900/50 hover:bg-red-100 dark:text-red-400 text-red-600 dark:border-red-900 border-red-300 border rounded text-sm transition-colors"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </div>
-                    </td>
-</tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <span className="font-semibold uppercase tracking-[0.12em] text-on-muted">
+              Action guide
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <FaEye className="text-[11px] text-brand" aria-hidden="true" />
+              View user details and attendance
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <FaKey className="text-[11px] text-brand" aria-hidden="true" />
+              Reset a student&apos;s security PIN
+            </span>
           </div>
-        )}
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatTile label="Total accounts" value={stats.total} icon={<FaUsers />} />
+            <StatTile
+              label="Admins"
+              value={stats.admin}
+              icon={<FaShieldAlt />}
+              tone="ok"
+            />
+            <StatTile
+              label="Organizers"
+              value={stats.organizer}
+              icon={<FaUserTie />}
+              tone="warn"
+            />
+            <StatTile
+              label="Students"
+              value={stats.student}
+              icon={<FaUserGraduate />}
+              tone="info"
+            />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            {renderUserTable(staffUsers, {
+              title: "Admin & Event Organizers",
+              subtitle: "Administrators and event organizers",
+              emptyTitle: "No admin or organizer accounts found",
+            })}
+
+            {renderUserTable(studentUsers, {
+              title: "Students",
+              subtitle: "Student accounts",
+              emptyTitle: "No students found",
+              showGroup: true,
+              filters: studentFilters,
+              filtersId: "student-user-filters",
+              filtersOpen,
+              onToggleFilters: () => setFiltersOpen((open) => !open),
+              activeFilterCount,
+            })}
+          </div>
         </>
       ) : (
         <div className="space-y-4">
           <p className="text-sm text-on-dim">
-            {pendingCount} pending &middot; {appeals.length} total appeals
+            {pendingCount} pending · {appeals.length} total appeals
           </p>
           {appealsLoading ? (
-            <TableSkeleton rows={4} />
+            <Card>
+              <TableSkeleton rows={4} />
+            </Card>
           ) : appeals.length === 0 ? (
-            <div className="rounded-xl border border-line bg-card py-12 text-center text-sm text-on-dim">
-              No face verification appeals
-            </div>
+            <Card>
+              <EmptyState
+                icon={<FaShieldAlt />}
+                title="No face verification appeals"
+                description="Appeals submitted by students will appear here for review."
+              />
+            </Card>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {appeals.map((appeal) => (
-                <div key={appeal._id} className="rounded-xl border border-line bg-card p-5">
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{appeal.student?.name || "Unknown student"}</p>
-                      <p className="text-sm text-on-dim">{appeal.student?.email}</p>
+                <Card key={appeal._id} as="article">
+                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-on">
+                        {appeal.student?.name || "Unknown student"}
+                      </p>
+                      <p className="truncate text-sm text-on-dim">{appeal.student?.email}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {isFaceLocked(appeal.student) && (
-                        <span className="rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">
+                        <span className="rounded-full bg-danger/10 px-2.5 py-0.5 text-[11px] font-medium text-danger">
                           Face locked
                         </span>
                       )}
-                      <StatusBadge status={appeal.status} />
+                      <StatusChip status={appeal.status} />
                     </div>
                   </div>
 
                   {appeal.note && (
-                    <p className="mb-4 text-sm text-on-dim">&quot;{appeal.note}&quot;</p>
+                    <p className="mb-4 rounded-xl border border-line bg-card-alt/40 px-3.5 py-2.5 text-sm text-on-dim">
+                      &quot;{appeal.note}&quot;
+                    </p>
                   )}
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <p className="mb-1 text-xs font-medium text-on-muted">Proof photo (submitted)</p>
+                      <p className="mb-1.5 text-xs font-medium text-on-muted">
+                        Proof photo (submitted)
+                      </p>
                       <PrivateImage
                         src={appeal.photoUrl}
                         alt="Proof"
-                        className="aspect-[4/3] w-full rounded-lg border border-line object-cover"
+                        className="aspect-[4/3] w-full rounded-xl border border-line object-cover"
                       />
                     </div>
                     <div>
-                      <p className="mb-1 text-xs font-medium text-on-muted">Enrolled face photo</p>
+                      <p className="mb-1.5 text-xs font-medium text-on-muted">
+                        Enrolled face photo
+                      </p>
                       {appeal.student?.facePhoto ? (
                         <PrivateImage
                           src={appeal.student.facePhoto}
                           alt="Enrolled face"
-                          className="aspect-[4/3] w-full rounded-lg border border-line object-cover"
+                          className="aspect-[4/3] w-full rounded-xl border border-line object-cover"
                         />
                       ) : (
-                        <div className="flex aspect-[4/3] w-full items-center justify-center rounded-lg border border-line bg-card-alt text-sm text-on-muted">
+                        <div className="flex aspect-[4/3] w-full items-center justify-center rounded-xl border border-line bg-card-alt text-sm text-on-muted">
                           No face enrolled
                         </div>
                       )}
@@ -520,36 +886,38 @@ const ManageUsers = () => {
                   </p>
 
                   {appeal.status === "pending" && (
-                    <div className="mt-4 flex gap-2">
-                      <button
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button
                         type="button"
+                        size="sm"
                         onClick={() => {
                           setReviewNote("");
                           setReviewTarget({ appeal, action: "approved" });
                         }}
-                        className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
                       >
                         <FaCheck className="text-xs" /> Approve
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        size="sm"
+                        variant="danger"
                         onClick={() => {
                           setReviewNote("");
                           setReviewTarget({ appeal, action: "rejected" });
                         }}
-                        className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/20 dark:text-red-400"
                       >
                         <FaTimes className="text-xs" /> Reject
-                      </button>
+                      </Button>
                     </div>
                   )}
 
                   {appeal.status !== "pending" && appeal.responseNote && (
                     <p className="mt-3 text-sm text-on-dim">
-                      <span className="font-medium text-on">Admin note:</span> {appeal.responseNote}
+                      <span className="font-medium text-on">Admin note:</span>{" "}
+                      {appeal.responseNote}
                     </p>
                   )}
-                </div>
+                </Card>
               ))}
             </div>
           )}
@@ -557,37 +925,42 @@ const ManageUsers = () => {
       )}
 
       {showModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-line">
-            <div className="border-b border-line flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-linear-to-br from-indigo-500 to-indigo-800 flex items-center justify-center text-white text-xl font-bold">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[var(--panel-radius)] border border-line bg-card shadow-[var(--elev-3)]">
+            <div className="flex items-start justify-between gap-3 border-b border-line p-5">
+              <div className="flex min-w-0 items-center gap-3.5">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand)] to-[var(--brand-2)] text-lg font-semibold text-white">
                   {selectedUser.name.charAt(0).toUpperCase()}
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold">{selectedUser.name}</h3>
-                  <p className="text-sm text-on-dim">{selectedUser.email}</p>
+                <div className="min-w-0">
+                  <h3 className="truncate font-display text-xl font-semibold tracking-tight text-on">
+                    {selectedUser.name}
+                  </h3>
+                  <p className="truncate text-sm text-on-dim">{selectedUser.email}</p>
                 </div>
               </div>
-              <button
+              <Button
                 onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-card-alt rounded"
+                variant="ghost"
+                size="icon"
+                aria-label="Close user details"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+                <FaTimes />
+              </Button>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <div className="flex flex-wrap items-center gap-3 mb-6">
+            <div className="overflow-y-auto p-5">
+              <div className="mb-5 flex flex-wrap items-center gap-3">
                 <span className="text-sm text-on-dim">Role:</span>
                 {getRoleBadge(selectedUser.role)}
                 <span className="text-sm text-on-dim">
-                  Joined: {formatDate(selectedUser.createdAt)}
+                  Joined {formatDate(selectedUser.createdAt)}
                 </span>
                 {selectedUser.role === "student" && (
                   <span className="text-sm text-on-dim">
-                    Group: <span className="text-on font-medium">{getGroupLabel(selectedUser)}</span>
+                    Group{" "}
+                    <span className="font-medium text-on">
+                      {getGroupLabel(selectedUser)}
+                    </span>
                   </span>
                 )}
               </div>
@@ -595,16 +968,18 @@ const ManageUsers = () => {
               {selectedUser.role === "student" && (
                 <div className="mb-6 flex flex-col gap-4 rounded-xl border border-line bg-card-alt/50 p-4 sm:flex-row sm:items-center">
                   <div className="flex items-center gap-3">
-                    <FaShieldAlt className="text-lg text-indigo-500" />
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
+                      <FaShieldAlt />
+                    </span>
                     <div>
                       <p className="font-medium text-on">Face verification</p>
-                      {selectedUser.facePhoto ? (
-                        <p className="text-sm text-on-dim">Face photo enrolled</p>
-                      ) : (
-                        <p className="text-sm text-on-dim">No face photo enrolled</p>
-                      )}
+                      <p className="text-sm text-on-dim">
+                        {selectedUser.facePhoto
+                          ? "Face photo enrolled"
+                          : "No face photo enrolled"}
+                      </p>
                       {isFaceLocked(selectedUser) ? (
-                        <p className="mt-0.5 text-sm font-medium text-red-600 dark:text-red-400">
+                        <p className="mt-0.5 text-sm font-medium text-danger">
                           Locked until {formatDateTime(selectedUser.faceLockUntil)}
                         </p>
                       ) : (
@@ -616,13 +991,13 @@ const ManageUsers = () => {
                     <PrivateImage
                       src={selectedUser.facePhoto}
                       alt="Enrolled face"
-                      className="h-20 w-20 rounded-xl border border-line object-cover sm:ml-auto"
+                      className="h-16 w-16 rounded-xl border border-line object-cover sm:ml-auto"
                     />
                   )}
                   {isFaceLocked(selectedUser) && (
                     <Button
                       variant="secondary"
-                      className="border border-line"
+                      size="sm"
                       onClick={() => setUnlockTarget(selectedUser)}
                     >
                       Unlock face verification
@@ -631,43 +1006,58 @@ const ManageUsers = () => {
                 </div>
               )}
 
-              <h4 className="text-lg font-semibold mb-4">
-                Attendance History ({userAttendance.length})
+              <h4 className="panel-heading text-base">
+                Attendance history ({userAttendance.length})
               </h4>
               {userAttendance.length === 0 ? (
-                <p className="text-on-dim text-center py-8">No attendance records</p>
+                <EmptyState
+                  compact
+                  icon={<FaUsers />}
+                  title="No attendance records"
+                  description="This account has not checked in to any event yet."
+                />
               ) : (
-                <div className="space-y-2">
+                <div className="mt-3 space-y-2">
                   {userAttendance.map((record) => (
                     <div
                       key={record._id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-card-alt rounded-lg"
+                      className="flex flex-col gap-3 rounded-xl border border-line bg-card-alt/40 p-3.5 sm:flex-row sm:items-center sm:justify-between"
                     >
-                      <div>
-                        <p className="font-medium">{record.event?.title || record.eventTitle || "Event"}</p>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-on">
+                          {record.event?.title || record.eventTitle || "Event"}
+                        </p>
                         <p className="text-sm text-on-dim">
-                          {(record.event?.date || record.eventDate) && formatDate(record.event?.date || record.eventDate)}
+                          {(record.event?.date || record.eventDate) &&
+                            formatDate(record.event?.date || record.eventDate)}
                           {record.communityServiceHours > 0 && (
-                            <span className="dark:text-yellow-400 text-yellow-600 font-medium">
-                              {" "}• {record.communityServiceHours} service hrs
+                            <span className="font-medium text-warn">
+                              {" "}
+                              · {record.communityServiceHours} service hrs
                             </span>
                           )}
                         </p>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <StatusBadge status={record.status} />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusChip status={record.status} />
                         <div className="flex items-center gap-1.5">
                           <input
                             type="number"
                             min="0"
-                            value={csDrafts[record._id] ?? String(record.communityServiceHours)}
+                            value={
+                              csDrafts[record._id] ??
+                              String(record.communityServiceHours)
+                            }
                             onChange={(e) =>
                               setCsDrafts({ ...csDrafts, [record._id]: e.target.value })
                             }
-                            className="w-16 bg-card border border-line rounded-lg px-2 py-1.5 text-sm text-on focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                            className="field w-16 px-2 py-1.5 text-sm"
                             title="Set this student's community service hours"
+                            aria-label={`Community service hours for ${
+                              record.event?.title || "event"
+                            }`}
                           />
-                          <button
+                          <Button
                             onClick={() =>
                               handleUpdateCS(
                                 record,
@@ -675,17 +1065,21 @@ const ManageUsers = () => {
                               )
                             }
                             disabled={rowBusyId === record._id}
-                            className="bg-green-500 hover:bg-green-600 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                            size="sm"
                           >
                             Set hrs
-                          </button>
-                          <button
-                              onClick={() => setPendingRemoveCS(record)}
-                              disabled={rowBusyId === record._id || record.communityServiceHours <= 0}
-                              className="bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
-                            >
-                              Remove hours
-                            </button>
+                          </Button>
+                          <Button
+                            onClick={() => setPendingRemoveCS(record)}
+                            disabled={
+                              rowBusyId === record._id ||
+                              record.communityServiceHours <= 0
+                            }
+                            variant="danger"
+                            size="sm"
+                          >
+                            Remove
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -702,7 +1096,9 @@ const ManageUsers = () => {
         title="Remove community service hours?"
         message={
           pendingRemoveCS
-            ? `Remove the ${pendingRemoveCS.communityServiceHours} service hour${pendingRemoveCS.communityServiceHours === 1 ? "" : "s"} recorded for this event? This only affects this event.`
+            ? `Remove the ${pendingRemoveCS.communityServiceHours} service hour${
+                pendingRemoveCS.communityServiceHours === 1 ? "" : "s"
+              } recorded for this event? This only affects this event.`
             : ""
         }
         confirmLabel="Remove hours"
@@ -744,7 +1140,7 @@ const ManageUsers = () => {
         }}
       >
         {resetPin ? (
-          <p className="mt-3 rounded-xl border border-dashed border-indigo-400/50 bg-indigo-500/5 px-4 py-3 text-center text-2xl font-bold tracking-[0.4em] text-on">
+          <p className="num mt-3 rounded-xl border border-dashed border-brand/40 bg-brand/5 px-4 py-3 text-center text-2xl font-bold tracking-[0.4em] text-on">
             {resetPin}
           </p>
         ) : (
@@ -753,7 +1149,7 @@ const ManageUsers = () => {
               type="checkbox"
               checked={resetClearDevices}
               onChange={(e) => setResetClearDevices(e.target.checked)}
-              className="accent-indigo-600"
+              className="accent-[var(--brand-solid)]"
             />
             Also remove all trusted devices (student lost every browser)
           </label>
@@ -803,9 +1199,7 @@ const ManageUsers = () => {
             ? "Approving unlocks the student's face verification so they can retry immediately."
             : "Rejecting notifies the student that their appeal was declined. Add a reason below."
         }
-        confirmLabel={
-          reviewTarget?.action === "approved" ? "Approve" : "Reject"
-        }
+        confirmLabel={reviewTarget?.action === "approved" ? "Approve" : "Reject"}
         cancelLabel="Cancel"
         variant={reviewTarget?.action === "approved" ? "default" : "danger"}
         busy={reviewingAppeal}
@@ -823,7 +1217,7 @@ const ManageUsers = () => {
             onChange={(e) => setReviewNote(e.target.value)}
             placeholder="Optional reason for rejection (shown to the student)..."
             rows={2}
-            className="mt-3 w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+            className="field mt-3"
           />
         )}
       </ConfirmDialog>

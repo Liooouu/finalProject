@@ -42,13 +42,15 @@ const NotificationBell = ({ role }) => {
   return (
     <button
       onClick={() => navigate(paths[role] || "/")}
-      className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line text-on-dim transition-colors hover:bg-card-alt hover:text-on"
+      className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-card/60 text-on-dim transition-colors hover:bg-card-alt hover:text-on"
       title="Notifications"
-      aria-label="Notifications"
+      aria-label={
+        unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"
+      }
     >
       <FaBell className="text-sm" />
       {unreadCount > 0 && (
-        <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white">
+        <span className="num absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-solid)] px-1 text-[10px] font-bold text-white ring-2 ring-[var(--page-bg)]">
           {unreadCount > 9 ? "9+" : unreadCount}
         </span>
       )}

@@ -22,10 +22,10 @@ import { BsClipboardCheck } from "react-icons/bs";
 import { QRCodeSVG } from "qrcode.react";
 import QRScanner from "./organizer/QRScanner";
 import { usePageMeta } from "../context/PageMetaContext";
-import Button from "./ui/Button";
-import StatusChip from "./ui/StatusChip";
+import { Button, Card, StatusChip } from "./ui";
 import EventMap from "./shared/EventMap";
 import MapPicker from "./shared/MapPicker";
+import EmptyState from "./shared/EmptyState";
 import ConfirmDialog from "./ui/ConfirmDialog";
 
 const EventDetails = () => {
@@ -40,6 +40,8 @@ const EventDetails = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [role, setRole] = useState(null);
+  const [canManage, setCanManage] = useState(false);
+  const [canManageAttendance, setCanManageAttendance] = useState(false);
   const [qrRefreshKey, setQrRefreshKey] = useState(0);
   const [studentId, setStudentId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -86,25 +88,49 @@ const EventDetails = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        const currentRole = getUserRole();
-        const eventRes = await api.get(`/events/${id}`);
-        setEvent(eventRes.data);
-        setEditForm({
-          title: eventRes.data.title,
-          description: eventRes.data.description,
-          location: eventRes.data.location,
-          mapQuery: eventRes.data.mapQuery || "",
-          date: eventRes.data.date ? new Date(eventRes.data.date).toISOString().split("T")[0] : "",
-          time: eventRes.data.time,
-          endDate: eventRes.data.endDate ? new Date(eventRes.data.endDate).toISOString().split("T")[0] : "",
-          endTime: eventRes.data.endTime || "",
-          status: eventRes.data.status,
-          attendanceStartTime: eventRes.data.attendanceStartTime || "",
-          attendanceEndTime: eventRes.data.attendanceEndTime || "",
-        });
+      const currentRole = getUserRole();
+      const currentUser = getUserFromToken();
+      let eventData;
 
-        if (currentRole === "organizer" || currentRole === "admin") {
+      try {
+        const eventRes = await api.get(`/events/${id}`);
+        eventData = eventRes.data;
+        setEvent(eventData);
+        setEditForm({
+          title: eventData.title,
+          description: eventData.description,
+          location: eventData.location,
+          mapQuery: eventData.mapQuery || "",
+          date: eventData.date ? new Date(eventData.date).toISOString().split("T")[0] : "",
+          time: eventData.time,
+          endDate: eventData.endDate ? new Date(eventData.endDate).toISOString().split("T")[0] : "",
+          endTime: eventData.endTime || "",
+          status: eventData.status,
+          attendanceStartTime: eventData.attendanceStartTime || "",
+          attendanceEndTime: eventData.attendanceEndTime || "",
+        });
+      } catch (err) {
+        console.error(err.response?.data || err.message);
+        setMessage("Failed to load event details");
+        setMessageType("error");
+        setLoading(false);
+        return;
+      }
+
+      const ownerId = eventData.organizer?._id || eventData.organizer;
+      const mayManage =
+        currentRole === "admin" ||
+        (currentRole === "organizer" &&
+          ((currentUser?.id &&
+            ownerId &&
+            String(ownerId) === String(currentUser.id)) ||
+            eventData.organizer?.role === "admin"));
+      const mayManageAttendance = mayManage;
+      setCanManage(Boolean(mayManage));
+      setCanManageAttendance(Boolean(mayManageAttendance));
+
+      try {
+        if (mayManageAttendance) {
           const attendeesRes = await api.get(`/events/${id}/attendees`);
           setAttendees(attendeesRes.data);
         } else if (currentRole === "student") {
@@ -114,7 +140,7 @@ const EventDetails = () => {
         }
       } catch (err) {
         console.error(err.response?.data || err.message);
-        setMessage("Failed to load event details");
+        setMessage("Failed to load attendance details");
         setMessageType("error");
       } finally {
         setLoading(false);
@@ -317,6 +343,16 @@ const EventDetails = () => {
     );
   }
 
+  const ownerId = event.organizer?._id || event.organizer;
+  const canDelete =
+    role === "admin" ||
+    Boolean(
+      role === "organizer" &&
+        studentId &&
+        ownerId &&
+        String(ownerId) === String(studentId)
+    );
+
   const isBeforeAttendanceWindow = () => {
     if (!event.attendanceStartTime) return false;
     const now = new Date();
@@ -325,175 +361,238 @@ const EventDetails = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Back Button */}
+    <div className="space-y-5">
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-on-dim hover:text-on transition-colors"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-on-dim transition-colors hover:text-on"
       >
-        <span>←</span> Back
+        <span aria-hidden="true">←</span> Back
       </button>
 
-      {/* Event Header Card */}
-      <div className="rounded-xl border border-line bg-card p-6">
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-on">{event.title}</h1>
-            <div className="mt-2">
+      <Card className="overflow-hidden">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="eyebrow">Event details</p>
               <StatusChip status={event.status} />
             </div>
-          </div>
-        </div>
-
-        <p className="text-on-dim mb-6">{event.description || "No description"}</p>
-
-        {/* Event Details Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
-            <div className="bg-card p-4 rounded-xl border border-line">
-              <p className="text-on-dim text-sm mb-1">Date</p>
-              <p className="text-lg font-semibold text-on">{formatDate(event.date)}</p>
-            </div>
-            <div className="bg-card p-4 rounded-xl border border-line">
-              <p className="text-on-dim text-sm mb-1">Starts</p>
-              <p className="text-lg font-semibold text-on">{formatTime12Hour(event.time)}</p>
-            </div>
-            <div className="bg-card p-4 rounded-xl border border-line">
-              <p className="text-on-dim text-sm mb-1">Location</p>
-              <p className="text-lg font-semibold text-on">{event.location || "TBA"}</p>
-            </div>
-          </div>
-
-          <div className="mb-6 bg-card p-4 rounded-xl border border-line">
-            <p className="text-on-dim text-sm mb-1">Ends</p>
-            <p className="text-lg font-semibold text-on">
-              {formatDate(event.endDate || event.date)} at{" "}
-              {formatTime12Hour(event.endTime || event.attendanceEndTime)}
+            <h1 className="mt-1.5 font-display text-2xl font-semibold tracking-tight text-on sm:text-[30px]">
+              {event.title}
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-on-dim">
+              {event.description || "No description"}
             </p>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-xl border border-line bg-card-alt/40 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-on-muted">
+                  Date
+                </p>
+                <p className="mt-1 text-sm font-semibold text-on">{formatDate(event.date)}</p>
+              </div>
+              <div className="rounded-xl border border-line bg-card-alt/40 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-on-muted">
+                  Starts
+                </p>
+                <p className="mt-1 text-sm font-semibold text-on">
+                  {formatTime12Hour(event.time)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-line bg-card-alt/40 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-on-muted">
+                  Ends
+                </p>
+                <p className="mt-1 text-sm font-semibold text-on">
+                  {formatDate(event.endDate || event.date)} at{" "}
+                  {formatTime12Hour(event.endTime || event.attendanceEndTime)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-line bg-card-alt/40 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-on-muted">
+                  Location
+                </p>
+                <p className="mt-1 truncate text-sm font-semibold text-on" title={event.location || "TBA"}>
+                  {event.location || "TBA"}
+                </p>
+              </div>
+            </div>
           </div>
 
-        <EventMap event={event} className="mb-6 h-56 w-full" />
-
-        {/* Attendance Window */}
-        <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
-          <p className="dark:text-yellow-400 text-yellow-600 flex items-center gap-2">
-            <span><BsClipboardCheck /></span>
-            <span className="font-semibold">Attendance Window:</span>{" "}
-            {formatTime12Hour(event.attendanceStartTime)} - {formatTime12Hour(event.attendanceEndTime)}
-          </p>
+          <div className="rounded-2xl border border-line bg-card-alt/50 p-4">
+            <p className="eyebrow">Attendance window</p>
+            <p className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-warn">
+              <BsClipboardCheck className="shrink-0" />
+              {formatTime12Hour(event.attendanceStartTime)} –{" "}
+              {formatTime12Hour(event.attendanceEndTime)}
+            </p>
+            <p className="mt-1 text-xs text-on-muted">
+              Students can only check in during this window.
+            </p>
+            {event.organizer && (
+              <div className="mt-4 border-t border-line pt-3">
+                <p className="eyebrow">Organized by</p>
+                <p className="mt-1 text-sm font-medium text-on">{event.organizer.name}</p>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Organizer */}
-        {event.organizer && (
-          <div className="mt-6 pt-6 border-t border-line">
-            <p className="text-on-dim text-sm">Organized by</p>
-            <p className="text-lg font-semibold text-on">{event.organizer.name}</p>
-          </div>
-        )}
-      </div>
+        <EventMap event={event} className="mt-6 h-56 w-full" />
+      </Card>
 
       {/* Message */}
       {message && (
-        <div className={`p-4 rounded-xl ${messageType === "error" ? "bg-red-500/20 border border-red-500/30 dark:text-red-400 text-red-600" : myAttendance?.status === "late" || message.includes("late") ? "bg-yellow-500/20 border border-yellow-500/30 dark:text-yellow-400 text-yellow-600" : "bg-green-500/20 border border-green-500/30 dark:text-green-400 text-green-600"}`}>
-          {message}
+        <div
+          className={`alert ${messageType === "error" ? "alert-danger" : "alert-ok"}`}
+          role="status"
+        >
+          <span aria-hidden="true">{messageType === "error" ? "!" : "✓"}</span>
+          <p>{message}</p>
+        </div>
+      )}
+
+      {role === "organizer" && !canManageAttendance && (
+        <div className="alert alert-info" role="status">
+          <span aria-hidden="true">i</span>
+          <p>
+            This event belongs to {event.organizer?.name || "another organizer"}. You can view
+            the details, but only its organizer or an admin can manage attendance.
+          </p>
         </div>
       )}
 
       {/* Student Attendance Section */}
       {role === "student" && (
-        <div className="rounded-xl border border-line bg-card p-6">
-          <h2 className="text-xl font-bold text-on mb-4">Attendance</h2>
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="panel-heading">Attendance</h2>
+            {myAttendance && <StatusChip status={myAttendance.status} />}
+          </div>
+
           {myAttendance ? (
-            <div className="space-y-3">
-              <div className={`flex items-center gap-3 ${myAttendance.status === "absent" ? "dark:text-red-400 text-red-600" : myAttendance.status === "late" ? "dark:text-yellow-400 text-yellow-600" : myAttendance.status === "excused" ? "dark:text-blue-400 text-blue-600" : "dark:text-green-400 text-green-600"}`}>
-                <span className="text-2xl">
-                  {myAttendance.status === "absent" ? "❌" : myAttendance.status === "late" ? "⏰" : <FaCheck />}
+            <div className="mt-4 space-y-3">
+              <div
+                className={`flex items-start gap-3 rounded-xl border p-4 ${
+                  myAttendance.status === "absent"
+                    ? "border-danger/25 bg-danger/10 text-danger"
+                    : myAttendance.status === "late"
+                      ? "border-warn/25 bg-warn/10 text-warn"
+                      : myAttendance.status === "excused"
+                        ? "border-info/25 bg-info/10 text-info"
+                        : "border-ok/25 bg-ok/10 text-ok"
+                }`}
+              >
+                <span className="mt-0.5 text-lg">
+                  {myAttendance.status === "absent"
+                    ? "❌"
+                    : myAttendance.status === "late"
+                      ? "⏰"
+                      : <FaCheck />}
                 </span>
-                <p className="text-lg font-medium">
+                <p className="text-sm font-medium leading-relaxed">
                   {myAttendance.status === "absent"
                     ? "You are marked as absent."
                     : myAttendance.status === "late"
-                    ? "You are marked as late."
-                    : myAttendance.status === "excused"
-                    ? "Your absence has been excused."
-                    : "You have marked your attendance."}
+                      ? "You are marked as late."
+                      : myAttendance.status === "excused"
+                        ? "Your absence has been excused."
+                        : "You have marked your attendance."}
                 </p>
               </div>
-              <p className="text-on-dim">
-                Checked in at: {formatDateTime(myAttendance.attendedAt)}
+              <p className="text-sm text-on-dim">
+                Checked in at:{" "}
+                <span className="text-on">{formatDateTime(myAttendance.attendedAt)}</span>
               </p>
               {myAttendance.communityServiceHours > 0 && (
-                <p className="dark:text-yellow-400 text-yellow-600 font-medium">
-                  <FaExclamationTriangle /> Community Service: {myAttendance.communityServiceHours} hours
+                <p className="flex items-center gap-1.5 text-sm font-medium text-warn">
+                  <FaExclamationTriangle /> Community service:{" "}
+                  {myAttendance.communityServiceHours} hours
                 </p>
               )}
             </div>
           ) : isBeforeAttendanceWindow() ? (
-            <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
-              <p className="dark:text-yellow-400 text-yellow-600">
+            <div className="alert alert-warn mt-4" role="status">
+              <span aria-hidden="true">!</span>
+              <p>
                 Attendance is not open yet. You can mark your attendance starting at{" "}
-                <span className="font-bold">{formatTime12Hour(event.attendanceStartTime)}</span>
+                <span className="font-semibold">
+                  {formatTime12Hour(event.attendanceStartTime)}
+                </span>
+                .
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {/* QR Code Display */}
-              <div className="bg-card rounded-xl p-6 text-center">
-                <p className="text-on font-medium mb-4">Show this QR code to the organizer to scan your attendance</p>
-                <div className="flex justify-center mb-4">
-                  {getQRData() && (
-                    <div className="w-full max-w-[300px] p-4 bg-white rounded-xl">
-                      <QRCodeSVG
-                        key={qrRefreshKey}
-                        value={getQRData()}
-                        size={300}
-                        level="M"
-                        includeMargin={false}
-                        className="w-full h-auto"
-                      />
-                    </div>
-                  )}
-                </div>
-                <p className="text-on-dim text-sm">
-                  QR code refreshes every 30 seconds for security
-                </p>
+            <div className="mt-4 rounded-xl border border-line bg-card-alt/40 p-5 text-center">
+              <p className="text-sm font-medium text-on">
+                Show this QR code to the organizer to scan your attendance
+              </p>
+              <div className="mt-4 flex justify-center">
+                {getQRData() && (
+                  <div className="w-full max-w-[300px] rounded-2xl bg-white p-4 shadow-sm">
+                    <QRCodeSVG
+                      key={qrRefreshKey}
+                      value={getQRData()}
+                      size={300}
+                      level="M"
+                      includeMargin={false}
+                      className="h-auto w-full"
+                    />
+                  </div>
+                )}
               </div>
+              <p className="mt-4 text-xs text-on-muted">
+                QR code refreshes every 30 seconds for security.
+              </p>
             </div>
           )}
-        </div>
+        </Card>
       )}
 
       {/* Organizer Management Section */}
-      {(role === "organizer" || role === "admin") && (
-        <div className="space-y-6">
+      {(canManage || canManageAttendance) && (
+        <div className="space-y-4">
           {/* QR Scanner Card */}
-          <QRScanner eventId={id} onScanSuccess={refreshAttendees} />
+          {canManageAttendance && (
+            <QRScanner eventId={id} onScanSuccess={refreshAttendees} />
+          )}
 
           {/* Manage Attendance Button */}
-          <Button
-            onClick={() => navigate(
-              role === "admin"
-                ? `/admin/dashboard/events/${id}/attendees`
-                : `/organizer/dashboard/events/${id}/attendees`
-            )}
-            className="w-full py-3"
-          >
-            <FaUsers /> Manage Attendance Manually
-          </Button>
+          {canManageAttendance && (
+            <Button
+              onClick={() =>
+                navigate(
+                  role === "admin"
+                    ? `/admin/dashboard/events/${id}/attendees`
+                    : `/organizer/dashboard/events/${id}/attendees`
+                )
+              }
+              className="w-full"
+            >
+              <FaUsers /> Manage attendance manually
+            </Button>
+          )}
 
           {/* Event Management Card */}
-          <div className="rounded-xl border border-line bg-card p-6">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
-              <h2 className="text-xl font-bold text-on">Event Management</h2>
-              <div className="flex flex-wrap gap-2">
-                {!isEditing && (
-                  <>
-                    <Button
-                      onClick={() => setIsEditing(true)}
-                      variant="secondary"
-                      size="sm"
-                    >
-                      <FaEdit /> Edit Event
-                    </Button>
+          {canManage && (
+            <Card>
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="panel-heading text-base">Event management</h2>
+                <p className="mt-1 text-sm text-on-dim">
+                  Update details or status
+                  {canDelete ? ", or remove this event." : "."}
+                </p>
+              </div>
+              {!isEditing && (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => setIsEditing(true)}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    <FaEdit /> Edit event
+                  </Button>
+                  {canDelete && (
                     <Button
                       onClick={() => setConfirmDelete(true)}
                       variant="danger"
@@ -501,125 +600,184 @@ const EventDetails = () => {
                     >
                       <FaTrash /> Delete
                     </Button>
-                  </>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {isEditing ? (
               <form onSubmit={handleSaveEdit} className="space-y-4">
-                <input
-                  type="text"
-                  name="title"
-                  value={editForm.title}
-                  onChange={handleEditChange}
-                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                  required
-                />
-                <textarea
-                  name="description"
-                  value={editForm.description}
-                  onChange={handleEditChange}
-                  rows={3}
-                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                />
-                <input
-                  type="text"
-                  name="location"
-                  value={editForm.location}
-                  onChange={handleEditChange}
-                  placeholder="Location"
-                  className="w-full bg-card border border-line rounded-xl px-4 py-3 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                />
+                <div>
+                  <label htmlFor="ed-title" className="field-label">
+                    Title
+                  </label>
+                  <input
+                    id="ed-title"
+                    type="text"
+                    name="title"
+                    value={editForm.title}
+                    onChange={handleEditChange}
+                    className="field"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ed-description" className="field-label">
+                    Description
+                  </label>
+                  <textarea
+                    id="ed-description"
+                    name="description"
+                    value={editForm.description}
+                    onChange={handleEditChange}
+                    rows={3}
+                    className="field"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ed-location" className="field-label">
+                    Location
+                  </label>
+                  <input
+                    id="ed-location"
+                    type="text"
+                    name="location"
+                    value={editForm.location}
+                    onChange={handleEditChange}
+                    placeholder="Location"
+                    className="field"
+                  />
+                </div>
                 <MapPicker
                   value={editForm.mapQuery}
                   onChange={handleMapPick}
                   className="h-64"
                 />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-on-muted mb-1">Start Date</label>
-                    <input
-                      type="date"
-                      name="date"
-                      value={editForm.date}
-                      onChange={handleEditChange}
-                      className="field-datetime"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-on-muted mb-1">Start Time</label>
-                    <input
-                      type="time"
-                      name="time"
-                      value={editForm.time}
-                      onChange={handleEditChange}
-                      className="field-datetime"
-                      required
-                    />
+
+                <div className="border-t border-line pt-4">
+                  <h3 className="text-sm font-semibold text-on">Event starts</h3>
+                  <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="ed-date" className="field-label">
+                        Start date
+                      </label>
+                      <input
+                        id="ed-date"
+                        type="date"
+                        name="date"
+                        value={editForm.date}
+                        onChange={handleEditChange}
+                        className="field-datetime"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="ed-time" className="field-label">
+                        Start time
+                      </label>
+                      <input
+                        id="ed-time"
+                        type="time"
+                        name="time"
+                        value={editForm.time}
+                        onChange={handleEditChange}
+                        className="field-datetime"
+                        required
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <input
-                    type="time"
-                    name="attendanceStartTime"
-                    value={editForm.attendanceStartTime}
-                    onChange={handleEditChange}
-                    className="field-datetime"
-                    required
-                  />
-                  <input
-                    type="time"
-                    name="attendanceEndTime"
-                    value={editForm.attendanceEndTime}
-                    onChange={handleEditChange}
-                    className="field-datetime"
-                    required
-                  />
+
+                <div className="border-t border-line pt-4">
+                  <h3 className="text-sm font-semibold text-on">Attendance window</h3>
+                  <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="ed-att-start" className="field-label">
+                        Opens
+                      </label>
+                      <input
+                        id="ed-att-start"
+                        type="time"
+                        name="attendanceStartTime"
+                        value={editForm.attendanceStartTime}
+                        onChange={handleEditChange}
+                        className="field-datetime"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="ed-att-end" className="field-label">
+                        Closes
+                      </label>
+                      <input
+                        id="ed-att-end"
+                        type="time"
+                        name="attendanceEndTime"
+                        value={editForm.attendanceEndTime}
+                        onChange={handleEditChange}
+                        className="field-datetime"
+                        required
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-on-muted mb-1">Event End Date</label>
-                    <input
-                      type="date"
-                      name="endDate"
-                      value={editForm.endDate || ""}
-                      onChange={handleEditChange}
-                      className="field-datetime"
-                    />
+
+                <div className="border-t border-line pt-4">
+                  <h3 className="text-sm font-semibold text-on">Event ends</h3>
+                  <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="ed-end-date" className="field-label">
+                        End date
+                      </label>
+                      <input
+                        id="ed-end-date"
+                        type="date"
+                        name="endDate"
+                        value={editForm.endDate || ""}
+                        onChange={handleEditChange}
+                        className="field-datetime"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="ed-end-time" className="field-label">
+                        End time
+                      </label>
+                      <input
+                        id="ed-end-time"
+                        type="time"
+                        name="endTime"
+                        value={editForm.endTime || ""}
+                        onChange={handleEditChange}
+                        className="field-datetime"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs text-on-muted mb-1">Event End Time</label>
-                    <input
-                      type="time"
-                      name="endTime"
-                      value={editForm.endTime || ""}
-                      onChange={handleEditChange}
-                      className="field-datetime"
-                    />
-                  </div>
-                  <p className="text-xs text-on-muted">
-                    Set when the event itself ends. Leave blank to use the event date and attendance end time.
+                  <p className="field-hint">
+                    Leave blank to use the event date and attendance end time.
                   </p>
                 </div>
-                <select
-                  name="status"
-                  value={editForm.status}
-                  onChange={handleEditChange}
-                  className="field-select"
-                >
-                  <option value="upcoming">Upcoming</option>
-                  <option value="live">Live</option>
-                  <option value="finished">Finished</option>
-                  <option value="closed">Closed</option>
-                </select>
-                <div className="flex gap-3">
-                  <Button
-                    type="submit"
-                    disabled={saving}
+
+                <div>
+                  <label htmlFor="ed-status" className="field-label">
+                    Status
+                  </label>
+                  <select
+                    id="ed-status"
+                    name="status"
+                    value={editForm.status}
+                    onChange={handleEditChange}
+                    className="field-select"
                   >
-                    {saving ? "Saving..." : "Save Changes"}
+                    <option value="upcoming">Upcoming</option>
+                    <option value="live">Live</option>
+                    <option value="finished">Finished</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" loading={saving}>
+                    {saving ? "Saving..." : "Save changes"}
                   </Button>
                   <Button
                     type="button"
@@ -631,33 +789,39 @@ const EventDetails = () => {
                 </div>
               </form>
             ) : (
-              <div className="flex flex-col gap-3">
+              <div className="space-y-3">
                 {isTerminalStatus(event.status) && (
                   <p className="text-xs text-on-muted">
                     This event has ended. Attendance can no longer be marked.
                   </p>
                 )}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                  <span className="text-on-dim">Quick Status:</span>
-                  <select
-                    value={event.status}
-                    onChange={(e) => handleStatusChange(e.target.value)}
-                    className="bg-card border border-line rounded-lg px-4 py-2 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                  >
-                    <option value="upcoming">Upcoming</option>
-                    <option value="live">Live</option>
-                    <option value="finished">Finished</option>
-                    <option value="closed">Closed</option>
-                  </select>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <label htmlFor="quick-status" className="field-label">
+                      Quick status
+                    </label>
+                    <select
+                      id="quick-status"
+                      value={event.status}
+                      onChange={(e) => handleStatusChange(e.target.value)}
+                      className="field-select w-auto"
+                    >
+                      <option value="upcoming">Upcoming</option>
+                      <option value="live">Live</option>
+                      <option value="finished">Finished</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  </div>
                   {isTerminalStatus(event.status) && (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleStatusChange("upcoming")}
-                      className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-500 dark:text-indigo-400"
                     >
                       <FaUndo className="text-xs" />
                       Reopen event
-                    </button>
+                    </Button>
                   )}
                 </div>
                 {describeEventLifecycle(event) && (
@@ -667,7 +831,7 @@ const EventDetails = () => {
                       <button
                         type="button"
                         onClick={handleResumeAuto}
-                        className="ml-2 font-medium text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400"
+                        className="ml-2 font-medium text-brand underline-offset-2 hover:underline"
                       >
                         Resume auto-close
                       </button>
@@ -676,14 +840,20 @@ const EventDetails = () => {
                 )}
               </div>
             )}
-          </div>
+          </Card>
+          )}
 
           {/* Attendees Card */}
-          <div className="rounded-xl border border-line bg-card p-6">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-xl font-bold text-on">
-                    Attendees by group
-                {selectedGroup !== "all" && ` (${filteredAttendees.length})`}
+          {canManageAttendance && (
+          <Card>
+            <div className="mb-4 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="panel-heading text-base">
+                Attendees by group
+                {selectedGroup !== "all" && (
+                  <span className="num ml-1.5 text-on-muted">
+                    ({filteredAttendees.length})
+                  </span>
+                )}
               </h2>
               <p className="text-xs text-on-muted">
                 {selectedGroup === "all"
@@ -692,12 +862,13 @@ const EventDetails = () => {
               </p>
             </div>
 
-            <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
-                <label className="mb-2 block text-sm font-semibold text-on-dim">
+                <label htmlFor="group-program" className="field-label">
                   Program
                 </label>
                 <select
+                  id="group-program"
                   value={program}
                   onChange={(e) => setProgram(e.target.value)}
                   className="field-select"
@@ -710,63 +881,83 @@ const EventDetails = () => {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-on-dim">
+                <label htmlFor="group-year" className="field-label">
                   Year level
                 </label>
                 <input
+                  id="group-year"
                   type="number"
                   min={1}
                   max={4}
                   placeholder="1 – 4"
                   value={yearLevel}
                   onChange={(e) => setYearLevel(e.target.value)}
-                  className="field-select"
+                  className="field"
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-on-dim">
+                <label htmlFor="group-section" className="field-label">
                   Section
                 </label>
                 <input
+                  id="group-section"
                   type="text"
-                  maxLength={2}
-                  placeholder="A – D"
+                  maxLength={1}
+                  placeholder="A – C"
                   value={section}
                   onChange={(e) =>
-                    setSection(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))
+                    setSection(e.target.value.toUpperCase().replace(/[^ABC]/g, ""))
                   }
-                  className="field-select"
+                  className="field"
                 />
               </div>
             </div>
+
             {selectedGroup === "all" ? (
-              <p className="text-on-muted text-center py-8">
-                Fill in the program, year level and section above — student information stays hidden until a class is selected.
-              </p>
+              <EmptyState
+                compact
+                icon={<FaUsers />}
+                title="Select a class"
+                description="Student information stays hidden until a program, year level, and section are selected."
+              />
             ) : filteredAttendees.length === 0 ? (
-              <p className="text-on-dim text-center py-8">No attendees yet. Scan student QR codes to mark attendance.</p>
+              <EmptyState
+                compact
+                icon={<FaUsers />}
+                title="No attendees yet"
+                description="Scan student QR codes to mark attendance."
+              />
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {filteredAttendees.map((attendance) => (
-                  <div key={attendance._id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-4 bg-card rounded-xl gap-4">
-                    <div>
+                  <div
+                    key={attendance._id}
+                    className="flex flex-col gap-4 rounded-xl border border-line bg-card-alt/40 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
                       <p className="font-medium text-on">{attendance.student?.name}</p>
-                      <p className="text-sm text-on-dim">{attendance.student?.email}</p>
-                      <p className="text-xs text-on-muted mt-1">
+                      <p className="truncate text-sm text-on-dim">
+                        {attendance.student?.email}
+                      </p>
+                      <p className="mt-1 text-xs text-on-muted">
                         Checked in: {formatDateTime(attendance.attendedAt)}
                       </p>
                       {attendance.communityServiceHours > 0 && (
-                        <p className="dark:text-yellow-400 text-yellow-600 text-xs mt-1">
-                          <FaExclamationTriangle /> Community Service: {attendance.communityServiceHours} hours
+                        <p className="mt-1 flex items-center gap-1 text-xs font-medium text-warn">
+                          <FaExclamationTriangle /> Community service:{" "}
+                          {attendance.communityServiceHours} hours
                         </p>
                       )}
                     </div>
                     <div className="flex flex-col gap-2">
                       <select
                         value={attendance.status}
-                        onChange={(e) => handleUpdateStatus(attendance.student._id, e.target.value)}
-                        className="bg-card border border-line rounded-lg px-3 py-2 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                        onChange={(e) =>
+                          handleUpdateStatus(attendance.student._id, e.target.value)
+                        }
+                        className="field-select w-auto py-1.5 text-xs"
+                        aria-label={`Attendance status for ${attendance.student?.name}`}
                       >
                         <option value="present">Present (0 hrs)</option>
                         <option value="late">Late (4 hrs)</option>
@@ -776,30 +967,40 @@ const EventDetails = () => {
                         <input
                           type="number"
                           min="0"
-                          value={csDrafts[attendance.student._id] ?? attendance.communityServiceHours}
-                          onChange={(e) =>
-                            setCsDrafts((d) => ({ ...d, [attendance.student._id]: e.target.value }))
+                          value={
+                            csDrafts[attendance.student._id] ??
+                            attendance.communityServiceHours
                           }
-                          className="w-20 bg-card border border-line rounded-lg px-3 py-2 text-on focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                          onChange={(e) =>
+                            setCsDrafts((d) => ({
+                              ...d,
+                              [attendance.student._id]: e.target.value,
+                            }))
+                          }
+                          className="field w-20 px-2 py-1.5 text-sm"
                           title="Set this student's community service hours for this event"
+                          aria-label={`Community service hours for ${attendance.student?.name}`}
                         />
                         <Button
-                          variant="ghost"
+                          variant="secondary"
                           size="sm"
                           onClick={() =>
-                            handleUpdateCS(attendance.student._id, csDrafts[attendance.student._id] ?? attendance.communityServiceHours)
+                            handleUpdateCS(
+                              attendance.student._id,
+                              csDrafts[attendance.student._id] ??
+                                attendance.communityServiceHours
+                            )
                           }
                         >
                           Set hrs
                         </Button>
                         <Button
-                          variant="ghost"
+                          variant="danger"
                           size="sm"
                           onClick={() => setPendingRemoveCS(attendance)}
                           disabled={attendance.communityServiceHours <= 0}
-                          className="text-red-500 hover:border-red-500/40"
                         >
-                          Remove hours
+                          Remove
                         </Button>
                       </div>
                     </div>
@@ -807,7 +1008,8 @@ const EventDetails = () => {
                 ))}
               </div>
             )}
-          </div>
+          </Card>
+          )}
         </div>
       )}
 

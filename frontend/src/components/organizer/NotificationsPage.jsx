@@ -1,281 +1,41 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import api from "../../api/axios";
-import { FaEdit, FaCalendarAlt, FaCheck, FaBell, FaBolt, FaInfo, FaTrash, FaExclamationTriangle, FaUsers } from "react-icons/fa";
-import Loading from "../shared/Loading";
-import { usePageMeta } from "../../context/PageMetaContext";
-import EmptyState from "../shared/EmptyState";
-import Button from "../ui/Button";
-import ConfirmDialog from "../ui/ConfirmDialog";
-import { formatDate, notifyNotificationsChanged } from "../../utils/helpers";
+import React from "react";
+import { FaCalendarAlt, FaEdit, FaUsers } from "react-icons/fa";
+import NotificationCenter from "../shared/NotificationCenter";
 
-const NotificationsPage = ({ role = "organizer" }) => {
-  const navigate = useNavigate();
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
-  const [deletingAll, setDeletingAll] = useState(false);
+const ORGANIZER_ACTIONS = [
+  {
+    icon: <FaEdit />,
+    label: "Manage excuses",
+    description: "Review student excuse letters",
+    to: "/organizer/dashboard/excuses",
+  },
+  {
+    icon: <FaCalendarAlt />,
+    label: "Manage events",
+    description: "View and edit your events",
+    to: "/organizer/dashboard/events",
+  },
+];
 
-  usePageMeta("Notifications", "Stay updated with your events.");
+const ADMIN_ACTIONS = [
+  {
+    icon: <FaCalendarAlt />,
+    label: "Manage events",
+    description: "View and manage all events",
+    to: "/admin/dashboard/events",
+  },
+  {
+    icon: <FaUsers />,
+    label: "Manage users",
+    description: "Review students and staff",
+    to: "/admin/dashboard/users",
+  },
+];
 
-  const fetchNotifications = async () => {
-    try {
-      const res = await api.get("/notifications");
-      setNotifications(res.data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
-
-  const markAsRead = async (id) => {
-    try {
-      await api.patch(`/notifications/${id}/read`);
-      setNotifications((prev) =>
-        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
-      );
-      notifyNotificationsChanged();
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-    }
-  };
-
-  const markAllAsRead = async () => {
-    try {
-      await api.patch("/notifications/read-all");
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      notifyNotificationsChanged();
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-    }
-  };
-
-  const deleteNotification = async (id) => {
-    try {
-      await api.delete(`/notifications/${id}`);
-      setNotifications((prev) => prev.filter((n) => n._id !== id));
-      notifyNotificationsChanged();
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-    }
-  };
-
-  const deleteAllNotifications = async () => {
-    if (deletingAll) return;
-    setDeletingAll(true);
-    try {
-      await api.delete("/notifications");
-      setNotifications([]);
-      notifyNotificationsChanged();
-      setConfirmDeleteAll(false);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-    } finally {
-      setDeletingAll(false);
-    }
-  };
-
-  const getIcon = (type) => {
-    switch (type) {
-      case "attendance": return <FaCalendarAlt />;
-      case "excuse": return <FaEdit />;
-      case "penalty": return <FaExclamationTriangle />;
-      case "system": return <FaBolt />;
-      default: return <FaInfo />;
-    }
-  };
-
-  const typeConfig = {
-    attendance: { bg: "bg-blue-500/20", text: "text-blue-400", label: "Attendance" },
-    excuse: { bg: "bg-yellow-500/20", text: "text-yellow-400", label: "Excuse" },
-    penalty: { bg: "bg-red-500/20", text: "text-red-400", label: "Penalty" },
-    system: { bg: "bg-purple-500/20", text: "text-purple-400", label: "System" },
-    info: { bg: "bg-gray-500/20", text: "text-gray-400", label: "Info" },
-  };
-
-  const formatTime = (date) => {
-    const now = new Date();
-    const then = new Date(date);
-    const diff = Math.floor((now - then) / 1000);
-    
-    if (diff < 60) return "Just now";
-    const minutes = Math.floor(diff / 60);
-    if (diff < 3600) return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
-    const hours = Math.floor(diff / 3600);
-    if (diff < 86400) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
-    const days = Math.floor(diff / 86400);
-    if (diff < 604800) return `${days} ${days === 1 ? "day" : "days"} ago`;
-    return formatDate(then);
-  };
-
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-
-  if (loading) {
-    return <Loading label="Loading notifications..." />;
-  }
-
-  return (
-    <div className="space-y-6">
-      {notifications.length > 0 && (
-        <div className="flex flex-wrap justify-end gap-2">
-          {unreadCount > 0 && (
-            <Button
-              onClick={markAllAsRead}
-              variant="secondary"
-              size="sm"
-            >
-              <FaCheck className="text-xs" />
-              Mark all as read ({unreadCount})
-            </Button>
-          )}
-          <Button
-            onClick={() => setConfirmDeleteAll(true)}
-            variant="danger"
-            size="sm"
-          >
-            <FaTrash className="text-xs" />
-            Delete all
-          </Button>
-        </div>
-      )}
-
-      <div className="space-y-4">
-        {notifications.map((notif) => {
-          const config = typeConfig[notif.type] || typeConfig.info;
-          return (
-            <div
-              key={notif._id}
-              onClick={() => !notif.isRead && markAsRead(notif._id)}
-              className={`cursor-pointer rounded-xl border bg-card p-6 transition-all duration-200 hover:shadow-lg ${
-                notif.isRead
-                  ? "border-line opacity-65"
-                  : "border-indigo-500/40 shadow-md shadow-indigo-900/5"
-              }`}
-            >
-              <div className="flex items-start gap-4">
-                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${config.bg.replace("20", "15")} ${config.text}`}>
-                  <span className="text-lg">{getIcon(notif.type)}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-on">{notif.title}</h3>
-                      <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${config.bg} ${config.text}`}>
-                        {config.label}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-on-muted">{formatTime(notif.createdAt)}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteTarget(notif._id);
-                        }}
-                        className="p-1 text-on-muted transition-colors hover:text-red-500"
-                        aria-label="Delete notification"
-                      >
-                        <FaTrash className="text-sm" />
-                      </button>
-                    </div>
-                  </div>
-                  <p className="text-sm text-on-dim">{notif.message}</p>
-                  {!notif.isRead && (
-                    <span className="mt-3 inline-block rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400">
-                      New
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {notifications.length === 0 && (
-        <EmptyState
-          icon={<FaBell />}
-          title="No notifications yet"
-          description="You're all caught up."
-        />
-      )}
-
-      <div className="rounded-xl border border-line bg-card p-6">
-        <h3 className="text-lg font-semibold text-on mb-4 flex items-center gap-2">
-          <span className="text-indigo-500"><FaBolt /></span> Quick Actions
-        </h3>
-        <div className="grid md:grid-cols-2 gap-4">
-          {role === "admin" ? (
-            <>
-              <button
-                onClick={() => navigate("/admin/dashboard/events")}
-                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line text-left group transition-colors"
-              >
-                <p className="font-medium text-on group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors flex items-center gap-2"><FaCalendarAlt /> Manage Events</p>
-                <p className="text-sm text-on-dim mt-1">View and manage all events</p>
-              </button>
-              <button
-                onClick={() => navigate("/admin/dashboard/users")}
-                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line text-left group transition-colors"
-              >
-                <p className="font-medium text-on group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors flex items-center gap-2"><FaUsers /> Manage Users</p>
-                <p className="text-sm text-on-dim mt-1">Review students and staff</p>
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => navigate("/organizer/dashboard/excuses")}
-                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line text-left group transition-colors"
-              >
-                <p className="font-medium text-on group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors flex items-center gap-2"><FaEdit /> Manage Excuses</p>
-                <p className="text-sm text-on-dim mt-1">Review student excuse letters</p>
-              </button>
-              <button
-                onClick={() => navigate("/organizer/dashboard/events")}
-                className="p-4 bg-card hover:bg-card-alt rounded-xl border border-line text-left group transition-colors"
-              >
-                <p className="font-medium text-on group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors flex items-center gap-2"><FaCalendarAlt /> Manage Events</p>
-                <p className="text-sm text-on-dim mt-1">View and edit your events</p>
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      <ConfirmDialog
-        open={!!deleteTarget}
-        title="Delete notification?"
-        message="This notification will be permanently removed."
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        variant="danger"
-        onConfirm={() => {
-          const target = deleteTarget;
-          setDeleteTarget(null);
-          deleteNotification(target);
-        }}
-        onCancel={() => setDeleteTarget(null)}
-      />
-
-      <ConfirmDialog
-        open={confirmDeleteAll}
-        title="Delete all notifications?"
-        message={`This permanently removes all ${notifications.length} notification${notifications.length === 1 ? "" : "s"}. This action cannot be undone.`}
-        confirmLabel="Delete all"
-        cancelLabel="Cancel"
-        variant="danger"
-        onConfirm={deleteAllNotifications}
-        onCancel={() => setConfirmDeleteAll(false)}
-        busy={deletingAll}
-      />
-    </div>
-  );
-};
+const NotificationsPage = ({ role = "organizer" }) => (
+  <NotificationCenter
+    actions={role === "admin" ? ADMIN_ACTIONS : ORGANIZER_ACTIONS}
+  />
+);
 
 export default NotificationsPage;

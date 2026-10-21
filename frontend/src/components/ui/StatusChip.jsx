@@ -15,28 +15,47 @@ import {
 
 /**
  * StatusChip — color-coded AND labeled/iconed status (never color alone).
- * Covers attendance, excuse, and event lifecycle statuses.
+ * Covers attendance, excuse, request and event lifecycle statuses using the
+ * Aurora semantic tokens so light and dark themes stay in step.
  */
+const ok = "bg-ok/10 text-ok ring-ok/25";
+const warn = "bg-warn/10 text-warn ring-warn/25";
+const danger = "bg-danger/10 text-danger ring-danger/25";
+const info = "bg-info/10 text-info ring-info/25";
+const excused = "bg-excused/10 text-excused ring-excused/25";
+const neutral = "bg-card-alt text-on-dim ring-line";
+
 const configs = {
-  present: { label: "Present", icon: <FaCheck />, cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/25" },
-  attended: { label: "Attended", icon: <FaCheck />, cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/25" },
-  approved: { label: "Approved", icon: <FaCheckCircle />, cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/25" },
+  present: { label: "Present", icon: <FaCheck />, cls: ok },
+  attended: { label: "Attended", icon: <FaCheck />, cls: ok },
+  approved: { label: "Approved", icon: <FaCheckCircle />, cls: ok },
+  active: { label: "Active", icon: <FaCheckCircle />, cls: ok },
+  verified: { label: "Verified", icon: <FaCheckCircle />, cls: ok },
+  resolved: { label: "Resolved", icon: <FaCheckCircle />, cls: ok },
 
-  late: { label: "Late", icon: <FaClock />, cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-amber-500/25" },
-  pending: { label: "Pending", icon: <FaHourglassHalf />, cls: "bg-slate-500/10 text-slate-600 dark:text-slate-300 ring-slate-500/25" },
+  late: { label: "Late", icon: <FaClock />, cls: warn },
+  pending: { label: "Pending", icon: <FaHourglassHalf />, cls: neutral },
+  open: { label: "Open", icon: <FaDotCircle />, cls: info },
+  unverified: { label: "Unverified", icon: <FaHourglassHalf />, cls: warn },
 
-  absent: { label: "Absent", icon: <FaTimes />, cls: "bg-red-500/10 text-red-600 dark:text-red-400 ring-red-500/25" },
-  rejected: { label: "Rejected", icon: <FaTimesCircle />, cls: "bg-red-500/10 text-red-600 dark:text-red-400 ring-red-500/25" },
+  absent: { label: "Absent", icon: <FaTimes />, cls: danger },
+  rejected: { label: "Rejected", icon: <FaTimesCircle />, cls: danger },
+  suspended: { label: "Suspended", icon: <FaBan />, cls: danger },
+  cancelled: { label: "Cancelled", icon: <FaBan />, cls: danger },
 
-  excused: { label: "Excused", icon: <FaFileMedical />, cls: "bg-sky-500/10 text-sky-600 dark:text-sky-400 ring-sky-500/25" },
+  excused: { label: "Excused", icon: <FaFileMedical />, cls: excused },
 
-  upcoming: { label: "Upcoming", icon: <FaCalendarAlt />, cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-blue-500/25" },
-  live: { label: "Live", icon: <FaDotCircle />, cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/25" },
+  upcoming: { label: "Upcoming", icon: <FaCalendarAlt />, cls: info },
+  scheduled: { label: "Scheduled", icon: <FaCalendarAlt />, cls: info },
+  live: { label: "Live", icon: <FaDotCircle />, cls: ok },
   // finished = ran to its end time; closed = a person ended it early.
-  finished: { label: "Finished", icon: <FaCheckCircle />, cls: "bg-slate-500/10 text-slate-600 dark:text-slate-300 ring-slate-500/25" },
-  closed: { label: "Closed", icon: <FaBan />, cls: "bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-rose-500/25" },
+  finished: { label: "Finished", icon: <FaCheckCircle />, cls: neutral },
+  closed: { label: "Closed", icon: <FaBan />, cls: danger },
+  inactive: { label: "Inactive", icon: <FaBan />, cls: neutral },
+  draft: { label: "Draft", icon: <FaHourglassHalf />, cls: neutral },
 
-  info: { label: "Info", icon: <FaInfoCircle />, cls: "bg-slate-500/10 text-slate-600 dark:text-slate-300 ring-slate-500/25" },
+  info: { label: "Info", icon: <FaInfoCircle />, cls: neutral },
+  unknown: { label: "Unknown", icon: <FaInfoCircle />, cls: neutral },
 };
 
 const StatusChip = ({ status, className = "" }) => {

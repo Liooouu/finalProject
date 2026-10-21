@@ -27,15 +27,19 @@ const MapModal = ({ open, title, src, externalUrl, error, onClose, children }) =
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} aria-hidden="true" />
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="animate-pop relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-2xl shadow-black/20"
+        className="animate-pop relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-[var(--panel-radius)] border border-line bg-card shadow-[var(--elev-3)]"
       >
         <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-          <h3 className="truncate text-base font-bold text-on">{title}</h3>
+          <h3 className="truncate font-display text-base font-semibold text-on">{title}</h3>
           <div className="flex shrink-0 items-center gap-2">
             {externalUrl && (
               <a
@@ -74,7 +78,7 @@ const MapModal = ({ open, title, src, externalUrl, error, onClose, children }) =
             children
           ) : (
             <span
-              className="h-8 w-8 animate-spin rounded-full border-2 border-line border-t-indigo-500"
+              className="h-8 w-8 animate-spin rounded-full border-2 border-line border-t-[var(--brand)]"
               aria-label="Loading"
             />
           )}

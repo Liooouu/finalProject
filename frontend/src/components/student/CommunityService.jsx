@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
-import { FaCheck, FaTimes, FaBook } from "react-icons/fa";
+import { FaBook, FaCheck, FaClock, FaTimes } from "react-icons/fa";
 import { BsClipboardCheck } from "react-icons/bs";
 import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { formatDate, formatDateTime } from "../../utils/helpers";
+import { BaseCard, Card, PageHeader, StatTile, StatusChip } from "../ui";
 
 const CommunityService = () => {
   const [data, setData] = useState(null);
@@ -42,57 +43,59 @@ const CommunityService = () => {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Note to students about CS adjustments */}
-      <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 text-sm text-on-dim">
-        Note: The event organizer or admin may adjust your community service hours at their discretion.
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Student ledger"
+        title="Community service"
+        subtitle="Every attendance record and the hours attached to it."
+      />
+
+      <div className="alert alert-info">
+        <span aria-hidden="true" className="mt-0.5 font-semibold">i</span>
+        <p>
+          The event organizer or admin may adjust your community service hours at
+          their discretion.
+        </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-linear-to-br from-green-500/10 to-green-500/5 backdrop-blur-sm border border-green-500/20 rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-green-500/20 rounded-lg">
-              <span className="text-xl"><FaCheck /></span>
-            </div>
-            <span className="dark:text-green-400 text-green-600 text-sm font-medium">Events Attended</span>
-          </div>
-          <p className="text-4xl font-bold dark:text-green-400 text-green-600">{data?.totalAttended || 0}</p>
-        </div>
-
-        <div className="bg-linear-to-br from-red-500/10 to-red-500/5 backdrop-blur-sm border border-red-500/20 rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-red-500/20 rounded-lg">
-              <span className="text-xl"><FaTimes /></span>
-            </div>
-            <span className="dark:text-red-400 text-red-600 text-sm font-medium">Penalty Hours</span>
-          </div>
-          <p className="text-4xl font-bold dark:text-red-400 text-red-600">
-            {data?.totalHours || 0} <span className="text-lg font-normal text-on-dim">hrs</span>
-          </p>
-          <p className="text-xs text-on-muted mt-1">Current balance from late (4) &amp; absent (8) marks</p>
-        </div>
-
-        <div className="bg-linear-to-br from-green-500/10 to-green-500/5 backdrop-blur-sm border border-green-500/20 rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-green-500/20 rounded-lg">
-              <span className="text-xl"><FaTimes /></span>
-            </div>
-            <span className="dark:text-green-400 text-green-600 text-sm font-medium">Removed Hours</span>
-          </div>
-          <p className="text-4xl font-bold dark:text-green-400 text-green-600">
-            {removedHours} <span className="text-lg font-normal text-on-dim">hrs</span>
-          </p>
-          <p className="text-xs text-on-muted mt-1">Cleared by approved excuses, status changes, or manual removal</p>
-        </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <StatTile
+          label="Events attended"
+          value={data?.totalAttended || 0}
+          icon={<FaCheck />}
+          hint="All-time check-ins"
+          tone="ok"
+        />
+        <StatTile
+          label="Penalty hours"
+          value={`${data?.totalHours || 0}h`}
+          icon={<FaTimes />}
+          hint="From late (4) and absent (8) marks"
+          tone="danger"
+        />
+        <StatTile
+          label="Removed hours"
+          value={`${removedHours}h`}
+          icon={<FaClock />}
+          hint="Cleared by excuses or manual removal"
+          tone="info"
+        />
       </div>
 
-      {/* Table */}
-      <div className="rounded-xl border border-line bg-card overflow-hidden">
-        <div className="p-6 border-b border-line">
-          <h2 className="text-lg font-semibold text-on">Detailed Breakdown</h2>
+      <Card padding="none" className="overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-line p-5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
+            <BsClipboardCheck />
+          </span>
+          <div>
+            <h2 className="panel-heading">Detailed breakdown</h2>
+            <p className="mt-0.5 text-xs text-on-muted">
+              {data?.breakdown?.length || 0} attendance record
+              {data?.breakdown?.length === 1 ? "" : "s"}
+            </p>
+          </div>
         </div>
-        
+
         {!data?.breakdown?.length ? (
           <EmptyState
             icon={<BsClipboardCheck />}
@@ -101,66 +104,76 @@ const CommunityService = () => {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-card">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-on-dim uppercase tracking-wider">Event</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-on-dim uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-on-dim uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-on-dim uppercase tracking-wider">Community Service</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-on-dim uppercase tracking-wider">Checked In</th>
+                  <th>Event</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th>Community service</th>
+                  <th>Checked in</th>
                 </tr>
               </thead>
-              <tbody className="divide-y dark:divide-white/5 divide-slate-200">
-                {data.breakdown.map((record, index) => {
-                  return (
-                    <tr key={index} className="hover:bg-card transition-colors">
-                      <td className="px-6 py-4 text-on font-medium">{record.event?.title || record.eventTitle || "Unknown Event"}</td>
-                      <td className="px-6 py-4 text-on-dim">
-                        {record.event?.date ? formatDate(record.event.date) : record.eventDate ? formatDate(record.eventDate) : "-"}
-                      </td>
-                      <td className="px-6 py-4">
-                        <StatusBadge status={record.status} />
-                      </td>
-                      <td className="px-6 py-4">
-                        {record.communityServiceHours > 0 ? (
-                          <span className="dark:text-yellow-400 text-yellow-600 font-medium">{record.communityServiceHours} hours</span>
-                        ) : (
-                          <span className="dark:text-green-400 text-green-600 font-medium">0 hours</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-on-dim text-sm">
-                        {formatDateTime(record.attendedAt)}
-                      </td>
-                    </tr>
-                  );
-                })}
+              <tbody>
+                {data.breakdown.map((record, index) => (
+                  <tr key={index}>
+                    <td className="font-medium text-on">
+                      {record.event?.title || record.eventTitle || "Unknown event"}
+                    </td>
+                    <td>
+                      {record.event?.date
+                        ? formatDate(record.event.date)
+                        : record.eventDate
+                          ? formatDate(record.eventDate)
+                          : "—"}
+                    </td>
+                    <td>
+                      <StatusBadge status={record.status} />
+                    </td>
+                    <td>
+                      <span
+                        className={`num font-medium ${
+                          record.communityServiceHours > 0 ? "text-warn" : "text-ok"
+                        }`}
+                      >
+                        {record.communityServiceHours || 0} hours
+                      </span>
+                    </td>
+                    <td className="text-xs">
+                      {record.attendedAt ? formatDateTime(record.attendedAt) : "—"}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
-      </div>
+      </Card>
 
-      {/* Penalty Guide */}
-      <div className="rounded-xl border border-line bg-card p-6">
-        <h3 className="text-lg font-semibold text-on mb-4 flex items-center gap-2">
-          <span><FaBook /></span> Penalty Guide
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center gap-3 p-4 bg-green-500/10 rounded-xl border border-green-500/20">
-            <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 dark:text-green-400 text-green-600">Present</span>
-            <span className="text-on-dim text-sm">→ 0 hours</span>
-          </div>
-          <div className="flex items-center gap-3 p-4 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
-            <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/20 dark:text-yellow-400 text-yellow-600">Late</span>
-            <span className="text-on-dim text-sm">→ 4 hours</span>
-          </div>
-          <div className="flex items-center gap-3 p-4 bg-red-500/10 rounded-xl border border-red-500/20">
-            <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-500/20 dark:text-red-400 text-red-600">Absent</span>
-            <span className="text-on-dim text-sm">→ 8 hours</span>
-          </div>
+      <BaseCard
+        title="Penalty guide"
+        description="How each attendance status affects your hours."
+        icon={<FaBook />}
+      >
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          {[
+            { status: "present", hours: "0 hours", copy: "No adjustment" },
+            { status: "late", hours: "4 hours", copy: "Added to your total" },
+            { status: "absent", hours: "8 hours", copy: "Added to your total" },
+          ].map((item) => (
+            <div
+              key={item.status}
+              className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card-alt/40 p-3.5"
+            >
+              <StatusChip status={item.status} />
+              <div className="text-right">
+                <p className="num text-sm font-semibold text-on">{item.hours}</p>
+                <p className="text-[11px] text-on-muted">{item.copy}</p>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      </BaseCard>
     </div>
   );
 };
