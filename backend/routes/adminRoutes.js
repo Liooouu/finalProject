@@ -1,8 +1,6 @@
 ﻿const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
-const path = require("path");
-const fs = require("fs");
 const User = require("../models/User");
 const Attendance = require("../models/Attendance");
 const Excuse = require("../models/Excuse");
@@ -14,6 +12,7 @@ const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy"
 const { getRawEmailSetting, saveEmailSetting } = require("../services/appSettings");
 const { resetTransporter, sendMail, isMailEnabled } = require("../services/mailer");
 const { notifyUsers } = require("../services/notify");
+const fileStore = require("../services/fileStore");
 const { seal } = require("../utils/secretBox");
 
 // ADMIN CREATES ORGANIZER
@@ -205,14 +204,7 @@ router.delete(
           ...appeals.map((a) => a.photoUrl),
         ].filter(Boolean)
       );
-      for (const url of files) {
-        try {
-          const abs = path.join(__dirname, "..", String(url).replace(/^\//, ""));
-          if (fs.existsSync(abs)) fs.unlinkSync(abs);
-        } catch {
-          // A missing/odd path must never block the delete.
-        }
-      }
+      await fileStore.deleteByUrls([...files]);
 
       await Promise.all([
         User.findByIdAndDelete(user._id),

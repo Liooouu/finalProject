@@ -2,39 +2,14 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
-const fs = require("fs");
 
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const faceMatcher = require("../services/faceMatcher");
+const fileStore = require("../services/fileStore");
 const { isMailEnabled } = require("../services/mailer");
 const { protect, authorize } = require("../middleware/authMiddleware");
 const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const prefix = file.fieldname === "face" ? "face" : "profile";
-    cb(null, `${prefix}-${uniqueSuffix}${path.extname(file.originalname)}`);
-  },
-});
-
-// Face photos are biometric data: they live in their own directory that the
-// public /uploads static handler refuses to serve (see server.js) and are only
-// readable through the authenticated /account/face/:filename route.
-const FACE_DIR = path.join(__dirname, "..", "uploads", "private-faces");
-fs.mkdirSync(FACE_DIR, { recursive: true });
-
-const faceStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, FACE_DIR),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, `face-${uniqueSuffix}${path.extname(file.originalname)}`);
-  },
-});
 
 const allowedImage = (req, file, cb) => {
   // JPEG/PNG only. GIF/SVG/HTML are omitted on purpose: the files are served
@@ -50,14 +25,14 @@ const allowedImage = (req, file, cb) => {
 };
 
 const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024 },
   fileFilter: allowedImage,
 });
 
 const faceUpload = multer({
-  storage: faceStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024 },
   fileFilter: allowedImage,
 });
 
@@ -168,20 +143,32 @@ router.patch("/password", protect, async (req, res) => {
 // UPLOAD PROFILE PICTURE
 // =======================
 router.post("/picture", protect, upload.single("picture"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" });
+  }
 
-    const pictureUrl = `/uploads/${req.file.filename}`;
+  let saved = null;
+  try {
+    const previous = await User.findById(req.user._id).select("profilePicture");
+
+    saved = await fileStore.saveBuffer(req.file.buffer, {
+      originalName: req.file.originalname,
+      contentType: req.file.mimetype,
+    });
+
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { profilePicture: pictureUrl },
+      { profilePicture: saved.url },
       { new: true }
     ).select("-password");
 
-    res.json({ profilePicture: pictureUrl, user });
+    if (previous && previous.profilePicture && previous.profilePicture !== saved.url) {
+      await fileStore.deleteByUrl(previous.profilePicture).catch(() => {});
+    }
+
+    res.json({ profilePicture: saved.url, user });
   } catch (err) {
+    if (saved) await fileStore.deleteByUrl(saved.url).catch(() => {});
     res.status(500).json({ error: err.message });
   }
 });
@@ -202,39 +189,40 @@ router.post(
       return res.status(400).json({ error: "No face photo uploaded" });
     }
 
-    const filePath = req.file.path;
+    let detected = null;
     try {
-      // Validates the photo and caches its descriptor in the same pass, so the
-      // student's first PIN recovery doesn't have to re-analyse the reference.
-      try {
-        await faceMatcher.detectFaceDescriptorCached(filePath);
-      } catch {
-        fs.unlinkSync(filePath);
-        return res
-          .status(400)
-          .json({ error: "No face detected in the photo. Please look directly at the camera and retake." });
-      }
+      detected = await faceMatcher.detectFaceDescriptorFromBuffer(req.file.buffer);
+    } catch {
+      return res
+        .status(400)
+        .json({ error: "No face detected in the photo. Please look directly at the camera and retake." });
+    }
 
+    let saved = null;
+    try {
       const user = await User.findById(req.user._id);
+      if (!user) return res.status(404).json({ error: "User not found" });
 
-      // Remove the old face photo to avoid growing storage with stale files.
-      if (user.facePhoto) {
-        const oldPath = path.join(__dirname, "..", user.facePhoto.replace(/^\//, ""));
-        try {
-          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-        } catch (e) {
-          console.error("face cleanup error:", e.message);
-        }
-      }
+      saved = await fileStore.saveBuffer(req.file.buffer, {
+        private: true,
+        originalName: req.file.originalname,
+        contentType: req.file.mimetype,
+      });
 
-      user.facePhoto = `/uploads/private-faces/${req.file.filename}`;
+      const previous = user.facePhoto;
+      user.facePhoto = saved.url;
+      user.faceDescriptor = detected.descriptor;
       await user.save();
+
+      if (previous && previous !== saved.url) {
+        await fileStore.deleteByUrl(previous).catch((e) => {
+          console.error("face cleanup error:", e.message);
+        });
+      }
 
       res.json({ facePhoto: user.facePhoto });
     } catch (err) {
-      try {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      } catch (e) {}
+      if (saved) await fileStore.deleteByUrl(saved.url).catch(() => {});
       console.error("FACE ENROLL ERROR:", err.message);
       res.status(500).json({ error: "Failed to process face photo. Please try again." });
     }
@@ -258,15 +246,12 @@ router.get("/face/:filename", protect, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const abs = path.join(FACE_DIR, filename);
-    if (!abs.startsWith(FACE_DIR + path.sep) || !fs.existsSync(abs)) {
+    await fileStore.sendFile(res, stored, { cacheControl: "private, max-age=300" });
+  } catch (err) {
+    if (err.code === "FILE_NOT_FOUND") {
       return res.status(404).json({ error: "Photo not found" });
     }
-
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Cache-Control", "private, max-age=300");
-    res.sendFile(abs);
-  } catch (err) {
+    if (res.headersSent) return res.destroy(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -292,6 +277,7 @@ router.delete("/:id", protect, async (req, res) => {
     }
 
     await User.findByIdAndDelete(req.params.id);
+    await fileStore.deleteByUrls([user.facePhoto, user.profilePicture]);
 
     res.json({ message: "User account deleted successfully" });
   } catch (err) {
@@ -304,7 +290,7 @@ router.delete("/:id", protect, async (req, res) => {
 router.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     return res.status(400).json({
-      error: err.code === "LIMIT_FILE_SIZE" ? "File must be less than 5MB" : err.message,
+      error: err.code === "LIMIT_FILE_SIZE" ? "File must be less than 4MB" : err.message,
     });
   }
   if (err && /only jpeg or png/i.test(String(err.message))) {

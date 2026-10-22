@@ -1,0 +1,13 @@
+.git
+.github
+.vercel
+node_modules
+**/node_modules
+uploads
+**/uploads
+frontend/dist
+docs
+deploy
+.env
+**/.env
+*.log

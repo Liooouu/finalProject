@@ -1,5 +1,6 @@
 node_modules/
 uploads/
+.vercel/
 backend/cleanup.js
 .env
 deploy/.env.prod

@@ -1,5 +1,11 @@
 # Deploying TrackED on Coolify
 
+> For the no-credit-card Vercel container + Atlas deployment, see
+> [`DEPLOY_VERCEL.md`](./DEPLOY_VERCEL.md).
+>
+> Uploads are now stored in MongoDB **GridFS**. The `/app/uploads` volume and
+> uploads-volume backup steps below are legacy; MongoDB backups cover uploads.
+
 Two applications plus a database, all in **one Coolify project** so the
 containers share a Docker network:
 

@@ -2,71 +2,36 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
-const fs = require("fs");
 const { protect } = require("../middleware/authMiddleware");
 const Attendance = require("../models/Attendance");
 const Excuse = require("../models/Excuse");
 const Event = require("../models/Event");
 const User = require("../models/User");
 const FaceAppeal = require("../models/FaceAppeal");
+const fileStore = require("../services/fileStore");
 const { notifyAdmins } = require("../services/notifyAdmins");
 const { notifyUsers } = require("../services/notify");
 const { isTerminal, eventStartsAt } = require("../services/eventLifecycle");
 
-// Multer has already written the files to disk before the route runs, so every
-// early return must remove them or failed submissions leak storage.
-function unlinkUploads(req) {
-  const files = [...(req.files || []), ...(req.file ? [req.file] : [])];
-  for (const file of files) {
-    try {
-      if (file.path) fs.unlinkSync(file.path);
-    } catch {
-      // Already gone — nothing to clean up.
-    }
-  }
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    const unique = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
-    cb(null, unique + path.extname(file.originalname));
-  },
-});
+const imageFilter = (req, file, cb) => {
+  // JPEG/PNG only — these files are served back from the app origin, so
+  // scriptable types (svg/html/gif) would be a stored-XSS vector.
+  const okExt = /jpeg|jpg|png/.test(path.extname(file.originalname).toLowerCase());
+  const okMime = /jpeg|jpg|png/.test(file.mimetype);
+  if (okExt && okMime) return cb(null, true);
+  cb(new Error("Only JPEG or PNG images are allowed"));
+};
 
 const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    // JPEG/PNG only — these files are served back from the app origin, so
-    // scriptable types (svg/html/gif) would be a stored-XSS vector.
-    const okExt = /jpeg|jpg|png/.test(path.extname(file.originalname).toLowerCase());
-    const okMime = /jpeg|jpg|png/.test(file.mimetype);
-    if (okExt && okMime) return cb(null, true);
-    cb(new Error("Only JPEG or PNG images are allowed"));
-  },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024 },
+  fileFilter: imageFilter,
 });
 
-// Appeal proof photos are biometric: keep them out of the public /uploads tree.
-const FACE_DIR = path.join(__dirname, "..", "uploads", "private-faces");
-fs.mkdirSync(FACE_DIR, { recursive: true });
 const appealUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, FACE_DIR),
-    filename: (req, file, cb) => {
-      const unique = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
-      cb(null, `appeal-${unique}${path.extname(file.originalname)}`);
-    },
-  }),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const okExt = /jpeg|jpg|png/.test(path.extname(file.originalname).toLowerCase());
-    const okMime = /jpeg|jpg|png/.test(file.mimetype);
-    if (okExt && okMime) return cb(null, true);
-    cb(new Error("Only JPEG or PNG images are allowed"));
-  },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024 },
+  fileFilter: imageFilter,
 });
 
 router.get("/community-service", protect, async (req, res) => {
@@ -117,6 +82,7 @@ router.get("/excuses", protect, async (req, res) => {
 });
 
 router.post("/excuses", protect, upload.array("attachments", 5), async (req, res) => {
+  const savedUrls = [];
   try {
     if (req.user.role !== "student") {
       return res.status(403).json({ error: "Only students can submit excuses" });
@@ -127,7 +93,6 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
 
     const event = await Event.findById(eventId);
     if (!event) {
-      unlinkUploads(req);
       return res.status(404).json({ error: "Event not found" });
     }
 
@@ -138,7 +103,6 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
       status: { $in: ["pending", "approved"] },
     });
     if (activeExcuse) {
-      unlinkUploads(req);
       return res.status(400).json({
         error:
           activeExcuse.status === "pending"
@@ -153,7 +117,6 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
       // ends but before the absence job runs and dodge the penalty.
       const startsAt = eventStartsAt(event);
       if (isTerminal(event.status) || !startsAt || startsAt <= new Date()) {
-        unlinkUploads(req);
         return res.status(400).json({
           error: "Advance excuses can only be filed for upcoming events",
         });
@@ -165,7 +128,6 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
         student: req.user._id,
       });
       if (existingAttendance) {
-        unlinkUploads(req);
         return res.status(400).json({
           error: "You already have an attendance record for this event",
         });
@@ -178,19 +140,26 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
         status: "absent",
       });
       if (!absentRecord) {
-        unlinkUploads(req);
         return res.status(400).json({
           error: "You can only file absence excuses for events you were marked absent in",
         });
       }
     }
 
+    for (const file of req.files || []) {
+      const saved = await fileStore.saveBuffer(file.buffer, {
+        originalName: file.originalname,
+        contentType: file.mimetype,
+      });
+      savedUrls.push(saved.url);
+    }
+
     const excuse = new Excuse({
       student: req.user._id,
       event: eventId,
       excuseText,
-      attachmentUrl: req.files && req.files.length ? `/uploads/${req.files[0].filename}` : null,
-      attachments: req.files ? req.files.map((f) => `/uploads/${f.filename}`) : [],
+      attachmentUrl: savedUrls[0] || null,
+      attachments: savedUrls,
       type,
     });
 
@@ -209,12 +178,12 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
         } excuse letter for "${event.title}". It awaits your review.`,
         relatedEvent: event._id,
         event,
-      });
+      }).catch((e) => console.error("EXCUSE NOTIFY ERROR:", e.message));
     }
 
     res.status(201).json(excuse);
   } catch (err) {
-    unlinkUploads(req);
+    await fileStore.deleteByUrls(savedUrls);
     res.status(500).json({ error: err.message });
   }
 });
@@ -254,13 +223,9 @@ router.get("/security/face-appeals", protect, async (req, res) => {
 // admin compares the proof against the enrolled face photo and either unlocks
 // the student or rejects the appeal.
 router.post("/security/face-appeals", protect, appealUpload.single("photo"), async (req, res) => {
+  let saved = null;
   try {
     if (req.user.role !== "student") {
-      if (req.file) {
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (e) {}
-      }
       return res.status(403).json({ error: "Only students can submit an appeal" });
     }
 
@@ -274,16 +239,19 @@ router.post("/security/face-appeals", protect, appealUpload.single("photo"), asy
       status: "pending",
     });
     if (pending) {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (e) {}
       return res.status(400).json({ error: "You already have a pending appeal awaiting review" });
     }
+
+    saved = await fileStore.saveBuffer(req.file.buffer, {
+      private: true,
+      originalName: req.file.originalname,
+      contentType: req.file.mimetype,
+    });
 
     const appeal = new FaceAppeal({
       student: req.user._id,
       note,
-      photoUrl: `/uploads/private-faces/${req.file.filename}`,
+      photoUrl: saved.url,
     });
     await appeal.save();
 
@@ -292,15 +260,11 @@ router.post("/security/face-appeals", protect, appealUpload.single("photo"), asy
     await notifyAdmins(
       "New face verification appeal",
       `${req.user.name} (${req.user.email}) submitted a face verification appeal. Review their proof photo in Manage Users.`
-    );
+    ).catch((e) => console.error("APPEAL NOTIFY ERROR:", e.message));
 
     res.status(201).json(appeal);
   } catch (err) {
-    if (req.file) {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (e) {}
-    }
+    if (saved) await fileStore.deleteByUrl(saved.url).catch(() => {});
     res.status(500).json({ error: err.message });
   }
 });
@@ -308,7 +272,7 @@ router.post("/security/face-appeals", protect, appealUpload.single("photo"), asy
 router.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     return res.status(400).json({
-      error: err.code === "LIMIT_FILE_SIZE" ? "Each file must be less than 5MB" : err.message,
+      error: err.code === "LIMIT_FILE_SIZE" ? "Each file must be less than 4MB" : err.message,
     });
   }
   // fileFilter rejections are plain Errors; without this they surface as 500s.

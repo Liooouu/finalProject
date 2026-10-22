@@ -1,14 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
-const fs = require("fs");
-const path = require("path");
 const Event = require("../models/Event");
 const Attendance = require("../models/Attendance");
 const Excuse = require("../models/Excuse");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const { notifyUsers, eventRecipients } = require("../services/notify");
+const fileStore = require("../services/fileStore");
 const { protect } = require("../middleware/authMiddleware");
 const {
   STATUS,
@@ -1200,15 +1199,7 @@ router.delete("/:id", protect, async (req, res) => {
         ...(excuse.attachments || []),
         ...(excuse.attachmentUrl ? [excuse.attachmentUrl] : []),
       ]);
-      for (const url of files) {
-        try {
-          const rel = String(url).replace(/^\/uploads\//, "");
-          const abs = path.join(__dirname, "..", "uploads", rel);
-          if (fs.existsSync(abs)) fs.unlinkSync(abs);
-        } catch {
-          // A missing/oddly-named attachment must never fail the delete.
-        }
-      }
+      await fileStore.deleteByUrls([...files]);
     }
     await Excuse.deleteMany({ event: req.params.id });
     await Notification.deleteMany({ relatedEvent: req.params.id });

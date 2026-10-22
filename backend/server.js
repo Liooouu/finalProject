@@ -14,6 +14,7 @@ const User = require("./models/User");
 const Attendance = require("./models/Attendance");
 const { notifyUsers, eventRecipients } = require("./services/notify");
 const { isMailEnabled } = require("./services/mailer");
+const fileStore = require("./services/fileStore");
 const {
   STATUS,
   OPEN_STATUS_FILTER,
@@ -38,31 +39,34 @@ const notificationRoutes = require("./routes/notificationRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-if (!fs.existsSync("uploads")) {
-  fs.mkdirSync("uploads");
-}
+let serverHandle = null;
 
 // ✅ MIDDLEWARES
 app.use(cors());
 app.use(express.json());
-app.use(
-  "/uploads",
-  // Face photos are biometric data: never serve the private directory directly.
-  (req, res, next) => {
-    if (req.path.startsWith("/private-faces/")) {
-      return res.status(404).end();
-    }
-    next();
-  },
-  express.static(path.join(__dirname, "uploads"), {
-    setHeaders: (res) => {
-      // Uploads are images only, but the app origin serves them — never let a
-      // browser sniff one into something scriptable.
-      res.setHeader("X-Content-Type-Options", "nosniff");
-    },
-  })
-);
+
+// Face photos are biometric data: never serve the private directory directly.
+app.use("/uploads/private-faces", (req, res) => {
+  res.status(404).end();
+});
+
+app.get("/uploads/:filename", async (req, res) => {
+  const { filename } = req.params;
+  if (!/^[A-Za-z0-9._-]+$/.test(filename)) {
+    return res.status(404).end();
+  }
+
+  try {
+    await fileStore.sendFile(res, `/uploads/${filename}`, {
+      cacheControl: "public, max-age=3600",
+    });
+  } catch (err) {
+    if (err.code === "FILE_NOT_FOUND") return res.status(404).end();
+    console.error("UPLOAD READ ERROR:", err.message);
+    if (res.headersSent) return res.destroy(err);
+    res.status(500).end();
+  }
+});
 
 // ✅ ROUTES
 app.use("/api/auth", authRoutes);
@@ -73,10 +77,6 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/organizer", organizerRoutes);
 app.use("/api/notifications", notificationRoutes);
-
-app.get("/", (req, res) => {
-  res.send("TrackED Backend Running");
-});
 
 // ✅ HEALTH CHECK — used by the container HEALTHCHECK and by Coolify's health
 // probe. Reports database state without failing on it: the process only starts
@@ -90,6 +90,22 @@ app.get("/api/health", async (req, res) => {
     uptime: Math.round(process.uptime()),
   });
 });
+
+app.use("/api", (req, res) => {
+  res.status(404).json({ message: "Not found" });
+});
+
+const clientDist = path.join(__dirname, "..", "frontend-dist");
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist, { index: false }));
+  app.get(/^\/(?!api(?:\/|$)|uploads(?:\/|$)).*/, (req, res) => {
+    res.sendFile(path.join(clientDist, "index.html"));
+  });
+} else {
+  app.get("/", (req, res) => {
+    res.send("TrackED Backend Running");
+  });
+}
 
 // ✅ GLOBAL ERROR HANDLER (VERY IMPORTANT)
 app.use((err, req, res, next) => {
@@ -412,11 +428,11 @@ connectDB()
     // "npm run dev" / "npm run start".
     let attempt = 0;
     const listen = () => {
-      const server = app.listen(PORT, () => {
+      serverHandle = app.listen(PORT, "0.0.0.0", () => {
         console.log(`Server running on port ${PORT}`);
       });
 
-      server.on("error", (err) => {
+      serverHandle.on("error", (err) => {
         if (err.code !== "EADDRINUSE") throw err;
 
         if (attempt < 1 && process.env.TRACKED_NO_AUTO_FREE !== "1") {
@@ -440,6 +456,22 @@ connectDB()
         process.exit(1);
       });
     };
+
+    const shutdown = () => {
+      const finish = () =>
+        mongoose.connection.close(false).finally(() => process.exit(0));
+
+      if (serverHandle) {
+        serverHandle.close(finish);
+      } else {
+        finish();
+      }
+
+      setTimeout(() => process.exit(1), 25000).unref();
+    };
+
+    process.on("SIGTERM", shutdown);
+    process.on("SIGINT", shutdown);
 
     listen();
   })

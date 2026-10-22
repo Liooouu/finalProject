@@ -75,6 +75,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    faceDescriptor: {
+      type: [Number],
+      default: [],
+    },
     faceAttempts: {
       type: Number,
       default: 0,

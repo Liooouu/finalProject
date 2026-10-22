@@ -4,12 +4,12 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const path = require("path");
-const fs = require("fs");
 
 const User = require("../models/User");
 const FaceAppeal = require("../models/FaceAppeal");
 const PinResetRequest = require("../models/PinResetRequest");
 const faceMatcher = require("../services/faceMatcher");
+const fileStore = require("../services/fileStore");
 const { notifyAdmins, notifyStaff } = require("../services/notifyAdmins");
 const { sendMail, isMailEnabled } = require("../services/mailer");
 const { renderVerificationEmail, renderPasswordResetEmail } = require("../services/emailTemplate");
@@ -20,10 +20,6 @@ const LOCK_ATTEMPTS = 5;
 const LOCK_MINUTES = 5;
 const FACE_LOCK_ATTEMPTS = 3;
 const FACE_LOCK_MINUTES = 5;
-
-// Biometric uploads live in the private directory the static handler refuses;
-// ensure it exists even when this router is loaded outside the full server.
-fs.mkdirSync(path.join(__dirname, "..", "uploads", "private-faces"), { recursive: true });
 
 // Email-verification policy.
 const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
@@ -96,51 +92,26 @@ async function issuePasswordResetCode(user) {
   return sent;
 }
 
-// Temporary upload for recovery selfies (deleted right after processing).
-const recoveryStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/private-faces/"),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, `recovery-${uniqueSuffix}${path.extname(file.originalname)}`);
-  },
-});
+const imageFilter = (req, file, cb) => {
+  if (
+    /jpeg|jpg|png/.test(path.extname(file.originalname).toLowerCase()) &&
+    /jpeg|jpg|png/.test(file.mimetype)
+  ) {
+    return cb(null, true);
+  }
+  cb(new Error("Only JPEG or PNG images are allowed"));
+};
+
 const recoveryUpload = multer({
-  storage: recoveryStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    // Biometric images: JPEG/PNG only, never GIF/SVG/HTML.
-    if (
-      /jpeg|jpg|png/.test(path.extname(file.originalname).toLowerCase()) &&
-      /jpeg|jpg|png/.test(file.mimetype)
-    ) {
-      return cb(null, true);
-    }
-    cb(new Error("Only JPEG or PNG images are allowed"));
-  },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024 },
+  fileFilter: imageFilter,
 });
 
-// Persistent upload for appeal proof photos (kept on disk like face photos, so
-// admins can review them side-by-side with the enrolled face photo). Stored in
-// the private directory because they are biometric proof.
-const appealStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/private-faces/"),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, `appeal-${uniqueSuffix}${path.extname(file.originalname)}`);
-  },
-});
 const appealUpload = multer({
-  storage: appealStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (
-      /jpeg|jpg|png/.test(path.extname(file.originalname).toLowerCase()) &&
-      /jpeg|jpg|png/.test(file.mimetype)
-    ) {
-      return cb(null, true);
-    }
-    cb(new Error("Only JPEG or PNG images are allowed"));
-  },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024 },
+  fileFilter: imageFilter,
 });
 
 const signToken = (user) =>
@@ -738,67 +709,67 @@ router.post(
   "/forgot-pin/verify",
   recoveryUpload.single("photo"),
   async (req, res) => {
-    const tempPath = req.file ? req.file.path : null;
-    const cleanup = () => {
-      try {
-        if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-      } catch (e) {}
-    };
-
     try {
       const { email, password, deviceId, deviceLabel } = req.body;
       if (!email || !password || !req.file || !getDeviceId(req)) {
-        cleanup();
         return res.status(400).json({ message: "Please fill in all fields" });
       }
 
       const user = await User.findOne({ email: User.normalizeEmail(email) });
       if (!user || user.role !== "student") {
-        cleanup();
         return res.status(400).json({ message: "Invalid email or password" });
       }
       const isMatch = await user.comparePassword(password);
       if (!isMatch) {
-        cleanup();
         return res.status(400).json({ message: "Invalid email or password" });
       }
 
       const mins = faceLockRemaining(user);
       if (mins > 0) {
-        cleanup();
         return res
           .status(429)
           .json({ message: `Too many face attempts. Try again in ${mins} minute${mins === 1 ? "" : "s"}.` });
       }
 
       if (!user.facePhoto) {
-        cleanup();
         return res
           .status(400)
           .json({ message: "You have no face photo enrolled. Request a PIN reset instead — an admin or event organizer can verify you in person." });
       }
 
-      const refPath = path.join(__dirname, "..", user.facePhoto.replace(/^\//, ""));
-      if (!fs.existsSync(refPath)) {
-        cleanup();
-        return res
-          .status(400)
-          .json({ message: "Your enrolled face photo is missing. Ask an admin to reset your security PIN." });
+      let reference = user.faceDescriptor && user.faceDescriptor.length ? user.faceDescriptor : null;
+      let referenceBuffer = null;
+      if (!reference) {
+        try {
+          referenceBuffer = await fileStore.readBuffer(user.facePhoto);
+        } catch (err) {
+          if (err.code === "FILE_NOT_FOUND") {
+            return res
+              .status(400)
+              .json({ message: "Your enrolled face photo is missing. Ask an admin to reset your security PIN." });
+          }
+          throw err;
+        }
       }
 
       const startedAt = Date.now();
       let live;
       try {
-        live = await faceMatcher.detectFaceDescriptor(tempPath);
+        live = await faceMatcher.detectFaceDescriptorFromBuffer(req.file.buffer);
       } catch (err) {
-        cleanup();
         return res
           .status(400)
           .json({ message: err.message || "No face detected. Please look directly at the camera and retake." });
       }
       const liveMs = Date.now() - startedAt;
-      const ref = await faceMatcher.detectFaceDescriptorCached(refPath);
-      const matched = faceMatcher.descriptorsMatch(live.descriptor, ref.descriptor);
+
+      if (!reference) {
+        const enrolled = await faceMatcher.detectFaceDescriptorFromBuffer(referenceBuffer);
+        reference = enrolled.descriptor;
+        await User.findByIdAndUpdate(user._id, { faceDescriptor: reference });
+      }
+
+      const matched = faceMatcher.descriptorsMatch(live.descriptor, reference);
       console.log(
         `[face-verify] ${email}: selfie ${liveMs}ms, total ${Date.now() - startedAt}ms, matched=${matched}`
       );
@@ -829,7 +800,6 @@ router.post(
           const left = FACE_LOCK_ATTEMPTS - updated.faceAttempts;
           message = `Face does not match the enrolled photo (${left} ${left === 1 ? "attempt" : "attempts"} left).`;
         }
-        cleanup();
         return res.status(status).json({ message });
       }
 
@@ -842,7 +812,6 @@ router.post(
       await user.setPin(newPin);
       user.trustDevice(getDeviceId(req), deviceLabel);
       await user.save();
-      cleanup();
       console.log("Face-based PIN recovery succeeded:", email);
 
       // Informative security alert for the admins (no action required).
@@ -858,7 +827,6 @@ router.post(
         message: "Identity verified by face scan. This is your new security PIN.",
       });
     } catch (err) {
-      cleanup();
       console.error("FORGOT-PIN VERIFY ERROR:", err);
       res.status(500).json({ message: "Face verification failed. Please try again." });
     }
@@ -873,32 +841,23 @@ router.post(
   "/forgot-pin/appeal",
   appealUpload.single("photo"),
   async (req, res) => {
-    const cleanup = () => {
-      try {
-        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-      } catch (e) {}
-    };
-
+    let saved = null;
     try {
       const { email, password } = req.body;
       const note = (req.body.note || "").trim();
       if (!email || !password || !req.file) {
-        cleanup();
         return res.status(400).json({ message: "Please fill in all fields and attach a proof photo" });
       }
 
       const user = await User.findOne({ email: User.normalizeEmail(email) });
       if (!user || user.role !== "student") {
-        cleanup();
         return res.status(400).json({ message: "Invalid email or password" });
       }
       const isMatch = await user.comparePassword(password);
       if (!isMatch) {
-        cleanup();
         return res.status(400).json({ message: "Invalid email or password" });
       }
       if (!user.facePhoto) {
-        cleanup();
         return res
           .status(400)
           .json({ message: "You have no face photo enrolled. Request a PIN reset instead — an admin or event organizer can verify you in person." });
@@ -906,28 +865,33 @@ router.post(
 
       const pending = await FaceAppeal.findOne({ student: user._id, status: "pending" });
       if (pending) {
-        cleanup();
         return res.status(400).json({ message: "You already have a pending appeal awaiting review" });
       }
+
+      saved = await fileStore.saveBuffer(req.file.buffer, {
+        private: true,
+        originalName: req.file.originalname,
+        contentType: req.file.mimetype,
+      });
 
       const appeal = new FaceAppeal({
         student: user._id,
         note,
-        photoUrl: `/uploads/private-faces/${req.file.filename}`,
+        photoUrl: saved.url,
       });
       await appeal.save();
 
       await notifyAdmins(
         "New face verification appeal",
         `${user.name} (${user.email}) submitted a face verification appeal. Review their proof photo in Manage Users.`
-      );
+      ).catch((e) => console.error("APPEAL NOTIFY ERROR:", e.message));
 
       res.status(201).json({
         message: "Appeal submitted. An admin will review your proof photo.",
         appeal,
       });
     } catch (err) {
-      cleanup();
+      if (saved) await fileStore.deleteByUrl(saved.url).catch(() => {});
       console.error("FORGOT-PIN APPEAL ERROR:", err);
       res.status(500).json({ message: "Failed to submit appeal. Please try again." });
     }

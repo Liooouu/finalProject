@@ -54,11 +54,24 @@ async function loadModels(force = false) {
   return fa;
 }
 
-// Decode a JPEG/PNG file into a uint8 [1, h, w, 3] tensor (0-255 values).
-function decodeImageTensor(imagePath) {
-  const buf = fs.readFileSync(imagePath);
+function isPng(buf) {
+  return (
+    buf.length >= 8 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47 &&
+    buf[4] === 0x0d &&
+    buf[5] === 0x0a &&
+    buf[6] === 0x1a &&
+    buf[7] === 0x0a
+  );
+}
+
+// Decode JPEG/PNG bytes into a uint8 [h, w, 3] tensor (0-255 values).
+function decodeImageTensorFromBuffer(buf) {
   let width, height, data;
-  if (/\.png$/i.test(imagePath)) {
+  if (isPng(buf)) {
     const png = PNG.sync.read(buf);
     width = png.width;
     height = png.height;
@@ -80,10 +93,14 @@ function decodeImageTensor(imagePath) {
   return tf.tensor3d(rgb, [height, width, 3]);
 }
 
-// Detect the largest face in an image and return its 128-d descriptor.
-async function detectFaceDescriptor(imagePath) {
+function decodeImageTensor(imagePath) {
+  return decodeImageTensorFromBuffer(fs.readFileSync(imagePath));
+}
+
+// Detect the largest face in raw image bytes and return its 128-d descriptor.
+async function detectFaceDescriptorFromBuffer(buf) {
   const fa = await loadModels();
-  const input = decodeImageTensor(imagePath);
+  const input = decodeImageTensorFromBuffer(buf);
   try {
     // Landmark alignment (via the full 68-point model) is required for accurate
     // descriptors — without it distances compress and strangers look alike.
@@ -110,6 +127,10 @@ async function detectFaceDescriptor(imagePath) {
   } finally {
     input.dispose();
   }
+}
+
+async function detectFaceDescriptor(imagePath) {
+  return detectFaceDescriptorFromBuffer(fs.readFileSync(imagePath));
 }
 
 // Enrolled reference photos never change unless the student re-enrolls (which
@@ -179,6 +200,7 @@ module.exports = {
   init,
   loadModels,
   detectFaceDescriptor,
+  detectFaceDescriptorFromBuffer,
   detectFaceDescriptorCached,
   clearDescriptorCache,
   descriptorsMatch,

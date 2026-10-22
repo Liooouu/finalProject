@@ -4,6 +4,7 @@ const { protect } = require("../middleware/authMiddleware");
 const Excuse = require("../models/Excuse");
 const Event = require("../models/Event");
 const Attendance = require("../models/Attendance");
+const fileStore = require("../services/fileStore");
 const { notifyUsers } = require("../services/notify");
 
 // Event IDs an organizer owns; null means "all" (admins).
@@ -295,10 +296,15 @@ router.delete("/excuses", protect, async (req, res) => {
     }
 
     const ids = await ownedEventIds(req.user);
-    const result = await Excuse.deleteMany({
+    const filter = {
       status: { $in: ["approved", "rejected"] },
       ...(ids === null ? {} : { event: { $in: ids } }),
-    });
+    };
+    const excuses = await Excuse.find(filter).select("attachments attachmentUrl");
+    const result = await Excuse.deleteMany(filter);
+    await fileStore.deleteByUrls(
+      excuses.flatMap((e) => [...(e.attachments || []), e.attachmentUrl])
+    );
     res.json({ deleted: result.deletedCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -320,7 +326,9 @@ router.delete("/excuses/:id", protect, async (req, res) => {
       return res.status(403).json({ error: "You are not the organizer of this event" });
     }
 
+    const files = [...(excuse.attachments || []), excuse.attachmentUrl];
     await excuse.deleteOne();
+    await fileStore.deleteByUrls(files);
     res.json({ message: "Excuse deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });

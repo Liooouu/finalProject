@@ -81,12 +81,17 @@ Registration is **student-only**. Organizers must be created by admins.
 
 Deployed on Coolify as **two applications plus a MongoDB service in one
 project**: `backend/` and `frontend/`, each built from its own Dockerfile.
+There is also a **single-container deployment** (root `Dockerfile`) for
+OpenShift or Vercel: it serves the SPA and API together on port `8080`
+(OpenShift) or `PORT=80` (Vercel) - see `docs/DEPLOY_OPENSHIFT.md` and
+`docs/DEPLOY_VERCEL.md`.
 
 - The frontend container serves the SPA with nginx and proxies `/api` and
   `/uploads` to the API over the internal Docker network, so the SPA uses
-  **relative URLs** — no `VITE_*` API URL, no CORS.
-- The API runs on port 5000 as a non-root user with a volume at
-  `/app/uploads`; that volume is the only persistent state outside MongoDB.
+  **relative URLs** - no `VITE_*` API URL, no CORS.
+- The API runs on port 5000 as a non-root user. Uploads (profile pictures, face
+  photos, excuse attachments) are stored in MongoDB **GridFS**, so the old
+  `/app/uploads` volume is no longer required.
 - `ADMIN_EMAIL` + `ADMIN_PASSWORD` create the first admin on boot, only when no
   admin exists.
 - **Deploys are manual.** Redeploy the app whose directory changed — two
@@ -108,7 +113,8 @@ project**: `backend/` and `frontend/`, each built from its own Dockerfile.
   (web on :8080, api on :5000) for testing the real images.
 
 Full instructions, environment variables and troubleshooting:
-**`docs/DEPLOY.md`**.
+**`docs/DEPLOY.md`** (Coolify) and **`docs/DEPLOY_VERCEL.md`** (Vercel +
+Atlas).
 
 When changing anything that touches URLs or ports, verify it in the containers,
 not just with `npm run dev` — that is exactly how the hardcoded
