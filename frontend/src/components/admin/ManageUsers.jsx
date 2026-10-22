@@ -1040,7 +1040,13 @@ const ManageUsers = () => {
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <StatusChip status={record.status} />
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1 rounded-lg border border-line bg-card p-1 shadow-[var(--elev-1)]">
+                          <span
+                            className="pl-1 text-[10px] font-semibold uppercase tracking-wider text-on-muted"
+                            aria-hidden="true"
+                          >
+                            Hrs
+                          </span>
                           <input
                             type="number"
                             min="0"
@@ -1051,7 +1057,7 @@ const ManageUsers = () => {
                             onChange={(e) =>
                               setCsDrafts({ ...csDrafts, [record._id]: e.target.value })
                             }
-                            className="field w-16 px-2 py-1.5 text-sm"
+                            className="h-8 w-14 rounded-md border border-line/70 bg-card-alt px-1.5 text-center text-sm font-semibold tabular-nums text-on transition-colors [appearance:textfield] hover:border-brand/30 focus:border-brand/60 focus:outline-none focus:ring-2 focus:ring-brand/25 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                             title="Set this student's community service hours"
                             aria-label={`Community service hours for ${
                               record.event?.title || "event"
@@ -1066,21 +1072,23 @@ const ManageUsers = () => {
                             }
                             disabled={rowBusyId === record._id}
                             size="sm"
+                            className="h-8"
                           >
-                            Set hrs
-                          </Button>
-                          <Button
-                            onClick={() => setPendingRemoveCS(record)}
-                            disabled={
-                              rowBusyId === record._id ||
-                              record.communityServiceHours <= 0
-                            }
-                            variant="danger"
-                            size="sm"
-                          >
-                            Remove
+                            Set
                           </Button>
                         </div>
+                        <Button
+                          onClick={() => setPendingRemoveCS(record)}
+                          disabled={
+                            rowBusyId === record._id ||
+                            record.communityServiceHours <= 0
+                          }
+                          variant="danger"
+                          size="sm"
+                          className="h-8"
+                        >
+                          Remove
+                        </Button>
                       </div>
                     </div>
                   ))}

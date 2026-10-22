@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import { formatTime12Hour, splitEventsByLifecycle, formatDate } from "../../utils/helpers";
 import {
   FaArrowRight,
@@ -33,19 +34,23 @@ const AttendEvents = () => {
 
   usePageMeta("Events", "Browse and attend events.");
 
-  useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const res = await api.get("/events");
-        setEvents(res.data);
-      } catch (err) {
-        console.error(err.response?.data || err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchEvents();
+  const fetchEvents = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    try {
+      const res = await api.get("/events");
+      setEvents(res.data);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+  useAutoRefresh(fetchEvents);
 
   const { active, past } = useMemo(() => splitEventsByLifecycle(events), [events]);
   const visible = tab === "active" ? active : past;
@@ -89,7 +94,7 @@ const AttendEvents = () => {
           {visible.map((event) => (
             <article
               key={event._id}
-              className="panel-surface panel-hover group flex flex-col overflow-hidden rounded-[var(--panel-radius)]"
+              className="fd-surface fd-instrument fd-glass panel-hover group flex flex-col overflow-hidden"
             >
               <div className="border-b border-line bg-card-alt/40 p-5">
                 <div className="flex items-start justify-between gap-3">

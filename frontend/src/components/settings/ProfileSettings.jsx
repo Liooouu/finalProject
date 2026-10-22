@@ -4,7 +4,7 @@ import { getUserFromToken, logout } from "../../utils/auth";
 import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
 import { FaUser, FaLock, FaImage, FaCheck, FaTimes, FaDoorOpen, FaCamera } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { Button, Card, PageHeader } from "../ui";
+import { Button, Card, FlightPanel, PageHeader } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Loading from "../shared/Loading";
 
@@ -342,15 +342,14 @@ const ProfileSettings = () => {
         </Card>
 
         <div className="space-y-4">
-          <Card>
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-                <FaImage className="text-xs" />
-              </span>
-              <h3 className="text-sm font-semibold text-on">Your statistics</h3>
-            </div>
-
-            <div className="mt-4 space-y-2.5">
+          <FlightPanel
+            level="instrument"
+            glass
+            eyebrow="Account"
+            title="Your statistics"
+            icon={<FaImage />}
+          >
+            <div className="space-y-2.5">
               {user.role === "student" && (
                 <>
                   <div className="flex items-center justify-between rounded-xl border border-line bg-card-alt/40 p-3.5">
@@ -389,7 +388,7 @@ const ProfileSettings = () => {
                 </p>
               )}
             </div>
-          </Card>
+          </FlightPanel>
 
           <Button onClick={handleLogout} variant="danger" className="w-full">
             <FaDoorOpen /> Log out

@@ -17,6 +17,7 @@ import { usePageMeta } from "../../context/PageMetaContext";
 import { getUserRole } from "../../utils/auth";
 import { Button, Card, PageHeader } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 
 const OrgManageAttendees = () => {
   const { id: eventId } = useParams();
@@ -57,6 +58,8 @@ const OrgManageAttendees = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useAutoRefresh(fetchData);
 
   const getStudentKey = (s) => {
     if (!s) return "unassigned";

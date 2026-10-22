@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import {
   formatTime12Hour,
   isTerminalStatus,
@@ -110,6 +111,8 @@ const OrgManageEvents = () => {
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
+
+  useAutoRefresh(fetchEvents);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });

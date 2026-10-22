@@ -24,7 +24,7 @@ const OrganizerDashboard = () => {
           <Sidebar role="organizer" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
           <div className="flex min-w-0 flex-1 flex-col">
             <Topbar onOpenSidebar={() => setSidebarOpen(true)} />
-            <main className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-6 lg:px-8">
+            <main className="flight-page min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-6 lg:px-8">
               <Routes>
                 <Route index element={<OrganizerHome />} />
                 <Route path="events" element={<OrgManageEvents />} />

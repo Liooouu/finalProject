@@ -10,6 +10,7 @@ import {
   FaExclamationTriangle,
   FaInfo,
   FaTrash,
+  FaChevronRight,
 } from "react-icons/fa";
 import Loading from "./Loading";
 import EmptyState from "./EmptyState";
@@ -22,6 +23,7 @@ import {
 } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { formatDate, notifyNotificationsChanged } from "../../utils/helpers";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 
 const TYPE_CONFIG = {
   attendance: {
@@ -67,11 +69,48 @@ const relativeTime = (value) => {
 };
 
 /**
- * NotificationCenter — the shared inbox for students, organizers and admins.
+ * Resolve where a notification should take the reader. Event-bound updates go
+ * straight to that event; account and review alerts go to the page where the
+ * reader can act on them.
+ */
+const targetForNotification = (notif, role) => {
+  const text = `${notif.title || ""} ${notif.message || ""}`.toLowerCase();
+  const eventId = notif.relatedEvent?._id || notif.relatedEvent;
+  const eventTarget = eventId ? `/${role}/dashboard/events/${eventId}` : null;
+
+  if (role === "student") {
+    if (/face verification|security pin|pin reset/.test(text)) {
+      return "/student/dashboard/security";
+    }
+    if (/excuse/.test(text)) {
+      return "/student/dashboard/submit-excuse";
+    }
+    if (/community service/.test(text)) {
+      return "/student/dashboard/community-service";
+    }
+    return eventTarget || "/student/dashboard/events";
+  }
+
+  if (role === "admin") {
+    if (/pin reset/.test(text)) return "/admin/dashboard/pin-resets";
+    if (/face verification appeal|impersonation|security pin|face verification/.test(text)) {
+      return "/admin/dashboard/users";
+    }
+    if (/excuse/.test(text)) return "/admin/dashboard/excuses";
+    return eventTarget || "/admin/dashboard/events";
+  }
+
+  if (/pin reset/.test(text)) return "/organizer/dashboard/pin-resets";
+  if (/excuse/.test(text)) return "/organizer/dashboard/excuses";
+  return eventTarget || "/organizer/dashboard/events";
+};
+
+/**
+ * NotificationCenter �?" the shared inbox for students, organizers and admins.
  * Quick actions are supplied per role so the page keeps pointing at the right
  * dashboard routes.
  */
-const NotificationCenter = ({ actions = [] }) => {
+const NotificationCenter = ({ actions = [], role = "student" }) => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +136,8 @@ const NotificationCenter = ({ actions = [] }) => {
     fetchNotifications();
   }, []);
 
+  useAutoRefresh(fetchNotifications);
+
   const markAsRead = async (id) => {
     try {
       await api.patch(`/notifications/${id}/read`);
@@ -107,6 +148,12 @@ const NotificationCenter = ({ actions = [] }) => {
     } catch (err) {
       console.error(err.response?.data || err.message);
     }
+  };
+
+  const openNotification = (notif) => {
+    if (!notif.isRead) markAsRead(notif._id);
+    const target = targetForNotification(notif, role);
+    if (target) navigate(target);
   };
 
   const markAllAsRead = async () => {
@@ -225,16 +272,14 @@ const NotificationCenter = ({ actions = [] }) => {
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => !notif.isRead && markAsRead(notif._id)}
+                  onClick={() => openNotification(notif)}
                   onKeyDown={(e) => {
-                    if ((e.key === "Enter" || e.key === " ") && !notif.isRead) {
+                    if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      markAsRead(notif._id);
+                      openNotification(notif);
                     }
                   }}
-                  className={`panel-surface group flex items-start gap-3 rounded-[var(--panel-radius)] p-4 transition-all duration-150 sm:gap-4 sm:p-5 ${
-                    notif.isRead ? "" : "cursor-pointer"
-                  }`}
+                  className="panel-surface group flex cursor-pointer items-start gap-3 rounded-[var(--panel-radius)] p-4 transition-all duration-150 hover:border-brand/25 sm:gap-4 sm:p-5"
                   style={
                     notif.isRead
                       ? undefined
@@ -271,6 +316,11 @@ const NotificationCenter = ({ actions = [] }) => {
                       {relativeTime(notif.createdAt)}
                     </p>
                   </div>
+
+                  <FaChevronRight
+                    className="mt-1 shrink-0 text-[10px] text-on-muted transition-colors group-hover:text-brand"
+                    aria-hidden="true"
+                  />
 
                   <button
                     type="button"

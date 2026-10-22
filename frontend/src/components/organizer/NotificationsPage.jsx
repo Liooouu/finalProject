@@ -25,6 +25,12 @@ const ADMIN_ACTIONS = [
     to: "/admin/dashboard/events",
   },
   {
+    icon: <FaEdit />,
+    label: "Review excuses",
+    description: "Act on student excuse letters",
+    to: "/admin/dashboard/excuses",
+  },
+  {
     icon: <FaUsers />,
     label: "Manage users",
     description: "Review students and staff",
@@ -34,6 +40,7 @@ const ADMIN_ACTIONS = [
 
 const NotificationsPage = ({ role = "organizer" }) => (
   <NotificationCenter
+    role={role}
     actions={role === "admin" ? ADMIN_ACTIONS : ORGANIZER_ACTIONS}
   />
 );

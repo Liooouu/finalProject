@@ -8,6 +8,7 @@ export { default as StatusChip } from "./StatusChip";
 export { default as TableSkeleton } from "./TableSkeleton";
 export { default as PageHeader } from "./PageHeader";
 export { default as Card } from "./Card";
+export { default as FlightPanel } from "./FlightPanel";
 export { default as StatTile } from "./StatTile";
 export { default as Sparkline } from "./Sparkline";
 export { default as ChartCard } from "./ChartCard";

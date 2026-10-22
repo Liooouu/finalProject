@@ -4,6 +4,7 @@ import api from "../../api/axios";
 import { useTheme } from "../../context/ThemeContext";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { formatDate, formatDateTime, formatTime, formatTime12Hour } from "../../utils/helpers";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import {
   FaArrowRight,
   FaBolt,
@@ -21,9 +22,9 @@ import {
   FaUsers,
 } from "react-icons/fa";
 import {
-  Card,
   StatTile,
   ChartCard,
+  FlightPanel,
   Timeline,
   StatusChip,
   Button,
@@ -178,16 +179,6 @@ const activityVisual = (status) => {
   }
 };
 
-const SectionHeader = ({ title, subtitle, action }) => (
-  <div className="mb-4 flex items-start justify-between gap-3">
-    <div className="min-w-0">
-      <h3 className="font-display text-[15px] font-semibold tracking-tight text-on">{title}</h3>
-      {subtitle && <p className="mt-0.5 text-xs text-on-muted">{subtitle}</p>}
-    </div>
-    {action && <div className="shrink-0">{action}</div>}
-  </div>
-);
-
 const fetchDashboard = () =>
   Promise.allSettled([
     api.get("/reports/events"),
@@ -260,6 +251,8 @@ const DashboardHome = () => {
       cancelled = true;
     };
   }, []);
+
+  useAutoRefresh(load);
 
   const retry = () => {
     setState((current) => ({ ...current, loading: true, error: "" }));
@@ -338,15 +331,15 @@ const DashboardHome = () => {
   if (state.loading) {
     return (
       <div className="space-y-4" aria-busy="true" aria-label="Loading dashboard">
-        <div className="skeleton h-40 rounded-2xl" />
+        <div className="skeleton h-40 rounded-[12px]" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="skeleton h-32 rounded-2xl" />
+            <div key={i} className="skeleton h-32 rounded-[12px]" />
           ))}
         </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <div className="skeleton h-80 rounded-2xl lg:col-span-8" />
-          <div className="skeleton h-80 rounded-2xl lg:col-span-4" />
+          <div className="skeleton h-80 rounded-[12px] lg:col-span-8" />
+          <div className="skeleton h-80 rounded-[12px] lg:col-span-4" />
         </div>
         <TableSkeleton rows={5} cols={4} />
       </div>
@@ -486,48 +479,91 @@ const DashboardHome = () => {
 
   return (
     <div className="space-y-4">
-      {/* Hero */}
-      <Card variant="glass" padding="none" className="animate-rise overflow-hidden">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div className="absolute -right-24 -top-32 h-72 w-72 rounded-full bg-brand/20 blur-3xl" />
-          <div className="absolute -bottom-40 left-1/3 h-72 w-72 rounded-full bg-[var(--brand-2)]/15 blur-3xl" />
-          <div className="absolute inset-0 opacity-[0.35] [background-image:linear-gradient(var(--line-dim-color)_1px,transparent_1px),linear-gradient(90deg,var(--line-dim-color)_1px,transparent_1px)] [background-size:36px_36px] [mask-image:radial-gradient(ellipse_70%_80%_at_60%_0%,black,transparent)]" />
-        </div>
+      {/* Command */}
+      <FlightPanel
+        level="command"
+        glass
+        eyebrow="Administration / Overview"
+        status="System online"
+        statusTone="ok"
+        actions={
+          <span className="hidden text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--fd-command-muted)] sm:inline">
+            Auto refresh 10s
+          </span>
+        }
+        className="animate-rise"
+      >
+        <div className="relative">
+          <div
+            aria-hidden="true"
+            className="fd-command-grid pointer-events-none absolute inset-0 opacity-80"
+          />
 
-        <div className="relative flex flex-col gap-5 p-6 lg:flex-row lg:items-end lg:justify-between lg:p-8">
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">
-              System overview
-            </p>
-            <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-on sm:text-3xl">
-              {greeting}, admin.
-            </h2>
-            <p className="mt-1 text-sm text-on-dim">
-              {formatDate(new Date(), {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              })}{" "}
-              · {derived.students} students · {state.events.length} events tracked
-            </p>
+          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <p className="fd-eyebrow text-brand">Command deck</p>
+              <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-on sm:text-3xl">
+                {greeting}, admin.
+              </h2>
+              <p className="mt-1 text-sm text-on-dim">
+                {formatDate(new Date(), {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}{" "}
+                · {derived.students} students · {state.events.length} events tracked
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button as={Link} to="/admin/dashboard/create-organizer" size="md">
+                <FaPlus className="text-[10px]" />
+                Create organizer
+              </Button>
+              <Button as={Link} to="/admin/dashboard/reports" variant="secondary" size="md">
+                <FaClipboardList className="text-[11px]" />
+                View reports
+              </Button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button as={Link} to="/admin/dashboard/create-organizer" size="md">
-              <FaPlus className="text-[10px]" />
-              Create organizer
-            </Button>
-            <Button as={Link} to="/admin/dashboard/reports" variant="secondary" size="md">
-              <FaClipboardList className="text-[11px]" />
-              View reports
-            </Button>
+          <div className="relative mt-7 grid grid-cols-1 gap-4 border-t border-line/80 pt-5 sm:grid-cols-3">
+            <div>
+              <p className="fd-eyebrow">Live windows</p>
+              <p className="mt-1 font-display text-lg font-semibold tracking-tight text-on">
+                {derived.live}
+                <span className="ml-2 text-[11px] font-medium text-on-muted">
+                  attendance windows open
+                </span>
+              </p>
+            </div>
+            <div className="sm:border-l sm:border-line/80 sm:pl-5">
+              <p className="fd-eyebrow">Needs attention</p>
+              <p className="mt-1 font-display text-lg font-semibold tracking-tight text-on">
+                {derived.attentionTotal}
+                <span className="ml-2 text-[11px] font-medium text-on-muted">
+                  reviews waiting
+                </span>
+              </p>
+            </div>
+            <div className="sm:border-l sm:border-line/80 sm:pl-5">
+              <p className="fd-eyebrow">Data stream</p>
+              <p className="mt-1 font-display text-lg font-semibold tracking-tight text-on">
+                Live
+                <span className="ml-2 text-[11px] font-medium text-on-muted">
+                  10s auto-refresh
+                </span>
+              </p>
+            </div>
           </div>
         </div>
-      </Card>
+      </FlightPanel>
 
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
+          surface="flight"
+          glass
           label="Events"
           value={state.events.length}
           icon={<FaCalendarAlt />}
@@ -536,6 +572,8 @@ const DashboardHome = () => {
           to="/admin/dashboard/events"
         />
         <StatTile
+          surface="flight"
+          glass
           label="Students"
           value={derived.students}
           icon={<FaUsers />}
@@ -545,6 +583,8 @@ const DashboardHome = () => {
           to="/admin/dashboard/users"
         />
         <StatTile
+          surface="flight"
+          glass
           label="Attendance rate"
           value={`${derived.rate}%`}
           icon={<FaClipboardList />}
@@ -554,6 +594,8 @@ const DashboardHome = () => {
           to="/admin/dashboard/reports"
         />
         <StatTile
+          surface="flight"
+          glass
           label="Organizers"
           value={derived.organizers}
           icon={<FaUserTie />}
@@ -567,16 +609,16 @@ const DashboardHome = () => {
       {/* Charts */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <ChartCard
+          surface="flight"
+          glass
+          eyebrow="Telemetry / 14 days"
+          inset
           className="lg:col-span-8"
           title="Attendance pulse"
-          subtitle="Check-ins recorded over the last 14 days"
-          actions={
-            <span className="rounded-full border border-line bg-card-alt/60 px-2.5 py-1 text-[10px] font-medium text-on-muted">
-              Last 14 days
-            </span>
-          }
+          subtitle="Check-ins recorded over the last two weeks"
+          actions={<span className="fd-chip">14 day window</span>}
         >
-          <div className="h-[260px]">
+          <div className="h-[252px]">
             {derived.totalRecords > 0 ? (
               <Line data={lineData} options={lineOptions} />
             ) : (
@@ -591,14 +633,14 @@ const DashboardHome = () => {
         </ChartCard>
 
         <ChartCard
+          surface="flight"
+          glass
+          eyebrow="Telemetry / Records"
+          inset
           className="lg:col-span-4"
           title="Status mix"
           subtitle="Every attendance record"
-          actions={
-            <span className="num rounded-full border border-line bg-card-alt/60 px-2.5 py-1 text-[10px] font-medium text-on-muted">
-              {derived.totalRecords}
-            </span>
-          }
+          actions={<span className="fd-chip num">{derived.totalRecords}</span>}
         >
           {derived.totalRecords > 0 ? (
             <div className="flex flex-col items-center gap-5 sm:flex-row lg:flex-col xl:flex-row">
@@ -642,39 +684,37 @@ const DashboardHome = () => {
 
       {/* Operations */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Card className="lg:col-span-4" padding="lg">
-          <SectionHeader
-            title="Needs attention"
-            subtitle="Reviews and windows waiting on you"
-            action={
-              <span
-                className={`num rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                  derived.attentionTotal > 0
-                    ? "bg-warn/10 text-warn"
-                    : "bg-ok/10 text-ok"
-                }`}
-              >
-                {derived.attentionTotal}
-              </span>
-            }
-          />
-
+        <FlightPanel
+          level="instrument"
+          glass
+          eyebrow="Triage"
+          title="Needs attention"
+          subtitle="Reviews and windows waiting on you"
+          tone={derived.attentionTotal > 0 ? "warn" : "ok"}
+          actions={
+            <span
+              className={`fd-status ${
+                derived.attentionTotal > 0 ? "text-warn" : "text-ok"
+              }`}
+            >
+              <span className="fd-dot" aria-hidden="true" />
+              {derived.attentionTotal}
+            </span>
+          }
+          className="lg:col-span-4"
+        >
           {derived.attentionTotal === 0 && (
-            <div className="mb-3 flex items-center gap-2 rounded-xl border border-ok/20 bg-ok/5 px-3 py-2 text-xs text-ok">
+            <div className="mb-3 flex items-center gap-2 rounded-[var(--fd-radius-inner)] border border-ok/20 bg-ok/5 px-3 py-2 text-xs text-ok">
               <FaCheckCircle className="text-[11px]" />
               All clear — nothing needs action right now.
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             {attentionRows.map((row) => (
-              <Link
-                key={row.key}
-                to={row.to}
-                className="group flex items-center gap-3 rounded-xl border border-line/70 bg-card-alt/40 p-3 transition-colors hover:border-brand/30 hover:bg-card-alt"
-              >
+              <Link key={row.key} to={row.to} className="fd-row group">
                 <span
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[13px] ring-1 ring-inset ${
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[7px] text-[13px] ring-1 ring-inset ${
                     attentionTones[row.tone]
                   }`}
                 >
@@ -686,7 +726,7 @@ const DashboardHome = () => {
                 </div>
                 <span
                   className={`num rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                    row.count > 0 ? "bg-brand/15 text-brand" : "bg-card text-on-muted"
+                    row.count > 0 ? "bg-brand/10 text-brand" : "bg-card text-on-muted"
                   }`}
                 >
                   {row.count}
@@ -698,22 +738,24 @@ const DashboardHome = () => {
               </Link>
             ))}
           </div>
-        </Card>
+        </FlightPanel>
 
-        <Card className="lg:col-span-4" padding="lg">
-          <SectionHeader
-            title="Today"
-            subtitle={formatDate(new Date(), { month: "long", day: "numeric" })}
-            action={
-              <Link
-                to="/admin/dashboard/events"
-                className="text-[11px] font-medium text-brand transition-colors hover:text-brand-2"
-              >
-                All events
-              </Link>
-            }
-          />
-
+        <FlightPanel
+          level="instrument"
+          glass
+          eyebrow="Schedule"
+          title="Today"
+          subtitle={formatDate(new Date(), { month: "long", day: "numeric" })}
+          actions={
+            <Link
+              to="/admin/dashboard/events"
+              className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand transition-colors hover:text-brand-2"
+            >
+              All events
+            </Link>
+          }
+          className="lg:col-span-4"
+        >
           {derived.todayEvents.length === 0 ? (
             <EmptyState
               compact
@@ -727,14 +769,14 @@ const DashboardHome = () => {
               }
             />
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {derived.todayEvents.slice(0, 3).map((event) => (
                 <Link
                   key={event._id}
                   to={`/admin/dashboard/events/${event._id}`}
-                  className="group flex items-center gap-3 rounded-xl border border-line/70 bg-card-alt/40 p-3 transition-colors hover:border-brand/30 hover:bg-card-alt"
+                  className="fd-row group"
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-[13px] text-brand ring-1 ring-inset ring-brand/20">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[7px] bg-brand/10 text-[13px] text-brand ring-1 ring-inset ring-brand/20">
                     <FaRegClock />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -755,22 +797,24 @@ const DashboardHome = () => {
               ))}
             </div>
           )}
-        </Card>
+        </FlightPanel>
 
-        <Card className="lg:col-span-4" padding="lg">
-          <SectionHeader
-            title="Recent activity"
-            subtitle="Latest check-ins across the system"
-            action={
-              <Link
-                to="/admin/dashboard/reports"
-                className="text-[11px] font-medium text-brand transition-colors hover:text-brand-2"
-              >
-                Reports
-              </Link>
-            }
-          />
-
+        <FlightPanel
+          level="instrument"
+          glass
+          eyebrow="Live feed"
+          title="Recent activity"
+          subtitle="Latest check-ins across the system"
+          actions={
+            <Link
+              to="/admin/dashboard/reports"
+              className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand transition-colors hover:text-brand-2"
+            >
+              Reports
+            </Link>
+          }
+          className="lg:col-span-4"
+        >
           <Timeline
             items={derived.activityItems}
             empty={
@@ -782,29 +826,27 @@ const DashboardHome = () => {
               />
             }
           />
-        </Card>
+        </FlightPanel>
       </div>
 
-      {/* Recent attendance table */}
-      <Card padding="none" className="overflow-hidden">
-        <div className="flex items-start justify-between gap-3 p-5">
-          <div className="min-w-0">
-            <h3 className="font-display text-[15px] font-semibold tracking-tight text-on">
-              Recent attendance
-            </h3>
-            <p className="mt-0.5 text-xs text-on-muted">
-              The six latest records, newest first.
-            </p>
-          </div>
+      {/* Attendance ledger */}
+      <FlightPanel
+        level="ledger"
+        glass
+        eyebrow="Ledger"
+        title="Recent attendance"
+        subtitle="The six latest records, newest first"
+        actions={
           <Link
             to="/admin/dashboard/reports"
-            className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-brand transition-colors hover:text-brand-2"
+            className="inline-flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand transition-colors hover:text-brand-2"
           >
             View report
             <FaArrowRight className="text-[9px]" />
           </Link>
-        </div>
-
+        }
+        flush
+      >
         {state.records.length === 0 ? (
           <EmptyState
             icon={<FaClipboardList />}
@@ -813,26 +855,23 @@ const DashboardHome = () => {
           />
         ) : (
           <div className="nice-scroll overflow-x-auto">
-            <table className="w-full min-w-[680px] text-sm">
+            <table className="fd-table w-full min-w-[680px] text-sm">
               <thead>
-                <tr className="border-y border-line bg-card-alt/40 text-left text-[10px] uppercase tracking-[0.14em] text-on-muted">
-                  <th scope="col" className="px-5 py-2.5 font-semibold">Student</th>
-                  <th scope="col" className="px-5 py-2.5 font-semibold">Event</th>
-                  <th scope="col" className="px-5 py-2.5 font-semibold">Status</th>
-                  <th scope="col" className="px-5 py-2.5 font-semibold">Checked in</th>
+                <tr className="text-left">
+                  <th scope="col" className="px-5 py-3">Student</th>
+                  <th scope="col" className="px-5 py-3">Event</th>
+                  <th scope="col" className="px-5 py-3">Status</th>
+                  <th scope="col" className="px-5 py-3">Checked in</th>
                 </tr>
               </thead>
               <tbody>
                 {state.records.slice(0, 6).map((record) => (
-                  <tr
-                    key={record._id}
-                    className="border-b border-line/70 transition-colors last:border-0 hover:bg-card-alt/40"
-                  >
-                    <td className="px-5 py-3">
+                  <tr key={record._id}>
+                    <td className="px-5 py-3.5">
                       <p className="font-medium text-on">{record.student?.name || "Unknown"}</p>
                       <p className="text-[11px] text-on-muted">{record.student?.email || ""}</p>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3.5">
                       <p className="text-on-dim">
                         {record.event?.title || record.eventTitle || "Event"}
                       </p>
@@ -844,10 +883,10 @@ const DashboardHome = () => {
                             : ""}
                       </p>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3.5">
                       <StatusChip status={record.status} />
                     </td>
-                    <td className="px-5 py-3 text-xs text-on-muted">
+                    <td className="px-5 py-3.5 text-xs text-on-muted">
                       {record.attendedAt ? formatDateTime(record.attendedAt) : "—"}
                     </td>
                   </tr>
@@ -856,7 +895,7 @@ const DashboardHome = () => {
             </table>
           </div>
         )}
-      </Card>
+      </FlightPanel>
     </div>
   );
 };

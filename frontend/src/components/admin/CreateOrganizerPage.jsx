@@ -3,7 +3,7 @@ import api from "../../api/axios";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
 import { FaUserPlus, FaCheck, FaShieldAlt } from "react-icons/fa";
-import { Button, Card, PageHeader } from "../ui";
+import { Button, FlightPanel, PageHeader } from "../ui";
 
 const CAPABILITIES = [
   "Create and manage events",
@@ -97,19 +97,14 @@ const CreateOrganizerPage = () => {
       />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <Card>
-          <div className="mb-6 flex items-center gap-3.5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-              <FaUserPlus />
-            </span>
-            <div>
-              <h2 className="panel-heading text-base">Account details</h2>
-              <p className="text-sm text-on-dim">
-                They will be able to sign in as soon as you create the account.
-              </p>
-            </div>
-          </div>
-
+        <FlightPanel
+          level="ledger"
+          glass
+          eyebrow="New account"
+          title="Account details"
+          subtitle="They will be able to sign in as soon as you create the account."
+          icon={<FaUserPlus />}
+        >
           <form onSubmit={createOrganizer} className="space-y-5">
             {errors.general && (
               <div className="alert alert-danger" role="alert">
@@ -205,15 +200,17 @@ const CreateOrganizerPage = () => {
               {loading ? "Creating..." : "Create organizer"}
             </Button>
           </form>
-        </Card>
+        </FlightPanel>
 
         <div className="space-y-4">
-          <Card variant="inset">
-            <div className="flex items-center gap-2.5">
-              <FaShieldAlt className="text-brand" />
-              <h3 className="text-sm font-semibold text-on">Role capabilities</h3>
-            </div>
-            <ul className="mt-3 space-y-2.5">
+          <FlightPanel
+            level="instrument"
+            glass
+            eyebrow="Access profile"
+            title="Role capabilities"
+            icon={<FaShieldAlt />}
+          >
+            <ul className="space-y-2.5">
               {CAPABILITIES.map((item) => (
                 <li key={item} className="flex items-start gap-2.5 text-sm text-on-dim">
                   <FaCheck className="mt-0.5 shrink-0 text-[11px] text-ok" />
@@ -221,7 +218,7 @@ const CreateOrganizerPage = () => {
                 </li>
               ))}
             </ul>
-          </Card>
+          </FlightPanel>
 
           <div className="rounded-2xl border border-line bg-gradient-to-br from-[var(--brand)]/10 via-transparent to-transparent p-5">
             <p className="eyebrow">Security note</p>

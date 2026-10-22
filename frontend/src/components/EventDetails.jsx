@@ -22,6 +22,7 @@ import { BsClipboardCheck } from "react-icons/bs";
 import { QRCodeSVG } from "qrcode.react";
 import QRScanner from "./organizer/QRScanner";
 import { usePageMeta } from "../context/PageMetaContext";
+import { useAutoRefresh } from "../utils/useAutoRefresh";
 import { Button, Card, StatusChip } from "./ui";
 import EventMap from "./shared/EventMap";
 import MapPicker from "./shared/MapPicker";
@@ -42,7 +43,11 @@ const EventDetails = () => {
   const [role, setRole] = useState(null);
   const [canManage, setCanManage] = useState(false);
   const [canManageAttendance, setCanManageAttendance] = useState(false);
-  const [qrRefreshKey, setQrRefreshKey] = useState(0);
+  const [qrNow, setQrNow] = useState(() => Date.now());
+  const [qrWindow, setQrWindow] = useState(() => {
+    const issuedAt = Date.now();
+    return { issuedAt, expiresAt: issuedAt + 30000 };
+  });
   const [studentId, setStudentId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pendingRemoveCS, setPendingRemoveCS] = useState(null);
@@ -71,11 +76,19 @@ const EventDetails = () => {
   }, []);
 
   useEffect(() => {
+    if (role !== "student" || myAttendance) return undefined;
+
     const interval = setInterval(() => {
-      setQrRefreshKey((prev) => prev + 1);
-    }, 30000);
+      const now = Date.now();
+      setQrNow(now);
+      setQrWindow((prev) =>
+        now >= prev.expiresAt
+          ? { issuedAt: now, expiresAt: now + 30000 }
+          : prev
+      );
+    }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [role, myAttendance]);
 
   const refreshAttendees = useCallback(async () => {
     try {
@@ -85,6 +98,25 @@ const EventDetails = () => {
       console.error(err.response?.data || err.message);
     }
   }, [id]);
+
+  const refreshEvent = useCallback(async () => {
+    try {
+      const res = await api.get(`/events/${id}`);
+      setEvent(res.data);
+      if (canManageAttendance) {
+        await refreshAttendees();
+      } else if (role === "student") {
+        const mine = await api.get("/events/my-attendance");
+        setMyAttendance(
+          mine.data.find((a) => a.event?._id === id || a.event === id) || null
+        );
+      }
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+    }
+  }, [id, role, canManageAttendance, refreshAttendees]);
+
+  useAutoRefresh(refreshEvent, { enabled: Boolean(event) });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -324,9 +356,13 @@ const EventDetails = () => {
     return JSON.stringify({
       eventId: event._id,
       studentId: studentId,
-      timestamp: Date.now(),
+      timestamp: qrWindow.issuedAt,
     });
   };
+
+  const qrMsLeft = Math.max(0, qrWindow.expiresAt - qrNow);
+  const qrSecondsLeft = Math.ceil(qrMsLeft / 1000);
+  const qrProgress = Math.max(0, Math.min(100, (qrMsLeft / 30000) * 100));
 
   if (loading) {
     return <Loading />;
@@ -528,21 +564,46 @@ const EventDetails = () => {
               </p>
               <div className="mt-4 flex justify-center">
                 {getQRData() && (
-                  <div className="w-full max-w-[300px] rounded-2xl bg-white p-4 shadow-sm">
-                    <QRCodeSVG
-                      key={qrRefreshKey}
-                      value={getQRData()}
-                      size={300}
-                      level="M"
-                      includeMargin={false}
-                      className="h-auto w-full"
-                    />
+                  <div className="relative w-full max-w-[300px]">
+                    <span
+                      className={`absolute -top-2.5 right-3 z-10 rounded-full border bg-card px-2.5 py-1 text-[10px] font-semibold shadow-[var(--elev-1)] ${
+                        qrSecondsLeft <= 5
+                          ? "border-warn/40 text-warn"
+                          : "border-line text-on-dim"
+                      }`}
+                    >
+                      New code in <span className="num text-on">{qrSecondsLeft}s</span>
+                    </span>
+                    <div
+                      className={`rounded-2xl bg-white p-4 shadow-sm ring-2 transition-all duration-300 ${
+                        qrSecondsLeft <= 5 ? "ring-warn/60" : "ring-transparent"
+                      }`}
+                    >
+                      <QRCodeSVG
+                        key={qrWindow.issuedAt}
+                        value={getQRData()}
+                        size={300}
+                        level="M"
+                        includeMargin={false}
+                        className="h-auto w-full"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
-              <p className="mt-4 text-xs text-on-muted">
-                QR code refreshes every 30 seconds for security.
-              </p>
+              <div className="mx-auto mt-4 max-w-[300px]">
+                <div className="h-1.5 overflow-hidden rounded-full bg-card-alt ring-1 ring-inset ring-line">
+                  <div
+                    className={`h-full rounded-full transition-[width] duration-1000 ease-linear ${
+                      qrSecondsLeft <= 5 ? "bg-warn" : "bg-brand"
+                    }`}
+                    style={{ width: `${qrProgress}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-on-muted">
+                  Refreshes automatically every 30 seconds for security.
+                </p>
+              </div>
             </div>
           )}
         </Card>
@@ -556,20 +617,36 @@ const EventDetails = () => {
             <QRScanner eventId={id} onScanSuccess={refreshAttendees} />
           )}
 
-          {/* Manage Attendance Button */}
+          {/* Manual Attendance Card */}
           {canManageAttendance && (
-            <Button
-              onClick={() =>
-                navigate(
-                  role === "admin"
-                    ? `/admin/dashboard/events/${id}/attendees`
-                    : `/organizer/dashboard/events/${id}/attendees`
-                )
-              }
-              className="w-full"
-            >
-              <FaUsers /> Manage attendance manually
-            </Button>
+            <Card>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
+                    <FaUsers />
+                  </span>
+                  <div>
+                    <h2 className="panel-heading text-base">Manual attendance</h2>
+                    <p className="mt-1 text-sm text-on-dim">
+                      Add students or adjust community service hours without scanning a QR code.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    navigate(
+                      role === "admin"
+                        ? `/admin/dashboard/events/${id}/attendees`
+                        : `/organizer/dashboard/events/${id}/attendees`
+                    )
+                  }
+                  className="w-full shrink-0 sm:w-auto"
+                >
+                  <FaUsers /> Manage attendees
+                </Button>
+              </div>
+            </Card>
           )}
 
           {/* Event Management Card */}
@@ -963,40 +1040,50 @@ const EventDetails = () => {
                         <option value="late">Late (4 hrs)</option>
                         <option value="absent">Absent (8 hrs)</option>
                       </select>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min="0"
-                          value={
-                            csDrafts[attendance.student._id] ??
-                            attendance.communityServiceHours
-                          }
-                          onChange={(e) =>
-                            setCsDrafts((d) => ({
-                              ...d,
-                              [attendance.student._id]: e.target.value,
-                            }))
-                          }
-                          className="field w-20 px-2 py-1.5 text-sm"
-                          title="Set this student's community service hours for this event"
-                          aria-label={`Community service hours for ${attendance.student?.name}`}
-                        />
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() =>
-                            handleUpdateCS(
-                              attendance.student._id,
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex items-center gap-1 rounded-lg border border-line bg-card p-1 shadow-[var(--elev-1)]">
+                          <span
+                            className="pl-1 text-[10px] font-semibold uppercase tracking-wider text-on-muted"
+                            aria-hidden="true"
+                          >
+                            Hrs
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={
                               csDrafts[attendance.student._id] ??
-                                attendance.communityServiceHours
-                            )
-                          }
-                        >
-                          Set hrs
-                        </Button>
+                              attendance.communityServiceHours
+                            }
+                            onChange={(e) =>
+                              setCsDrafts((d) => ({
+                                ...d,
+                                [attendance.student._id]: e.target.value,
+                              }))
+                            }
+                            className="h-8 w-14 rounded-md border border-line/70 bg-card-alt px-1.5 text-center text-sm font-semibold tabular-nums text-on transition-colors [appearance:textfield] hover:border-brand/30 focus:border-brand/60 focus:outline-none focus:ring-2 focus:ring-brand/25 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            title="Set this student's community service hours for this event"
+                            aria-label={`Community service hours for ${attendance.student?.name}`}
+                          />
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-8"
+                            onClick={() =>
+                              handleUpdateCS(
+                                attendance.student._id,
+                                csDrafts[attendance.student._id] ??
+                                  attendance.communityServiceHours
+                              )
+                            }
+                          >
+                            Set
+                          </Button>
+                        </div>
                         <Button
                           variant="danger"
                           size="sm"
+                          className="h-8"
                           onClick={() => setPendingRemoveCS(attendance)}
                           disabled={attendance.communityServiceHours <= 0}
                         >

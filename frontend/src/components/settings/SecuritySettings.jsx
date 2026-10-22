@@ -12,7 +12,7 @@ import {
   FaHeadset,
 } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { Button, Card, PageHeader, StatusChip } from "../ui";
+import { Button, FlightPanel, PageHeader, StatusChip } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Loading from "../shared/Loading";
 import FaceCapture from "../auth/FaceCapture";
@@ -162,29 +162,30 @@ const SecuritySettings = () => {
         </div>
       )}
 
-      <Card>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-              <FaKey />
-            </span>
-            <div className="max-w-lg">
-              <h2 className="panel-heading text-base">Security PIN</h2>
-              <p className="mt-1 text-sm leading-relaxed text-on-dim">
-                TrackED assigns you a random 6-digit PIN. You'll need it the first time you sign in
-                from a{" "}
-                <span className="font-medium text-on">new browser or computer</span>. Every
-                successful verification creates a new PIN.
-              </p>
-              <p className="mt-2 text-sm leading-relaxed text-on-dim">
-                Forgot your PIN? Rotate it here and save the new one. If you've lost every device,
-                ask an admin to reset your security.
-              </p>
-            </div>
-          </div>
+      <FlightPanel
+        level="ledger"
+        glass
+        eyebrow="Security"
+        title="Security PIN"
+        subtitle="Your 6-digit PIN is required on a new browser or computer."
+        icon={<FaKey />}
+        actions={
           <Button onClick={rotatePin} loading={rotating} size="sm" className="shrink-0">
             {rotating ? "Generating..." : "Rotate my PIN"}
           </Button>
+        }
+      >
+        <div className="max-w-2xl space-y-2">
+          <p className="text-sm leading-relaxed text-on-dim">
+            TrackED assigns you a random 6-digit PIN. You'll need it the first time you sign in
+            from a{" "}
+            <span className="font-medium text-on">new browser or computer</span>. Every successful
+            verification creates a new PIN.
+          </p>
+          <p className="text-sm leading-relaxed text-on-dim">
+            Forgot your PIN? Rotate it here and save the new one. If you've lost every device, ask
+            an admin to reset your security.
+          </p>
         </div>
 
         {currentPin && (
@@ -211,21 +212,16 @@ const SecuritySettings = () => {
             </p>
           </div>
         )}
-      </Card>
+      </FlightPanel>
 
-      <Card>
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-              <FaShieldAlt className="text-xs" />
-            </span>
-            <h2 className="panel-heading text-base">
-              Trusted devices{" "}
-              <span className="num text-on-muted">({devices.length})</span>
-            </h2>
-          </div>
-        </div>
-
+      <FlightPanel
+        level="ledger"
+        glass
+        eyebrow="Devices"
+        title="Trusted devices"
+        subtitle={`${devices.length} device${devices.length === 1 ? "" : "s"} recognized`}
+        icon={<FaShieldAlt />}
+      >
         {loading ? (
           <Loading />
         ) : devices.length === 0 ? (
@@ -278,31 +274,20 @@ const SecuritySettings = () => {
             })}
           </div>
         )}
-      </Card>
+      </FlightPanel>
 
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            {facePhoto ? (
-              <PrivateImage
-                src={facePhoto}
-                alt="Enrolled face"
-                className="h-16 w-16 rounded-xl border border-line object-cover"
-              />
-            ) : (
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-                <FaCameraRetro />
-              </span>
-            )}
-            <div>
-              <h2 className="panel-heading text-base">Face verification</h2>
-              <p className="mt-1 max-w-md text-sm leading-relaxed text-on-dim">
-                {facePhoto
-                  ? "If you forget your security PIN, you can recover it with a quick face scan."
-                  : "Enroll a face photo now so you can recover your security PIN with a face scan if you ever forget it."}
-              </p>
-            </div>
-          </div>
+      <FlightPanel
+        level="instrument"
+        glass
+        eyebrow="Biometrics"
+        title="Face verification"
+        subtitle={
+          facePhoto
+            ? "If you forget your security PIN, you can recover it with a quick face scan."
+            : "Enroll a face photo now so you can recover your security PIN with a face scan if you ever forget it."
+        }
+        icon={<FaCameraRetro />}
+        actions={
           <Button
             onClick={() => setEnrollingFace(true)}
             disabled={faceUploading}
@@ -311,7 +296,18 @@ const SecuritySettings = () => {
           >
             {facePhoto ? "Update face photo" : "Add face photo"}
           </Button>
-        </div>
+        }
+      >
+        {facePhoto && (
+          <div className="mb-4 flex items-center gap-3">
+            <PrivateImage
+              src={facePhoto}
+              alt="Enrolled face"
+              className="h-16 w-16 rounded-xl border border-line object-cover"
+            />
+            <p className="text-sm text-on-dim">Enrolled face photo</p>
+          </div>
+        )}
 
         {enrollingFace && (
           <div className="mt-4 rounded-xl border border-line bg-card-alt/40 p-4">
@@ -323,24 +319,17 @@ const SecuritySettings = () => {
             />
           </div>
         )}
-      </Card>
+      </FlightPanel>
 
-      <Card>
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-warn/10 text-warn ring-1 ring-inset ring-warn/20">
-            <FaHeadset />
-          </span>
-          <div>
-            <h2 className="panel-heading text-base">
-              Face verification not working?
-            </h2>
-            <p className="mt-1 text-sm leading-relaxed text-on-dim">
-              Camera refusing to recognize you? Submit a proof photo and an admin will compare it
-              to your enrolled face photo, then unlock your face verification.
-            </p>
-          </div>
-        </div>
-
+      <FlightPanel
+        level="ledger"
+        glass
+        tone="warn"
+        eyebrow="Support"
+        title="Face verification not working?"
+        subtitle="Submit a proof photo and an admin will compare it to your enrolled face photo."
+        icon={<FaHeadset />}
+      >
         {appeals.length > 0 && (
           <div className="mt-4 space-y-2">
             {appeals.map((appeal) => (
@@ -394,7 +383,7 @@ const SecuritySettings = () => {
             Submit an appeal
           </Button>
         )}
-      </Card>
+      </FlightPanel>
 
       <div className="flex items-start gap-2.5 rounded-xl border border-line bg-card p-4 text-sm text-on-dim">
         <FaExclamationTriangle className="mt-0.5 shrink-0 text-warn" />

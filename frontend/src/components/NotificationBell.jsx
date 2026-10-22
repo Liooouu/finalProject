@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { FaBell } from "react-icons/fa";
 import { NOTIFICATIONS_CHANGED_EVENT } from "../utils/helpers";
+import { subscribeToDataChanges } from "../utils/dataSync";
 
 const paths = {
   student: "/student/dashboard/notifications",
@@ -29,11 +30,13 @@ const NotificationBell = ({ role }) => {
     // them, and when the tab regains focus after being backgrounded.
     const onChanged = () => fetchUnreadCount();
     const onFocus = () => fetchUnreadCount();
+    const unsubscribe = subscribeToDataChanges(fetchUnreadCount);
     window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged);
     window.addEventListener("focus", onFocus);
 
     return () => {
       clearInterval(interval);
+      unsubscribe();
       window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged);
       window.removeEventListener("focus", onFocus);
     };

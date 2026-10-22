@@ -50,11 +50,83 @@ const StatTile = ({
   tone = "brand",
   data,
   to,
+  surface = "flight",
+  glass = true,
   className = "",
 }) => {
   const Comp = to ? Link : "div";
   const linkProps = to ? { to } : {};
   const palette = tones[tone] || tones.brand;
+
+  if (surface === "flight") {
+    return (
+      <Comp
+        {...linkProps}
+        style={{ "--fd-accent": palette.spark }}
+        className={`fd-surface fd-instrument fd-metric group ${
+          glass ? "fd-glass" : ""
+        } ${to ? "fd-interactive" : ""} ${className}`}
+      >
+        <div className="fd-rail fd-rail-compact">
+          <p className="fd-eyebrow">{label}</p>
+          <div className="flex items-center gap-2.5">
+            {icon && <span className="fd-metric-icon text-[12px]">{icon}</span>}
+            <span
+              className="fd-dot"
+              style={{ color: palette.spark }}
+              aria-hidden="true"
+            />
+          </div>
+        </div>
+
+        <div className="fd-body">
+          <div className="flex items-start justify-between gap-3">
+            <p className="num font-display text-[38px] font-bold leading-none tracking-[-0.03em] text-on">
+              {value}
+            </p>
+            {to && (
+              <span className="mt-1 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.14em] text-on-muted transition-colors group-hover:text-brand">
+                View
+                <FaChevronRight
+                  className="text-[8px] transition-transform group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
+              </span>
+            )}
+          </div>
+
+          <div className="mt-2 flex min-h-[18px] flex-wrap items-center gap-2">
+            {delta != null && (
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  deltaLabel === "down"
+                    ? "bg-danger/10 text-danger"
+                    : "bg-ok/10 text-ok"
+                }`}
+              >
+                {delta}
+              </span>
+            )}
+            {(hint || deltaLabel) && (
+              <p className="truncate text-xs text-on-muted">{hint || deltaLabel}</p>
+            )}
+          </div>
+
+          {Array.isArray(data) && data.length > 1 && (
+            <div className="fd-spark">
+              <Sparkline
+                data={data}
+                color={palette.spark}
+                className="h-full w-full"
+                height={40}
+                label={`${label} trend`}
+              />
+            </div>
+          )}
+        </div>
+      </Comp>
+    );
+  }
 
   return (
     <Comp

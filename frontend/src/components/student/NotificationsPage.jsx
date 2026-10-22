@@ -18,6 +18,8 @@ const ACTIONS = [
   },
 ];
 
-const NotificationsPage = () => <NotificationCenter actions={ACTIONS} />;
+const NotificationsPage = () => (
+  <NotificationCenter role="student" actions={ACTIONS} />
+);
 
 export default NotificationsPage;

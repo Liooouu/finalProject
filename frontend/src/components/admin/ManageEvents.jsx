@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { FaCalendarAlt, FaMapMarkerAlt, FaPlus, FaUsers } from "react-icons/fa";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
+import { FaCalendarAlt, FaEdit, FaMapMarkerAlt, FaPlus, FaUsers } from "react-icons/fa";
 import EmptyState from "../shared/EmptyState";
 import { usePageMeta } from "../../context/PageMetaContext";
 import {
@@ -34,6 +36,7 @@ const EMPTY_FORM = {
 };
 
 const ManageEvents = () => {
+  const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -51,21 +54,23 @@ const ManageEvents = () => {
 
   usePageMeta("Manage Events", "Every event across the institution.");
 
-  const fetchEvents = async () => {
-    setLoading(true);
+  const fetchEvents = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const res = await api.get("/events/all");
       setEvents(res.data);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [fetchEvents]);
+
+  useAutoRefresh(fetchEvents);
 
   const fetchAttendees = async (eventId) => {
     try {
@@ -454,6 +459,13 @@ const ManageEvents = () => {
                     <option value="finished">Finished</option>
                     <option value="closed">Closed</option>
                   </select>
+                  <Button
+                    onClick={() => navigate(`/admin/dashboard/events/${event._id}`)}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    <FaEdit className="text-xs" /> Edit
+                  </Button>
                   <Button
                     onClick={() => openEventDetails(event)}
                     variant="secondary"

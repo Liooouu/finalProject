@@ -5,6 +5,7 @@ import api from "../api/axios";
 import TrackMark from "./shared/TrackMark";
 import { portalName } from "../utils/nav";
 import { navSections, isNavItemActive } from "../utils/navItems";
+import { subscribeToDataChanges } from "../utils/dataSync";
 
 const COLLAPSE_KEY = "tracked.sidebar";
 
@@ -89,10 +90,14 @@ const Sidebar = ({ role, isOpen, onClose }) => {
       }
 
       if (role === "admin") {
-        const [pins, appeals] = await Promise.allSettled([
+        const [stats, pins, appeals] = await Promise.allSettled([
+          api.get("/organizer/stats"),
           api.get("/admin/security/pin-reset-requests", { params: { status: "pending" } }),
           api.get("/admin/security/face-appeals", { params: { status: "pending" } }),
         ]);
+        if (stats.status === "fulfilled") {
+          next.excuses = stats.value.data?.pendingExcuses || 0;
+        }
         if (pins.status === "fulfilled") {
           next.pinResets = pins.value.data?.length || 0;
         }
@@ -105,9 +110,11 @@ const Sidebar = ({ role, isOpen, onClose }) => {
     };
 
     load();
+    const unsubscribe = subscribeToDataChanges(load);
     const interval = setInterval(load, 60000);
     return () => {
       alive = false;
+      unsubscribe();
       clearInterval(interval);
     };
   }, [role]);

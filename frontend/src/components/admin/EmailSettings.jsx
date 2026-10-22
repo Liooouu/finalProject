@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import api from "../../api/axios";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { Button, Card, PageHeader } from "../ui";
+import { Button, Card, FlightPanel, PageHeader } from "../ui";
 import {
   FaEnvelope,
   FaPaperPlane,
@@ -318,17 +318,15 @@ const EmailSettings = () => {
       )}
 
       <form onSubmit={save} className="space-y-5">
-        <Card padding="none">
-          <div className="flex items-center gap-3.5 border-b border-line p-5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-              <FaEnvelope />
-            </span>
-            <div>
-              <h2 className="panel-heading text-base">SMTP connection</h2>
-              <p className="text-sm text-on-dim">Where outgoing emails are sent from.</p>
-            </div>
-          </div>
-
+        <FlightPanel
+          level="ledger"
+          glass
+          flush
+          eyebrow="Outgoing mail"
+          title="SMTP connection"
+          subtitle="Where outgoing emails are sent from."
+          icon={<FaEnvelope />}
+        >
           <div className="space-y-4 p-5">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
@@ -467,21 +465,17 @@ const EmailSettings = () => {
               </div>
             </div>
           </div>
-        </Card>
+        </FlightPanel>
 
-        <Card>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="panel-heading text-base">Send a test email</h2>
-              <p className="mt-1 text-sm text-on-dim">
-                Uses the saved settings — save first to test new values.
-              </p>
-            </div>
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-info/10 text-info ring-1 ring-inset ring-info/20">
-              <FaPaperPlane />
-            </span>
-          </div>
-
+        <FlightPanel
+          level="instrument"
+          glass
+          eyebrow="Diagnostics"
+          title="Send a test email"
+          subtitle="Uses the saved settings — save first to test new values."
+          icon={<FaPaperPlane />}
+          tone="info"
+        >
           {testResult && (
             <div
               className={`alert alert-sm mt-4 ${
@@ -514,22 +508,21 @@ const EmailSettings = () => {
               {testLoading ? "Sending…" : "Send test"}
             </Button>
           </div>
-        </Card>
+        </FlightPanel>
 
-        <Card>
-          <div className="mb-4">
-            <h2 className="panel-heading text-base">Email content</h2>
-            <p className="mt-1 text-sm text-on-dim">
-              Leave any field blank to keep the built-in wording. Placeholders are replaced when
-              the email is sent.
-            </p>
-          </div>
+        <FlightPanel
+          level="ledger"
+          glass
+          eyebrow="Templates"
+          title="Email content"
+          subtitle="Leave any field blank to keep the built-in wording. Placeholders are replaced when the email is sent."
+        >
           <div className="space-y-2.5">
             <TemplateCard kind="verification" value={templates.verification} onChange={changeTemplate} />
             <TemplateCard kind="passwordReset" value={templates.passwordReset} onChange={changeTemplate} />
             <TemplateCard kind="notification" value={templates.notification} onChange={changeTemplate} />
           </div>
-        </Card>
+        </FlightPanel>
 
         <div className="flex justify-end">
           <Button type="submit" loading={saving}>

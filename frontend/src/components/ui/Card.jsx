@@ -1,10 +1,10 @@
 import React from "react";
 
 const variants = {
-  solid: "panel-surface",
-  glass: "panel-surface panel-glass",
+  solid: "fd-surface fd-instrument fd-glass",
+  glass: "fd-surface fd-instrument fd-glass",
   inset: "border border-line bg-card-alt/60 shadow-[var(--elev-1)]",
-  accent: "panel-surface panel-accent",
+  accent: "fd-surface fd-instrument fd-glass",
   gradient: "panel-gradient",
   plain: "",
 };

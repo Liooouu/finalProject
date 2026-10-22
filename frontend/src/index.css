@@ -139,6 +139,71 @@
   --app-grid-line: rgba(15, 23, 42, 0.05);
   --app-noise-opacity: 0.45;
 
+  /* Flight Deck — admin-only instrument surfaces */
+  --fd-radius: 12px;
+  --fd-radius-inner: 8px;
+  --fd-panel: #fbfcff;
+  --fd-panel-2: #f3f6fb;
+  --fd-rail: #f5f8fc;
+  --fd-line: #d8e0eb;
+  --fd-line-strong: #bdc9d9;
+  --fd-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  --fd-shadow: 0 1px 2px rgba(15, 23, 42, 0.05),
+    0 18px 38px -34px rgba(15, 23, 42, 0.5);
+  --fd-shadow-raised: 0 2px 3px rgba(15, 23, 42, 0.07),
+    0 32px 68px -46px rgba(15, 23, 42, 0.52),
+    0 18px 44px -36px rgba(79, 70, 229, 0.45);
+  --fd-command-rail: #0d1526;
+  --fd-command-rail-2: #172239;
+  --fd-command-text: #f8fafc;
+  --fd-command-muted: #a4b4ca;
+  --fd-well: #f2f6fb;
+  --fd-well-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.045),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+  --fd-grid: rgba(15, 23, 42, 0.045);
+  --fd-accent: var(--brand);
+  --fd-accent-soft: color-mix(in srgb, var(--fd-accent) 11%, transparent);
+  --fd-glass-panel: rgba(255, 255, 255, 0.56);
+  --fd-glass-panel-strong: rgba(255, 255, 255, 0.76);
+  --fd-glass-rail: rgba(245, 248, 253, 0.44);
+  --fd-glass-line: rgba(255, 255, 255, 0.82);
+  --fd-glass-command: linear-gradient(
+    135deg,
+    rgba(8, 14, 28, 0.88) 0%,
+    rgba(19, 32, 55, 0.76) 100%
+  );
+  --fd-glass-sheen: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      transparent 6%,
+      transparent 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.54) 0%,
+      rgba(255, 255, 255, 0.1) 26%,
+      transparent 48%
+    ),
+    radial-gradient(
+      120% 105% at 100% 0%,
+      rgba(79, 70, 229, 0.11) 0%,
+      rgba(8, 145, 178, 0.045) 40%,
+      transparent 68%
+    );
+  --fd-glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 1px 0 0 rgba(255, 255, 255, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 2px 4px rgba(15, 23, 42, 0.045),
+    0 34px 72px -42px rgba(15, 23, 42, 0.48),
+    0 18px 46px -38px rgba(79, 70, 229, 0.38);
+  --fd-glass-halo: -20px 16px 46px -38px
+    color-mix(in srgb, var(--fd-accent) 28%, transparent);
+  --fd-glass-halo-soft: -14px 12px 34px -36px
+    color-mix(in srgb, var(--fd-accent) 18%, transparent);
+  --fd-glass-blur: 28px;
+  --fd-glass-saturate: 170%;
+
   /* Native pickers (select lists, date/time dropdowns) follow the theme
      instead of forcing the OS default palette. */
   color-scheme: light;
@@ -243,6 +308,71 @@
   --orb-3: radial-gradient(65% 65% at 50% 50%, rgba(168, 85, 247, 0.15) 0%, transparent 70%);
   --app-grid-line: rgba(148, 163, 184, 0.06);
   --app-noise-opacity: 0.35;
+
+  /* Flight Deck — admin-only instrument surfaces */
+  --fd-radius: 12px;
+  --fd-radius-inner: 8px;
+  --fd-panel: #0d1523;
+  --fd-panel-2: #111b2c;
+  --fd-rail: #101a2a;
+  --fd-line: rgba(148, 163, 184, 0.18);
+  --fd-line-strong: rgba(148, 163, 184, 0.3);
+  --fd-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.065),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  --fd-shadow: 0 1px 2px rgba(0, 0, 0, 0.55),
+    0 22px 44px -36px rgba(0, 0, 0, 0.9);
+  --fd-shadow-raised: 0 2px 4px rgba(0, 0, 0, 0.6),
+    0 38px 74px -44px rgba(0, 0, 0, 0.96),
+    0 24px 60px -44px rgba(99, 102, 241, 0.4);
+  --fd-command-rail: #070d18;
+  --fd-command-rail-2: #101b31;
+  --fd-command-text: #f1f5f9;
+  --fd-command-muted: #93a7c2;
+  --fd-well: #09111d;
+  --fd-well-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.38),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+  --fd-grid: rgba(148, 163, 184, 0.07);
+  --fd-accent: var(--brand);
+  --fd-accent-soft: color-mix(in srgb, var(--fd-accent) 15%, transparent);
+  --fd-glass-panel: rgba(13, 21, 35, 0.52);
+  --fd-glass-panel-strong: rgba(13, 21, 35, 0.72);
+  --fd-glass-rail: rgba(16, 26, 42, 0.44);
+  --fd-glass-line: rgba(205, 219, 242, 0.22);
+  --fd-glass-command: linear-gradient(
+    135deg,
+    rgba(5, 10, 20, 0.9) 0%,
+    rgba(18, 31, 54, 0.76) 100%
+  );
+  --fd-glass-sheen: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.055) 0%,
+      transparent 7%,
+      transparent 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.09) 0%,
+      rgba(255, 255, 255, 0.015) 30%,
+      transparent 48%
+    ),
+    radial-gradient(
+      120% 105% at 100% 0%,
+      rgba(99, 102, 241, 0.2) 0%,
+      rgba(8, 145, 178, 0.065) 42%,
+      transparent 70%
+    );
+  --fd-glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.11),
+    inset 1px 0 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+    0 3px 6px rgba(0, 0, 0, 0.36),
+    0 40px 82px -46px rgba(0, 0, 0, 0.98),
+    0 24px 60px -40px rgba(99, 102, 241, 0.42);
+  --fd-glass-halo: -22px 17px 50px -38px
+    color-mix(in srgb, var(--fd-accent) 34%, transparent);
+  --fd-glass-halo-soft: -16px 13px 38px -36px
+    color-mix(in srgb, var(--fd-accent) 22%, transparent);
+  --fd-glass-blur: 30px;
+  --fd-glass-saturate: 160%;
 }
 
 /* ============================================================
@@ -652,6 +782,481 @@ textarea::placeholder {
   }
   .panel-hover:hover {
     transform: translateY(-2px);
+  }
+  .fd-interactive {
+    transition: none;
+  }
+  .fd-interactive:hover {
+    transform: none;
+  }
+  .fd-dot-live {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   Flight Deck — admin instrument surfaces
+   Three deliberate weights: command, instrument, ledger.
+   ============================================================ */
+.fd-surface {
+  position: relative;
+  border: 1px solid var(--fd-line);
+  border-radius: var(--fd-radius);
+  background-color: var(--fd-panel);
+  box-shadow: var(--fd-highlight), var(--fd-shadow);
+  color: var(--on);
+}
+
+.fd-command {
+  border-color: var(--fd-line-strong);
+  box-shadow: var(--fd-highlight), var(--fd-shadow-raised);
+}
+
+.fd-ledger {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 1px 2px rgba(15, 23, 42, 0.045);
+}
+
+.dark .fd-ledger {
+  box-shadow: var(--fd-highlight), 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.fd-ledger .fd-rail {
+  background-color: var(--fd-panel-2);
+}
+
+/* Glass layer — Flight Deck structure over the Aurora canvas. */
+.fd-surface.fd-glass {
+  border-color: var(--fd-glass-line);
+  background-color: var(--fd-glass-panel);
+  background-image: var(--fd-glass-sheen);
+  box-shadow: var(--fd-glass-shadow), var(--fd-glass-halo);
+  -webkit-backdrop-filter: blur(var(--fd-glass-blur)) saturate(var(--fd-glass-saturate));
+  backdrop-filter: blur(var(--fd-glass-blur)) saturate(var(--fd-glass-saturate));
+}
+
+.fd-surface.fd-glass.fd-ledger {
+  background-color: var(--fd-glass-panel-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    inset 1px 0 0 rgba(255, 255, 255, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 24px 52px -38px rgba(15, 23, 42, 0.34),
+    var(--fd-glass-halo-soft);
+}
+
+.dark .fd-surface.fd-glass.fd-ledger {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 1px 0 0 rgba(255, 255, 255, 0.045),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    0 30px 60px -40px rgba(0, 0, 0, 0.92),
+    var(--fd-glass-halo-soft);
+}
+
+.fd-glass .fd-rail {
+  border-bottom-color: var(--fd-glass-line);
+  background-color: var(--fd-glass-rail);
+}
+
+.fd-glass .fd-rail-command {
+  background-image: var(--fd-glass-command);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.fd-glass.fd-ledger .fd-rail {
+  background-color: color-mix(in srgb, var(--fd-panel-2) 68%, transparent);
+}
+
+.fd-glass .fd-well,
+.fd-glass .fd-spark {
+  background-color: color-mix(in srgb, var(--fd-well) 70%, transparent);
+}
+
+.fd-glass .fd-chip {
+  background-color: color-mix(in srgb, var(--fd-panel-2) 55%, transparent);
+}
+
+.fd-glass .fd-row:hover {
+  background-color: color-mix(in srgb, var(--fd-panel-2) 55%, transparent);
+}
+
+.fd-glass .fd-table thead tr {
+  background-color: color-mix(in srgb, var(--fd-well) 72%, transparent);
+}
+
+.fd-glass .fd-table tbody tr:hover {
+  background-color: color-mix(in srgb, var(--fd-panel-2) 52%, transparent);
+}
+
+.fd-glass .fd-footer {
+  background-color: color-mix(in srgb, var(--fd-panel-2) 58%, transparent);
+}
+
+/* Admin pages share the Flight Deck glass treatment on their primary panels. */
+.flight-page .panel-surface {
+  border-color: var(--fd-glass-line);
+  background-color: var(--fd-glass-panel);
+  background-image: var(--fd-glass-sheen);
+  box-shadow: var(--fd-glass-shadow), var(--fd-glass-halo);
+  -webkit-backdrop-filter: blur(var(--fd-glass-blur)) saturate(var(--fd-glass-saturate));
+  backdrop-filter: blur(var(--fd-glass-blur)) saturate(var(--fd-glass-saturate));
+}
+
+.flight-page .panel-surface::after {
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+.flight-page .panel-accent::before {
+  box-shadow: none;
+  opacity: 0.75;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .fd-surface.fd-glass,
+  .flight-page .panel-surface {
+    background-color: var(--fd-panel);
+  }
+}
+
+.fd-command::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  z-index: 2;
+  border-radius: calc(var(--fd-radius) - 5px);
+  pointer-events: none;
+  opacity: 0.62;
+  background:
+    linear-gradient(var(--fd-accent), var(--fd-accent)) left top / 14px 1px no-repeat,
+    linear-gradient(var(--fd-accent), var(--fd-accent)) left top / 1px 14px no-repeat,
+    linear-gradient(var(--fd-accent), var(--fd-accent)) right bottom / 14px 1px no-repeat,
+    linear-gradient(var(--fd-accent), var(--fd-accent)) right bottom / 1px 14px no-repeat;
+}
+
+.fd-instrument::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 16px;
+  right: 16px;
+  z-index: 2;
+  height: 1px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--fd-accent), transparent);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.fd-interactive {
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.fd-interactive:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--fd-accent) 42%, var(--fd-line));
+  box-shadow: var(--fd-highlight), var(--fd-shadow-raised);
+}
+
+.fd-rail {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 50px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--fd-line);
+  border-radius: var(--fd-radius) var(--fd-radius) 0 0;
+  background-color: var(--fd-rail);
+}
+
+.fd-rail-compact {
+  min-height: 40px;
+  padding: 8px 15px;
+}
+
+.fd-rail-icon {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--fd-accent) 24%, transparent);
+  border-radius: 7px;
+  background-color: color-mix(in srgb, var(--fd-accent) 12%, transparent);
+  color: var(--fd-accent);
+  font-size: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.fd-rail-command {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  background-image:
+    linear-gradient(110deg, rgba(255, 255, 255, 0.035) 0%, transparent 34%),
+    linear-gradient(135deg, var(--fd-command-rail), var(--fd-command-rail-2));
+  color: var(--fd-command-text);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+
+.fd-rail-command::after {
+  content: "";
+  position: absolute;
+  right: 18px;
+  bottom: -1px;
+  left: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--fd-accent), transparent);
+  opacity: 0.55;
+}
+
+.fd-rail-command .fd-eyebrow,
+.fd-rail-command .fd-subtitle {
+  color: var(--fd-command-muted);
+}
+
+.fd-rail-command .fd-title {
+  color: var(--fd-command-text);
+}
+
+/* The command rail stays dark in both themes, so status colors need the
+   high-contrast dark-theme ramp even when the page is in light mode. */
+.fd-rail-command .fd-status.text-brand {
+  color: #a5b4fc;
+}
+.fd-rail-command .fd-status.text-ok {
+  color: #6ee7b7;
+}
+.fd-rail-command .fd-status.text-warn {
+  color: #fcd34d;
+}
+.fd-rail-command .fd-status.text-danger {
+  color: #fda4af;
+}
+.fd-rail-command .fd-status.text-info {
+  color: #93c5fd;
+}
+.fd-rail-command .fd-status.text-excused {
+  color: #7dd3fc;
+}
+
+.fd-eyebrow {
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--on-muted);
+}
+
+.fd-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  color: var(--on);
+}
+
+.fd-subtitle {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--on-muted);
+}
+
+.fd-status {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: 999px;
+  background-color: color-mix(in srgb, currentColor 9%, transparent);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.fd-dot {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background-color: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 13%, transparent);
+}
+
+.fd-dot-live {
+  animation: fd-pulse 2.6s ease-in-out infinite;
+}
+
+.fd-body {
+  position: relative;
+  padding: 20px;
+}
+
+.fd-body-flush {
+  padding: 0;
+}
+
+.fd-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--fd-line);
+  border-radius: 0 0 var(--fd-radius) var(--fd-radius);
+  background-color: var(--fd-panel-2);
+  color: var(--on-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.fd-well {
+  border: 1px solid var(--fd-line);
+  border-radius: var(--fd-radius-inner);
+  background-color: var(--fd-well);
+  box-shadow: var(--fd-well-shadow);
+}
+
+.fd-plot {
+  background-image:
+    linear-gradient(var(--fd-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--fd-grid) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: -1px -1px;
+}
+
+.fd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid var(--fd-line);
+  border-radius: 999px;
+  background-color: var(--fd-panel-2);
+  color: var(--on-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.fd-metric {
+  display: flex;
+  flex-direction: column;
+}
+
+.fd-metric .fd-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.fd-metric-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fd-accent);
+}
+
+.fd-spark {
+  height: 48px;
+  margin-top: auto;
+  padding: 4px 5px 0;
+  border: 1px solid var(--fd-line);
+  border-radius: 6px;
+  background-color: var(--fd-well);
+  background-image:
+    linear-gradient(var(--fd-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--fd-grid) 1px, transparent 1px);
+  background-size: 18px 18px;
+  box-shadow: var(--fd-well-shadow);
+}
+
+.fd-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--fd-radius-inner);
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.fd-row:hover {
+  border-color: var(--fd-line);
+  background-color: var(--fd-panel-2);
+}
+
+.fd-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.fd-table thead tr {
+  background-color: var(--fd-well);
+}
+
+.fd-table th {
+  border-top: 1px solid var(--fd-line);
+  border-bottom: 1px solid var(--fd-line);
+  color: var(--on-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.fd-table tbody tr {
+  border-bottom: 1px solid color-mix(in srgb, var(--fd-line) 72%, transparent);
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.fd-table tbody tr:hover {
+  background-color: color-mix(in srgb, var(--fd-panel-2) 78%, transparent);
+  box-shadow: inset 2px 0 0 var(--fd-accent);
+}
+
+.fd-table tbody tr:last-child {
+  border-bottom: 0;
+}
+
+.fd-command-grid {
+  background-image:
+    linear-gradient(var(--fd-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--fd-grid) 1px, transparent 1px);
+  background-size: 30px 30px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 85% at 88% 10%, black, transparent 72%);
+  mask-image: radial-gradient(ellipse 80% 85% at 88% 10%, black, transparent 72%);
+}
+
+@keyframes fd-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
   }
 }
 

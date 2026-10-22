@@ -28,6 +28,12 @@ export const navSections = {
       label: "Management",
       items: [
         { name: "Manage Events", path: "/admin/dashboard/events", icon: <FaCalendarAlt /> },
+        {
+          name: "Manage Excuses",
+          path: "/admin/dashboard/excuses",
+          icon: <FaEdit />,
+          badge: "excuses",
+        },
         { name: "Manage Users", path: "/admin/dashboard/users", icon: <FaUsers /> },
         {
           name: "Create Organizer",

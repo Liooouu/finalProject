@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import {
   FaArrowRight,
   FaCalendarAlt,
@@ -19,6 +20,7 @@ import { splitEventsByLifecycle, formatDate } from "../../utils/helpers";
 import {
   BaseCard,
   Button,
+  FlightPanel,
   StatTile,
   StatusPill,
   ProgressBar,
@@ -46,57 +48,66 @@ const DashboardHome = () => {
   const [error, setError] = useState("");
   const [penaltyRange, setPenaltyRange] = useState("year");
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        // Fetch stats and events independently — a stats failure must never
-        // hide the upcoming events list (or vice versa).
-        const [csResult, eventsResult] = await Promise.allSettled([
-          api.get("/student/community-service"),
-          api.get("/events"),
-        ]);
+  const fetchAll = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    setError("");
+    try {
+      // Fetch stats and events independently �?" a stats failure must never
+      // hide the upcoming events list (or vice versa).
+      const [csResult, eventsResult] = await Promise.allSettled([
+        api.get("/student/community-service"),
+        api.get("/events"),
+      ]);
 
-        const csData = csResult.status === "fulfilled" ? csResult.value.data : null;
-        const eventsData = eventsResult.status === "fulfilled" ? eventsResult.value.data : [];
+      const csData = csResult.status === "fulfilled" ? csResult.value.data : null;
+      const eventsData = eventsResult.status === "fulfilled" ? eventsResult.value.data : null;
 
-        if (!csData && eventsResult.status !== "fulfilled") {
-          setError(csResult.reason?.message || "Could not load dashboard data");
-          return;
-        }
+      if (!csData && !eventsData) {
+        setError(csResult.reason?.message || "Could not load dashboard data");
+        return;
+      }
 
-        const breakdown = (csData && csData.breakdown) || [];
+      if (csData) {
+        const breakdown = csData.breakdown || [];
         setStats({
-          totalHours: (csData && csData.totalHours) || 0,
-          completedHours: (csData && csData.completedHours) || 0,
-          totalAttended: (csData && csData.totalAttended) || 0,
+          totalHours: csData.totalHours || 0,
+          completedHours: csData.completedHours || 0,
+          totalAttended: csData.totalAttended || 0,
           breakdown,
         });
 
-        // Recent Activity — the student's own attendance/community-service records.
+        // Recent Activity �?" the student's own attendance/community-service records.
         const sortedActivity = [...breakdown].sort(
           (a, b) => new Date(b.attendedAt || 0) - new Date(a.attendedAt || 0)
         );
         setActivity(sortedActivity.slice(0, 6));
+      }
 
+      if (eventsData) {
         // "Upcoming" means what a student can still act on. The backend finishes
-        // an event when its end time passes, so the status — not the date — is
+        // an event when its end time passes, so the status �?" not the date �?" is
         // what separates an upcoming event from history.
         const upcomingList = splitEventsByLifecycle(eventsData).active.filter((e) => e.date);
         setUpcoming(upcomingList.length);
         setUpcomingEvents(upcomingList.slice(0, 4));
-        setSelectedUpcoming(0);
-      } catch (err) {
-        const msg = err.response?.data?.error || err.message;
-        setError(msg);
-        console.error(msg);
-      } finally {
-        setLoading(false);
+        setSelectedUpcoming((current) =>
+          upcomingList.length ? Math.min(current, upcomingList.length - 1) : 0
+        );
       }
-    };
-    fetchAll();
+    } catch (err) {
+      const msg = err.response?.data?.error || err.message;
+      setError(msg);
+      console.error(msg);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  useAutoRefresh(fetchAll);
 
 // Aggregate community-service log entries within the selected day/week/year
 // window so students can track their hours. Logs recorded without a timestamp
@@ -187,19 +198,17 @@ const windowCutoff = () => {
   return (
     <div className="space-y-5">
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-3xl border border-line bg-card p-6 shadow-[var(--elev-2)] sm:p-7">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-brand/15 blur-3xl"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-24 left-1/4 h-56 w-56 rounded-full bg-brand-3/10 blur-3xl"
-        />
+      <FlightPanel
+        level="command"
+        glass
+        eyebrow="Student overview"
+        status={upcoming > 0 ? `${upcoming} open` : "No open events"}
+        statusTone={upcoming > 0 ? "ok" : "info"}
+        className="overflow-hidden"
+      >
         <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
           <div className="min-w-0">
-            <p className="eyebrow">Student overview</p>
-            <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-on sm:text-4xl">
+            <h1 className="font-display text-3xl font-bold tracking-tight text-on sm:text-4xl">
               Welcome back
             </h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-on-dim">
@@ -243,7 +252,7 @@ const windowCutoff = () => {
             </div>
           </div>
         </div>
-      </section>
+      </FlightPanel>
 
       {/* KPI row */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

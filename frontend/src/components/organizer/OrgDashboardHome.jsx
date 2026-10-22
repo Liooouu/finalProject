@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import api from "../../api/axios";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import { Link } from "react-router-dom";
 import {
   FaCalendarDays,
@@ -13,7 +14,7 @@ import { usePageMeta } from "../../context/PageMetaContext";
 import {
   BaseCard,
   Button,
-  PageHeader,
+  FlightPanel,
   ProgressBar,
   StatTile,
 } from "../ui";
@@ -33,31 +34,34 @@ const OrganizerHome = () => {
 
   usePageMeta("Organizer Overview", "Manage your events and track attendance.");
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const res = await api.get("/organizer/stats");
-        setStats({
-          totalEvents: res.data.totalEvents ?? 0,
-          totalAttendees: res.data.totalAttendees ?? 0,
-          pendingExcuses: res.data.pendingExcuses ?? 0,
-          attendeesPerEvent: res.data.attendeesPerEvent ?? [],
-        });
-      } catch (err) {
-        setError(
-          err.response?.data?.error ||
-            err.message ||
-            "Could not load organizer statistics."
-        );
-        console.error(err.response?.data || err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStats();
+  const fetchStats = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    setError("");
+    try {
+      const res = await api.get("/organizer/stats");
+      setStats({
+        totalEvents: res.data.totalEvents ?? 0,
+        totalAttendees: res.data.totalAttendees ?? 0,
+        pendingExcuses: res.data.pendingExcuses ?? 0,
+        attendeesPerEvent: res.data.attendeesPerEvent ?? [],
+      });
+    } catch (err) {
+      setError(
+        err.response?.data?.error ||
+          err.message ||
+          "Could not load organizer statistics."
+      );
+      console.error(err.response?.data || err.message);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  useAutoRefresh(fetchStats);
 
   const resources = [
     {
@@ -88,17 +92,28 @@ const OrganizerHome = () => {
 
   return (
     <div className="space-y-5">
-      <PageHeader
+      <FlightPanel
+        level="command"
+        glass
         eyebrow="Organizer workspace"
-        title="Keep every event on track"
-        subtitle="Your events, attendance and pending decisions in one place."
-        actions={
+        status={stats.totalEvents ? `${stats.totalEvents} events` : "Ready"}
+        statusTone={stats.totalEvents ? "ok" : "info"}
+      >
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="font-display text-3xl font-bold tracking-tight text-on sm:text-4xl">
+              Keep every event on track
+            </h1>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-on-dim">
+              Your events, attendance and pending decisions in one place.
+            </p>
+          </div>
           <Button as={Link} to="/organizer/dashboard/events" size="sm">
             <FaCalendarDays className="text-xs" />
             Manage events
           </Button>
-        }
-      />
+        </div>
+      </FlightPanel>
 
       {error && (
         <div className="alert alert-danger" role="alert">

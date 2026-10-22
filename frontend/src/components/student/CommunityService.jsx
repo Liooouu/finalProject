@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import api from "../../api/axios";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import { FaBook, FaCheck, FaClock, FaTimes } from "react-icons/fa";
 import { BsClipboardCheck } from "react-icons/bs";
 import StatusBadge from "../shared/StatusBadge";
@@ -7,7 +8,7 @@ import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { formatDate, formatDateTime } from "../../utils/helpers";
-import { BaseCard, Card, PageHeader, StatTile, StatusChip } from "../ui";
+import { BaseCard, FlightPanel, PageHeader, StatTile, StatusChip } from "../ui";
 
 const CommunityService = () => {
   const [data, setData] = useState(null);
@@ -15,19 +16,23 @@ const CommunityService = () => {
 
   usePageMeta("Community Service", "Track your attendance and service hours.");
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await api.get("/student/community-service");
-        setData(res.data);
-      } catch (err) {
-        console.error(err.response?.data || err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const fetchData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    try {
+      const res = await api.get("/student/community-service");
+      setData(res.data);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useAutoRefresh(fetchData);
 
   if (loading) {
     return <Loading label="Loading records..." />;
@@ -82,20 +87,18 @@ const CommunityService = () => {
         />
       </div>
 
-      <Card padding="none" className="overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-line p-5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-            <BsClipboardCheck />
-          </span>
-          <div>
-            <h2 className="panel-heading">Detailed breakdown</h2>
-            <p className="mt-0.5 text-xs text-on-muted">
-              {data?.breakdown?.length || 0} attendance record
-              {data?.breakdown?.length === 1 ? "" : "s"}
-            </p>
-          </div>
-        </div>
-
+      <FlightPanel
+        level="ledger"
+        glass
+        flush
+        eyebrow="Student ledger"
+        title="Detailed breakdown"
+        subtitle={`${data?.breakdown?.length || 0} attendance record${
+          data?.breakdown?.length === 1 ? "" : "s"
+        }`}
+        icon={<BsClipboardCheck />}
+        className="overflow-hidden"
+      >
         {!data?.breakdown?.length ? (
           <EmptyState
             icon={<BsClipboardCheck />}
@@ -148,7 +151,7 @@ const CommunityService = () => {
             </table>
           </div>
         )}
-      </Card>
+      </FlightPanel>
 
       <BaseCard
         title="Penalty guide"

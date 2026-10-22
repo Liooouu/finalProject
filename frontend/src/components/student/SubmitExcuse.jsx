@@ -11,7 +11,7 @@ import {
 import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { isTerminalStatus, formatDate } from "../../utils/helpers";
-import { BaseCard, Button, Card, PageHeader } from "../ui";
+import { BaseCard, Button, FlightPanel, PageHeader } from "../ui";
 
 const GUIDELINES = {
   absence: [
@@ -213,7 +213,17 @@ const SubmitExcuse = () => {
           </div>
         </div>
 
-        <Card>
+        <FlightPanel
+          level="ledger"
+          glass
+          eyebrow="Excuse request"
+          title={isAdvance ? "Advance notice" : "Missed event excuse"}
+          subtitle={
+            isAdvance
+              ? "File before the event so your absence is reviewed in advance."
+              : "Explain what happened and attach supporting documents."
+          }
+        >
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <p className="field-label">Excuse type</p>
@@ -396,7 +406,7 @@ const SubmitExcuse = () => {
               </Button>
             </div>
           </form>
-        </Card>
+        </FlightPanel>
       </div>
     </div>
   );

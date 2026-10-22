@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   ChartCard,
+  FlightPanel,
   PageHeader,
   ProgressBar,
   ProgressRing,
@@ -767,17 +768,18 @@ const AttendanceReports = () => {
                 </ChartCard>
               </div>
 
-              <Card padding="none">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-5">
-                  <div>
-                    <h3 className="panel-heading">Filtered attendance records</h3>
-                    <p className="mt-0.5 text-xs text-on-muted">
-                      Latest {Math.min(10, attendanceData.records.length)} of{" "}
-                      {attendanceData.records.length} matching record
-                      {attendanceData.records.length === 1 ? "" : "s"} · CSV exports the full
-                      filtered roster
-                    </p>
-                  </div>
+              <FlightPanel
+                level="ledger"
+                glass
+                flush
+                eyebrow="Attendance ledger"
+                title="Filtered attendance records"
+                subtitle={`Latest ${Math.min(10, attendanceData.records.length)} of ${
+                  attendanceData.records.length
+                } matching record${
+                  attendanceData.records.length === 1 ? "" : "s"
+                } — CSV exports the full filtered roster`}
+                actions={
                   <Button
                     onClick={() => downloadCSV("attendance")}
                     variant="secondary"
@@ -786,7 +788,8 @@ const AttendanceReports = () => {
                   >
                     Export filtered CSV
                   </Button>
-                </div>
+                }
+              >
                 <div className="overflow-x-auto">
                   <table className="data-table min-w-[860px]">
                     <thead>
@@ -854,7 +857,7 @@ const AttendanceReports = () => {
                     </tbody>
                   </table>
                 </div>
-              </Card>
+              </FlightPanel>
             </>
           )}
         </>
@@ -958,23 +961,21 @@ const AttendanceReports = () => {
             </ChartCard>
           </div>
 
-          <Card padding="none">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-5">
-              <div>
-                <h3 className="panel-heading">All events</h3>
-                <p className="mt-0.5 text-xs text-on-muted">
-                  {eventsData.events.length} event{eventsData.events.length === 1 ? "" : "s"} in
-                  this report
-                </p>
-              </div>
-              <Button
-                onClick={() => downloadCSV("events")}
-                variant="secondary"
-                size="sm"
-              >
+          <FlightPanel
+            level="ledger"
+            glass
+            flush
+            eyebrow="Event ledger"
+            title="All events"
+            subtitle={`${eventsData.events.length} event${
+              eventsData.events.length === 1 ? "" : "s"
+            } in this report`}
+            actions={
+              <Button onClick={() => downloadCSV("events")} variant="secondary" size="sm">
                 Export CSV
               </Button>
-            </div>
+            }
+          >
             <div className="overflow-x-auto">
               <table className="data-table min-w-[760px]">
                 <thead>
@@ -1019,7 +1020,7 @@ const AttendanceReports = () => {
                 </tbody>
               </table>
             </div>
-          </Card>
+          </FlightPanel>
         </>
       )}
 
@@ -1127,23 +1128,21 @@ const AttendanceReports = () => {
             </ChartCard>
           </div>
 
-          <Card padding="none">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-5">
-              <div>
-                <h3 className="panel-heading">All users</h3>
-                <p className="mt-0.5 text-xs text-on-muted">
-                  {usersData.users.length} account{usersData.users.length === 1 ? "" : "s"}{" "}
-                  listed
-                </p>
-              </div>
-              <Button
-                onClick={() => downloadCSV("users")}
-                variant="secondary"
-                size="sm"
-              >
+          <FlightPanel
+            level="ledger"
+            glass
+            flush
+            eyebrow="User ledger"
+            title="All users"
+            subtitle={`${usersData.users.length} account${
+              usersData.users.length === 1 ? "" : "s"
+            } listed`}
+            actions={
+              <Button onClick={() => downloadCSV("users")} variant="secondary" size="sm">
                 Export CSV
               </Button>
-            </div>
+            }
+          >
             <div className="overflow-x-auto">
               <table className="data-table min-w-[640px]">
                 <thead>
@@ -1174,7 +1173,7 @@ const AttendanceReports = () => {
                 </tbody>
               </table>
             </div>
-          </Card>
+          </FlightPanel>
         </>
       )}
     </div>

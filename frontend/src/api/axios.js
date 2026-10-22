@@ -1,6 +1,7 @@
 import axios from "axios";
 import { getToken, clearAuth } from "../utils/auth";
 import { getDeviceId } from "../utils/device";
+import { announceDataChange } from "../utils/dataSync";
 
 const api = axios.create({
   // Relative on purpose: in production nginx serves this SPA and proxies /api
@@ -20,7 +21,18 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const method = (response.config?.method || "get").toUpperCase();
+    const url = response.config?.url || "";
+    const isMutation = !["GET", "HEAD", "OPTIONS"].includes(method);
+    const isQuiet = /^\/(auth|notifications)\b/.test(url);
+
+    if (isMutation && !isQuiet) {
+      announceDataChange({ method, url });
+    }
+
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
       clearAuth();

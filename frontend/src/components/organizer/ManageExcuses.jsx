@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import api from "../../api/axios";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import {
   FaCheck,
   FaEdit,
@@ -20,10 +21,13 @@ import {
 } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { formatDate } from "../../utils/helpers";
+import { getUserRole } from "../../utils/auth";
 
 const API_BASE = api.defaults.baseURL.replace(/\/api$/, "");
 
 const ManageExcuses = () => {
+  const role = getUserRole();
+  const isAdmin = role === "admin";
   const [excuses, setExcuses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("pending");
@@ -35,21 +39,30 @@ const ManageExcuses = () => {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  usePageMeta("Manage Excuses", "Review and manage student excuse letters.");
+  usePageMeta(
+    "Manage Excuses",
+    isAdmin
+      ? "Review excuse letters from every event."
+      : "Review and manage student excuse letters."
+  );
+
+  const fetchExcuses = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    try {
+      const res = await api.get("/organizer/excuses");
+      setExcuses(res.data);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchExcuses = async () => {
-      try {
-        const res = await api.get("/organizer/excuses");
-        setExcuses(res.data);
-      } catch (err) {
-        console.error(err.response?.data || err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchExcuses();
-  }, []);
+  }, [fetchExcuses]);
+
+  useAutoRefresh(fetchExcuses);
 
   const filteredExcuses = excuses.filter((e) => e.status === filter);
 
@@ -144,7 +157,7 @@ const ManageExcuses = () => {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Organizer review"
+        eyebrow={isAdmin ? "Institution review" : "Organizer review"}
         title="Excuse letters"
         subtitle={`${counts.pending} waiting for review · ${reviewedExcuseCount} reviewed`}
         actions={

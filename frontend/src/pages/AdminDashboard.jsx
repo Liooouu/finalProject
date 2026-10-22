@@ -8,6 +8,7 @@ import { PageMetaProvider } from "../context/PageMetaContext";
 import DashboardHome from "../components/admin/DashboardHome";
 import CreateOrganizerPage from "../components/admin/CreateOrganizerPage";
 import ManageEvents from "../components/admin/ManageEvents";
+import ManageExcuses from "../components/organizer/ManageExcuses";
 import ManageUsers from "../components/admin/ManageUsers";
 import AttendanceReport from "../components/admin/AttendanceReports";
 import NotificationsPage from "../components/organizer/NotificationsPage";
@@ -27,13 +28,14 @@ const AdminDashboard = () => {
           <Sidebar role="admin" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
           <div className="flex min-w-0 flex-1 flex-col">
             <Topbar onOpenSidebar={() => setSidebarOpen(true)} />
-            <main className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-6 lg:px-8">
+            <main className="flight-page min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-6 lg:px-8">
               <Routes>
                 <Route index element={<DashboardHome />} />
                 <Route path="create-organizer" element={<CreateOrganizerPage />} />
                 <Route path="events" element={<ManageEvents />} />
                 <Route path="events/:id" element={<EventDetails />} />
                 <Route path="events/:id/attendees" element={<OrgManageAttendees />} />
+                <Route path="excuses" element={<ManageExcuses />} />
                 <Route path="users" element={<ManageUsers />} />
                 <Route path="pin-resets" element={<PinResetRequests />} />
                 <Route path="reports" element={<AttendanceReport />} />
