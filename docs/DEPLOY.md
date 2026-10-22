@@ -300,6 +300,89 @@ the team that created it, and its owner must be a team administrator or owner.
 Deployment **logs** require `read:sensitive`, so failures are easiest to inspect
 in the Coolify UI.
 
+## Temporary Oracle Cloud deployment
+
+Use this stack when Coolify or its Cloudflare Tunnel is unavailable. It runs the
+same API, web and MongoDB images on one always-on VM, with Caddy terminating
+HTTPS. Only Caddy publishes ports; MongoDB, the API and the web container stay
+on the internal Docker network.
+
+Files:
+
+- `docker-compose.prod.yml` — production services and named volumes.
+- `deploy/Caddyfile` — automatic HTTPS for `${DOMAIN}`.
+- `deploy/.env.prod.example` — environment template; copy to
+  `deploy/.env.prod` (ignored by git).
+
+1. Create an Oracle `VM.Standard.A1.Flex` instance with 2 OCPUs, 12 GB RAM,
+   Ubuntu and a 50–100 GB boot volume in the tenancy's home region. Reserve a
+   public IPv4 address.
+2. Open TCP `22` from your IP and TCP `80`/`443` from the internet in the VCN
+   security list, then allow the same ports in the VM firewall.
+3. Install Docker and Docker Compose.
+4. Point a DuckDNS hostname at the VM's public IP.
+5. Copy the current working tree to `/opt/tracked` on the VM. The production
+   stack builds the images on the VM; `node_modules` and `dist` are not needed.
+6. Create `deploy/.env.prod` from the example and set `DOMAIN`, `JWT_SECRET`,
+   the admin credentials and anything else you need. `MONGO_URI` stays
+   `mongodb://mongo:27017/TrackED` because MongoDB is internal.
+7. Build and start:
+
+   ```bash
+   docker compose --env-file deploy/.env.prod \
+     -f docker-compose.prod.yml up -d --build
+   ```
+
+8. Confirm `https://${DOMAIN}/api/health` reports `"db":"up"`, log in, upload a
+   profile picture, complete a face enrollment and test an event lifecycle.
+
+### Migrating existing data
+
+If the old host is reachable on its LAN, dump its MongoDB and uploads volume
+before starting the new database:
+
+```bash
+# On the old host: adjust the container and volume names.
+docker exec <mongo-container> mongodump --db TrackED --archive=/tmp/tracked.gz --gzip
+docker cp <mongo-container>:/tmp/tracked.gz ./tracked.gz
+docker run --rm -v <uploads-volume>:/data -v "$PWD":/backup alpine \
+  tar czf /backup/uploads.tar.gz -C /data .
+```
+
+Restore the archive into the new MongoDB, extract `uploads.tar.gz` into the
+`uploads` volume, and set ownership to the API user:
+
+```bash
+docker exec -i <new-mongo-container> mongorestore --gzip --archive < tracked.gz
+```
+
+The API runs as uid `1000`; a bind-mounted uploads directory may need
+`chown -R 1000:1000`. A Docker volume created by this compose file already has
+the correct ownership.
+
+### Backups
+
+Back up both the database and uploads volume daily, and keep a copy off the VM:
+
+```bash
+docker exec <mongo-container> mongodump --db TrackED --archive=/tmp/tracked.gz --gzip
+docker cp <mongo-container>:/tmp/tracked.gz ./backups/tracked-$(date +%F).gz
+docker run --rm -v tracked_uploads:/data -v "$PWD/backups":/backup alpine \
+  tar czf /backup/uploads-$(date +%F).tar.gz -C /data .
+```
+
+Always take a backup before a rebuild or restore. Oracle may reclaim idle
+Always Free compute instances, so a backup that exists only on the VM is not
+enough.
+
+### Security notes
+
+- Do not publish MongoDB (`27017`) or the API (`5000`) directly.
+- `deploy/.env.prod` contains the JWT secret, admin password and SMTP password;
+  it must stay out of git.
+- HTTPS is mandatory for the camera-based attendance and face-enrollment
+  screens.
+
 ## Troubleshooting
 
 **`web` returns 502 and the API is healthy.** `BACKEND_URL` is wrong, or the two

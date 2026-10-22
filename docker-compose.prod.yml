@@ -1,0 +1,66 @@
+# Production stack for a single always-on VM (Oracle Cloud Always Free A1).
+# Only Caddy publishes ports; MongoDB, the API and the web container stay on
+# the internal Docker network.
+#
+#   cp deploy/.env.prod.example deploy/.env.prod
+#   docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml up -d --build
+#
+# Point DOMAIN at this VM before starting Caddy so it can obtain a certificate.
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - ./deploy/.env.prod
+    environment:
+      PORT: "5000"
+      TRACKED_NO_AUTO_FREE: "1"
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_GOOGLE_MAPS_EMBED_KEY: ${VITE_GOOGLE_MAPS_EMBED_KEY:-}
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://api:5000
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+
+volumes:
+  mongo-data:
+  uploads:
+  caddy-data:
+  caddy-config:
