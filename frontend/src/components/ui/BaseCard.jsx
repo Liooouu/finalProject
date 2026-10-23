@@ -32,7 +32,7 @@ const BaseCard = ({
       className={className}
       bodyClassName={bodyClassName}
     >
-      <div className={centerTitle ? "text-center" : ""}>{children}</div>
+      {centerTitle ? <div className="text-center">{children}</div> : children}
     </FlightPanel>
   );
 };
