@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import api from "../api/axios";
 import { getUserRole, getUserFromToken } from "../utils/auth";
 import {
@@ -32,6 +32,7 @@ import ConfirmDialog from "./ui/ConfirmDialog";
 const EventDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [event, setEvent] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +42,19 @@ const EventDetails = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [role, setRole] = useState(null);
+  const eventListPath =
+    role === "admin"
+      ? "/admin/dashboard/events"
+      : role === "organizer"
+        ? "/organizer/dashboard/events"
+        : "/student/dashboard/events";
+  const goBack = () => {
+    if (location.key && location.key !== "default") {
+      navigate(-1);
+      return;
+    }
+    navigate(eventListPath);
+  };
   const [canManage, setCanManage] = useState(false);
   const [canManageAttendance, setCanManageAttendance] = useState(false);
   const [qrNow, setQrNow] = useState(() => Date.now());
@@ -345,7 +359,7 @@ const EventDetails = () => {
     setConfirmDelete(false);
     try {
       await api.delete(`/events/${id}`);
-      navigate(-1);
+      navigate(eventListPath, { replace: true });
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to delete event");
     }
@@ -372,7 +386,7 @@ const EventDetails = () => {
     return (
       <div className="py-12 text-center">
         <p className="text-lg text-on">Event not found</p>
-        <button onClick={() => navigate(-1)} className="mt-2 text-indigo-600 underline hover:text-indigo-500 dark:text-indigo-400">
+        <button onClick={goBack} className="mt-2 text-indigo-600 underline hover:text-indigo-500 dark:text-indigo-400">
           Go back
         </button>
       </div>
@@ -399,7 +413,7 @@ const EventDetails = () => {
   return (
     <div className="space-y-5">
       <button
-        onClick={() => navigate(-1)}
+        onClick={goBack}
         className="inline-flex items-center gap-1.5 text-sm font-medium text-on-dim transition-colors hover:text-on"
       >
         <span aria-hidden="true">←</span> Back
@@ -440,7 +454,7 @@ const EventDetails = () => {
                 </p>
                 <p className="mt-1 text-sm font-semibold text-on">
                   {formatDate(event.endDate || event.date)} at{" "}
-                  {formatTime12Hour(event.endTime || event.attendanceEndTime)}
+                  {formatTime12Hour(event.endTime || "23:59")}
                 </p>
               </div>
               <div className="rounded-xl border border-line bg-card-alt/40 p-3">
@@ -830,7 +844,7 @@ const EventDetails = () => {
                     </div>
                   </div>
                   <p className="field-hint">
-                    Leave blank to use the event date and attendance end time.
+                    Leave blank to use the end of the event date.
                   </p>
                 </div>
 

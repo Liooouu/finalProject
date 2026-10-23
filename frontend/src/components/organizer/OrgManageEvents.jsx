@@ -355,9 +355,9 @@ const OrgManageEvents = () => {
             <p className="field-hint">
               This event ends on{" "}
               <span className="font-medium text-on-dim">
-                {form.endDate || form.date || "—"} at {form.endTime || form.attendanceEndTime || "—"}
+                {form.endDate || form.date || "—"} at {form.endTime || "11:59 PM"}
               </span>
-              . Leave blank to default to the event date and attendance end time.
+              . Leave blank to default to the end of the event date.
             </p>
           </div>
 
@@ -493,7 +493,7 @@ const OrgManageEvents = () => {
                 </div>
                 <p className="mt-2 text-xs text-on-muted">
                   Ends: {formatDate(event.endDate || event.date)} at{" "}
-                  {formatTime12Hour(event.endTime || event.attendanceEndTime)}
+                  {formatTime12Hour(event.endTime || "23:59")}
                 </p>
 
                 <div className="alert alert-warn alert-sm mt-4">

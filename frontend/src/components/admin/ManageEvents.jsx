@@ -354,9 +354,9 @@ const ManageEvents = () => {
               This event ends on{" "}
               <span className="font-medium text-on-dim">
                 {createForm.endDate || createForm.date || "—"} at{" "}
-                {createForm.endTime || createForm.attendanceEndTime || "—"}
+                {createForm.endTime || "11:59 PM"}
               </span>
-              . Leave blank to default to the event date and attendance end time.
+              . Leave blank to default to the end of the event date.
             </p>
           </div>
 
@@ -443,7 +443,7 @@ const ManageEvents = () => {
                     </span>
                     <span className="text-on-muted">
                       Ends {formatDate(event.endDate || event.date)} at{" "}
-                      {formatTime12Hour(event.endTime || event.attendanceEndTime)}
+                      {formatTime12Hour(event.endTime || "23:59")}
                     </span>
                   </div>
                 </div>

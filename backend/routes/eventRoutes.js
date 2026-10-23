@@ -129,7 +129,7 @@ router.post("/", protect, async (req, res) => {
     }
 
     const endDate = req.body.endDate || date;
-    const endTime = req.body.endTime || attendanceEndTime;
+    const endTime = req.body.endTime || null;
 
     const scheduleError = validateSchedule({
       date,

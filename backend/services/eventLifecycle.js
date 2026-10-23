@@ -27,12 +27,6 @@ const OPEN_STATUS_FILTER = { status: { $nin: TERMINAL_STATUSES } };
 
 const isTerminal = (status) => TERMINAL_STATUSES.includes(status);
 
-// A student who checks in after the attendance window closes is "late" for this
-// long before the event is treated as over (auto-absence + auto-finish). Without
-// it the event's end defaults to the window's end, leaving no time to ever be
-// late.
-const LATE_GRACE_MS = 15 * 60 * 1000;
-
 function parseClock(value) {
   if (typeof value !== "string") return null;
   const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
@@ -104,12 +98,13 @@ function eventStartsAt(event) {
   return manilaInstant(parts, clock.hours, clock.minutes);
 }
 
-// Instant the event is over: its own end date/time, falling back to the end of
-// the attendance window and then to the last moment of that day.
+// Instant the event is over: its own end date/time. Without an end time the
+// event runs to the end of its calendar day, leaving a late window between the
+// attendance deadline and the event's actual end.
 function eventEndAt(event) {
   const parts = calendarParts(event.endDate || event.date);
   if (!parts) return null;
-  const clock = parseClock(event.endTime || event.attendanceEndTime);
+  const clock = parseClock(event.endTime);
   if (!clock) {
     return new Date(manilaInstant(parts, 23, 59).getTime() + 59 * 1000 + 999);
   }
@@ -139,15 +134,16 @@ function eventWindow(event) {
   return { start, end };
 }
 
-// The last instant a check-in counts. Anything up to the window's end is
-// "present", and the grace period (or a later event end) lets a check-in be
-// "late". After this the event is over: auto-absence and auto-finish run.
+// The last instant a check-in counts: the event's end, or the attendance
+// window's end when that is later (an event cannot end before its own check-in
+// window). Up to the window's end is "present", after it is "late", and after
+// this instant the event is over: auto-absence and auto-finish run.
 function eventLastCheckInAt(event) {
   const window = eventWindow(event);
   const endsAt = eventEndAt(event);
-  let last = window ? new Date(window.end.getTime() + LATE_GRACE_MS) : null;
-  if (endsAt && (!last || endsAt > last)) last = endsAt;
-  return last || endsAt;
+  const windowEnd = window ? window.end : null;
+  if (endsAt && windowEnd) return endsAt > windowEnd ? endsAt : windowEnd;
+  return endsAt || windowEnd;
 }
 
 // Flip to live once the event's start time has arrived but it has not ended.
@@ -205,7 +201,6 @@ module.exports = {
   EVENT_STATUSES,
   TERMINAL_STATUSES,
   OPEN_STATUS_FILTER,
-  LATE_GRACE_MS,
   isTerminal,
   isAutomated,
   manilaNow,

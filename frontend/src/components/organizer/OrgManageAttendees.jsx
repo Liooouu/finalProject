@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import api from "../../api/axios";
 import {
   FaArrowLeft,
@@ -22,6 +22,7 @@ import { useAutoRefresh } from "../../utils/useAutoRefresh";
 const OrgManageAttendees = () => {
   const { id: eventId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [students, setStudents] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -188,6 +189,13 @@ const OrgManageAttendees = () => {
     getUserRole() === "admin"
       ? `/admin/dashboard/events/${eventId}`
       : `/organizer/dashboard/events/${eventId}`;
+  const goBackToEvent = () => {
+    if (location.key && location.key !== "default") {
+      navigate(-1);
+      return;
+    }
+    navigate(backPath);
+  };
 
   return (
     <div className="space-y-5">
@@ -196,7 +204,7 @@ const OrgManageAttendees = () => {
         title="Manage attendees"
         subtitle="Add students manually or adjust community service hours for this event."
         actions={
-          <Button variant="secondary" size="sm" onClick={() => navigate(backPath)}>
+          <Button variant="secondary" size="sm" onClick={goBackToEvent}>
             <FaArrowLeft /> Back to event
           </Button>
         }

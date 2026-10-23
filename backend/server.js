@@ -340,7 +340,7 @@ connectDB()
           if (!event.closingSoonNotified && nowForWindow >= endMin - 15) {
             await notifyNonAttendees(
               "Attendance Closing Soon",
-              `The attendance window for "${event.title}" closes at ${event.attendanceEndTime}. Mark your attendance before you're marked absent!`,
+              `The attendance window for "${event.title}" closes at ${event.attendanceEndTime}. Mark your attendance before you're marked late!`,
               "attendance"
             );
             event.closingSoonNotified = true;
@@ -351,8 +351,8 @@ connectDB()
           if (!event.closedNotified && nowForWindow >= endMin) {
             await notifyNonAttendees(
               "Attendance Missed",
-              `The attendance window for "${event.title}" has closed and you weren't marked as present. You may be marked absent for this event.`,
-              "penalty"
+              `The attendance window for "${event.title}" has closed and you weren't marked as present. Check in now to avoid being marked late or absent.`,
+              "attendance"
             );
             event.closedNotified = true;
             changed = true;
