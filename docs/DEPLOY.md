@@ -202,26 +202,26 @@ The CLI context is `coolify` → `http://192.168.0.125:8000`; check it with
 `coolify context list`. The Coolify UI's **Deploy** button and the deploy API
 (below) work too. The database and the uploads volume are untouched by a rebuild.
 
-## Push-to-deploy (configured, currently not working)
+## Push-to-deploy (working)
 
-As of 2026-10-10, **pushing to `main` does not deploy.** Two independent triggers
-are configured, and the same obstacle defeats both: Cloudflare's bot protection
-answers GitHub's datacenter runners with an HTML block page (**Cloudflare error
-1010**) instead of forwarding the request to Coolify.
+Since 2026-10-26, **pushing to `main` deploys.** The two GitHub Actions workflows
+are the primary trigger:
 
 1. **GitHub Actions workflows** — `.github/workflows/deploy-api.yml` and
-   `deploy-web.yml` each deploy only the app whose directory changed, using the
-   `COOLIFY_URL` and `COOLIFY_TOKEN` repository secrets. They are currently
-   **disabled manually**, and when dispatched they fail with `jq: parse error`
-   (the HTML block page). Re-enabling them changes nothing until a runner can
-   actually reach Coolify (a self-hosted runner, or a tailnet route).
-2. **A manual Git webhook** from GitHub to Coolify — described below. One webhook
-   serves both applications: Coolify matches a delivery by repository and branch,
-   so a push to `main` would redeploy `tracked-api` and `tracked-web` together.
-   It is configured and works from a signed request on the LAN, but a delivery
-   coming from GitHub is subject to the same Cloudflare block.
+   `deploy-web.yml` each deploy only the app whose directory changed
+   (`backend/**` → `tracked-api`, `frontend/**` → `tracked-web`), using the
+   `COOLIFY_URL` and `COOLIFY_TOKEN` repository secrets. They are **active**, call
+   the authenticated deploy API (`POST /api/v1/deploy?uuid=…`), and wait for the
+   deployment to finish. A push that touches neither directory deploys nothing.
+2. **A manual Git webhook** from GitHub to Coolify — kept as a **fallback**. One
+   webhook serves both applications: Coolify matches a delivery by repository and
+   branch, so a push to `main` would redeploy `tracked-api` and `tracked-web`
+   together. Because the Actions workflows are the primary trigger, each app's
+   **Auto deploy** is set to **Manual deployments only**, so the webhook does not
+   also fire (double deploy). To use the fallback, switch Auto deploy back to
+   *Deploy on push (webhooks)*.
 
-Until this is resolved, use the manual path in **Redeploying** above.
+The webhook payload settings (fallback only), for reference:
 
 | Setting | Value |
 |---|---|
@@ -240,20 +240,16 @@ app's rebuild — the same webhook handles it.
 
 ### If a push does not deploy
 
-This is the expected outcome today — both triggers above are blocked; use the
-manual path in **Redeploying** first. To diagnose the webhook itself:
-
-1. **GitHub → Settings → Webhooks → Recent Deliveries.** A 2xx response means
-   delivery worked, so look at Coolify's deployment history next. A Cloudflare
-   block page (403, or `error code: 1010`) means Cloudflare's bot protection is
-   refusing GitHub's datacenter IPs. No Coolify setting can fix that: the traffic
-   has to arrive by another route, such as a self-hosted runner or joining a
-   tailnet before calling Coolify.
+1. **GitHub → Actions.** Confirm the right workflow ran and its "Trigger the
+   Coolify deployment" step succeeded. A `jq: parse error` there means the runner
+   did not receive JSON from Coolify — almost always a Cloudflare challenge
+   (`403`, `cf-mitigated: challenge`), not a Coolify error. Check that **Bot Fight
+   Mode is off** for the `vispo.me` zone; Configuration Rules cannot skip it.
 2. **The secret must match exactly** in both Coolify applications and in GitHub.
-3. **Coolify → app → Advanced → Deployment → Auto deploy** should be *Deploy on
-   push (webhooks)*. Both applications here deployed from a signed webhook with
-   this left at its default, so it may already be effective — check it first if a
-   correctly signed delivery is accepted but nothing builds.
+3. **If using the webhook fallback**, set Coolify → app → Advanced → Deployment →
+   **Auto deploy** to *Deploy on push (webhooks)*. It is deliberately *Manual* now
+   so the Actions path is the only trigger; a correctly signed delivery is
+   accepted but builds nothing while it stays *Manual*.
 4. **The branch must be `main`**, and the repository and branch must match the
    application's configuration; that is how Coolify picks which app to deploy.
 

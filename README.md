@@ -140,6 +140,7 @@ coolify deploy uuid wch2xf2obvaazogtim1advqu   # tracked-web  (frontend/)
 coolify deploy uuid eflvv8s2turwoceyhqwidt5z   # tracked-api  (backend/)
 ```
 
-Pushing to `main` does **not** deploy: the GitHub Actions workflows are disabled
-and GitHub's datacenter runners are blocked by Cloudflare (error 1010). Full
-details, environment variables and troubleshooting are in `docs/DEPLOY.md`.
+Pushing to `main` **does** deploy: the two GitHub Actions workflows trigger the
+Coolify deploy API for the app whose directory changed (`frontend/**` →
+`tracked-web`, `backend/**` → `tracked-api`). Full details, environment variables
+and troubleshooting are in `docs/DEPLOY.md`.

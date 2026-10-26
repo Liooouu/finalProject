@@ -103,12 +103,15 @@ OpenShift or Vercel: it serves the SPA and API together on port `8080`
   - `coolify deploy uuid <app-uuid>`, then `coolify deploy get <deployment-uuid>`
     to watch. UUIDs: `tracked-web` = `wch2xf2obvaazogtim1advqu`,
     `tracked-api` = `eflvv8s2turwoceyhqwidt5z`.
-- **Pushing to `main` does not deploy.** The two GitHub Actions workflows
-  (`.github/workflows/deploy-*.yml`) are disabled manually, and when run they are
-  blocked by Cloudflare's bot protection — GitHub's datacenter runners get an
-  HTML block page (Cloudflare error 1010) instead of reaching Coolify, which
-  surfaces as `jq: parse error`. GitHub's Git webhook is subject to the same
-  block. Do not rely on push-to-`main`.
+- **Pushing to `main` deploys.** The two GitHub Actions workflows
+  (`.github/workflows/deploy-*.yml`) call the Coolify deploy API for the app whose
+  directory changed (`frontend/**` → `tracked-web`, `backend/**` → `tracked-api`)
+  and wait for the deployment to finish, using the `COOLIFY_URL` +
+  `COOLIFY_TOKEN` repository secrets. Verified 2026-10-26. The manual Git webhook
+  is kept as a fallback, but Coolify **Auto deploy** is set to **Manual** so a
+  push does not double-deploy. (The old failure was Cloudflare **Bot Fight Mode**
+  challenging GitHub's datacenter runners, since turned off for the `vispo.me`
+  zone.)
 - **`docker compose up --build`** at the repo root runs the whole stack locally
   (web on :8080, api on :5000) for testing the real images.
 
