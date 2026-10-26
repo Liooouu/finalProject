@@ -1,28 +1,31 @@
-import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import React, { Suspense, lazy } from "react";
+import { Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
-
-import LandingPage from "./pages/LandingPage";
-import AuthPage from "./pages/auth/AuthPage";
-import StudentDashboard from "./pages/StudentDashboard";
-import AdminDashboard from "./pages/AdminDashboard";
-import OrganizerDashboard from "./pages/OrganizerDashboard";
-
 import ProtectedRoute from "./components/ProtectedRoute";
+import ChunkBoundary from "./components/shared/ChunkBoundary";
+import TrackMark from "./components/shared/TrackMark";
 
-import EventDetails from "./components/EventDetails";
+// Route-level code splitting. Everything used to be one 1.37 MB bundle, so the
+// landing page had to download chart.js, leaflet and the QR scanner before it
+// could paint. Each shell and public page now arrives on its first visit.
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const AuthPage = lazy(() => import("./pages/auth/AuthPage"));
+const StudentDashboard = lazy(() => import("./pages/StudentDashboard"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const OrganizerDashboard = lazy(() => import("./pages/OrganizerDashboard"));
 
-import DashboardHome from "./components/admin/DashboardHome";
-import CreateOrganizer from "./components/admin/CreateOrganizerPage";
-import ManageUsers from "./components/admin/ManageUsers";
-import ManageEvents from "./components/admin/ManageEvents";
-import AttendanceReports from "./components/admin/AttendanceReports";
-
-import OrganizerHome from "./components/organizer/OrgDashboardHome";
-import OrgManageEvents from "./components/organizer/OrgManageEvents";
-import ManageExcuses from "./components/organizer/ManageExcuses";
-
-import ProfileSettings from "./components/settings/ProfileSettings";
+// The one chunk the shell itself can't draw without — a bare mark on the app
+// background reads as "opening" instead of a blank flash.
+const BootSplash = () => (
+  <div className="flex min-h-screen items-center justify-center bg-[var(--app-base)]">
+    <div className="flex flex-col items-center gap-3">
+      <TrackMark className="h-10 w-10 animate-pulse text-brand" />
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-on-muted">
+        Loading
+      </p>
+    </div>
+  </div>
+);
 
 // Pre-login front page — always the landing, even with a live token. The URL
 // you paste is the page you get; signed-in users reach their portal through
@@ -34,38 +37,31 @@ function LandingRoute() {
 function App() {
   return (
     <ThemeProvider>
-    <Routes>
-      <Route path="/" element={<LandingRoute />} />
+      <ChunkBoundary>
+        <Suspense fallback={<BootSplash />}>
+          <Routes>
+            <Route path="/" element={<LandingRoute />} />
 
-        <Route path="/auth" element={<AuthPage />} />
-        <Route path="/auth/signup" element={<AuthPage />} />
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/auth/signup" element={<AuthPage />} />
 
-      <Route element={<ProtectedRoute allowedRoles={["student"]} />}>
-        <Route path="/student/dashboard/*" element={<StudentDashboard />} />
-      </Route>
+            <Route element={<ProtectedRoute allowedRoles={["student"]} />}>
+              <Route path="/student/dashboard/*" element={<StudentDashboard />} />
+            </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
-        <Route path="/admin/dashboard/*" element={<AdminDashboard />}>
-          <Route index element={<DashboardHome />} />
-          <Route path="create-organizer" element={<CreateOrganizer />} />
-          <Route path="users" element={<ManageUsers />} />
-          <Route path="events" element={<ManageEvents />} />
-          <Route path="reports" element={<AttendanceReports />} />
-          <Route path="profile" element={<ProfileSettings />} />
-          <Route path="*" element={<Navigate to="" replace />} />
-        </Route>
-      </Route>
+            {/* The shells own their sub-routes (they render their own <Routes>,
+                not an <Outlet>), so only the catch-all entry is needed here —
+                their own "*" redirects unknown paths back to the index. */}
+            <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+              <Route path="/admin/dashboard/*" element={<AdminDashboard />} />
+            </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={["organizer"]} />}>
-        <Route path="/organizer/dashboard/*" element={<OrganizerDashboard />}>
-          <Route index element={<OrganizerHome />} />
-          <Route path="events" element={<OrgManageEvents />} />
-          <Route path="excuses" element={<ManageExcuses />} />
-          <Route path="profile" element={<ProfileSettings />} />
-          <Route path="*" element={<Navigate to="" replace />} />
-        </Route>
-      </Route>
-    </Routes>
+            <Route element={<ProtectedRoute allowedRoles={["organizer"]} />}>
+              <Route path="/organizer/dashboard/*" element={<OrganizerDashboard />} />
+            </Route>
+          </Routes>
+        </Suspense>
+      </ChunkBoundary>
     </ThemeProvider>
   );
 }

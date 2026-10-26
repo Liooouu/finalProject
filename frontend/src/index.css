@@ -412,6 +412,12 @@ textarea::placeholder {
   border-radius: 8px;
 }
 
+/* The mobile sheet is focusable only so assistive tech lands inside it when it
+   opens; it is a surface, not a control, so it must not draw the control ring. */
+.sheet-rise:focus-visible {
+  outline: none;
+}
+
 /* ============================================================
    Shared event-form fields — one look for every dropdown and
    date/time input (used by ManageEvents / OrgManageEvents /
@@ -557,6 +563,19 @@ textarea::placeholder {
 }
 .animate-fade-up {
   animation: fade-up 0.3s ease both;
+}
+
+/* Mobile "More" sheet — rises from the tab bar it is attached to. */
+@keyframes sheet-rise {
+  from { opacity: 0.6; transform: translateY(14%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sheet-rise {
+  animation: sheet-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-rise { animation: none; }
 }
 
 /* ============================================================

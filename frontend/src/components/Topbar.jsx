@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  FaBars,
   FaMoon,
   FaSun,
   FaIdBadge,
@@ -13,6 +12,7 @@ import api from "../api/axios";
 import { getUserFromToken, logout } from "../utils/auth";
 import { profilePathFor, getPageTitle } from "../utils/nav";
 import { breadcrumbTrail, flatNavItems } from "../utils/navItems";
+import { subscribeToDataChanges } from "../utils/dataSync";
 import { useTheme } from "../context/ThemeContext";
 import { usePageMeta } from "../context/PageMetaContext";
 import NotificationBell from "./NotificationBell";
@@ -20,7 +20,7 @@ import ConfirmDialog from "./ui/ConfirmDialog";
 import Breadcrumbs from "./ui/Breadcrumbs";
 import CommandPalette from "./ui/CommandPalette";
 
-const Topbar = ({ onOpenSidebar }) => {
+const Topbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isDark, toggleTheme } = useTheme();
@@ -63,20 +63,38 @@ const Topbar = ({ onOpenSidebar }) => {
   }, []);
 
   // The JWT only carries { id, role }, so the real name, email, and profile
-  // picture are loaded from /account. Re-fetched on navigation so a picture
-  // uploaded on the profile page shows up without a reload.
+  // picture are loaded from /account. It used to refetch on every navigation,
+  // which added a request to every page tap without ever showing new data; it
+  // now loads once and refreshes when something actually changes (profile
+  // update anywhere in the app) or when the tab regains focus.
   useEffect(() => {
     let alive = true;
-    api
-      .get("/account")
-      .then((res) => {
-        if (alive) setAccount(res.data);
-      })
-      .catch(() => {});
+
+    const load = () => {
+      api
+        .get("/account")
+        .then((res) => {
+          if (alive) setAccount(res.data);
+        })
+        .catch(() => {});
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+
+    load();
+    const unsubscribe = subscribeToDataChanges(load);
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+
     return () => {
       alive = false;
+      unsubscribe();
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [location.pathname]);
+  }, []);
 
   const title = meta.title || getPageTitle(role, location.pathname);
   const subtitle = meta.subtitle || "";
@@ -106,15 +124,6 @@ const Topbar = ({ onOpenSidebar }) => {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-[var(--app-base)]/75 backdrop-blur-xl">
       <div className="flex h-16 items-center gap-2 px-4 sm:gap-3 md:px-6">
-        {/* Mobile: open the sidebar drawer */}
-        <button
-          onClick={onOpenSidebar}
-          aria-label="Open navigation"
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-card/60 text-on-dim transition-colors hover:bg-card-alt hover:text-on md:hidden"
-        >
-          <FaBars className="text-sm" />
-        </button>
-
         {/* Breadcrumb + page title */}
         <div className="min-w-0 flex-1">
           <Breadcrumbs items={trail} />
@@ -149,7 +158,7 @@ const Topbar = ({ onOpenSidebar }) => {
             type="button"
             onClick={() => setPaletteOpen(true)}
             aria-label="Search pages"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-card/60 text-on-dim transition-colors hover:bg-card-alt hover:text-on sm:hidden"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-card/60 text-on-dim transition-colors hover:bg-card-alt hover:text-on sm:hidden"
           >
             <FaSearch className="text-sm" />
           </button>
@@ -160,7 +169,7 @@ const Topbar = ({ onOpenSidebar }) => {
             onClick={toggleTheme}
             aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-card/60 text-on-dim transition-colors hover:bg-card-alt hover:text-on"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-card/60 text-on-dim transition-colors hover:bg-card-alt hover:text-on sm:h-9 sm:w-9"
           >
             {isDark ? <FaSun className="text-sm" /> : <FaMoon className="text-sm" />}
           </button>
@@ -173,7 +182,7 @@ const Topbar = ({ onOpenSidebar }) => {
               aria-label="Account menu"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              className="flex items-center gap-2 rounded-xl border border-line bg-card/60 py-1 pl-1 pr-2 transition-colors hover:border-brand/30"
+              className="flex items-center gap-2 rounded-xl border border-line bg-card/60 py-1.5 pl-1 pr-2 transition-colors hover:border-brand/30 sm:py-1"
             >
               {account?.profilePicture ? (
                 <img

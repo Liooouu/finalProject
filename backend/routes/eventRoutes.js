@@ -18,6 +18,7 @@ const {
   eventEndAt,
   eventWindow,
   eventLastCheckInAt,
+  attendanceWindowPayload,
   resolveAutomation,
   eventLiveNotification,
 } = require("../services/eventLifecycle");
@@ -394,7 +395,10 @@ router.get("/:id", protect, async (req, res) => {
   try {
     const event = await Event.findById(req.params.id).populate("organizer", "name email role");
     if (!event) return res.status(404).json({ error: "Event not found" });
-    res.json(event);
+    // The resolved window travels with the event so the student's QR gate uses
+    // the same instants the scan endpoint checks, instead of re-deriving them
+    // from the clock strings on the device.
+    res.json({ ...event.toObject(), attendanceWindow: attendanceWindowPayload(event) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

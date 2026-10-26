@@ -1,15 +1,17 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FaChevronLeft, FaChevronRight, FaTimes } from "react-icons/fa";
-import api from "../api/axios";
+import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import TrackMark from "./shared/TrackMark";
 import { portalName } from "../utils/nav";
 import { navSections, isNavItemActive } from "../utils/navItems";
-import { subscribeToDataChanges } from "../utils/dataSync";
+import { useNavCounts } from "../utils/navCounts";
 
 const COLLAPSE_KEY = "tracked.sidebar";
 
-const Sidebar = ({ role, isOpen, onClose }) => {
+// Desktop/tablet rail. Phones get the bottom tab bar + "More" sheet instead
+// (components/mobile), so this element is hidden below `md` rather than being
+// an off-canvas drawer — that removed the hamburger that duplicated the bar.
+const Sidebar = ({ role }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const sections = navSections[role] || [];
@@ -21,103 +23,10 @@ const Sidebar = ({ role, isOpen, onClose }) => {
       return false;
     }
   });
-  const [counts, setCounts] = useState({});
-  const asideRef = useRef(null);
+  const counts = useNavCounts(role);
 
-  useEffect(() => {
-    document.body.style.overflow = isOpen ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isOpen]);
-
-  // Mobile drawer: keep keyboard focus inside while it is open.
-  useEffect(() => {
-    if (!isOpen) return undefined;
-    const panel = asideRef.current;
-    if (!panel) return undefined;
-
-    const getFocusable = () =>
-      Array.from(
-        panel.querySelectorAll('a, button, [href], [tabindex]:not([tabindex="-1"])')
-      ).filter((node) => node.offsetParent !== null);
-
-    const first = getFocusable()[0];
-    first?.focus();
-
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") {
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const nodes = getFocusable();
-      if (!nodes.length) return;
-      const firstNode = nodes[0];
-      const lastNode = nodes[nodes.length - 1];
-      if (event.shiftKey && document.activeElement === firstNode) {
-        event.preventDefault();
-        lastNode.focus();
-      } else if (!event.shiftKey && document.activeElement === lastNode) {
-        event.preventDefault();
-        firstNode.focus();
-      }
-    };
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, onClose]);
-
-  // Lightweight pending-work badges. Only existing endpoints are used; a
-  // failure just leaves the badge absent instead of breaking navigation.
-  useEffect(() => {
-    let alive = true;
-
-    const load = async () => {
-      const next = {};
-
-      if (role === "organizer") {
-        const [stats, pins] = await Promise.allSettled([
-          api.get("/organizer/stats"),
-          api.get("/admin/security/pin-reset-requests", { params: { status: "pending" } }),
-        ]);
-        if (stats.status === "fulfilled") {
-          next.excuses = stats.value.data?.pendingExcuses || 0;
-        }
-        if (pins.status === "fulfilled") {
-          next.pinResets = pins.value.data?.length || 0;
-        }
-      }
-
-      if (role === "admin") {
-        const [stats, pins, appeals] = await Promise.allSettled([
-          api.get("/organizer/stats"),
-          api.get("/admin/security/pin-reset-requests", { params: { status: "pending" } }),
-          api.get("/admin/security/face-appeals", { params: { status: "pending" } }),
-        ]);
-        if (stats.status === "fulfilled") {
-          next.excuses = stats.value.data?.pendingExcuses || 0;
-        }
-        if (pins.status === "fulfilled") {
-          next.pinResets = pins.value.data?.length || 0;
-        }
-        if (appeals.status === "fulfilled") {
-          next.appeals = appeals.value.data?.length || 0;
-        }
-      }
-
-      if (alive) setCounts(next);
-    };
-
-    load();
-    const unsubscribe = subscribeToDataChanges(load);
-    const interval = setInterval(load, 60000);
-    return () => {
-      alive = false;
-      unsubscribe();
-      clearInterval(interval);
-    };
-  }, [role]);
+  // Lightweight pending-work badges, shared with the mobile tab bar so both
+  // surfaces read the same numbers from a single poll loop (see utils/navCounts).
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((current) => {
@@ -132,22 +41,12 @@ const Sidebar = ({ role, isOpen, onClose }) => {
   }, []);
 
   return (
-    <>
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm md:hidden"
-          onClick={onClose}
-          aria-hidden="true"
-        />
-      )}
-
-      <aside
-        ref={asideRef}
-        aria-label={`${portalName[role] || "Portal"} navigation`}
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-line bg-card/95 backdrop-blur-2xl transition-[transform,width] duration-300 ease-in-out md:static md:translate-x-0 ${
-          collapsed ? "md:w-[78px]" : "md:w-64"
-        } ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
-      >
+    <aside
+      aria-label={`${portalName[role] || "Portal"} navigation`}
+      className={`hidden w-64 shrink-0 flex-col border-r border-line bg-card/95 backdrop-blur-2xl md:flex ${
+        collapsed ? "md:w-[78px]" : "md:w-64"
+      }`}
+    >
         {/* Brand */}
         <div
           className={`flex h-16 shrink-0 items-center gap-3 border-b border-line px-4 ${
@@ -166,14 +65,6 @@ const Sidebar = ({ role, isOpen, onClose }) => {
               {portalName[role] || "Portal"}
             </p>
           </div>
-
-          <button
-            onClick={onClose}
-            aria-label="Close navigation"
-            className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-lg text-on-dim transition-colors hover:bg-card-alt hover:text-on md:hidden"
-          >
-            <FaTimes />
-          </button>
         </div>
 
         {/* Nav */}
@@ -205,10 +96,7 @@ const Sidebar = ({ role, isOpen, onClose }) => {
                         type="button"
                         title={collapsed ? item.name : undefined}
                         aria-current={active ? "page" : undefined}
-                        onClick={() => {
-                          navigate(item.path);
-                          onClose();
-                        }}
+                        onClick={() => navigate(item.path)}
                         className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition-all duration-150 ${
                           active
                             ? "bg-brand/10 font-semibold text-brand"
@@ -272,14 +160,13 @@ const Sidebar = ({ role, isOpen, onClose }) => {
               onClick={toggleCollapsed}
               aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
               title={collapsed ? "Expand navigation" : "Collapse navigation"}
-              className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-on-muted transition-colors hover:bg-card-alt hover:text-on md:inline-flex"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-on-muted transition-colors hover:bg-card-alt hover:text-on"
             >
               {collapsed ? <FaChevronRight className="text-[10px]" /> : <FaChevronLeft className="text-[10px]" />}
             </button>
           </div>
         </div>
       </aside>
-    </>
   );
 };
 

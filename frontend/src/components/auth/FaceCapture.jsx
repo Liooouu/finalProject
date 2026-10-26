@@ -11,10 +11,14 @@ const releaseStream = (stream) => {
 const FaceCapture = ({
   onCapture,
   onCancel,
+  // Optional: called when the student starts over. The parent uses it to clear
+  // the message from the previous attempt, which is about the photo (a face
+  // mismatch), not about the camera.
+  onRetake,
   title = "Face photo",
   loading = false,
   loadingLabel = "Checking...",
-  error: externalError = "",
+  error: attemptError = "",
 }) => {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -22,7 +26,11 @@ const FaceCapture = ({
   const mountedRef = useRef(true);
   const [cameraError, setCameraError] = useState("");
   const [preview, setPreview] = useState(null);
-  const error = externalError || cameraError;
+  // Two very different failures share one alert: the camera is unavailable
+  // (hardware/permission) and the last photo was rejected by the server. Only
+  // the first one may hide the feed or disable the shutter — treating a face
+  // mismatch as "no camera" is what left people stuck after a failed attempt.
+  const error = cameraError || attemptError;
 
   const stopCamera = useCallback(() => {
     requestIdRef.current += 1;
@@ -94,6 +102,13 @@ const FaceCapture = ({
     stopCamera();
   };
 
+  // Retake / Try again: clear the previous attempt's message, then reopen the
+  // camera. The stream is always released before this, so it is a fresh start.
+  const retake = () => {
+    onRetake?.();
+    startCamera();
+  };
+
   const usePhoto = () => {
     if (!preview) return;
     onCapture(dataUrlToBlob(preview));
@@ -120,7 +135,7 @@ const FaceCapture = ({
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-line bg-black">
-          {error ? (
+          {cameraError ? (
             <div className="flex aspect-[4/3] w-full items-center justify-center gap-2 text-sm text-white/70">
               <FaExclamationTriangle /> No camera feed
             </div>
@@ -145,13 +160,13 @@ const FaceCapture = ({
           <span />
         )}
         <div className="flex gap-2">
-          {error && !preview && (
-            <Button type="button" variant="secondary" size="sm" onClick={startCamera}>
+          {cameraError && !preview && (
+            <Button type="button" variant="secondary" size="sm" onClick={retake}>
               <FaRedo className="text-xs" /> Try again
             </Button>
           )}
           {preview && (
-            <Button type="button" variant="secondary" size="sm" onClick={startCamera}>
+            <Button type="button" variant="secondary" size="sm" onClick={retake}>
               <FaRedo className="text-xs" /> Retake
             </Button>
           )}
@@ -164,7 +179,7 @@ const FaceCapture = ({
               type="button"
               size="sm"
               onClick={capture}
-              disabled={!!error || loading}
+              disabled={!!cameraError || loading}
             >
               <FaCamera className="text-xs" /> {title}
             </Button>

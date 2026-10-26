@@ -23,6 +23,8 @@ import {
 } from "react-icons/fa";
 import {
   StatTile,
+  CompactStat,
+  SegmentedControl,
   ChartCard,
   FlightPanel,
   Timeline,
@@ -226,6 +228,8 @@ const DashboardHome = () => {
     appeals: [],
     pinResets: [],
   });
+  // Phones only have room for one chart at a time; desktop shows both.
+  const [chartView, setChartView] = useState("pulse");
 
   usePageMeta(
     "Overview",
@@ -332,9 +336,9 @@ const DashboardHome = () => {
     return (
       <div className="space-y-4" aria-busy="true" aria-label="Loading dashboard">
         <div className="skeleton h-40 rounded-[12px]" />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="skeleton h-32 rounded-[12px]" />
+            <div key={i} className="skeleton h-20 rounded-[12px] sm:h-32" />
           ))}
         </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
@@ -477,6 +481,45 @@ const DashboardHome = () => {
     ok: "bg-ok/10 text-ok ring-ok/20",
   };
 
+  // Shared by the full instrument tiles (sm and up) and the phone strip.
+  const kpis = [
+    {
+      label: "Events",
+      value: state.events.length,
+      icon: <FaCalendarAlt />,
+      hint: `${derived.upcoming} upcoming · ${derived.live} live`,
+      data: derived.eventsSpark,
+      to: "/admin/dashboard/events",
+    },
+    {
+      label: "Students",
+      value: derived.students,
+      icon: <FaUsers />,
+      hint: `${state.userStats?.total ?? state.users.length} accounts total`,
+      data: derived.studentsSpark,
+      tone: "info",
+      to: "/admin/dashboard/users",
+    },
+    {
+      label: "Attendance rate",
+      value: `${derived.rate}%`,
+      icon: <FaClipboardList />,
+      hint: `${derived.attended} of ${derived.totalRecords} records`,
+      data: derived.rateSpark,
+      tone: "ok",
+      to: "/admin/dashboard/reports",
+    },
+    {
+      label: "Organizers",
+      value: derived.organizers,
+      icon: <FaUserTie />,
+      hint: "Accounts you manage",
+      data: derived.organizersSpark,
+      tone: "excused",
+      to: "/admin/dashboard/users",
+    },
+  ];
+
   return (
     <div className="space-y-4">
       {/* Command */}
@@ -527,12 +570,12 @@ const DashboardHome = () => {
             </div>
           </div>
 
-          <div className="relative mt-7 grid grid-cols-1 gap-4 border-t border-line/80 pt-5 sm:grid-cols-3">
+          <div className="relative mt-5 grid grid-cols-2 gap-3 border-t border-line/80 pt-4 sm:mt-7 sm:grid-cols-3 sm:gap-4 sm:pt-5">
             <div>
               <p className="fd-eyebrow">Live windows</p>
               <p className="mt-1 font-display text-lg font-semibold tracking-tight text-on">
                 {derived.live}
-                <span className="ml-2 text-[11px] font-medium text-on-muted">
+                <span className="ml-2 hidden text-[11px] font-medium text-on-muted sm:inline">
                   attendance windows open
                 </span>
               </p>
@@ -541,12 +584,12 @@ const DashboardHome = () => {
               <p className="fd-eyebrow">Needs attention</p>
               <p className="mt-1 font-display text-lg font-semibold tracking-tight text-on">
                 {derived.attentionTotal}
-                <span className="ml-2 text-[11px] font-medium text-on-muted">
+                <span className="ml-2 hidden text-[11px] font-medium text-on-muted sm:inline">
                   reviews waiting
                 </span>
               </p>
             </div>
-            <div className="sm:border-l sm:border-line/80 sm:pl-5">
+            <div className="hidden sm:block sm:border-l sm:border-line/80 sm:pl-5">
               <p className="fd-eyebrow">Data stream</p>
               <p className="mt-1 font-display text-lg font-semibold tracking-tight text-on">
                 Live
@@ -559,50 +602,28 @@ const DashboardHome = () => {
         </div>
       </FlightPanel>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          surface="flight"
-          glass
-          label="Events"
-          value={state.events.length}
-          icon={<FaCalendarAlt />}
-          hint={`${derived.upcoming} upcoming · ${derived.live} live`}
-          data={derived.eventsSpark}
-          to="/admin/dashboard/events"
-        />
-        <StatTile
-          surface="flight"
-          glass
-          label="Students"
-          value={derived.students}
-          icon={<FaUsers />}
-          hint={`${state.userStats?.total ?? state.users.length} accounts total`}
-          data={derived.studentsSpark}
-          tone="info"
-          to="/admin/dashboard/users"
-        />
-        <StatTile
-          surface="flight"
-          glass
-          label="Attendance rate"
-          value={`${derived.rate}%`}
-          icon={<FaClipboardList />}
-          hint={`${derived.attended} of ${derived.totalRecords} records`}
-          data={derived.rateSpark}
-          tone="ok"
-          to="/admin/dashboard/reports"
-        />
-        <StatTile
-          surface="flight"
-          glass
-          label="Organizers"
-          value={derived.organizers}
-          icon={<FaUserTie />}
-          hint="Accounts you manage"
-          data={derived.organizersSpark}
-          tone="excused"
-          to="/admin/dashboard/users"
+      {/* KPIs — compact 2×2 on phones, full tiles from sm up */}
+      <div className="grid grid-cols-2 gap-2.5 sm:hidden">
+        {kpis.map((kpi) => (
+          <CompactStat key={kpi.label} {...kpi} />
+        ))}
+      </div>
+      <div className="hidden grid-cols-2 gap-4 sm:grid xl:grid-cols-4">
+        {kpis.map((kpi) => (
+          <StatTile key={kpi.label} surface="flight" glass {...kpi} />
+        ))}
+      </div>
+
+      {/* One chart at a time below lg, where both would otherwise stack */}
+      <div className="lg:hidden">
+        <SegmentedControl
+          ariaLabel="Dashboard chart"
+          value={chartView}
+          onChange={setChartView}
+          options={[
+            { value: "pulse", label: "Attendance pulse" },
+            { value: "mix", label: "Status mix" },
+          ]}
         />
       </div>
 
@@ -613,7 +634,7 @@ const DashboardHome = () => {
           glass
           eyebrow="Telemetry / 14 days"
           inset
-          className="lg:col-span-8"
+          className={`lg:col-span-8 ${chartView === "pulse" ? "" : "hidden lg:block"}`}
           title="Attendance pulse"
           subtitle="Check-ins recorded over the last two weeks"
           actions={<span className="fd-chip">14 day window</span>}
@@ -637,7 +658,7 @@ const DashboardHome = () => {
           glass
           eyebrow="Telemetry / Records"
           inset
-          className="lg:col-span-4"
+          className={`lg:col-span-4 ${chartView === "mix" ? "" : "hidden lg:block"}`}
           title="Status mix"
           subtitle="Every attendance record"
           actions={<span className="fd-chip num">{derived.totalRecords}</span>}
@@ -854,46 +875,68 @@ const DashboardHome = () => {
             description="Scan a student QR at a live event to create the first record."
           />
         ) : (
-          <div className="nice-scroll overflow-x-auto">
-            <table className="fd-table w-full min-w-[680px] text-sm">
-              <thead>
-                <tr className="text-left">
-                  <th scope="col" className="px-5 py-3">Student</th>
-                  <th scope="col" className="px-5 py-3">Event</th>
-                  <th scope="col" className="px-5 py-3">Status</th>
-                  <th scope="col" className="px-5 py-3">Checked in</th>
-                </tr>
-              </thead>
-              <tbody>
-                {state.records.slice(0, 6).map((record) => (
-                  <tr key={record._id}>
-                    <td className="px-5 py-3.5">
-                      <p className="font-medium text-on">{record.student?.name || "Unknown"}</p>
-                      <p className="text-[11px] text-on-muted">{record.student?.email || ""}</p>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <p className="text-on-dim">
-                        {record.event?.title || record.eventTitle || "Event"}
-                      </p>
-                      <p className="text-[11px] text-on-muted">
-                        {record.event?.date
-                          ? formatDate(record.event.date)
-                          : record.eventDate
-                            ? formatDate(record.eventDate)
-                            : ""}
-                      </p>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <StatusChip status={record.status} />
-                    </td>
-                    <td className="px-5 py-3.5 text-xs text-on-muted">
+          <>
+            {/* The table needs 680px, so phones get the same six records as cards */}
+            <ul className="divide-y divide-line md:hidden">
+              {state.records.slice(0, 6).map((record) => (
+                <li key={record._id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-on">
+                      {record.student?.name || "Unknown"}
+                    </p>
+                    <p className="mt-0.5 truncate text-[11px] text-on-muted">
+                      {record.event?.title || record.eventTitle || "Event"}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-on-muted">
                       {record.attendedAt ? formatDateTime(record.attendedAt) : "—"}
-                    </td>
+                    </p>
+                  </div>
+                  <StatusChip status={record.status} />
+                </li>
+              ))}
+            </ul>
+
+            <div className="nice-scroll hidden overflow-x-auto md:block">
+              <table className="fd-table w-full min-w-[680px] text-sm">
+                <thead>
+                  <tr className="text-left">
+                    <th scope="col" className="px-5 py-3">Student</th>
+                    <th scope="col" className="px-5 py-3">Event</th>
+                    <th scope="col" className="px-5 py-3">Status</th>
+                    <th scope="col" className="px-5 py-3">Checked in</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {state.records.slice(0, 6).map((record) => (
+                    <tr key={record._id}>
+                      <td className="px-5 py-3.5">
+                        <p className="font-medium text-on">{record.student?.name || "Unknown"}</p>
+                        <p className="text-[11px] text-on-muted">{record.student?.email || ""}</p>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <p className="text-on-dim">
+                          {record.event?.title || record.eventTitle || "Event"}
+                        </p>
+                        <p className="text-[11px] text-on-muted">
+                          {record.event?.date
+                            ? formatDate(record.event.date)
+                            : record.eventDate
+                              ? formatDate(record.eventDate)
+                              : ""}
+                        </p>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <StatusChip status={record.status} />
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-on-muted">
+                        {record.attendedAt ? formatDateTime(record.attendedAt) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </FlightPanel>
     </div>

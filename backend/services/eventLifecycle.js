@@ -146,6 +146,20 @@ function eventLastCheckInAt(event) {
   return endsAt || windowEnd;
 }
 
+// The attendance window as ISO instants for clients. The browser does no
+// timezone math: it compares these to its own clock, which is an absolute
+// instant, so a phone in another zone still hides the QR exactly when this
+// API would reject the scan.
+function attendanceWindowPayload(event) {
+  const window = eventWindow(event);
+  const last = eventLastCheckInAt(event);
+  return {
+    start: window ? window.start.toISOString() : null,
+    end: window ? window.end.toISOString() : null,
+    closesAt: last ? last.toISOString() : null,
+  };
+}
+
 // Flip to live once the event's start time has arrived but it has not ended.
 function shouldAutoGoLive(event, now = new Date()) {
   if (event.status !== STATUS.UPCOMING || !isAutomated(event)) return false;
@@ -211,6 +225,7 @@ module.exports = {
   eventEndAt,
   eventWindow,
   eventLastCheckInAt,
+  attendanceWindowPayload,
   shouldAutoGoLive,
   shouldAutoFinish,
   resolveAutomation,

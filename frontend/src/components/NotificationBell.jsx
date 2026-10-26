@@ -45,7 +45,7 @@ const NotificationBell = ({ role }) => {
   return (
     <button
       onClick={() => navigate(paths[role] || "/")}
-      className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-card/60 text-on-dim transition-colors hover:bg-card-alt hover:text-on"
+      className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-card/60 text-on-dim transition-colors hover:bg-card-alt hover:text-on sm:h-9 sm:w-9"
       title="Notifications"
       aria-label={
         unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"

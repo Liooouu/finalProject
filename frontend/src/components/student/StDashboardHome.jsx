@@ -22,6 +22,8 @@ import {
   Button,
   FlightPanel,
   StatTile,
+  CompactStat,
+  SegmentedControl,
   StatusPill,
   ProgressBar,
   ProgressRing,
@@ -47,6 +49,9 @@ const DashboardHome = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [penaltyRange, setPenaltyRange] = useState("year");
+  // Below `md` the dashboard shows one section at a time (see the segmented
+  // control under the KPI strip) so the page stops being one long column.
+  const [mobileSection, setMobileSection] = useState("overview");
 
   const fetchAll = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -195,6 +200,47 @@ const windowCutoff = () => {
   const rangeLabel =
     penaltyRange === "day" ? "today" : penaltyRange === "week" ? "this week" : "this year";
 
+  // One list feeds both KPI presentations: the full flight-instrument tiles
+  // from `sm` up, and the compact 2×2 strip on phones.
+  const kpis = [
+    {
+      label: "Events attended",
+      value: stats.totalAttended,
+      icon: <FaUserCheck />,
+      hint: "All-time check-ins",
+      tone: "ok",
+      to: "/student/dashboard/community-service",
+    },
+    {
+      label: "Upcoming events",
+      value: upcoming,
+      icon: <FaCalendarAlt />,
+      hint: "Still open to join",
+      tone: "info",
+      to: "/student/dashboard/events",
+    },
+    {
+      label: "Service hours",
+      value: `${stats.totalHours}h`,
+      icon: <FaClock />,
+      hint: "Penalties and adjustments",
+      tone: "warn",
+      to: "/student/dashboard/community-service",
+    },
+    {
+      label: "Attendance rate",
+      value: `${attendanceRate}%`,
+      icon: <FaCalendarCheck />,
+      hint: `${records.length} logged record${records.length === 1 ? "" : "s"}`,
+      tone: attendanceRate >= 80 ? "ok" : attendanceRate >= 50 ? "warn" : "danger",
+    },
+  ];
+
+  // Phones show one section at a time; from `md` up every section is visible
+  // again and the API order (`order-*` classes) drives the desktop bento.
+  const sectionClass = (key) =>
+    mobileSection === key ? "flex" : "hidden md:flex";
+
   return (
     <div className="space-y-5">
       {/* Hero */}
@@ -208,20 +254,21 @@ const windowCutoff = () => {
       >
         <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
           <div className="min-w-0">
-            <h1 className="font-display text-3xl font-bold tracking-tight text-on sm:text-4xl">
+            <h1 className="font-display text-2xl font-bold tracking-tight text-on sm:text-4xl">
               Welcome back
             </h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-on-dim">
+            <p className="mt-2 hidden max-w-xl text-sm leading-relaxed text-on-dim md:block">
               {upcoming > 0
                 ? `You have ${upcoming} event${upcoming === 1 ? "" : "s"} still open to join. Keep your service hours on track.`
                 : "No open events right now. Your attendance and service history are below."}
             </p>
-            <div className="mt-5 flex flex-wrap items-center gap-2">
+            <div className="mt-4 flex flex-wrap items-center gap-2 md:mt-5">
               <Button onClick={() => navigate("/student/dashboard/events")}>
                 Browse events <FaArrowRight className="text-[11px]" />
               </Button>
               <Button
                 variant="secondary"
+                className="max-md:hidden"
                 onClick={() => navigate("/student/dashboard/submit-excuse")}
               >
                 Submit an excuse
@@ -229,7 +276,9 @@ const windowCutoff = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 rounded-2xl border border-line bg-card-alt/50 p-4">
+          {/* The phone shows the same numbers in the compact strip below, so
+              this panel only appears once there is room for it. */}
+          <div className="hidden items-center gap-4 rounded-2xl border border-line bg-card-alt/50 p-4 md:flex">
             <ProgressRing
               value={attendanceRate}
               max={100}
@@ -254,38 +303,29 @@ const windowCutoff = () => {
         </div>
       </FlightPanel>
 
-      {/* KPI row */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label="Events attended"
-          value={stats.totalAttended}
-          icon={<FaUserCheck />}
-          hint="All-time check-ins"
-          tone="ok"
-          to="/student/dashboard/community-service"
-        />
-        <StatTile
-          label="Upcoming events"
-          value={upcoming}
-          icon={<FaCalendarAlt />}
-          hint="Still open to join"
-          tone="info"
-          to="/student/dashboard/events"
-        />
-        <StatTile
-          label="Service hours"
-          value={`${stats.totalHours}h`}
-          icon={<FaClock />}
-          hint="Penalties and adjustments"
-          tone="warn"
-          to="/student/dashboard/community-service"
-        />
-        <StatTile
-          label="Attendance rate"
-          value={`${attendanceRate}%`}
-          icon={<FaCalendarCheck />}
-          hint={`${records.length} logged record${records.length === 1 ? "" : "s"}`}
-          tone={attendanceRate >= 80 ? "ok" : attendanceRate >= 50 ? "warn" : "danger"}
+      {/* KPI strip — compact 2×2 on phones, full instrument tiles from sm up */}
+      <div className="grid grid-cols-2 gap-2.5 sm:hidden">
+        {kpis.map((kpi) => (
+          <CompactStat key={kpi.label} {...kpi} />
+        ))}
+      </div>
+      <div className="hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-4">
+        {kpis.map((kpi) => (
+          <StatTile key={kpi.label} {...kpi} />
+        ))}
+      </div>
+
+      {/* Phones: switch between sections instead of scrolling the whole page */}
+      <div className="md:hidden">
+        <SegmentedControl
+          ariaLabel="Dashboard sections"
+          value={mobileSection}
+          onChange={setMobileSection}
+          options={[
+            { value: "overview", label: "Overview" },
+            { value: "events", label: "Events", count: upcoming || undefined },
+            { value: "service", label: "Service" },
+          ]}
         />
       </div>
 
@@ -295,7 +335,7 @@ const windowCutoff = () => {
           <BaseCard
             title="Upcoming events"
             icon={<FaCalendarAlt />}
-            className="order-1 flex flex-col xl:col-span-2"
+            className={`order-1 ${sectionClass("events")} flex-col xl:col-span-2`}
             bodyClassName="flex flex-1 flex-col"
             menu={
               <Button
@@ -353,7 +393,7 @@ const windowCutoff = () => {
             title="Recent activity"
             description="Your latest attendance and service records."
             icon={<MdLocalActivity />}
-            className="order-3 flex flex-col xl:col-span-2"
+            className={`order-3 ${sectionClass("overview")} flex-col xl:col-span-2`}
             bodyClassName="flex flex-1 flex-col"
           >
             {!activity.length ? (
@@ -404,7 +444,7 @@ const windowCutoff = () => {
         </div>
 
         <div className="contents">
-          <BaseCard title="Today" icon={<FaClock />} className="order-2 flex flex-col">
+          <BaseCard title="Today" icon={<FaClock />} className={`order-2 ${sectionClass("overview")} flex-col`}>
             <TodayCard
               events={upcomingEvents}
               selectedUpcoming={selectedUpcoming}
@@ -416,7 +456,7 @@ const windowCutoff = () => {
           <BaseCard
             title="Achievements"
             icon={<FaTrophy />}
-            className="order-4 flex flex-col"
+            className={`order-4 ${sectionClass("service")} flex-col`}
             bodyClassName="flex flex-1 flex-col gap-4"
           >
             <div className="space-y-4">
@@ -463,6 +503,7 @@ const windowCutoff = () => {
         title="Community service ledger"
         description="How penalties and adjustments move your hours."
         icon={<FaClock />}
+        className={mobileSection === "service" ? "" : "hidden md:block"}
         menu={
           <label className="flex items-center gap-2 text-xs text-on-muted">
             <span className="hidden sm:inline">Range</span>

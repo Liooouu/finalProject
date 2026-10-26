@@ -17,6 +17,7 @@ import {
   FlightPanel,
   ProgressBar,
   StatTile,
+  CompactStat,
 } from "../ui";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
@@ -88,6 +89,39 @@ const OrganizerHome = () => {
     ...stats.attendeesPerEvent.map((event) => event.attendeeCount || 0)
   );
 
+  const kpis = [
+    {
+      label: "Your events",
+      value: stats.totalEvents,
+      icon: <FaCalendarDays />,
+      hint: "Created and managed by you",
+      tone: "brand",
+      to: "/organizer/dashboard/events",
+    },
+    {
+      label: "Total attendees",
+      value: stats.totalAttendees,
+      icon: <FaUsers />,
+      hint: "Across every event",
+      tone: "info",
+    },
+    {
+      label: "Avg per event",
+      value: avgAttendance,
+      icon: <FaCalendarCheck />,
+      hint: "Mean check-ins",
+      tone: "ok",
+    },
+    {
+      label: "Pending excuses",
+      value: stats.pendingExcuses,
+      icon: <FaInbox />,
+      hint: stats.pendingExcuses > 0 ? "Needs your review" : "All caught up",
+      tone: stats.pendingExcuses > 0 ? "warn" : "ok",
+      to: "/organizer/dashboard/excuses",
+    },
+  ];
+
   if (loading) return <Loading label="Loading organizer overview..." />;
 
   return (
@@ -101,10 +135,10 @@ const OrganizerHome = () => {
       >
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="font-display text-3xl font-bold tracking-tight text-on sm:text-4xl">
+            <h1 className="font-display text-2xl font-bold tracking-tight text-on sm:text-4xl">
               Keep every event on track
             </h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-on-dim">
+            <p className="mt-2 hidden max-w-xl text-sm leading-relaxed text-on-dim md:block">
               Your events, attendance and pending decisions in one place.
             </p>
           </div>
@@ -122,37 +156,15 @@ const OrganizerHome = () => {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label="Your events"
-          value={stats.totalEvents}
-          icon={<FaCalendarDays />}
-          hint="Created and managed by you"
-          tone="brand"
-          to="/organizer/dashboard/events"
-        />
-        <StatTile
-          label="Total attendees"
-          value={stats.totalAttendees}
-          icon={<FaUsers />}
-          hint="Across every event"
-          tone="info"
-        />
-        <StatTile
-          label="Avg per event"
-          value={avgAttendance}
-          icon={<FaCalendarCheck />}
-          hint="Mean check-ins"
-          tone="ok"
-        />
-        <StatTile
-          label="Pending excuses"
-          value={stats.pendingExcuses}
-          icon={<FaInbox />}
-          hint={stats.pendingExcuses > 0 ? "Needs your review" : "All caught up"}
-          tone={stats.pendingExcuses > 0 ? "warn" : "ok"}
-          to="/organizer/dashboard/excuses"
-        />
+      <div className="grid grid-cols-2 gap-2.5 sm:hidden">
+        {kpis.map((kpi) => (
+          <CompactStat key={kpi.label} {...kpi} />
+        ))}
+      </div>
+      <div className="hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-4">
+        {kpis.map((kpi) => (
+          <StatTile key={kpi.label} {...kpi} />
+        ))}
       </div>
 
       <div className="grid gap-5 xl:grid-cols-3">

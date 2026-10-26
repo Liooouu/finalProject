@@ -1,22 +1,27 @@
-import React, { useState, useEffect } from "react";
+import React, { Suspense, lazy, useState, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { FaCheck } from "react-icons/fa";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
+import MobileTabBar from "../components/mobile/MobileTabBar";
+import MobileMenuSheet from "../components/mobile/MobileMenuSheet";
 import AppBackground from "../components/shared/AppBackground";
+import RouteFallback from "../components/shared/RouteFallback";
 import { PageMetaProvider } from "../context/PageMetaContext";
 
-import DashboardHome from "../components/student/StDashboardHome";
-import AttendEvents from "../components/student/AttendEvents";
-import CommunityService from "../components/student/CommunityService";
-import NotificationsPage from "../components/student/NotificationsPage";
-import SubmitExcuse from "../components/student/SubmitExcuse";
-import ProfileSettings from "../components/settings/ProfileSettings";
-import SecuritySettings from "../components/settings/SecuritySettings";
-import EventDetails from "../components/EventDetails";
+// Each page is its own chunk, so opening the dashboard never downloads the
+// event map (leaflet), the QR scanner or the settings forms up front.
+const DashboardHome = lazy(() => import("../components/student/StDashboardHome"));
+const AttendEvents = lazy(() => import("../components/student/AttendEvents"));
+const CommunityService = lazy(() => import("../components/student/CommunityService"));
+const NotificationsPage = lazy(() => import("../components/student/NotificationsPage"));
+const SubmitExcuse = lazy(() => import("../components/student/SubmitExcuse"));
+const ProfileSettings = lazy(() => import("../components/settings/ProfileSettings"));
+const SecuritySettings = lazy(() => import("../components/settings/SecuritySettings"));
+const EventDetails = lazy(() => import("../components/EventDetails"));
 
 const StudentDashboard = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Toast passed in via navigation state (e.g. "Attendance successfully recorded!"
   // right after the organizer scans the student's QR). Auto-dismisses and clears
@@ -45,22 +50,34 @@ const StudentDashboard = () => {
           </div>
         )}
         <div className="relative flex h-screen w-full overflow-hidden">
-          <Sidebar role="student" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+          <Sidebar role="student" />
           <div className="flex min-w-0 flex-1 flex-col">
-            <Topbar onOpenSidebar={() => setSidebarOpen(true)} />
-            <main className="flight-page min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-6 lg:px-8">
-              <Routes>
-                <Route index element={<DashboardHome />} />
-                <Route path="events" element={<AttendEvents />} />
-                <Route path="events/:id" element={<EventDetails />} />
-                <Route path="community-service" element={<CommunityService />} />
-                <Route path="notifications" element={<NotificationsPage />} />
-                <Route path="submit-excuse" element={<SubmitExcuse />} />
-                <Route path="profile" element={<ProfileSettings />} />
-                <Route path="security" element={<SecuritySettings />} />
-                <Route path="*" element={<Navigate to="" replace />} />
-              </Routes>
+            <Topbar />
+            <main className="flight-page min-w-0 flex-1 overflow-y-auto px-4 pb-24 pt-4 md:px-6 md:py-6 lg:px-8">
+              <Suspense fallback={<RouteFallback />}>
+                <Routes>
+                  <Route index element={<DashboardHome />} />
+                  <Route path="events" element={<AttendEvents />} />
+                  <Route path="events/:id" element={<EventDetails />} />
+                  <Route path="community-service" element={<CommunityService />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="submit-excuse" element={<SubmitExcuse />} />
+                  <Route path="profile" element={<ProfileSettings />} />
+                  <Route path="security" element={<SecuritySettings />} />
+                  <Route path="*" element={<Navigate to="/student/dashboard" replace />} />
+                </Routes>
+              </Suspense>
             </main>
+            <MobileTabBar
+              role="student"
+              menuOpen={menuOpen}
+              onMore={() => setMenuOpen((open) => !open)}
+            />
+            <MobileMenuSheet
+              role="student"
+              open={menuOpen}
+              onClose={() => setMenuOpen(false)}
+            />
           </div>
         </div>
       </PageMetaProvider>

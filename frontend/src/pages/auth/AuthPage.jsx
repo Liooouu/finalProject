@@ -891,6 +891,7 @@ const AuthPage = () => {
                         <FaceCapture
                           title="Scan my face"
                           onCapture={handleRecoveryPhoto}
+                          onRetake={() => setError("")}
                           loading={enrolling}
                           loadingLabel="Verifying your face..."
                           error={error}
@@ -1121,6 +1122,7 @@ const AuthPage = () => {
                 <FaceCapture
                   title="Save my face"
                   onCapture={handleEnrollPhoto}
+                  onRetake={() => setError("")}
                   loading={enrolling}
                   loadingLabel="Saving..."
                   error={error}

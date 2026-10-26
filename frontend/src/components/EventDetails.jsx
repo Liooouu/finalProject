@@ -8,6 +8,7 @@ import {
   formatDateTime,
   isTerminalStatus,
   describeEventLifecycle,
+  attendanceCheckInState,
 } from "../utils/helpers";
 import {
   FaCheck,
@@ -28,6 +29,16 @@ import EventMap from "./shared/EventMap";
 import MapPicker from "./shared/MapPicker";
 import EmptyState from "./shared/EmptyState";
 import ConfirmDialog from "./ui/ConfirmDialog";
+
+// Window boundaries arrive as absolute instants, so the message carries the
+// calendar day too: "opens Fri, Oct 30, 8:00 AM" cannot be misread as today.
+const WINDOW_FORMAT = {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+};
 
 const EventDetails = () => {
   const { id } = useParams();
@@ -403,12 +414,10 @@ const EventDetails = () => {
         String(ownerId) === String(studentId)
     );
 
-  const isBeforeAttendanceWindow = () => {
-    if (!event.attendanceStartTime) return false;
-    const now = new Date();
-    const currentTime = now.getHours().toString().padStart(2, "0") + ":" + now.getMinutes().toString().padStart(2, "0");
-    return currentTime < event.attendanceStartTime;
-  };
+  // The QR is the student's check-in instrument, so it is only shown while the
+  // API would accept a scan. `qrNow` ticks every second, so the card flips on
+  // its own the moment the window opens or closes — no manual refresh.
+  const checkInState = attendanceCheckInState(event, qrNow);
 
   return (
     <div className="space-y-5">
@@ -560,21 +569,44 @@ const EventDetails = () => {
                 </p>
               )}
             </div>
-          ) : isBeforeAttendanceWindow() ? (
+          ) : checkInState === "before" ? (
             <div className="alert alert-warn mt-4" role="status">
               <span aria-hidden="true">!</span>
               <p>
-                Attendance is not open yet. You can mark your attendance starting at{" "}
+                The QR code appears when attendance opens on{" "}
                 <span className="font-semibold">
-                  {formatTime12Hour(event.attendanceStartTime)}
+                  {formatDateTime(event.attendanceWindow.start, WINDOW_FORMAT)}
                 </span>
                 .
               </p>
             </div>
+          ) : checkInState === "closed" ? (
+            <div className="alert alert-info mt-4" role="status">
+              <span aria-hidden="true">i</span>
+              <p>
+                {isTerminalStatus(event.status)
+                  ? `This event is ${event.status === "closed" ? "closed" : "already finished"} — attendance can no longer be marked.`
+                  : `The attendance window closed on ${formatDateTime(event.attendanceWindow.closesAt, WINDOW_FORMAT)}.`}
+              </p>
+            </div>
+          ) : checkInState === "unavailable" ? (
+            <div className="alert alert-info mt-4" role="status">
+              <span aria-hidden="true">i</span>
+              <p>
+                Attendance is not available for this event yet. Ask the organizer to
+                set the attendance window.
+              </p>
+            </div>
           ) : (
             <div className="mt-4 rounded-xl border border-line bg-card-alt/40 p-5 text-center">
-              <p className="text-sm font-medium text-on">
-                Show this QR code to the organizer to scan your attendance
+              <p
+                className={`text-sm font-medium ${
+                  checkInState === "late" ? "text-warn" : "text-on"
+                }`}
+              >
+                {checkInState === "late"
+                  ? "The attendance window has closed — scanning now records you as late."
+                  : "Show this QR code to the organizer to scan your attendance"}
               </p>
               <div className="mt-4 flex justify-center">
                 {getQRData() && (
