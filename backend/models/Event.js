@@ -25,6 +25,12 @@ const eventSchema = new mongoose.Schema({
   closingSoonNotified: { type: Boolean, default: false },
   closedNotified: { type: Boolean, default: false },
   upcomingNotified: { type: Boolean, default: false },
+  // One-shot heads-up sent an hour before the attendance window opens.
+  attendanceUpcomingNotified: { type: Boolean, default: false },
+  // Version of the attendance-notice logic that produced the flags above. An
+  // event stored with an older version has its notice flags cleared once, so a
+  // corrected job can notify it again (see the self-heal in server.js).
+  noticesVersion: { type: Number, default: 0 },
   organizer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 }, { timestamps: true });
 

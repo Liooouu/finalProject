@@ -285,6 +285,7 @@ router.patch("/:id/status", protect, async (req, res) => {
       update.closingSoonNotified = false;
       update.closedNotified = false;
       update.upcomingNotified = false;
+      update.attendanceUpcomingNotified = false;
     }
 
     // Reopening an auto-finished event must also undo the absences + 8-hour
@@ -1114,6 +1115,7 @@ router.put("/:id", protect, async (req, res) => {
       update.closingSoonNotified = false;
       update.closedNotified = false;
       update.upcomingNotified = false;
+      update.attendanceUpcomingNotified = false;
     }
 
     // Rescheduling a finished/closed event into the future must revive it —

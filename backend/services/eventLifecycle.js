@@ -116,6 +116,16 @@ function isAutomated(event) {
   return !event.manualOverride;
 }
 
+// Attendance-window notice timing. The heads-up goes out an hour before the QR
+// window opens; the last call goes out fifteen minutes before it closes.
+const ATTENDANCE_UPCOMING_LEAD_MS = 60 * 60 * 1000;
+const ATTENDANCE_CLOSING_SOON_MS = 15 * 60 * 1000;
+
+// Bumped whenever the meaning of the one-shot notice flags changes. Events
+// stored with an older version get their attendance-notice flags cleared once
+// so the corrected job can notify them again (see the self-heal in server.js).
+const ATTENDANCE_NOTICES_VERSION = 1;
+
 // The attendance window as real instants: [start, end]. An end clock earlier
 // than the start clock means the window crosses midnight, so the end rolls to
 // the following Manila day. Returns null when the window can't be parsed.
@@ -144,6 +154,46 @@ function eventLastCheckInAt(event) {
   const windowEnd = window ? window.end : null;
   if (endsAt && windowEnd) return endsAt > windowEnd ? endsAt : windowEnd;
   return endsAt || windowEnd;
+}
+
+// Which attendance notices are due right now. Absolute instants only: the old
+// minute-of-day comparison wrapped any time before the window start into
+// "tomorrow", so on the morning of an event it fired open/closing/missed all
+// at once and then silenced the real notices.
+//
+// `late` deliberately stops at the last check-in: after that instant the
+// absence pass owns the message ("marked absent"), so the "you can still check
+// in" wording is never sent when checking in is no longer possible.
+function attendanceNoticeState(event, now = new Date()) {
+  const window = eventWindow(event);
+  const lastCheckIn = eventLastCheckInAt(event);
+  if (!window || !lastCheckIn) return null;
+
+  return {
+    window,
+    lastCheckIn,
+    upcoming:
+      now >= new Date(window.start.getTime() - ATTENDANCE_UPCOMING_LEAD_MS) &&
+      now < window.start,
+    open: now >= window.start && now < window.end,
+    closingSoon:
+      now >= new Date(window.end.getTime() - ATTENDANCE_CLOSING_SOON_MS) &&
+      now < window.end,
+    late: now >= window.end && now < lastCheckIn,
+  };
+}
+
+// "Oct 27, 6:00 PM" on the school clock. Used in email copy so the deadline
+// reads the same in dev (Windows, PHT) and prod (UTC container).
+function manilaDateTimeLabel(instant) {
+  if (!instant) return "";
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(instant);
 }
 
 // The attendance window as ISO instants for clients. The browser does no
@@ -225,6 +275,9 @@ module.exports = {
   eventEndAt,
   eventWindow,
   eventLastCheckInAt,
+  attendanceNoticeState,
+  manilaDateTimeLabel,
+  ATTENDANCE_NOTICES_VERSION,
   attendanceWindowPayload,
   shouldAutoGoLive,
   shouldAutoFinish,

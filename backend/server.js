@@ -18,11 +18,13 @@ const fileStore = require("./services/fileStore");
 const {
   STATUS,
   OPEN_STATUS_FILTER,
-  manilaClock,
   manilaDayRange,
   eventEndAt,
   eventStartsAt,
   eventLastCheckInAt,
+  attendanceNoticeState,
+  manilaDateTimeLabel,
+  ATTENDANCE_NOTICES_VERSION,
   shouldAutoGoLive,
   shouldAutoFinish,
   eventLiveNotification,
@@ -178,7 +180,6 @@ connectDB()
         // Day boundaries and the clock come from the school's zone (Asia/Manila),
         // not the container's UTC — otherwise a 5:45 PM window notifies at 1:45 AM.
         const { start: today, end: todayEnd } = manilaDayRange(now);
-        const currentTime = manilaClock(now);
 
         // ── STEP 1: go live automatically at the start time ──────────────
         const toGoLive = await Event.find({
@@ -256,7 +257,7 @@ connectDB()
                   // Notify the student (in-app + email)
                   await notifyUsers([student], {
                     type: "penalty",
-                    title: "Marked Absent",
+                    title: "Attendance Marked Absent",
                     message: `You were marked as absent for the event "${event.title}". 8 community service hours have been added to your total.`,
                     relatedEvent: event._id,
                     event,
@@ -278,15 +279,41 @@ connectDB()
           }
         }
 
-        // ✅ EVENT DAY REMINDERS — for events happening today
+        // ✅ EVENT DAY REMINDERS — attendance-window notices for events dated
+        // today, plus the tail of a window that crossed midnight (dated
+        // yesterday). Every check uses real instants from eventLifecycle. The
+        // old minute-of-day math wrapped any clock before the window start into
+        // "tomorrow", so on the morning of an event it fired "open", "closing
+        // soon" and "missed" all at once and then silenced the real notices.
 
-        const todaysEvents = await Event.find({
-          date: { $gte: today, $lte: todayEnd },
+        const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+        const noticeEvents = await Event.find({
+          date: { $gte: yesterday, $lte: todayEnd },
           ...OPEN_STATUS_FILTER,
         });
 
-        for (const event of todaysEvents) {
+        for (const event of noticeEvents) {
           let changed = false;
+
+          // Events stored before this fix still carry flags the old job set
+          // hours early. Clear them once so the corrected phases can fire.
+          if (
+            !event.noticesVersion ||
+            event.noticesVersion < ATTENDANCE_NOTICES_VERSION
+          ) {
+            event.attendanceUpcomingNotified = false;
+            event.openNotified = false;
+            event.closingSoonNotified = false;
+            event.closedNotified = false;
+            event.noticesVersion = ATTENDANCE_NOTICES_VERSION;
+            changed = true;
+          }
+
+          const notice = attendanceNoticeState(event, now);
+          if (!notice) {
+            if (changed) await event.save();
+            continue;
+          }
 
           const allStudents = await User.find({ role: "student" }).select("_id name email");
 
@@ -309,20 +336,26 @@ connectDB()
             });
           };
 
-          const minutesOf = (value) => {
-            const [h, m] = String(value || "0:0").split(":").map(Number);
-            return (h || 0) * 60 + (m || 0);
-          };
-          const nowMin = minutesOf(currentTime);
-          const startMin = minutesOf(event.attendanceStartTime);
-          let endMin = minutesOf(event.attendanceEndTime);
-          // A window can cross midnight (end <= start); lift the end so the
-          // comparisons stay monotonic instead of treating it as "already past".
-          if (endMin <= startMin) endMin += 24 * 60;
-          const nowForWindow = nowMin < startMin ? nowMin + 24 * 60 : nowMin;
+          // One hour before the window: a heads-up, never a "missed" claim.
+          if (!event.attendanceUpcomingNotified && notice.upcoming) {
+            if (allStudents.length > 0) {
+              await notifyUsers(allStudents, {
+                type: "attendance",
+                title: "Attendance Upcoming",
+                message: `Attendance for "${event.title}" opens at ${event.attendanceStartTime}. Have your QR code ready.`,
+                relatedEvent: event._id,
+                event,
+              });
+            }
+            event.attendanceUpcomingNotified = true;
+            changed = true;
+          }
 
-          // Attendance window just opened
-          if (!event.openNotified && nowForWindow >= startMin) {
+          // Window is open right now. Gating on the open window (not merely
+          // "start has passed") means a server that was down all day never
+          // announces a window that is already closed.
+          let openedThisPass = false;
+          if (!event.openNotified && notice.open) {
             if (allStudents.length > 0) {
               await notifyUsers(allStudents, {
                 type: "attendance",
@@ -334,24 +367,29 @@ connectDB()
             }
             event.openNotified = true;
             changed = true;
+            openedThisPass = true;
           }
 
-          // Closing soon (15 minutes before the window ends)
-          if (!event.closingSoonNotified && nowForWindow >= endMin - 15) {
-            await notifyNonAttendees(
-              "Attendance Closing Soon",
-              `The attendance window for "${event.title}" closes at ${event.attendanceEndTime}. Mark your attendance before you're marked late!`,
-              "attendance"
-            );
+          // Closing soon. Skip it when "open" just went out in this same pass:
+          // that email already states the closing time, and two messages in one
+          // minute read like spam.
+          if (!event.closingSoonNotified && notice.closingSoon) {
+            if (!openedThisPass) {
+              await notifyNonAttendees(
+                "Attendance Closing Soon",
+                `The attendance window for "${event.title}" closes at ${event.attendanceEndTime}. Mark your attendance before you're marked late!`,
+                "attendance"
+              );
+            }
             event.closingSoonNotified = true;
             changed = true;
           }
 
-          // Window fully closed and student never checked in
-          if (!event.closedNotified && nowForWindow >= endMin) {
+          // Window is past its due time but a late check-in still counts.
+          if (!event.closedNotified && notice.late) {
             await notifyNonAttendees(
-              "Attendance Missed",
-              `The attendance window for "${event.title}" has closed and you weren't marked as present. Check in now to avoid being marked late or absent.`,
+              "Late for Attendance",
+              `The attendance window for "${event.title}" closed at ${event.attendanceEndTime}. You can still check in until ${manilaDateTimeLabel(notice.lastCheckIn)}, but you will be marked late and receive 4 community service hours.`,
               "attendance"
             );
             event.closedNotified = true;
