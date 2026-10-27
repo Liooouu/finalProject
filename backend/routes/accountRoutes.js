@@ -9,6 +9,7 @@ const faceMatcher = require("../services/faceMatcher");
 const fileStore = require("../services/fileStore");
 const { isMailEnabled } = require("../services/mailer");
 const { protect, authorize } = require("../middleware/authMiddleware");
+const faceIdentify = require("../services/faceIdentify");
 const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
 
 const allowedImage = (req, file, cb) => {
@@ -37,9 +38,9 @@ const faceUpload = multer({
 });
 
 // Fields the client is allowed to see about an account: never the password, the
-// PIN hash, or the email/reset code hashes.
+// legacy authentication fields or the email/reset code hashes.
 const ACCOUNT_FIELDS =
-  "name email role profilePicture program yearLevel section facePhoto trustedDevices pinPlain createdAt updatedAt";
+  "name email role profilePicture program yearLevel section facePhoto faceEnrolledAt faceConsentAt createdAt updatedAt";
 
 // =======================
 // GET ACCOUNT INFO
@@ -177,7 +178,7 @@ router.post("/picture", protect, upload.single("picture"), async (req, res) => {
 // ENROLL / UPDATE FACE PHOTO (student)
 // =======================
 // Stores a webcam-captured photo used as the face-match baseline for the
-// "forgot PIN" recovery flow. Rejects uploads that don't contain a detectable
+// attendance check-in flow. Rejects uploads that don't contain a detectable
 // face so a random photo can't be enrolled.
 router.post(
   "/face",
@@ -192,16 +193,25 @@ router.post(
     let detected = null;
     try {
       detected = await faceMatcher.detectFaceDescriptorFromBuffer(req.file.buffer);
-    } catch {
-      return res
-        .status(400)
-        .json({ error: "No face detected in the photo. Please look directly at the camera and retake." });
+    } catch (err) {
+      return res.status(400).json({ error: err.code === "MULTIPLE_FACES"
+        ? "Only one face may be visible. Please retake the photo."
+        : "No face detected in the photo. Please look directly at the camera and retake." });
     }
 
     let saved = null;
     try {
       const user = await User.findById(req.user._id);
       if (!user) return res.status(404).json({ error: "User not found" });
+
+      // Students can replace their own enrollment from Profile > Security.
+      const consent = String(req.body?.consent || "").toLowerCase() === "true";
+      if (!consent) {
+        return res.status(400).json({
+          error:
+            "Consent is required before enrolling your face. Face data is used only to verify attendance.",
+        });
+      }
 
       saved = await fileStore.saveBuffer(req.file.buffer, {
         private: true,
@@ -212,7 +222,13 @@ router.post(
       const previous = user.facePhoto;
       user.facePhoto = saved.url;
       user.faceDescriptor = detected.descriptor;
+      user.faceEnrolledAt = new Date();
+      user.faceConsentAt = new Date();
+      user.faceEnrollmentVersion = (user.faceEnrollmentVersion || 0) + 1;
       await user.save();
+
+      // Make the new descriptor usable by the kiosk immediately.
+      faceIdentify.upsert(user);
 
       if (previous && previous !== saved.url) {
         await fileStore.deleteByUrl(previous).catch((e) => {
@@ -220,7 +236,7 @@ router.post(
         });
       }
 
-      res.json({ facePhoto: user.facePhoto });
+      res.json({ facePhoto: user.facePhoto, faceEnrolledAt: user.faceEnrolledAt });
     } catch (err) {
       if (saved) await fileStore.deleteByUrl(saved.url).catch(() => {});
       console.error("FACE ENROLL ERROR:", err.message);

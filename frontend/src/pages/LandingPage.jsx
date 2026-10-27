@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  FaQrcode,
   FaUsers,
   FaChartBar,
   FaCamera,
@@ -22,9 +21,9 @@ import techLight from "../assets/images/tech-bg-light.jpg";
 const steps = [
   {
     n: "01",
-    icon: <FaQrcode />,
+    icon: <FaCamera />,
     title: "Students check in",
-    desc: "Enroll your face once, then check in by QR and watch your community-service hours add up. File an excuse when life gets in the way.",
+    desc: "Enroll your face once, then look at the organizer's kiosk camera to check in. Your community-service hours update automatically, and you can file an excuse when life gets in the way.",
   },
   {
     n: "02",
@@ -41,21 +40,9 @@ const steps = [
 ];
 
 const securityPoints = [
-  {
-    icon: <FaCamera />,
-    title: "Face enrollment",
-    desc: "Forgot your security PIN? Recover it with a live face check on your own device.",
-  },
-  {
-    icon: <FaKey />,
-    title: "Staff-verified PIN reset",
-    desc: "No camera on your phone? An admin or organizer verifies you in person and hands you a fresh security PIN on the spot.",
-  },
-  {
-    icon: <FaShieldAlt />,
-    title: "Device verification",
-    desc: "New devices ask for your PIN once; trusted devices sign in straight away.",
-  },
+  { icon: <FaCamera />, title: "Face attendance", desc: "Enroll your face once, then check in at the organizer-operated camera station." },
+  { icon: <FaKey />, title: "Password recovery", desc: "Forgot your password? Request a one-time code by email and choose a new password." },
+  { icon: <FaShieldAlt />, title: "Role-based access", desc: "Students, organizers, and administrators have access to the tools for their role." },
 ];
 
 const eyebrow =
@@ -289,7 +276,7 @@ const LandingPage = () => {
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-on-dim">
               Create your account in about a minute — then your next event is
-              one scan away.
+              one glance away.
             </p>
             <button
               onClick={goSignup}

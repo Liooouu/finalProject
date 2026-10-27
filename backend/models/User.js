@@ -3,23 +3,6 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 
-// NOTE: `deviceId` must not be `unique: true`. On a subdocument path Mongoose
-// builds a COLLECTION-WIDE unique index, so every user with no trusted device
-// indexed as `null` and only one such user could exist at all — creating a
-// second account of any role failed with E11000. Uniqueness within a user is
-// enforced in application code by the model's trustDevice()/isDeviceTrusted()
-// helpers. Databases created before this fix get the stale index dropped at
-// boot by services/repairUserIndexes.js.
-const trustedDeviceSchema = new mongoose.Schema(
-  {
-    deviceId: { type: String, required: true },
-    label: { type: String, default: "Unknown device" },
-    verifiedAt: { type: Date, default: Date.now },
-    lastUsedAt: { type: Date, default: Date.now },
-  },
-  { _id: false }
-);
-
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -46,31 +29,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    pinHash: {
-      type: String,
-      default: "",
-    },
-    // Plaintext copy of the current PIN — needed so the student can view their
-    // rotating PIN on the Security settings page. Hash (`pinHash`) is still used
-    // for verification; this is only for display.
-    pinPlain: {
-      type: String,
-      default: "",
-    },
-    trustedDevices: {
-      type: [trustedDeviceSchema],
-      default: [],
-    },
-    pinAttempts: {
-      type: Number,
-      default: 0,
-    },
-    pinLockUntil: {
-      type: Date,
-      default: null,
-    },
-    // Webcam-captured reference face photo used for "forgot PIN" recovery and,
-    // later, check-in face verification.
     facePhoto: {
       type: String,
       default: "",
@@ -86,6 +44,22 @@ const userSchema = new mongoose.Schema(
     faceLockUntil: {
       type: Date,
       default: null,
+    },
+    // Face check-in bookkeeping. Enrollment is mandatory for attendance, so the
+    // timestamp also drives the "enroll your face" gate in the student portal.
+    faceEnrolledAt: {
+      type: Date,
+      default: null,
+    },
+    // When the student agreed to biometric processing for attendance.
+    faceConsentAt: {
+      type: Date,
+      default: null,
+    },
+    // Bumped on every enrollment/reset so old descriptors can be told apart.
+    faceEnrollmentVersion: {
+      type: Number,
+      default: 0,
     },
     // Email verification. New student registrations set this explicitly
     // (`false` when mail is configured, `true` when it isn't). It deliberately
@@ -176,8 +150,8 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// ✅ GENERATE A RANDOM 6-DIGIT SECURITY PIN (system-assigned, never user-chosen)
-userSchema.statics.generatePin = function () {
+// ✅ GENERATE A RANDOM ONE-TIME EMAIL CODE
+userSchema.statics.generateCode = function () {
   return crypto.randomInt(0, 1000000).toString().padStart(6, "0");
 };
 
@@ -188,20 +162,7 @@ userSchema.statics.normalizeEmail = function (email) {
   return String(email == null ? "" : email).trim().toLowerCase();
 };
 
-// ✅ HASH + STORE THE CURRENT SECURITY PIN
-userSchema.methods.setPin = async function (pin) {
-  const salt = await bcrypt.genSalt(10);
-  this.pinHash = await bcrypt.hash(pin, salt);
-  this.pinPlain = pin;
-};
-
-// ✅ COMPARE AN ENTERED PIN
-userSchema.methods.comparePin = async function (enteredPin) {
-  if (!this.pinHash) return false;
-  return await bcrypt.compare(enteredPin, this.pinHash);
-};
-
-// ✅ HASH + STORE THE EMAIL VERIFICATION CODE (same one-way scheme as the PIN)
+// ✅ HASH + STORE THE EMAIL VERIFICATION CODE
 userSchema.methods.setEmailCode = async function (code) {
   const salt = await bcrypt.genSalt(10);
   this.emailVerificationCodeHash = await bcrypt.hash(String(code), salt);
@@ -223,26 +184,6 @@ userSchema.methods.setPasswordCode = async function (code) {
 userSchema.methods.comparePasswordCode = async function (enteredCode) {
   if (!this.passwordResetCodeHash) return false;
   return await bcrypt.compare(String(enteredCode), this.passwordResetCodeHash);
-};
-
-// ✅ IS THIS DEVICE ALREADY TRUSTED?
-userSchema.methods.isDeviceTrusted = function (deviceId) {
-  return this.trustedDevices.some((d) => d.deviceId === deviceId);
-};
-
-// ✅ TRUST A DEVICE (or refresh its last-used time)
-userSchema.methods.trustDevice = function (deviceId, label = "") {
-  const existing = this.trustedDevices.find((d) => d.deviceId === deviceId);
-  if (existing) {
-    existing.lastUsedAt = new Date();
-  } else {
-    this.trustedDevices.push({
-      deviceId,
-      label: label || "Unknown device",
-      verifiedAt: new Date(),
-      lastUsedAt: new Date(),
-    });
-  }
 };
 
 module.exports = mongoose.model("User", userSchema);

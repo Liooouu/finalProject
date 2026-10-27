@@ -3,36 +3,24 @@ import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import {
   FaBook,
-  FaCalendarPlus,
-  FaCalendarTimes,
   FaCheck,
   FaFileAlt,
 } from "react-icons/fa";
 import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { isTerminalStatus, formatDate } from "../../utils/helpers";
+import { formatDate } from "../../utils/helpers";
 import { BaseCard, Button, FlightPanel, PageHeader } from "../ui";
 
-const GUIDELINES = {
-  absence: [
-    "Submit your excuse within 24 hours after the event.",
-    "Attach supporting documents (medical certificate, etc.) if available.",
-    "Provide a clear and detailed explanation.",
-    "Approved excuses remove your community service hours for that event.",
-  ],
-  advance: [
-    "File before the event happens if you know you can't attend.",
-    "Once approved, you won't receive community service hours for missing it.",
-    "If you attend anyway, your attendance will simply be recorded as usual.",
-    "Your excuse will be reviewed by the event organizer.",
-  ],
-};
+const GUIDELINES = [
+  "Submit your excuse within 24 hours after the event.",
+  "Attach at least one supporting document, such as a medical certificate.",
+  "Provide a clear and detailed explanation for your absence.",
+  "Approved excuses remove your community service hours for that event.",
+];
 
 const SubmitExcuse = () => {
   const navigate = useNavigate();
-  const [mode, setMode] = useState("absence");
   const [absentEvents, setAbsentEvents] = useState([]);
-  const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState("");
   const [excuseText, setExcuseText] = useState("");
   const [files, setFiles] = useState([]);
@@ -41,15 +29,13 @@ const SubmitExcuse = () => {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
 
-  usePageMeta("Submit Excuse", "File an excuse for a missed or upcoming event.");
+  usePageMeta("Submit Excuse", "File an excuse for a missed event with supporting documents.");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [absentRes, eventsRes, myAttendanceRes, excusesRes] = await Promise.all([
+        const [absentRes, excusesRes] = await Promise.all([
           api.get("/student/absent-events"),
-          api.get("/events"),
-          api.get("/events/my-attendance"),
           api.get("/student/excuses"),
         ]);
 
@@ -62,22 +48,10 @@ const SubmitExcuse = () => {
 
         setAbsentEvents(absentRes.data.filter((r) => r.event && !excusedEventIds.has(r.event._id)));
 
-        const attendedEventIds = new Set(
-          myAttendanceRes.data.map((a) => a.event?._id || a.event)
-        );
-        const now = new Date();
-        // An "advance" excuse is for something still to come, so anything the
-        // system has already finished or that has been closed is not offered.
-        const upcoming = eventsRes.data.filter((e) => {
-          if (attendedEventIds.has(e._id) || excusedEventIds.has(e._id)) return false;
-          if (isTerminalStatus(e.status)) return false;
-          const dayEnd = new Date(e.date);
-          dayEnd.setHours(23, 59, 59, 999);
-          return dayEnd >= now || e.status === "live";
-        });
-        setUpcomingEvents(upcoming);
       } catch (err) {
         console.error(err.response?.data || err.message);
+        setMessage("Could not load your missed events. Please refresh and try again.");
+        setMessageType("error");
       } finally {
         setLoading(false);
       }
@@ -85,16 +59,15 @@ const SubmitExcuse = () => {
     fetchData();
   }, []);
 
-  const switchMode = (newMode) => {
-    setMode(newMode);
-    setSelectedEvent("");
-    setMessage("");
-  };
-
   const handleFileChange = (e) => {
     const selected = Array.from(e.target.files || []);
     e.target.value = "";
     if (selected.length === 0) return;
+    if (selected.some((file) => !/\.(pdf|doc|docx|jpg|jpeg|png)$/i.test(file.name))) {
+      setMessage("Use PDF, DOC, DOCX, JPG or PNG files.");
+      setMessageType("error");
+      return;
+    }
     const overSize = selected.find((f) => f.size > 5 * 1024 * 1024);
     if (overSize) {
       setMessage("Each file must be less than 5MB");
@@ -127,6 +100,12 @@ const SubmitExcuse = () => {
       return;
     }
 
+    if (!files.length) {
+      setMessage("Please attach at least one supporting document.");
+      setMessageType("error");
+      return;
+    }
+
     setSubmitting(true);
     setMessage("");
 
@@ -134,7 +113,7 @@ const SubmitExcuse = () => {
       const formData = new FormData();
       formData.append("eventId", selectedEvent);
       formData.append("excuseText", excuseText);
-      formData.append("type", mode);
+      formData.append("type", "absence");
       files.forEach((f) => formData.append("attachments", f));
 
       await api.post("/student/excuses", formData, {
@@ -154,8 +133,7 @@ const SubmitExcuse = () => {
     }
   };
 
-  const isAdvance = mode === "advance";
-  const eventOptions = isAdvance ? upcomingEvents : absentEvents;
+  const eventOptions = absentEvents;
 
   if (loading) {
     return <Loading />;
@@ -166,7 +144,7 @@ const SubmitExcuse = () => {
       <PageHeader
         eyebrow="Student request"
         title="Submit an excuse"
-        subtitle="File for a missed event or let an organizer know you cannot attend."
+        subtitle="Explain a missed event and include the required supporting documents."
         actions={
           <Button variant="secondary" size="sm" onClick={() => navigate(-1)}>
             Back
@@ -188,11 +166,11 @@ const SubmitExcuse = () => {
         <div className="space-y-5">
           <BaseCard
             title="Important guidelines"
-            description={isAdvance ? "For upcoming events" : "For missed events"}
+            description="For missed events"
             icon={<FaBook />}
           >
             <ul className="space-y-2.5">
-              {GUIDELINES[isAdvance ? "advance" : "absence"].map((line) => (
+              {GUIDELINES.map((line) => (
                 <li key={line} className="flex items-start gap-2 text-sm text-on-dim">
                   <span
                     aria-hidden="true"
@@ -217,63 +195,13 @@ const SubmitExcuse = () => {
           level="ledger"
           glass
           eyebrow="Excuse request"
-          title={isAdvance ? "Advance notice" : "Missed event excuse"}
-          subtitle={
-            isAdvance
-              ? "File before the event so your absence is reviewed in advance."
-              : "Explain what happened and attach supporting documents."
-          }
+          title="Missed event excuse"
+          subtitle="Explain what happened and attach at least one supporting document."
         >
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <p className="field-label">Excuse type</p>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => switchMode("absence")}
-                  className={`flex flex-col items-start gap-1 rounded-xl border p-3.5 text-left transition-colors ${
-                    mode === "absence"
-                      ? "border-danger/35 bg-danger/10"
-                      : "border-line bg-card hover:border-brand/25 hover:bg-card-alt/50"
-                  }`}
-                >
-                  <span
-                    className={`flex items-center gap-2 text-sm font-medium ${
-                      mode === "absence" ? "text-danger" : "text-on"
-                    }`}
-                  >
-                    <FaCalendarTimes /> Missed event
-                  </span>
-                  <span className="text-xs text-on-muted">
-                    Something already happened
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchMode("advance")}
-                  className={`flex flex-col items-start gap-1 rounded-xl border p-3.5 text-left transition-colors ${
-                    mode === "advance"
-                      ? "border-info/35 bg-info/10"
-                      : "border-line bg-card hover:border-brand/25 hover:bg-card-alt/50"
-                  }`}
-                >
-                  <span
-                    className={`flex items-center gap-2 text-sm font-medium ${
-                      mode === "advance" ? "text-info" : "text-on"
-                    }`}
-                  >
-                    <FaCalendarPlus /> Upcoming event
-                  </span>
-                  <span className="text-xs text-on-muted">
-                    Let them know in advance
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            <div>
               <label htmlFor="excuse-event" className="field-label">
-                Select event {isAdvance ? "(upcoming)" : "(absences only)"}
+                Select event (absences only)
               </label>
               <select
                 id="excuse-event"
@@ -285,11 +213,11 @@ const SubmitExcuse = () => {
                 <option value="">-- Select an event --</option>
                 {eventOptions.length === 0 ? (
                   <option value="" disabled>
-                    {isAdvance ? "No upcoming events found" : "No absent events found"}
+                    No absent events found
                   </option>
                 ) : (
                   eventOptions.map((item) => {
-                    const event = isAdvance ? item : item.event;
+                    const event = item.event;
                     return (
                       <option key={event._id} value={event._id}>
                         {event.title} - {formatDate(event.date)}
@@ -300,9 +228,7 @@ const SubmitExcuse = () => {
               </select>
               {eventOptions.length === 0 && (
                 <p className="field-hint">
-                  {isAdvance
-                    ? "You have no upcoming events to file an advance excuse for."
-                    : "You don't have any absent events to excuse."}
+                  You don't have any absent events to excuse.
                 </p>
               )}
             </div>
@@ -316,11 +242,7 @@ const SubmitExcuse = () => {
                 value={excuseText}
                 onChange={(e) => setExcuseText(e.target.value)}
                 rows={5}
-                placeholder={
-                  isAdvance
-                    ? "Explain why you won't be able to attend this event..."
-                    : "Please provide a detailed explanation for your absence..."
-                }
+                placeholder="Please provide a detailed explanation for your absence..."
                 className="field"
                 required
               />
@@ -331,15 +253,16 @@ const SubmitExcuse = () => {
 
             <div>
               <p className="field-label">
-                Attach documents (optional){" "}
-                <span className="font-normal text-on-muted">— up to 5 files</span>
+                Attach documents (required){" "}
+                <span className="font-normal text-on-muted">— 1 to 5 files</span>
               </p>
-              <div className="rounded-xl border-2 border-dashed border-line p-6 text-center transition-colors hover:border-brand/40 hover:bg-card-alt/30">
+              <div className="relative rounded-xl border-2 border-dashed border-line p-6 text-center transition-colors hover:border-brand/40 hover:bg-card-alt/30">
                 <input
                   type="file"
                   multiple
                   onChange={handleFileChange}
-                  className="hidden"
+                  className="sr-only"
+                  required={files.length === 0}
                   id="file-upload"
                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                 />
@@ -351,7 +274,7 @@ const SubmitExcuse = () => {
                     Click to upload
                   </p>
                   <p className="mt-0.5 text-xs text-on-muted">
-                    PDF, DOC, JPG or PNG · max 5MB each
+                    PDF, DOC, DOCX, JPG or PNG · max 5MB each
                   </p>
                 </label>
               </div>

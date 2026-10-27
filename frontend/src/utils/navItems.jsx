@@ -5,20 +5,16 @@ import {
   FaUsers,
   FaUserPlus,
   FaChartBar,
-  FaBell,
   FaEdit,
   FaClock,
-  FaShieldAlt,
-  FaKey,
   FaEnvelopeOpenText,
-  FaUserCircle,
   FaCalendarCheck,
 } from "react-icons/fa";
 import { ROLE_PATHS } from "./nav";
 
 const dashboardItem = { name: "Dashboard", path: ROLE_PATHS.admin, icon: <FaHome />, end: true };
 
-export const navSections = {
+const sectionsByRole = {
   admin: [
     {
       label: "Overview",
@@ -45,19 +41,12 @@ export const navSections = {
     {
       label: "Security & insight",
       items: [
-        {
-          name: "PIN Reset Requests",
-          path: "/admin/dashboard/pin-resets",
-          icon: <FaKey />,
-          badge: "pinResets",
-        },
         { name: "Attendance Report", path: "/admin/dashboard/reports", icon: <FaChartBar /> },
       ],
     },
     {
       label: "System",
       items: [
-        { name: "Notifications", path: "/admin/dashboard/notifications", icon: <FaBell /> },
         {
           name: "Email Settings",
           path: "/admin/dashboard/settings/email",
@@ -68,7 +57,6 @@ export const navSections = {
     {
       label: "Account",
       items: [
-        { name: "Profile", path: "/admin/dashboard/profile", icon: <FaUserCircle /> },
       ],
     },
   ],
@@ -92,19 +80,11 @@ export const navSections = {
     {
       label: "Support",
       items: [
-        {
-          name: "PIN Reset Requests",
-          path: "/organizer/dashboard/pin-resets",
-          icon: <FaKey />,
-          badge: "pinResets",
-        },
-        { name: "Notifications", path: "/organizer/dashboard/notifications", icon: <FaBell /> },
       ],
     },
     {
       label: "Account",
       items: [
-        { name: "Profile", path: "/organizer/dashboard/profile", icon: <FaUserCircle /> },
       ],
     },
   ],
@@ -130,13 +110,15 @@ export const navSections = {
     {
       label: "Account",
       items: [
-        { name: "Notifications", path: "/student/dashboard/notifications", icon: <FaBell /> },
-        { name: "Security", path: "/student/dashboard/security", icon: <FaShieldAlt /> },
-        { name: "Profile", path: "/student/dashboard/profile", icon: <FaUserCircle /> },
       ],
     },
   ],
 };
+
+// Account and notification access live in the top bar. Drop empty groups.
+export const navSections = Object.fromEntries(
+  Object.entries(sectionsByRole).map(([role, sections]) => [role, sections.filter((section) => section.items.length > 0)])
+);
 
 export const flatNavItems = (role) =>
   (navSections[role] || []).flatMap((section) =>

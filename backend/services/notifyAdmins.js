@@ -1,6 +1,6 @@
 // backend/services/notifyAdmins.js
 // Sends an in-app Notification to every admin account (used for security
-// alerts: face-based PIN recovery, lockouts, and student appeals).
+// alerts: face enrollment and student appeals).
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 
@@ -19,7 +19,7 @@ async function notifyAdmins(title, message, extra = {}) {
 }
 
 // Same idea as notifyAdmins, but for anything both admins and organizers must
-// see (e.g. student PIN reset requests). In-app only, like notifyAdmins.
+// see (e.g. attendance requests). In-app only, like notifyAdmins.
 async function notifyStaff(title, message, extra = {}) {
   const staff = await User.find({ role: { $in: ["admin", "organizer"] } })
     .select("_id")

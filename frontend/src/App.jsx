@@ -6,13 +6,14 @@ import ChunkBoundary from "./components/shared/ChunkBoundary";
 import TrackMark from "./components/shared/TrackMark";
 
 // Route-level code splitting. Everything used to be one 1.37 MB bundle, so the
-// landing page had to download chart.js, leaflet and the QR scanner before it
-// could paint. Each shell and public page now arrives on its first visit.
+// landing page had to download chart.js and leaflet before it could paint. Each
+// shell and public page now arrives on its first visit.
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const AuthPage = lazy(() => import("./pages/auth/AuthPage"));
 const StudentDashboard = lazy(() => import("./pages/StudentDashboard"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const OrganizerDashboard = lazy(() => import("./pages/OrganizerDashboard"));
+const CheckInKiosk = lazy(() => import("./pages/CheckInKiosk"));
 
 // The one chunk the shell itself can't draw without — a bare mark on the app
 // background reads as "opening" instead of a blank flash.
@@ -44,6 +45,10 @@ function App() {
 
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/auth/signup" element={<AuthPage />} />
+
+            {/* Public face check-in station. The 32-byte token in the URL is the
+                only credential, and it is minted by an organizer for one event. */}
+            <Route path="/check-in/:token" element={<CheckInKiosk />} />
 
             <Route element={<ProtectedRoute allowedRoles={["student"]} />}>
               <Route path="/student/dashboard/*" element={<StudentDashboard />} />

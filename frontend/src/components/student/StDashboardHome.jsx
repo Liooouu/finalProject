@@ -1,590 +1,164 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
-import {
-  FaArrowRight,
-  FaCalendarAlt,
-  FaCalendarCheck,
-  FaClock,
-  FaEdit,
-  FaMapMarkerAlt,
-  FaMinus,
-  FaPlus,
-  FaTrophy,
-  FaUserCheck,
-} from "react-icons/fa";
+import { FaArrowRight, FaCalendarAlt, FaClock, FaMapMarkerAlt, FaMinus, FaPlus, FaUserCheck } from "react-icons/fa";
 import { MdLocalActivity } from "react-icons/md";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { splitEventsByLifecycle, formatDate } from "../../utils/helpers";
-import {
-  BaseCard,
-  Button,
-  FlightPanel,
-  StatTile,
-  CompactStat,
-  SegmentedControl,
-  StatusPill,
-  ProgressBar,
-  ProgressRing,
-  BadgeItem,
-} from "../ui";
+import { BaseCard, Button, FlightPanel, StatusPill } from "../ui";
 import Loading from "../shared/Loading";
 import EmptyState from "../shared/EmptyState";
 import EventMap from "../shared/EventMap";
-import TodayCard from "./TodayCard";
-
-// Late/absent marks add 8/4 to the student's community service hours; excuses
-// and removals take them off. Organizers/admin can adjust the hours manually.
-const EVENTS_BADGE = 5;
 
 const DashboardHome = () => {
   const navigate = useNavigate();
   usePageMeta("Student Overview", "Your attendance and service activity at a glance.");
-  const [stats, setStats] = useState({ totalHours: 0, completedHours: 0, totalAttended: 0, breakdown: [] });
+  const [stats, setStats] = useState(null);
   const [upcoming, setUpcoming] = useState(0);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
-  const [selectedUpcoming, setSelectedUpcoming] = useState(0);
+  const [selectedUpcoming, setSelectedUpcoming] = useState(null);
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [serviceError, setServiceError] = useState("");
+  const [eventsError, setEventsError] = useState("");
   const [penaltyRange, setPenaltyRange] = useState("year");
-  // Below `md` the dashboard shows one section at a time (see the segmented
-  // control under the KPI strip) so the page stops being one long column.
-  const [mobileSection, setMobileSection] = useState("overview");
 
   const fetchAll = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
-    setError("");
     try {
-      // Fetch stats and events independently �?" a stats failure must never
-      // hide the upcoming events list (or vice versa).
+      // A failed ledger request must not hide events or look like a zero balance.
       const [csResult, eventsResult] = await Promise.allSettled([
         api.get("/student/community-service"),
         api.get("/events"),
       ]);
-
-      const csData = csResult.status === "fulfilled" ? csResult.value.data : null;
-      const eventsData = eventsResult.status === "fulfilled" ? eventsResult.value.data : null;
-
-      if (!csData && !eventsData) {
-        setError(csResult.reason?.message || "Could not load dashboard data");
-        return;
+      if (csResult.status === "fulfilled") {
+        const data = csResult.value.data;
+        const breakdown = data.breakdown || [];
+        setStats({ totalHours: data.totalHours || 0, totalAttended: data.totalAttended || 0, breakdown });
+        setActivity([...breakdown].sort((a, b) => new Date(b.attendedAt || 0) - new Date(a.attendedAt || 0)).slice(0, 6));
+        setServiceError("");
+      } else {
+        setServiceError("Service records could not be refreshed. Try again.");
       }
-
-      if (csData) {
-        const breakdown = csData.breakdown || [];
-        setStats({
-          totalHours: csData.totalHours || 0,
-          completedHours: csData.completedHours || 0,
-          totalAttended: csData.totalAttended || 0,
-          breakdown,
-        });
-
-        // Recent Activity �?" the student's own attendance/community-service records.
-        const sortedActivity = [...breakdown].sort(
-          (a, b) => new Date(b.attendedAt || 0) - new Date(a.attendedAt || 0)
-        );
-        setActivity(sortedActivity.slice(0, 6));
+      if (eventsResult.status === "fulfilled") {
+        const active = splitEventsByLifecycle(eventsResult.value.data).active.filter((event) => event.date);
+        const visible = active.slice(0, 4);
+        setUpcoming(active.length);
+        setUpcomingEvents(visible);
+        setSelectedUpcoming((current) => visible.some((event) => event._id === current) ? current : visible[0]?._id || null);
+        setEventsError("");
+      } else {
+        setEventsError("Upcoming events could not be refreshed. Try again.");
       }
-
-      if (eventsData) {
-        // "Upcoming" means what a student can still act on. The backend finishes
-        // an event when its end time passes, so the status �?" not the date �?" is
-        // what separates an upcoming event from history.
-        const upcomingList = splitEventsByLifecycle(eventsData).active.filter((e) => e.date);
-        setUpcoming(upcomingList.length);
-        setUpcomingEvents(upcomingList.slice(0, 4));
-        setSelectedUpcoming((current) =>
-          upcomingList.length ? Math.min(current, upcomingList.length - 1) : 0
-        );
-      }
-    } catch (err) {
-      const msg = err.response?.data?.error || err.message;
-      setError(msg);
-      console.error(msg);
     } finally {
       if (!silent) setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
-
+  useEffect(() => { fetchAll(); }, [fetchAll]);
   useAutoRefresh(fetchAll);
-
-// Aggregate community-service log entries within the selected day/week/year
-// window so students can track their hours. Logs recorded without a timestamp
-// are treated as "now" so they always count. Pass a status to sum penalties
-// from only absent or only late records (for the 0→8 / 0→4 meters).
-const windowCutoff = () => {
-    const ranges = {
-      day: 1 * 24 * 60 * 60 * 1000,
-      week: 7 * 24 * 60 * 60 * 1000,
-      year: 365 * 24 * 60 * 60 * 1000,
-    };
-    return Date.now() - ranges[penaltyRange];
-  };
-
-  const inWindow = (l) => {
-    const t = new Date(l.at).getTime();
-    const ts = Number.isFinite(t) ? t : Date.now();
-    return ts >= windowCutoff();
-  };
-
-  const sumLog = (action, status) =>
-    (stats.breakdown || [])
-      .filter((rec) => !status || rec.status === status)
-      .reduce((sum, rec) => {
-        const logs = (rec.communityServiceLog || []).filter(
-          (l) => l.action === action && inWindow(l)
-        );
-        return sum + logs.reduce((s, l) => s + (l.hours || 0), 0);
-      }, 0);
-
-  const badges = useMemo(
-    () => [
-      {
-        icon: <FaUserCheck />,
-        label: "Attend your first event",
-        current: stats.totalAttended,
-        target: 1,
-        unit: "event",
-        earned: stats.totalAttended >= 1,
-      },
-      {
-        icon: <FaCalendarAlt />,
-        label: `${EVENTS_BADGE}+ events attended`,
-        current: stats.totalAttended,
-        target: EVENTS_BADGE,
-        unit: "events",
-        earned: stats.totalAttended >= EVENTS_BADGE,
-      },
-      {
-        icon: <FaTrophy />,
-        label: "Perfect attendance",
-        current: activity.filter((r) => r.status !== "absent").length,
-        target: activity.length,
-        unit: "event",
-        binary: true,
-        earned: activity.length > 0 && activity.every((r) => r.status !== "absent"),
-      },
-    ],
-    [stats.totalAttended, activity]
-  );
 
   if (loading) return <Loading label="Loading your dashboard..." />;
 
-  if (error) {
-    return (
-      <EmptyState
-        icon={<FaUserCheck />}
-        title="Couldn't load your dashboard"
-        description={error}
-      />
-    );
-  }
-
-  const quickActions = [
-    { label: "Attend Events", icon: <FaCalendarAlt />, path: "/student/dashboard/events", color: "text-ok bg-ok/10 border-ok/20" },
-    { label: "Submit Excuse", icon: <FaEdit />, path: "/student/dashboard/submit-excuse", color: "text-warn bg-warn/10 border-warn/20" },
-    { label: "Community Service", icon: <FaClock />, path: "/student/dashboard/community-service", color: "text-brand bg-brand/10 border-brand/20" },
-  ];
-
-  const records = stats.breakdown || [];
-  const selectedEvent = upcomingEvents[selectedUpcoming] || upcomingEvents[0];
-  const attendanceRate = records.length
-    ? Math.round((stats.totalAttended / records.length) * 100)
-    : 0;
-  const rangeLabel =
-    penaltyRange === "day" ? "today" : penaltyRange === "week" ? "this week" : "this year";
-
-  // One list feeds both KPI presentations: the full flight-instrument tiles
-  // from `sm` up, and the compact 2×2 strip on phones.
-  const kpis = [
-    {
-      label: "Events attended",
-      value: stats.totalAttended,
-      icon: <FaUserCheck />,
-      hint: "All-time check-ins",
-      tone: "ok",
-      to: "/student/dashboard/community-service",
-    },
-    {
-      label: "Upcoming events",
-      value: upcoming,
-      icon: <FaCalendarAlt />,
-      hint: "Still open to join",
-      tone: "info",
-      to: "/student/dashboard/events",
-    },
-    {
-      label: "Service hours",
-      value: `${stats.totalHours}h`,
-      icon: <FaClock />,
-      hint: "Penalties and adjustments",
-      tone: "warn",
-      to: "/student/dashboard/community-service",
-    },
-    {
-      label: "Attendance rate",
-      value: `${attendanceRate}%`,
-      icon: <FaCalendarCheck />,
-      hint: `${records.length} logged record${records.length === 1 ? "" : "s"}`,
-      tone: attendanceRate >= 80 ? "ok" : attendanceRate >= 50 ? "warn" : "danger",
-    },
-  ];
-
-  // Phones show one section at a time; from `md` up every section is visible
-  // again and the API order (`order-*` classes) drives the desktop bento.
-  const sectionClass = (key) =>
-    mobileSection === key ? "flex" : "hidden md:flex";
+  const records = stats?.breakdown || [];
+  const selectedEvent = upcomingEvents.find((event) => event._id === selectedUpcoming) || upcomingEvents[0];
+  const rangeLabel = penaltyRange === "day" ? "the last 24 hours" : penaltyRange === "week" ? "the last 7 days" : "the last 365 days";
+  const cutoff = Date.now() - ({ day: 1, week: 7, year: 365 }[penaltyRange] * 24 * 60 * 60 * 1000);
+  const sumLog = (action, status) => records.filter((record) => !status || record.status === status).reduce((sum, record) => sum + (record.communityServiceLog || []).filter((log) => {
+    const timestamp = new Date(log.at).getTime();
+    return log.action === action && (Number.isFinite(timestamp) ? timestamp : Date.now()) >= cutoff;
+  }).reduce((total, log) => total + (log.hours || 0), 0), 0);
+  const retry = <Button variant="secondary" size="sm" onClick={() => fetchAll()}>Try again</Button>;
 
   return (
     <div className="space-y-5">
-      {/* Hero */}
-      <FlightPanel
-        level="command"
-        glass
-        eyebrow="Student overview"
-        status={upcoming > 0 ? `${upcoming} open` : "No open events"}
-        statusTone={upcoming > 0 ? "ok" : "info"}
-        className="overflow-hidden"
-      >
-        <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div className="min-w-0">
-            <h1 className="font-display text-2xl font-bold tracking-tight text-on sm:text-4xl">
-              Welcome back
-            </h1>
-            <p className="mt-2 hidden max-w-xl text-sm leading-relaxed text-on-dim md:block">
-              {upcoming > 0
-                ? `You have ${upcoming} event${upcoming === 1 ? "" : "s"} still open to join. Keep your service hours on track.`
-                : "No open events right now. Your attendance and service history are below."}
-            </p>
-            <div className="mt-4 flex flex-wrap items-center gap-2 md:mt-5">
-              <Button onClick={() => navigate("/student/dashboard/events")}>
-                Browse events <FaArrowRight className="text-[11px]" />
-              </Button>
-              <Button
-                variant="secondary"
-                className="max-md:hidden"
-                onClick={() => navigate("/student/dashboard/submit-excuse")}
-              >
-                Submit an excuse
-              </Button>
-            </div>
-          </div>
-
-          {/* The phone shows the same numbers in the compact strip below, so
-              this panel only appears once there is room for it. */}
-          <div className="hidden items-center gap-4 rounded-2xl border border-line bg-card-alt/50 p-4 md:flex">
-            <ProgressRing
-              value={attendanceRate}
-              max={100}
-              label={`${attendanceRate}%`}
-              sublabel="attendance"
-              size={104}
-              stroke={9}
-              tone="ok"
-            />
-            <div className="min-w-0">
-              <p className="eyebrow">Service hours</p>
-              <p className="num mt-1 text-3xl font-bold leading-none text-on">
-                {stats.totalHours}
-                <span className="ml-1 text-sm font-medium text-on-muted">h</span>
-              </p>
-              <p className="mt-1 text-xs text-on-muted">Penalty-adjusted total</p>
-              <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-ok/10 px-2 py-0.5 text-[11px] font-medium text-ok ring-1 ring-inset ring-ok/20">
-                <FaCalendarCheck className="text-[10px]" /> {stats.totalAttended} attended
-              </p>
-            </div>
-          </div>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-xl font-semibold tracking-tight text-on sm:text-2xl">Student dashboard</h1>
+          <p className="mt-1 text-sm text-on-dim">Your service balance first, then what is happening next.</p>
         </div>
+
+      </header>
+
+      <FlightPanel
+        as="section" level="command" glass icon={<FaClock />}
+        eyebrow="Your priority" title="Community service ledger"
+        subtitle="Your current balance and the changes behind it."
+        className="overflow-hidden"
+        data-testid="service-ledger"
+      >
+        {serviceError && <div role="alert" className="alert alert-danger mb-4"><p>{serviceError}{stats ? " Showing the last loaded records." : ""}</p>{retry}</div>}
+        {!stats ? (
+          <EmptyState compact title="Service balance unavailable" description="Your balance will appear when your records can be loaded." />
+        ) : (
+          <>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-on-muted">
+              <p>Balance includes all records. Changes below use the selected range.</p>
+              <label className="flex items-center gap-2" htmlFor="ledger-range">
+                Changes
+                <select aria-label="Ledger changes range" id="ledger-range" value={penaltyRange} onChange={(event) => setPenaltyRange(event.target.value)} className="rounded-lg border border-line bg-card px-2 py-1.5 text-xs text-on focus:outline-none focus:ring-2 focus:ring-brand/30">
+                  <option value="day">Last 24 hours</option><option value="week">Last 7 days</option><option value="year">Last 365 days</option>
+                </select>
+              </label>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[minmax(240px,0.85fr)_2fr]">
+              <div className="rounded-2xl border border-brand/25 bg-brand/5 p-5">
+                <p className="eyebrow">Current service balance</p>
+                <p className="num mt-3 font-display text-5xl font-bold leading-none tracking-tight text-on sm:text-6xl" data-testid="service-balance">
+                  {stats.totalHours}<span className="ml-2 text-base font-medium text-on-muted">hrs</span>
+                </p>
+                <p className="mt-2 text-xs text-on-muted">Hours remaining after penalties and adjustments</p>
+                <div className="mt-5 space-y-2 border-t border-line pt-3 text-xs">
+                  <div className="flex items-center justify-between gap-2"><span className="flex items-center gap-1.5 text-on-muted"><FaPlus className="text-[10px] text-danger" /> Penalties added</span><span className="num font-semibold text-danger">+{sumLog("penalty")} hrs</span></div>
+                  <div className="flex items-center justify-between gap-2"><span className="flex items-center gap-1.5 text-on-muted"><FaMinus className="text-[10px] text-ok" /> Hours removed</span><span className="num font-semibold text-ok">−{sumLog("removed")} hrs</span></div>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-line bg-card-alt/30 p-5">
+                  <p className="text-xs font-medium text-on-dim">Absent penalties</p>
+                  <p className="num mt-3 text-3xl font-semibold text-danger">{sumLog("penalty", "absent")}<span className="ml-1 text-sm font-normal">hrs</span></p>
+                  <p className="mt-2 text-xs text-on-muted">8 hours per absent mark</p>
+                </div>
+                <div className="rounded-2xl border border-line bg-card-alt/30 p-5">
+                  <p className="text-xs font-medium text-on-dim">Late penalties</p>
+                  <p className="num mt-3 text-3xl font-semibold text-warn">{sumLog("penalty", "late")}<span className="ml-1 text-sm font-normal">hrs</span></p>
+                  <p className="mt-2 text-xs text-on-muted">4 hours per late mark</p>
+                </div>
+                <p className="text-xs leading-relaxed text-on-muted sm:col-span-2">Penalty additions and removals cover {rangeLabel}. Approved excuses and staff adjustments can change your balance; full records include each adjustment.</p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end"><Button variant="secondary" size="sm" onClick={() => navigate("/student/dashboard/community-service")}>View full ledger <FaArrowRight className="text-[10px]" /></Button></div>
+          </>
+        )}
       </FlightPanel>
 
-      {/* KPI strip — compact 2×2 on phones, full instrument tiles from sm up */}
-      <div className="grid grid-cols-2 gap-2.5 sm:hidden">
-        {kpis.map((kpi) => (
-          <CompactStat key={kpi.label} {...kpi} />
-        ))}
+      <div className="grid items-start gap-5 lg:grid-cols-2" data-testid="dashboard-panels">
+        <BaseCard title={eventsError && !upcomingEvents.length ? "Upcoming events" : `Upcoming events (${upcoming})`} description="Choose an event to preview its venue." icon={<FaCalendarAlt />} className="min-w-0" menu={<Button variant="ghost" size="sm" onClick={() => navigate("/student/dashboard/events")}>View all <FaArrowRight className="text-[10px]" /></Button>}>
+          {eventsError && <div role="alert" className="alert alert-danger mb-4"><p>{eventsError}</p>{retry}</div>}
+          {!upcomingEvents.length ? <EmptyState compact title={eventsError ? "Events unavailable" : "No upcoming events"} description={eventsError ? "Try loading the event list again." : "New events will appear here when they are published."} /> : <>
+            <ul className="space-y-2" aria-label="Upcoming event list">
+              {upcomingEvents.map((event) => <li key={event._id}>
+                <button type="button" onClick={() => setSelectedUpcoming(event._id)} aria-pressed={selectedEvent?._id === event._id} className={`w-full rounded-xl border p-3 text-left transition-colors ${selectedEvent?._id === event._id ? "border-brand/40 bg-brand/10" : "border-line bg-card-alt/30 hover:bg-card-alt"}`}>
+                  <p className="break-words text-sm font-medium text-on">{event.title}</p>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-on-muted"><span className="inline-flex items-center gap-1.5"><FaCalendarAlt />{formatDate(event.date)}</span>{event.location && <span className="inline-flex min-w-0 items-center gap-1.5"><FaMapMarkerAlt className="shrink-0" /><span className="break-words">{event.location}</span></span>}</div>
+                </button>
+              </li>)}
+            </ul>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2"><p className="min-w-0 break-words text-xs text-on-muted">Venue: {selectedEvent.title}</p><Button variant="secondary" size="sm" onClick={() => navigate(`/student/dashboard/events/${selectedEvent._id}`)}>Open event details <FaArrowRight className="text-[10px]" /></Button></div>
+            <div className="relative mt-3 h-52 overflow-hidden rounded-xl border border-line bg-card-alt/50"><EventMap key={selectedEvent._id} event={selectedEvent} frame={false} fill className="h-full w-full" /></div>
+          </>}
+        </BaseCard>
+
+        <BaseCard title="Recent activity" description="Your latest attendance updates." icon={<MdLocalActivity />} className="min-w-0">
+          {!stats ? <EmptyState compact title="Activity unavailable" description="Activity will appear when your service records can be loaded." /> : !activity.length ? <EmptyState compact title="No activity yet" description="Check in at your next event to start your record." /> : <ul className="divide-y divide-line">
+            {activity.map((record, index) => <li key={record._id || index} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${record.status === "absent" ? "bg-danger/10 text-danger ring-danger/20" : record.status === "late" ? "bg-warn/10 text-warn ring-warn/20" : "bg-card-alt text-on-dim ring-line"}`}>{record.status === "present" ? <FaUserCheck /> : <FaClock />}</span>
+              <div className="min-w-0 flex-1"><p className="break-words text-sm font-medium text-on">{record.event?.title || record.eventTitle || "Unknown event"}</p><p className="mt-1 text-xs text-on-muted">{record.event?.date || record.eventDate ? formatDate(record.event?.date || record.eventDate) : "Date unavailable"}</p><div className="mt-2"><StatusPill status={record.status} /></div></div>
+            </li>)}
+          </ul>}
+        </BaseCard>
       </div>
-      <div className="hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((kpi) => (
-          <StatTile key={kpi.label} {...kpi} />
-        ))}
-      </div>
-
-      {/* Phones: switch between sections instead of scrolling the whole page */}
-      <div className="md:hidden">
-        <SegmentedControl
-          ariaLabel="Dashboard sections"
-          value={mobileSection}
-          onChange={setMobileSection}
-          options={[
-            { value: "overview", label: "Overview" },
-            { value: "events", label: "Events", count: upcoming || undefined },
-            { value: "service", label: "Service" },
-          ]}
-        />
-      </div>
-
-      {/* Main bento — paired rows so each card matches its neighbour's height */}
-      <div className="grid gap-5 xl:grid-cols-3">
-        <div className="contents">
-          <BaseCard
-            title="Upcoming events"
-            icon={<FaCalendarAlt />}
-            className={`order-1 ${sectionClass("events")} flex-col xl:col-span-2`}
-            bodyClassName="flex flex-1 flex-col"
-            menu={
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate("/student/dashboard/events")}
-              >
-                View all <FaArrowRight className="text-[10px]" />
-              </Button>
-            }
-          >
-            {!upcomingEvents.length ? (
-              <EmptyState
-                compact
-                title="No upcoming events"
-                description="New events will appear here as soon as they are published."
-              />
-            ) : (
-              <>
-                <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-display text-base font-semibold text-on">
-                      {selectedEvent.title}
-                    </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-on-dim">
-                      <span className="inline-flex items-center gap-1.5">
-                        <FaCalendarAlt className="text-[11px] text-brand" />
-                        {selectedEvent.date ? formatDate(selectedEvent.date) : "Date TBA"}
-                      </span>
-                      {selectedEvent.location && (
-                        <span className="inline-flex items-center gap-1.5">
-                          <FaMapMarkerAlt className="text-[11px] text-brand" />
-                          {selectedEvent.location}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => navigate(`/student/dashboard/events/${selectedEvent._id}`)}
-                  >
-                    Open event details <FaArrowRight className="text-[10px]" />
-                  </Button>
-                </div>
-
-                <div className="relative min-h-[22rem] flex-1 overflow-hidden rounded-xl border border-line bg-card-alt/50">
-                  <EventMap event={selectedEvent} frame={false} fill className="h-full w-full" />
-                </div>
-              </>
-            )}
-          </BaseCard>
-
-          <BaseCard
-            title="Recent activity"
-            description="Your latest attendance and service records."
-            icon={<MdLocalActivity />}
-            className={`order-3 ${sectionClass("overview")} flex-col xl:col-span-2`}
-            bodyClassName="flex flex-1 flex-col"
-          >
-            {!activity.length ? (
-              <EmptyState
-                compact
-                title="No activity yet"
-                description="Check in at your next event to start your record."
-              />
-            ) : (
-              <ul className="divide-y divide-line">
-                {activity.map((record, idx) => {
-                  const isAbsent = record.status === "absent";
-                  return (
-                    <li key={idx} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                      <span
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${
-                          isAbsent
-                            ? "bg-danger/10 text-danger ring-danger/20"
-                            : "bg-ok/10 text-ok ring-ok/20"
-                        }`}
-                      >
-                        {isAbsent ? <FaClock /> : <FaUserCheck />}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-on">
-                          {record.event?.title || record.eventTitle || "Unknown event"}
-                        </p>
-                        <p className="mt-0.5 text-xs text-on-muted">
-                          {record.event?.date
-                            ? formatDate(record.event.date)
-                            : record.eventDate
-                              ? formatDate(record.eventDate)
-                              : "—"}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <StatusPill status={record.status} />
-                        <p className="mt-1 text-[11px] text-on-muted">
-                          {record.communityServiceHours || 0} hrs
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </BaseCard>
-        </div>
-
-        <div className="contents">
-          <BaseCard title="Today" icon={<FaClock />} className={`order-2 ${sectionClass("overview")} flex-col`}>
-            <TodayCard
-              events={upcomingEvents}
-              selectedUpcoming={selectedUpcoming}
-              onSelectEvent={setSelectedUpcoming}
-              quickActions={quickActions}
-            />
-          </BaseCard>
-
-          <BaseCard
-            title="Achievements"
-            icon={<FaTrophy />}
-            className={`order-4 ${sectionClass("service")} flex-col`}
-            bodyClassName="flex flex-1 flex-col gap-4"
-          >
-            <div className="space-y-4">
-              {badges.map((b, i) => (
-                <div key={i} className="space-y-2">
-                  <BadgeItem earned={b.earned} icon={b.icon} label={b.label} />
-                  {b.binary ? (
-                    <p className={`text-xs ${b.earned ? "text-ok" : "text-on-muted"}`}>
-                      {b.earned
-                        ? "No absences — flawless record."
-                        : "Attend every event with no absences."}
-                    </p>
-                  ) : (
-                    <ProgressBar
-                      current={Math.min(b.current, b.target)}
-                      target={b.target}
-                      tone={b.earned ? "ok" : "brand"}
-                      label={
-                        b.earned
-                          ? "Unlocked"
-                          : b.current > 0
-                            ? `${b.current} / ${b.target} ${b.unit} — ${b.target - b.current} to go`
-                            : `${b.target} ${b.target === 1 ? "event" : b.unit} needed`
-                      }
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-auto w-full"
-              onClick={() => navigate("/student/dashboard/community-service")}
-            >
-              Track my service
-            </Button>
-          </BaseCard>
-        </div>
-      </div>
-
-      {/* Community service ledger */}
-      <BaseCard
-        title="Community service ledger"
-        description="How penalties and adjustments move your hours."
-        icon={<FaClock />}
-        className={mobileSection === "service" ? "" : "hidden md:block"}
-        menu={
-          <label className="flex items-center gap-2 text-xs text-on-muted">
-            <span className="hidden sm:inline">Range</span>
-            <select
-              value={penaltyRange}
-              onChange={(e) => setPenaltyRange(e.target.value)}
-              className="rounded-lg border border-line bg-card px-2 py-1.5 text-xs text-on focus:outline-none focus:ring-2 focus:ring-brand/30"
-            >
-              <option value="day">This day</option>
-              <option value="week">This week</option>
-              <option value="year">This year</option>
-            </select>
-          </label>
-        }
-      >
-        <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
-          <div className="rounded-2xl border border-line bg-card-alt/50 p-4">
-            <p className="eyebrow">Community service hours</p>
-            <p className="num mt-2 text-4xl font-bold leading-none text-on">
-              {stats.totalHours}
-              <span className="ml-1 text-sm font-medium text-on-muted">hrs</span>
-            </p>
-            <div className="mt-4 space-y-2 border-t border-line pt-3 text-xs">
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-on-muted">
-                  <FaPlus className="text-[10px] text-danger" /> Added
-                </span>
-                <span className="num font-semibold text-danger">+{sumLog("penalty")} hrs</span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-on-muted">
-                  <FaMinus className="text-[10px] text-ok" /> Removed
-                </span>
-                <span className="num font-semibold text-ok">−{sumLog("removed")} hrs</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-line p-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium text-on-dim">Absent penalty</p>
-                <span className="num text-sm font-semibold text-danger">
-                  {sumLog("penalty", "absent")} hrs
-                </span>
-              </div>
-              <ProgressBar
-                className="mt-3"
-                current={Math.min(sumLog("penalty", "absent"), 8)}
-                target={8}
-                tone="danger"
-                label="0–8 hrs per absent mark"
-              />
-            </div>
-            <div className="rounded-2xl border border-line p-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium text-on-dim">Late penalty</p>
-                <span className="num text-sm font-semibold text-warn">
-                  {sumLog("penalty", "late")} hrs
-                </span>
-              </div>
-              <ProgressBar
-                className="mt-3"
-                current={Math.min(sumLog("penalty", "late"), 4)}
-                target={4}
-                tone="warn"
-                label="0–4 hrs per late mark"
-              />
-            </div>
-            <div className="alert alert-info sm:col-span-2">
-              <span aria-hidden="true" className="mt-0.5 text-xs">i</span>
-              <p className="text-xs leading-relaxed">
-                Late marks add 4 hrs and absent marks add 8 hrs to your community
-                service hours; approved excuses and removals take hours off. An
-                organizer or admin may adjust these at their discretion. Showing{" "}
-                <span className="font-semibold">{rangeLabel}</span>.
-              </p>
-            </div>
-          </div>
-        </div>
-      </BaseCard>
     </div>
   );
 };

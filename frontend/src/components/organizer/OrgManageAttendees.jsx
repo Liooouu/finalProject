@@ -39,7 +39,7 @@ const OrgManageAttendees = () => {
   const [yearLevel, setYearLevel] = useState("");
   const [section, setSection] = useState("");
 
-  usePageMeta("Manage Attendees", "Manually add or scan student attendance.");
+  usePageMeta("Manage Attendees", "Manually add or adjust student attendance.");
 
   const fetchData = useCallback(async () => {
     try {

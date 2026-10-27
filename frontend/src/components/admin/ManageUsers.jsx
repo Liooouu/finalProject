@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import {
-  FaKey,
   FaCheck,
   FaTimes,
   FaEye,
@@ -51,10 +50,25 @@ const ManageUsers = () => {
   const [showModal, setShowModal] = useState(false);
   const [csDrafts, setCsDrafts] = useState({});
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [resetTarget, setResetTarget] = useState(null);
-  const [resetClearDevices, setResetClearDevices] = useState(false);
-  const [resetPin, setResetPin] = useState(null);
-  const [resetting, setResetting] = useState(false);
+  const [faceResetTarget, setFaceResetTarget] = useState(null);
+  const [resettingFace, setResettingFace] = useState(false);
+
+  const resetFace = async () => {
+    if (!faceResetTarget) return;
+    setResettingFace(true);
+    try {
+      await api.delete(`/admin/users/${faceResetTarget._id}/face`);
+      const cleared = { ...faceResetTarget, facePhoto: "", faceEnrolledAt: null, faceConsentAt: null };
+      setUsers((previous) => previous.map((u) => u._id === cleared._id ? { ...u, ...cleared } : u));
+      setSelectedUser((previous) => previous?._id === cleared._id ? cleared : previous);
+      setFaceResetTarget(null);
+      setMessage("Face enrollment reset. The student can enroll again in Security settings.");
+      setMessageType("success");
+    } catch (err) {
+      setMessage(err.response?.data?.message || "Could not reset face enrollment");
+      setMessageType("error");
+    } finally { setResettingFace(false); }
+  };
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
   const [pendingRemoveCS, setPendingRemoveCS] = useState(null);
@@ -171,24 +185,6 @@ const ManageUsers = () => {
       console.error(err);
       setMessage(err.response?.data?.message || "Failed to delete user");
       setMessageType("error");
-    }
-  };
-
-  const resetSecurity = async (userId, clearDevices) => {
-    if (resetting) return;
-    setResetting(true);
-    try {
-      const res = await api.post(`/admin/users/${userId}/reset-security`, {
-        clearDevices,
-      });
-      setResetPin(res.data.pin);
-    } catch (err) {
-      console.error(err);
-      setResetTarget(null);
-      setMessage(err.response?.data?.message || "Failed to reset security");
-      setMessageType("error");
-    } finally {
-      setResetting(false);
     }
   };
 
@@ -311,17 +307,10 @@ const ManageUsers = () => {
     </span>
   );
 
-  const openResetPin = (user) => {
-    setResetClearDevices(false);
-    setResetPin(null);
-    setResetTarget(user);
-  };
-
   const renderUserActions = (user, compact = false) => {
     const showUnlock = user.role === "student" && isFaceLocked(user);
     const actionCount =
       1 +
-      (user.role === "student" ? 1 : 0) +
       (showUnlock ? 1 : 0) +
       (user.role !== "admin" ? 1 : 0);
 
@@ -338,18 +327,6 @@ const ManageUsers = () => {
           >
             <FaEye className="text-[11px]" />
           </Button>
-          {user.role === "student" && (
-            <Button
-              onClick={() => openResetPin(user)}
-              variant="secondary"
-              size="icon"
-              style={{ width: 28, height: 28 }}
-              title="Reset PIN"
-              aria-label={`Reset PIN for ${user.name}`}
-            >
-              <FaKey className="text-[11px]" />
-            </Button>
-          )}
           {showUnlock && (
             <Button
               onClick={() => setUnlockTarget(user)}
@@ -389,17 +366,6 @@ const ManageUsers = () => {
           <FaEye className="text-[11px]" />
           View
         </Button>
-        {user.role === "student" && (
-          <Button
-            onClick={() => openResetPin(user)}
-            variant="secondary"
-            size="sm"
-            className="w-full"
-          >
-            <FaKey className="text-[11px]" />
-            Reset PIN
-          </Button>
-        )}
         {showUnlock && (
           <Button
             onClick={() => setUnlockTarget(user)}
@@ -760,10 +726,7 @@ const ManageUsers = () => {
               <FaEye className="text-[11px] text-brand" aria-hidden="true" />
               View user details and attendance
             </span>
-            <span className="inline-flex items-center gap-2">
-              <FaKey className="text-[11px] text-brand" aria-hidden="true" />
-              Reset a student&apos;s security PIN
-            </span>
+
           </div>
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -994,6 +957,11 @@ const ManageUsers = () => {
                       className="h-16 w-16 rounded-xl border border-line object-cover sm:ml-auto"
                     />
                   )}
+                  {selectedUser.facePhoto && (
+                    <Button variant="danger" size="sm" onClick={() => setFaceResetTarget(selectedUser)}>
+                      Reset face enrollment
+                    </Button>
+                  )}
                   {isFaceLocked(selectedUser) && (
                     <Button
                       variant="secondary"
@@ -1116,54 +1084,10 @@ const ManageUsers = () => {
         busy={removingCS}
       />
 
-      <ConfirmDialog
-        open={!!resetTarget}
-        title={resetPin ? "New security PIN assigned" : "Reset this student's security PIN?"}
-        message={
-          resetPin
-            ? "Give this PIN to the student in person. It replaces their previous PIN, and any failed-attempt lockout is cleared."
-            : resetTarget
-              ? `A brand-new PIN will be generated for "${resetTarget.name}". Only an admin can recover it — relay it to the student directly.`
-              : ""
-        }
-        confirmLabel={resetPin ? "Done" : "Reset PIN"}
-        cancelLabel={resetPin ? "Close" : "Cancel"}
-        variant={resetPin ? "default" : "danger"}
-        icon={resetPin ? <FaKey /> : undefined}
-        busy={resetting}
-        onConfirm={() => {
-          if (resetPin) {
-            setResetTarget(null);
-            setResetPin(null);
-            setMessage("Student security PIN reset");
-            setMessageType("success");
-          } else {
-            const target = resetTarget;
-            resetSecurity(target._id, resetClearDevices);
-          }
-        }}
-        onCancel={() => {
-          setResetTarget(null);
-          setResetPin(null);
-        }}
-      >
-        {resetPin ? (
-          <p className="num mt-3 rounded-xl border border-dashed border-brand/40 bg-brand/5 px-4 py-3 text-center text-2xl font-bold tracking-[0.4em] text-on">
-            {resetPin}
-          </p>
-        ) : (
-          <label className="mt-3 flex items-center gap-2 text-sm text-on-dim">
-            <input
-              type="checkbox"
-              checked={resetClearDevices}
-              onChange={(e) => setResetClearDevices(e.target.checked)}
-              className="accent-[var(--brand-solid)]"
-            />
-            Also remove all trusted devices (student lost every browser)
-          </label>
-        )}
-      </ConfirmDialog>
-
+      <ConfirmDialog open={!!faceResetTarget} title="Reset face enrollment?"
+        message={`Confirm the identity of ${faceResetTarget?.name || "this student"} before resetting. Their saved face will be removed and attendance will require manual check-in until they enroll again.`}
+        confirmLabel="Reset face" variant="danger" busy={resettingFace}
+        onConfirm={resetFace} onCancel={() => setFaceResetTarget(null)} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete this user?"

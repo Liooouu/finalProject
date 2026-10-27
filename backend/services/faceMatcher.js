@@ -104,8 +104,8 @@ async function detectFaceDescriptorFromBuffer(buf) {
   try {
     // Landmark alignment (via the full 68-point model) is required for accurate
     // descriptors — without it distances compress and strangers look alike.
-    const result = await fa
-      .detectSingleFace(
+    const results = await fa
+      .detectAllFaces(
         input,
         new fa.TinyFaceDetectorOptions({
           inputSize: DEFAULT_INPUT_SIZE,
@@ -113,7 +113,11 @@ async function detectFaceDescriptorFromBuffer(buf) {
         })
       )
       .withFaceLandmarks()
-      .withFaceDescriptor();
+      .withFaceDescriptors();
+    if (results.length > 1) {
+      throw Object.assign(new Error("Only one face may be visible. Please retake the photo."), { code: "MULTIPLE_FACES" });
+    }
+    const result = results[0];
     if (!result) {
       throw Object.assign(new Error("No face detected in the image. Please look directly at the camera."), {
         code: "NO_FACE",

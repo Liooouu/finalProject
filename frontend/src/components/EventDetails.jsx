@@ -10,18 +10,10 @@ import {
   describeEventLifecycle,
   attendanceCheckInState,
 } from "../utils/helpers";
-import {
-  FaCheck,
-  FaEdit,
-  FaTrash,
-  FaUndo,
-  FaExclamationTriangle,
-  FaUsers,
-} from "react-icons/fa";
+import { FaCheck, FaEdit, FaTrash, FaUndo, FaExclamationTriangle, FaUsers, FaCamera } from "react-icons/fa";
 import Loading from "./shared/Loading";
 import { BsClipboardCheck } from "react-icons/bs";
-import { QRCodeSVG } from "qrcode.react";
-import QRScanner from "./organizer/QRScanner";
+import CheckInStation from "./organizer/CheckInStation";
 import { usePageMeta } from "../context/PageMetaContext";
 import { useAutoRefresh } from "../utils/useAutoRefresh";
 import { Button, Card, StatusChip } from "./ui";
@@ -68,11 +60,8 @@ const EventDetails = () => {
   };
   const [canManage, setCanManage] = useState(false);
   const [canManageAttendance, setCanManageAttendance] = useState(false);
-  const [qrNow, setQrNow] = useState(() => Date.now());
-  const [qrWindow, setQrWindow] = useState(() => {
-    const issuedAt = Date.now();
-    return { issuedAt, expiresAt: issuedAt + 30000 };
-  });
+  // Ticks a few times a minute so the window message flips on its own.
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [studentId, setStudentId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pendingRemoveCS, setPendingRemoveCS] = useState(null);
@@ -101,19 +90,9 @@ const EventDetails = () => {
   }, []);
 
   useEffect(() => {
-    if (role !== "student" || myAttendance) return undefined;
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      setQrNow(now);
-      setQrWindow((prev) =>
-        now >= prev.expiresAt
-          ? { issuedAt: now, expiresAt: now + 30000 }
-          : prev
-      );
-    }, 1000);
+    const interval = setInterval(() => setNowTick(Date.now()), 20000);
     return () => clearInterval(interval);
-  }, [role, myAttendance]);
+  }, []);
 
   const refreshAttendees = useCallback(async () => {
     try {
@@ -207,9 +186,9 @@ const EventDetails = () => {
     fetchData();
   }, [id]);
 
-  // Student: while the QR is showing, keep checking whether the organizer has
-  // scanned it. When attendance is recorded (present/late), return to the
-  // dashboard automatically with a confirmation toast.
+  // Student: while this page is open, watch for an attendance record written by
+  // the face kiosk or the organizer. When it appears, return to the dashboard
+  // with a confirmation toast.
   useEffect(() => {
     if (role !== "student" || !id || !event || myAttendance) return;
     let cancelled = false;
@@ -243,6 +222,14 @@ const EventDetails = () => {
       if (intervalId) clearInterval(intervalId);
     };
   }, [role, id, event, myAttendance, navigate]);
+
+  // Organizer: the kiosk runs in another tab (or another device), so the
+  // attendee list would otherwise sit stale while the queue moves.
+  useEffect(() => {
+    if (!canManageAttendance) return undefined;
+    const timer = setInterval(refreshEvent, 15000);
+    return () => clearInterval(timer);
+  }, [canManageAttendance, refreshEvent]);
 
   const handleUpdateStatus = async (stdId, status) => {
     try {
@@ -376,19 +363,6 @@ const EventDetails = () => {
     }
   };
 
-  const getQRData = () => {
-    if (!event || !studentId) return null;
-    return JSON.stringify({
-      eventId: event._id,
-      studentId: studentId,
-      timestamp: qrWindow.issuedAt,
-    });
-  };
-
-  const qrMsLeft = Math.max(0, qrWindow.expiresAt - qrNow);
-  const qrSecondsLeft = Math.ceil(qrMsLeft / 1000);
-  const qrProgress = Math.max(0, Math.min(100, (qrMsLeft / 30000) * 100));
-
   if (loading) {
     return <Loading />;
   }
@@ -414,10 +388,7 @@ const EventDetails = () => {
         String(ownerId) === String(studentId)
     );
 
-  // The QR is the student's check-in instrument, so it is only shown while the
-  // API would accept a scan. `qrNow` ticks every second, so the card flips on
-  // its own the moment the window opens or closes — no manual refresh.
-  const checkInState = attendanceCheckInState(event, qrNow);
+  const checkInState = attendanceCheckInState(event, nowTick);
 
   return (
     <div className="space-y-5">
@@ -442,18 +413,13 @@ const EventDetails = () => {
               {event.description || "No description"}
             </p>
 
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-xl border border-line bg-card-alt/40 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-on-muted">
-                  Date
-                </p>
-                <p className="mt-1 text-sm font-semibold text-on">{formatDate(event.date)}</p>
-              </div>
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-line bg-card-alt/40 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-on-muted">
                   Starts
                 </p>
                 <p className="mt-1 text-sm font-semibold text-on">
+                  {formatDate(event.date)} at{" "}
                   {formatTime12Hour(event.time)}
                 </p>
               </div>
@@ -466,11 +432,11 @@ const EventDetails = () => {
                   {formatTime12Hour(event.endTime || "23:59")}
                 </p>
               </div>
-              <div className="rounded-xl border border-line bg-card-alt/40 p-3">
+              <div className="col-span-2 min-w-0 rounded-xl border border-line bg-card-alt/40 p-3 sm:col-span-1">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-on-muted">
                   Location
                 </p>
-                <p className="mt-1 truncate text-sm font-semibold text-on" title={event.location || "TBA"}>
+                <p className="mt-1 whitespace-normal text-sm font-semibold text-on [overflow-wrap:anywhere]">
                   {event.location || "TBA"}
                 </p>
               </div>
@@ -573,11 +539,11 @@ const EventDetails = () => {
             <div className="alert alert-warn mt-4" role="status">
               <span aria-hidden="true">!</span>
               <p>
-                The QR code appears when attendance opens on{" "}
+                Attendance opens on{" "}
                 <span className="font-semibold">
                   {formatDateTime(event.attendanceWindow.start, WINDOW_FORMAT)}
                 </span>
-                .
+                . Walk to the organizer&apos;s check-in station and look at the camera.
               </p>
             </div>
           ) : checkInState === "closed" ? (
@@ -598,57 +564,24 @@ const EventDetails = () => {
               </p>
             </div>
           ) : (
-            <div className="mt-4 rounded-xl border border-line bg-card-alt/40 p-5 text-center">
-              <p
-                className={`text-sm font-medium ${
-                  checkInState === "late" ? "text-warn" : "text-on"
-                }`}
-              >
-                {checkInState === "late"
-                  ? "The attendance window has closed — scanning now records you as late."
-                  : "Show this QR code to the organizer to scan your attendance"}
-              </p>
-              <div className="mt-4 flex justify-center">
-                {getQRData() && (
-                  <div className="relative w-full max-w-[300px]">
-                    <span
-                      className={`absolute -top-2.5 right-3 z-10 rounded-full border bg-card px-2.5 py-1 text-[10px] font-semibold shadow-[var(--elev-1)] ${
-                        qrSecondsLeft <= 5
-                          ? "border-warn/40 text-warn"
-                          : "border-line text-on-dim"
-                      }`}
-                    >
-                      New code in <span className="num text-on">{qrSecondsLeft}s</span>
-                    </span>
-                    <div
-                      className={`rounded-2xl bg-white p-4 shadow-sm ring-2 transition-all duration-300 ${
-                        qrSecondsLeft <= 5 ? "ring-warn/60" : "ring-transparent"
-                      }`}
-                    >
-                      <QRCodeSVG
-                        key={qrWindow.issuedAt}
-                        value={getQRData()}
-                        size={300}
-                        level="M"
-                        includeMargin={false}
-                        className="h-auto w-full"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="mx-auto mt-4 max-w-[300px]">
-                <div className="h-1.5 overflow-hidden rounded-full bg-card-alt ring-1 ring-inset ring-line">
-                  <div
-                    className={`h-full rounded-full transition-[width] duration-1000 ease-linear ${
-                      qrSecondsLeft <= 5 ? "bg-warn" : "bg-brand"
-                    }`}
-                    style={{ width: `${qrProgress}%` }}
-                  />
+            <div className="mt-4 rounded-xl border border-line bg-card-alt/40 p-5">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
+                  <FaCamera />
+                </span>
+                <div>
+                  <p className="font-medium text-on">Check in at the organizer&apos;s station</p>
+                  <p className="mt-1 text-sm text-on-dim">
+                    Look at the camera at the organizer&apos;s face check-in station. You
+                    don&apos;t need to log in or show anything on your phone.
+                  </p>
+                  {checkInState === "late" && (
+                    <p className="mt-2 text-sm font-medium text-warn">
+                      The window has closed — checking in now marks you late and adds 4
+                      community service hours.
+                    </p>
+                  )}
                 </div>
-                <p className="mt-2 text-xs text-on-muted">
-                  Refreshes automatically every 30 seconds for security.
-                </p>
               </div>
             </div>
           )}
@@ -658,10 +591,8 @@ const EventDetails = () => {
       {/* Organizer Management Section */}
       {(canManage || canManageAttendance) && (
         <div className="space-y-4">
-          {/* QR Scanner Card */}
-          {canManageAttendance && (
-            <QRScanner eventId={id} onScanSuccess={refreshAttendees} />
-          )}
+          {/* Face check-in station */}
+          {canManageAttendance && <CheckInStation eventId={id} />}
 
           {/* Manual Attendance Card */}
           {canManageAttendance && (
@@ -674,7 +605,7 @@ const EventDetails = () => {
                   <div>
                     <h2 className="panel-heading text-base">Manual attendance</h2>
                     <p className="mt-1 text-sm text-on-dim">
-                      Add students or adjust community service hours without scanning a QR code.
+                      Add students or adjust community service hours without using the face scanner.
                     </p>
                   </div>
                 </div>
@@ -1049,7 +980,7 @@ const EventDetails = () => {
                 compact
                 icon={<FaUsers />}
                 title="No attendees yet"
-                description="Scan student QR codes to mark attendance."
+                description="Open a face check-in station or add students manually."
               />
             ) : (
               <div className="space-y-2.5">

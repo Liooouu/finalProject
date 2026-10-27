@@ -7,8 +7,8 @@ import {
   setPendingVerificationEmail,
   getPendingVerificationEmail,
   clearPendingVerificationEmail,
+  clearAuth,
 } from "../../utils/auth";
-import { getDeviceId, getDeviceLabel } from "../../utils/device";
 import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
 import {
   FaEye,
@@ -36,49 +36,6 @@ import techLight from "../../assets/images/tech-bg-light.jpg";
 const panelClasses =
   "animate-fade-up lg:rounded-[var(--panel-radius)] lg:border lg:border-line lg:bg-card lg:p-8 lg:shadow-[var(--panel-shadow)]";
 
-const PinPanel = ({ pin, isRotated, message, onContinue, loading }) => (
-  <div className={panelClasses}>
-    <div className="mb-5 flex items-start gap-3.5">
-      <span
-        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg ring-1 ring-inset ${
-          isRotated
-            ? "bg-warn/10 text-warn ring-warn/20"
-            : "bg-brand/10 text-brand ring-brand/20"
-        }`}
-      >
-        <FaKey />
-      </span>
-      <div>
-        <h1 className="font-display text-lg font-bold tracking-tight text-on">
-          {isRotated ? "Your security PIN changed" : "Save your security PIN"}
-        </h1>
-        <p className="mt-1 text-sm text-on-dim">
-          {message ||
-            (isRotated
-              ? "This is now your security PIN. Record it somewhere safe."
-              : "The system assigned this PIN. You'll need it the first time you sign in from a new device.")}
-        </p>
-      </div>
-    </div>
-
-    <div className="rounded-xl border border-dashed border-brand/40 bg-brand/5 px-4 py-5 text-center">
-      <p className="num text-2xl font-bold tracking-[0.45em] text-on sm:text-3xl">{pin}</p>
-    </div>
-
-    <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-line bg-card-alt/60 px-3.5 py-3 text-sm text-on-dim">
-      <FaShieldAlt className="mt-0.5 shrink-0 text-brand" />
-      <p>
-        Do not share your PIN. Because it rotates after each new-device sign-in, someone using only
-        your login credentials still can't get in.
-      </p>
-    </div>
-
-    <Button onClick={onContinue} disabled={loading} className="mt-6 w-full">
-      {isRotated ? "Got it, continue" : "I've saved it, continue"}
-    </Button>
-  </div>
-);
-
 const AuthPage = () => {
   // Sign-in and sign-up each own a route (/auth and /auth/signup), so the
   // switch behaves like a real page change — the URL updates and the browser's
@@ -99,41 +56,16 @@ const AuthPage = () => {
   });
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Extra auth steps introduced by the rotating security PIN
-  const [flow, setFlow] = useState("form"); // "form" | "verifyPin" | "verifyEmail" | "pinPanel" | "forgot" | "forgotPassword" | "enrollFace"
-  const [verifyEmail, setVerifyEmail] = useState("");
-  const [verifyPin, setVerifyPin] = useState("");
-  const [verifyPassword, setVerifyPassword] = useState("");
-  const [pinInfo, setPinInfo] = useState(null); // { pin, isRotated, message }
-  const [pendingAuth, setPendingAuth] = useState(null); // { token, role, next }
+  const [flow, setFlow] = useState("form");
+  const [pendingAuth, setPendingAuth] = useState(null);
   // Email-verification step (signup only).
   const [pendingEmail, setPendingEmail] = useState("");
   const [emailCode, setEmailCode] = useState("");
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [resendIn, setResendIn] = useState(0);
-  const [forgotStage, setForgotStage] = useState("form"); // "form" | "capture"
-  const [forgotPassword, setForgotPassword] = useState("");
-  const [forgotInfo, setForgotInfo] = useState(null); // response of /forgot-pin check
   const [enrolling, setEnrolling] = useState(false);
-  // Unauthenticated fallback: prove identity by email+password leg, then submit
-  // a proof photo so an admin can unlock you.
-  const [forgotAppealOpen, setForgotAppealOpen] = useState(false);
-  const [forgotAppealNote, setForgotAppealNote] = useState("");
-  const [appealSubmitting, setAppealSubmitting] = useState(false);
-  const [appealDone, setAppealDone] = useState(false);
-  // Camera-less fallback: ask an admin or event organizer to reset the security
-  // PIN on-site. Available whenever face verification can't be used (no camera,
-  // no enrolled photo, or locked out) — no photo required.
-  const [resetOpen, setResetOpen] = useState(false);
-  const [resetNote, setResetNote] = useState("");
-  const [resetSubmitting, setResetSubmitting] = useState(false);
-  const [resetDone, setResetDone] = useState(false);
-  const [resetMessage, setResetMessage] = useState("");
-
-  // Password reset ("Forgot Password?") — an emailed 6-digit code, kept fully
-  // separate from the security-PIN recovery above. Two stages: ask for the
-  // email, then the code + a new password. Deliberately signed-out-only: no
-  // token is issued here, the user returns to the sign-in form afterwards.
+  const [enrollConsent, setEnrollConsent] = useState(false);
+  const [enrollAgreed, setEnrollAgreed] = useState(false);
   const [fpStage, setFpStage] = useState("form"); // "form" (email) | "code"
   const [fpEmail, setFpEmail] = useState("");
   const [fpCode, setFpCode] = useState("");
@@ -155,6 +87,19 @@ const AuthPage = () => {
     clearPendingVerificationEmail();
     setAuth(token, role);
     navigate(`/${role}/dashboard`);
+  };
+
+  const continueAuth = (data) => {
+    if (data.role === "student" && data.requiresFaceEnrollment) {
+      setAuth(data.token, data.role);
+      setPendingAuth({ token: data.token, role: data.role });
+      setEnrollConsent(false);
+      setEnrollAgreed(false);
+      setFlow("enrollFace");
+      clearPendingVerificationEmail();
+    } else {
+      finishAuth(data.token, data.role);
+    }
   };
 
   const handleChange = (e) => {
@@ -212,18 +157,9 @@ const AuthPage = () => {
       const res = await api.post("/auth/verify-email", {
         email: pendingEmail.trim(),
         code: emailCode.trim(),
-        deviceId: getDeviceId(),
-        deviceLabel: getDeviceLabel(),
       });
 
-      setPinInfo({
-        pin: res.data.pin,
-        isRotated: false,
-        message: "Your email is verified. This PIN unlocks future sign-ins from new devices.",
-      });
-      clearPendingVerificationEmail();
-      setPendingAuth({ token: res.data.token, role: res.data.role, next: "enroll" });
-      setFlow("pinPanel");
+      continueAuth(res.data);
     } catch (err) {
       setError(err.response?.data?.message || "Something went wrong.");
     } finally {
@@ -257,24 +193,7 @@ const AuthPage = () => {
           password: formData.password.trim(),
         });
 
-        if (res.data.requiresPin) {
-          setVerifyEmail(res.data.email || formData.email.trim());
-          // Kept only in memory for the one follow-up request; the server now
-          // requires the password alongside the PIN on an unknown device.
-          setVerifyPassword(formData.password.trim());
-          setVerifyPin("");
-          setFlow("verifyPin");
-        } else if (res.data.token && res.data.pin) {
-          setPinInfo({
-            pin: res.data.pin,
-            isRotated: false,
-            message: res.data.message,
-          });
-          setPendingAuth({ token: res.data.token, role: res.data.role });
-          setFlow("pinPanel");
-        } else {
-          finishAuth(res.data.token, res.data.role);
-        }
+        continueAuth(res.data);
       } else {
         const normalizedProgram = String(formData.program || "")
           .trim()
@@ -312,13 +231,7 @@ const AuthPage = () => {
           return;
         }
 
-        setPinInfo({
-          pin: res.data.pin,
-          isRotated: false,
-          message: "Your account is ready. This PIN unlocks future sign-ins from new devices.",
-        });
-        setPendingAuth({ token: res.data.token, role: res.data.role, next: "enroll" });
-        setFlow("pinPanel");
+        continueAuth(res.data);
         setFormData({ ...formData, name: "", password: "", confirmPassword: "", email: "" });
         setShowConfirmPassword(false);
       }
@@ -332,47 +245,6 @@ const AuthPage = () => {
       setError(data?.message || "Something went wrong.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleVerifyPin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    try {
-      const res = await api.post("/auth/verify-device", {
-        email: verifyEmail,
-        password: verifyPassword,
-        pin: verifyPin.trim(),
-        deviceId: getDeviceId(),
-        deviceLabel: getDeviceLabel(),
-      });
-
-      // Verification succeeds silently — the PIN rotates in the background, and
-      // the student can view the current PIN on the Security settings page.
-      finishAuth(res.data.token, res.data.role);
-    } catch (err) {
-      setError(err.response?.data?.message || "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePinPanelContinue = () => {
-    if (pendingAuth) {
-      if (pendingAuth.next === "enroll") {
-        // Store the token now so the face enrollment call authenticates, but
-        // don't navigate until enrollment is done.
-        setAuth(pendingAuth.token, pendingAuth.role);
-        setFlow("enrollFace");
-      } else {
-        finishAuth(pendingAuth.token, pendingAuth.role);
-      }
-    } else {
-      setPinInfo(null);
-      showLogin();
-      setFlow("form");
     }
   };
 
@@ -447,7 +319,7 @@ const AuthPage = () => {
       });
 
       // Back to sign-in — this flow never signs anyone in, it only rewrites
-      // the password. The security PIN is untouched.
+      // the password. The user signs in again afterwards.
       setFlow("form");
       showLogin();
       setFpNotice("Password updated. Sign in with your new password.");
@@ -463,176 +335,13 @@ const AuthPage = () => {
     }
   };
 
-  const openForgot = () => {
-    setForgotStage("form");
-    setForgotInfo(null);
-    setVerifyEmail(formData.email.trim() || verifyEmail);
-    setForgotPassword(formData.password.trim() || forgotPassword);
-    setForgotAppealOpen(false);
-    setForgotAppealNote("");
-    setAppealDone(false);
-    setResetOpen(false);
-    setResetNote("");
-    setResetDone(false);
-    setResetMessage("");
-    setError("");
-    setFlow("forgot");
-  };
-
-  const handleForgotCheck = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      const res = await api.post("/auth/forgot-pin", {
-        email: verifyEmail.trim(),
-        password: forgotPassword,
-      });
-      setForgotInfo(res.data);
-      if (res.data.enrolled && !res.data.locked) setForgotStage("capture");
-    } catch (err) {
-      setError(err.response?.data?.message || "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRecoveryPhoto = async (blob) => {
-    setEnrolling(true);
-    setError("");
-    try {
-      const fd = new FormData();
-      fd.append("email", verifyEmail.trim());
-      fd.append("password", forgotPassword);
-      fd.append("deviceId", getDeviceId());
-      fd.append("deviceLabel", getDeviceLabel());
-      fd.append("photo", blob, "selfie.jpg");
-
-      const res = await api.post("/auth/forgot-pin/verify", fd);
-      setPinInfo({
-        pin: res.data.pin,
-        isRotated: false,
-        message: res.data.message,
-      });
-      setPendingAuth({ token: res.data.token, role: res.data.role, next: "dashboard" });
-      setFlow("pinPanel");
-    } catch (err) {
-      if (err.response?.status === 429) {
-        // Locked out mid-flow — leave the scanner and surface the appeal and
-        // camera-less reset options on the form stage.
-        setForgotInfo({ enrolled: true, locked: true });
-        setForgotStage("form");
-      }
-      setError(err.response?.data?.message || "Face verification failed. Try again.");
-    } finally {
-      setEnrolling(false);
-    }
-  };
-
-  const submitForgotAppeal = async (blob) => {
-    setAppealSubmitting(true);
-    setError("");
-    try {
-      const fd = new FormData();
-      fd.append("email", verifyEmail.trim());
-      fd.append("password", forgotPassword);
-      fd.append("note", forgotAppealNote.trim());
-      fd.append("photo", blob, "proof.jpg");
-      await api.post("/auth/forgot-pin/appeal", fd);
-      setAppealDone(true);
-      setForgotAppealOpen(false);
-      setForgotAppealNote("");
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to submit appeal. Try again.");
-    } finally {
-      setAppealSubmitting(false);
-    }
-  };
-
-  const submitResetRequest = async (e) => {
-    if (e) e.preventDefault();
-    setResetSubmitting(true);
-    setError("");
-    try {
-      const res = await api.post("/auth/forgot-pin/reset-request", {
-        email: verifyEmail.trim(),
-        password: forgotPassword,
-        note: resetNote.trim(),
-        deviceId: getDeviceId(),
-        deviceLabel: getDeviceLabel(),
-      });
-      setResetMessage(res.data.message);
-      setResetDone(true);
-      setResetOpen(false);
-      setResetNote("");
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to send your request. Try again.");
-    } finally {
-      setResetSubmitting(false);
-    }
-  };
-
-  const renderAppealBox = () => (
-    <div className="rounded-xl border border-line bg-card-alt/50 p-4">
-      <p className="mb-3 text-sm text-on-dim">
-        Take a clear photo of yourself as proof, then submit. An admin will review it and unlock
-        you.
-      </p>
-      <FaceCapture
-        title="Take proof photo"
-        onCapture={submitForgotAppeal}
-        onCancel={() => setForgotAppealOpen(false)}
-        loading={appealSubmitting}
-      />
-      <textarea
-        value={forgotAppealNote}
-        onChange={(e) => setForgotAppealNote(e.target.value)}
-        placeholder="Optional note for the admin (e.g. new phone, camera broken, changed appearance)..."
-        rows={2}
-        className={inputClasses}
-      />
-    </div>
-  );
-
-  // Camera-less path: a note-only request (no photo) that staff confirm on-site.
-  const renderResetBox = () => (
-    <form onSubmit={submitResetRequest} className="rounded-xl border border-line bg-card-alt/50 p-4">
-      <p className="mb-3 text-sm text-on-dim">
-        No camera needed. Add a note if you like, then take this request to an admin or event
-        organizer — they&apos;ll verify you in person and give you your new security PIN.
-      </p>
-      <textarea
-        value={resetNote}
-        onChange={(e) => setResetNote(e.target.value)}
-        placeholder="Optional note (e.g. which class you're from)..."
-        rows={2}
-        className={`${inputClasses} mb-3 resize-none`}
-      />
-      <div className="flex gap-2">
-        <Button type="submit" disabled={resetSubmitting} className="flex-1 py-2">
-          {resetSubmitting ? "Sending..." : "Send request"}
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => {
-            setResetOpen(false);
-            setError("");
-          }}
-          className="py-2"
-        >
-          Cancel
-        </Button>
-      </div>
-    </form>
-  );
-
   const handleEnrollPhoto = async (blob) => {
     setEnrolling(true);
     setError("");
     try {
       const fd = new FormData();
       fd.append("face", blob, "face.jpg");
+      fd.append("consent", "true");
       await api.post("/account/face", fd);
       if (pendingAuth) {
         finishAuth(pendingAuth.token, pendingAuth.role);
@@ -688,7 +397,7 @@ const AuthPage = () => {
               <p className="mt-3 max-w-md text-white/80">
                 {isLogin
                   ? "TrackED keeps event attendance in clear focus for students, organizers, and admins."
-                  : "Register with your school email, verify it with a 6-digit code, and your next event is one scan away."}
+                  : "Register with your school email, verify it with a 6-digit code, and your next event is one glance away."}
               </p>
 
               <div className="mt-9 grid gap-3 sm:grid-cols-2">
@@ -760,15 +469,7 @@ const AuthPage = () => {
             </div>
           )}
 
-            {flow === "pinPanel" && pinInfo ? (
-              <PinPanel
-                pin={pinInfo.pin}
-                isRotated={pinInfo.isRotated}
-                message={pinInfo.message}
-                onContinue={handlePinPanelContinue}
-                loading={false}
-              />
-            ) : flow === "verifyEmail" ? (
+            {flow === "verifyEmail" ? (
               <div className={panelClasses}>
                 <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
@@ -847,261 +548,6 @@ const AuthPage = () => {
                   </button>
                 </div>
               </div>
-            ) : flow === "forgot" ? (
-              <div className={panelClasses}>
-                <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-warn/10 text-warn ring-1 ring-inset ring-warn/20">
-                    <FaCamera />
-                  </span>
-                  <div>
-                    <h1 className="font-display text-xl font-bold tracking-tight text-on">
-                      Forgot your security PIN?
-                    </h1>
-                    <p className="mt-1.5 text-sm text-on-dim">
-                      Scan your face to mint a brand-new security PIN — or ask an admin or event
-                      organizer to reset it for you in person.
-                    </p>
-                  </div>
-                </div>
-
-                {error && forgotStage !== "capture" && (
-                  <div
-                    role="alert"
-                    className="alert alert-danger mb-5"
-                  >
-                    {error}
-                  </div>
-                )}
-
-                {forgotStage === "capture" ? (
-                  <>
-                    {resetDone ? (
-                      <div
-                        role="status"
-                        className="alert alert-ok alert-sm"
-                      >
-                        {resetMessage}
-                      </div>
-                    ) : resetOpen ? (
-                      renderResetBox()
-                    ) : forgotAppealOpen ? (
-                      renderAppealBox()
-                    ) : (
-                      <>
-                        <FaceCapture
-                          title="Scan my face"
-                          onCapture={handleRecoveryPhoto}
-                          onRetake={() => setError("")}
-                          loading={enrolling}
-                          loadingLabel="Verifying your face..."
-                          error={error}
-                          onCancel={() => {
-                            setForgotStage("form");
-                            setError("");
-                          }}
-                        />
-                        <div className="mt-4 flex flex-col items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setForgotAppealOpen(true)}
-                            className="text-sm font-medium text-on-dim hover:text-on"
-                          >
-                            Face not matching? Submit an appeal instead
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setResetOpen(true)}
-                            className="text-sm font-medium text-brand hover:underline"
-                          >
-                            No camera? Request a PIN reset instead
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {forgotInfo && (
-                      <div
-                        role="status"
-                        className={`alert alert-sm mb-5 ${
-                          forgotInfo.enrolled ? "alert-ok" : "alert-warn"
-                        }`}
-                      >
-                        {forgotInfo.locked
-                          ? "Too many face attempts recently. Wait a few minutes and try again."
-                          : forgotInfo.enrolled
-                            ? "Face verification is set up for this account. Take a selfie to confirm your identity."
-                            : "You don't have a face photo enrolled on this account yet. Request a PIN reset below — an admin or event organizer will verify you in person."}
-                      </div>
-                    )}
-
-                    <form onSubmit={handleForgotCheck} className="space-y-4">
-                      <div className="space-y-1.5">
-                        <label htmlFor="forgot-email" className="text-sm font-medium text-on">
-                          Email Address
-                        </label>
-                        <input
-                          id="forgot-email"
-                          type="email"
-                          value={verifyEmail}
-                          onChange={(e) => setVerifyEmail(e.target.value)}
-                          placeholder="you@university.edu"
-                          autoComplete="email"
-                          className={inputClasses}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label htmlFor="forgot-password" className="text-sm font-medium text-on">
-                          Password
-                        </label>
-                        <input
-                          id="forgot-password"
-                          type="password"
-                          value={forgotPassword}
-                          onChange={(e) => setForgotPassword(e.target.value)}
-                          placeholder="••••••••"
-                          autoComplete="current-password"
-                          className={inputClasses}
-                          required
-                        />
-                      </div>
-                                        {!isLogin && (
-                    <>
-                      <div className="space-y-1.5">
-                        <label htmlFor="program" className="text-sm font-medium text-on">Program</label>
-                        <select id="program" name="program" value={formData.program} onChange={handleChange} className={inputClasses} required>
-                          <option value="">Select Program</option>
-                          <option value="BSIT">BSIT</option>
-                          <option value="BSCS">BSCS</option>
-                          <option value="BSEMC">BSEMC</option>
-                        </select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <label htmlFor="yearLevel" className="text-sm font-medium text-on">Year Level</label>
-                          <select id="yearLevel" name="yearLevel" value={formData.yearLevel} onChange={handleChange} className={inputClasses} required>
-                            <option value="">Select Year</option>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label htmlFor="section" className="text-sm font-medium text-on">Section</label>
-                          <input id="section" type="text" name="section" value={formData.section} onChange={(e)=>setFormData({...formData,section:e.target.value.toUpperCase().replace(/[^ABC]/g,"")})} placeholder="A" maxLength={1} className={inputClasses} required />
-                        </div>
-                      </div>
-                    </>
-                  )}
-<Button type="submit" disabled={loading} className="w-full py-2.5">
-                        {loading ? "Checking..." : "Check my identity"}
-                      </Button>
-                    </form>
-
-                    {forgotInfo && (
-                      <div className="mt-5 border-t border-line pt-5">
-                        {resetDone ? (
-                          <div
-                            role="status"
-                            className="alert alert-ok alert-sm"
-                          >
-                            {resetMessage}
-                          </div>
-                        ) : resetOpen ? (
-                          renderResetBox()
-                        ) : (
-                          <>
-                            {appealDone ? (
-                              <div
-                                role="status"
-                                className="alert alert-ok alert-sm"
-                              >
-                                Appeal submitted. An admin will review your proof photo and unlock your
-                                face verification.
-                              </div>
-                            ) : forgotAppealOpen ? (
-                              renderAppealBox()
-                            ) : forgotInfo.locked ? (
-                              <div className="rounded-xl border border-warn/30 bg-warn/10 p-4">
-                                <p className="text-sm text-warn">
-                                  Camera not working while you wait? Submit an appeal with a proof photo
-                                  and an admin will review it, then unlock you.
-                                </p>
-                                <Button
-                                  type="button"
-                                  onClick={() => setForgotAppealOpen(true)}
-                                  className="mt-3 w-full py-2"
-                                >
-                                  Submit an appeal
-                                </Button>
-                              </div>
-                            ) : null}
-
-                            <div
-                              className={`rounded-xl border border-brand/30 bg-brand/10 p-4 ${
-                                appealDone || forgotAppealOpen || forgotInfo.locked ? "mt-4" : ""
-                              }`}
-                            >
-                              <p className="text-sm text-brand">
-                                No camera, or no face photo enrolled? Ask an admin or event organizer to
-                                verify you in person and reset your security PIN.
-                              </p>
-                              <Button
-                                type="button"
-                                onClick={() => setResetOpen(true)}
-                                className="mt-3 w-full py-2"
-                              >
-                                Request a PIN reset
-                              </Button>
-                            </div>
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            showLogin();
-                            setFlow("form");
-                            setForgotStage("form");
-                            setForgotInfo(null);
-                            setForgotAppealOpen(false);
-                            setAppealDone(false);
-                            setResetOpen(false);
-                            setResetNote("");
-                            setResetDone(false);
-                            setResetMessage("");
-                            setError("");
-                          }}
-                          className="mt-4 text-sm font-medium text-on-dim hover:text-on"
-                        >
-                          {appealDone || resetDone ? "Back to sign in" : "Wait and try again instead"}
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFlow("verifyPin");
-                    setForgotStage("form");
-                    setForgotInfo(null);
-                    setForgotAppealOpen(false);
-                    setAppealDone(false);
-                    setResetOpen(false);
-                    setResetNote("");
-                    setResetDone(false);
-                    setResetMessage("");
-                    setError("");
-                  }}
-                  className="mt-4 text-sm font-medium text-on-dim hover:text-on"
-                >
-                  ← Back to new device verification
-                </button>
-              </div>
             ) : flow === "enrollFace" ? (
               <div className={panelClasses}>
                 <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
@@ -1110,139 +556,102 @@ const AuthPage = () => {
                   </span>
                   <div>
                     <h1 className="font-display text-xl font-bold tracking-tight text-on">
-                      Set up face verification
+                      Enroll your face
                     </h1>
                     <p className="mt-1.5 text-sm text-on-dim">
-                      One quick selfie lets you recover your security PIN with a face scan if you
-                      ever forget it.
-                    </p>
-                  </div>
-                </div>
-
-                <FaceCapture
-                  title="Save my face"
-                  onCapture={handleEnrollPhoto}
-                  onRetake={() => setError("")}
-                  loading={enrolling}
-                  loadingLabel="Saving..."
-                  error={error}
-                  onCancel={() => {
-                    if (pendingAuth) finishAuth(pendingAuth.token, pendingAuth.role);
-                  }}
-                />
-                <p className="mt-3 text-center text-xs text-on-muted">
-                  No camera? Skip this — you can ask an admin or event organizer to reset your
-                  security PIN later from the sign-in screen.
-                </p>
-              </div>
-            ) : flow === "verifyPin" ? (
-              <div className={panelClasses}>
-                <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-                    <FaShieldAlt />
-                  </span>
-                  <div>
-                    <h1 className="font-display text-xl font-bold tracking-tight text-on">
-                      New device detected
-                    </h1>
-                    <p className="mt-1.5 text-sm text-on-dim">
-                      Signing in on <span className="font-semibold text-on">{getDeviceLabel()}</span>.
-                      Enter your 6-digit security PIN to verify this device.
+                      Attendance is recorded by face at the organizer&apos;s check-in station, so
+                      your face needs to be on file before your first event. One quick photo is
+                      enough — you never scan a QR code or show your phone.
                     </p>
                   </div>
                 </div>
 
                 {error && (
-                  <div
-                    role="alert"
-                    className="alert alert-danger mb-5"
-                  >
-                    {error}
+                  <div role="alert" className="alert alert-danger mb-4">
+                    <span aria-hidden="true">!</span>
+                    <p>{error}</p>
                   </div>
                 )}
 
-                <form onSubmit={handleVerifyPin} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label htmlFor="verify-pin" className="text-sm font-medium text-on">
-                      Security PIN
+                {!enrollConsent ? (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-line bg-card-alt/40 p-4 text-sm text-on-dim">
+                      <p className="font-medium text-on">How your face is used</p>
+                      <ul className="mt-2 list-disc space-y-1.5 pl-5">
+                        <li>
+                          Your photo is stored privately and converted into a mathematical
+                          signature used only to mark your attendance.
+                        </li>
+                        <li>
+                          Organizers see your name and attendance status — never your photo or
+                          signature.
+                        </li>
+                        <li>
+                          You can update your enrolled face later from Profile → Security.
+                        </li>
+                      </ul>
+                    </div>
+
+                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-card-alt/30 p-4 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={enrollAgreed}
+                        onChange={(e) => {
+                          setEnrollAgreed(e.target.checked);
+                          setError("");
+                        }}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--brand)]"
+                      />
+                      <span className="text-on-dim">
+                        I agree to TrackED processing my face image to record my event attendance.
+                      </span>
                     </label>
-                    <input
-                      id="verify-pin"
-                      type="password"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={6}
-                      pattern="\d{6}"
-                      value={verifyPin}
-                      onChange={(e) => {
-                        setVerifyPin(e.target.value.replace(/\D/g, ""));
+
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEnrollAgreed(false);
+                          setEnrollConsent(false);
+                          clearAuth(pendingAuth?.role);
+                          setPendingAuth(null);
+                          setFlow("form");
+                          showLogin();
+                        }}
+                        className="text-sm font-medium text-on-dim hover:text-on"
+                      >
+                        Sign out
+                      </button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => setEnrollConsent(true)}
+                        disabled={!enrollAgreed}
+                      >
+                        Continue
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <FaceCapture
+                      title="Save my face"
+                      onCapture={handleEnrollPhoto}
+                      onRetake={() => setError("")}
+                      loading={enrolling}
+                      loadingLabel="Saving..."
+                      error={error}
+                      onCancel={() => {
+                        setEnrollConsent(false);
                         setError("");
                       }}
-                      placeholder="••••••"
-                      className={`${inputClasses} text-center text-xl tracking-[0.4em]`}
-                      required
                     />
-                    <p className="flex items-center gap-1.5 text-xs text-on-muted">
-                      <FaKey className="shrink-0" />
-                      Signing in as <span className="font-semibold text-on-dim">{verifyEmail}</span>
+                    <p className="mt-3 text-center text-xs text-on-muted">
+                      Face enrollment is required for student accounts. If your camera is unavailable,
+                      contact an administrator for enrollment assistance.
                     </p>
-                  </div>
-
-                                    {!isLogin && (
-                    <>
-                      <div className="space-y-1.5">
-                        <label htmlFor="program" className="text-sm font-medium text-on">Program</label>
-                        <select id="program" name="program" value={formData.program} onChange={handleChange} className={inputClasses} required>
-                          <option value="">Select Program</option>
-                          <option value="BSIT">BSIT</option>
-                          <option value="BSCS">BSCS</option>
-                          <option value="BSEMC">BSEMC</option>
-                        </select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <label htmlFor="yearLevel" className="text-sm font-medium text-on">Year Level</label>
-                          <select id="yearLevel" name="yearLevel" value={formData.yearLevel} onChange={handleChange} className={inputClasses} required>
-                            <option value="">Select Year</option>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label htmlFor="section" className="text-sm font-medium text-on">Section</label>
-                          <input id="section" type="text" name="section" value={formData.section} onChange={(e)=>setFormData({...formData,section:e.target.value.toUpperCase().replace(/[^ABC]/g,"")})} placeholder="A" maxLength={1} className={inputClasses} required />
-                        </div>
-                      </div>
-                    </>
-                  )}
-<Button type="submit" disabled={loading} className="w-full py-2.5">
-                    {loading ? "Verifying..." : "Verify this device"}
-                  </Button>
-                </form>
-
-                <div className="mt-4 flex flex-col items-center gap-2 text-sm">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFlow("form");
-                      setVerifyPin("");
-                      setError("");
-                    }}
-                    className="font-medium text-on-dim hover:text-on"
-                  >
-                    ← Use a different account
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={openForgot}
-                    className="font-medium text-brand hover:underline"
-                  >
-                    Forgot your security PIN?
-                  </button>
-                </div>
+                  </>
+                )}
               </div>
             ) : flow === "forgotPassword" ? (
               <div className={panelClasses}>
@@ -1604,18 +1013,6 @@ const AuthPage = () => {
                     )}
                   </Button>
                 </form>
-
-                {/* The PIN recovery flow still has to be reachable now that
-                    the password row belongs to "Forgot Password?" */}
-                {isLogin && (
-                  <button
-                    type="button"
-                    onClick={openForgot}
-                    className="mt-4 block w-full text-center text-xs font-medium text-on-dim hover:text-on"
-                  >
-                    Forgot your security PIN?
-                  </button>
-                )}
 
                 <p className="mt-6 text-center text-sm text-on-dim">
                   {isLogin ? (

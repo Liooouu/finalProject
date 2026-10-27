@@ -1,13 +1,13 @@
 import React from "react";
-import { FaQrcode, FaClock, FaBell, FaChartBar } from "react-icons/fa";
+import { FaCamera, FaClock, FaBell, FaChartBar } from "react-icons/fa";
 
 // Shared feature blurb — the four cards shown on the auth page's desktop
 // panel and on the pre-login landing page.
 const features = [
   {
-    icon: <FaQrcode />,
-    title: "QR check-in",
-    desc: "Show your QR to be scanned, or mark your attendance in one tap.",
+    icon: <FaCamera />,
+    title: "Face check-in",
+    desc: "Look at the organizer's kiosk camera — no login, no QR code.",
   },
   {
     icon: <FaClock />,

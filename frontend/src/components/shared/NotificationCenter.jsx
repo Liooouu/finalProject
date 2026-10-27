@@ -79,8 +79,8 @@ const targetForNotification = (notif, role) => {
   const eventTarget = eventId ? `/${role}/dashboard/events/${eventId}` : null;
 
   if (role === "student") {
-    if (/face verification|security pin|pin reset/.test(text)) {
-      return "/student/dashboard/security";
+    if (/face verification/.test(text)) {
+      return "/student/dashboard/profile?section=security";
     }
     if (/excuse/.test(text)) {
       return "/student/dashboard/submit-excuse";
@@ -92,15 +92,13 @@ const targetForNotification = (notif, role) => {
   }
 
   if (role === "admin") {
-    if (/pin reset/.test(text)) return "/admin/dashboard/pin-resets";
-    if (/face verification appeal|impersonation|security pin|face verification/.test(text)) {
+    if (/face verification appeal|impersonation|face verification/.test(text)) {
       return "/admin/dashboard/users";
     }
     if (/excuse/.test(text)) return "/admin/dashboard/excuses";
     return eventTarget || "/admin/dashboard/events";
   }
 
-  if (/pin reset/.test(text)) return "/organizer/dashboard/pin-resets";
   if (/excuse/.test(text)) return "/organizer/dashboard/excuses";
   return eventTarget || "/organizer/dashboard/events";
 };

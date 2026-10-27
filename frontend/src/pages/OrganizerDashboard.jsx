@@ -17,7 +17,6 @@ const NotificationsPage = lazy(() => import("../components/organizer/Notificatio
 const ProfileSettings = lazy(() => import("../components/settings/ProfileSettings"));
 const EventDetails = lazy(() => import("../components/EventDetails"));
 const OrgManageAttendees = lazy(() => import("../components/organizer/OrgManageAttendees"));
-const PinResetRequests = lazy(() => import("../components/security/PinResetRequests"));
 
 const OrganizerDashboard = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -37,7 +36,6 @@ const OrganizerDashboard = () => {
                   <Route path="events/:id" element={<EventDetails />} />
                   <Route path="events/:id/attendees" element={<OrgManageAttendees />} />
                   <Route path="excuses" element={<ManageExcuses />} />
-                  <Route path="pin-resets" element={<PinResetRequests />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="profile" element={<ProfileSettings />} />
                   <Route path="*" element={<Navigate to="/organizer/dashboard" replace />} />

@@ -10,8 +10,8 @@ import { flatNavItems, navSections } from "./navItems";
  * full list for desktop.
  */
 export const TAB_NAMES = {
-  student: ["Dashboard", "Attend Events", "Community Service", "Notifications"],
-  organizer: ["Dashboard", "Manage Events", "Manage Excuses", "Notifications"],
+  student: ["Dashboard", "Attend Events", "Community Service", "Submit Excuse"],
+  organizer: ["Dashboard", "Manage Events", "Manage Excuses"],
   admin: ["Dashboard", "Manage Events", "Manage Excuses", "Manage Users"],
 };
 
@@ -23,6 +23,7 @@ const SHORT_LABEL = {
   "Manage Excuses": "Excuses",
   "Manage Users": "Users",
   "Community Service": "Service",
+  "Submit Excuse": "Excuse",
 };
 
 export const tabLabel = (name) => SHORT_LABEL[name] || name;

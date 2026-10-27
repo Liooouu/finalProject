@@ -49,6 +49,7 @@ Uses Tailwind v4 with `@tailwindcss/vite` plugin. No `tailwind.config.js` - styl
 2. Token stored in `localStorage.token`
 3. Axios interceptor adds `Authorization: Bearer <token>` to all requests
 4. ProtectedRoute checks JWT role before rendering
+5. Student login/signup continues to attendance face enrollment when not enrolled. No security PIN or trusted-device challenge is used. Email verification and Forgot Password use one-time email codes.
 
 ## Role System
 
@@ -66,8 +67,7 @@ Registration is **student-only**. Organizers must be created by admins.
 | POST /api/auth/login | None | all |
 | POST /api/auth/forgot-password | None | all |
 | POST /api/auth/forgot-password/verify | None | all |
-| POST /api/auth/forgot-pin/reset-request | None (password-gated) | student |
-| /api/admin/* | Bearer | admin (organizer also: users, security/pin-reset-requests) |
+| /api/admin/* | Bearer | admin (organizer also: student directory) |
 | /api/events/* | Bearer | varies |
 | /api/account/* | Bearer | all |
 

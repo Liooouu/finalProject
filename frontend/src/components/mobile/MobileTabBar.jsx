@@ -19,9 +19,10 @@ const MobileTabBar = ({ role, onMore, menuOpen = false }) => {
 
   const items = tabItems(role);
 
-  // Pending work can live behind "More" (PIN resets, excuses), so the trigger
+  // Pending work can live behind "More" (excuses and reviews), so the trigger
   // carries a dot rather than hiding the queue entirely.
-  const moreCount = overflowSections(role)
+  const moreSections = overflowSections(role);
+  const moreCount = moreSections
     .flatMap((section) => section.items)
     .reduce((sum, item) => sum + (item.badge ? counts[item.badge] || 0 : 0), 0);
 
@@ -75,7 +76,7 @@ const MobileTabBar = ({ role, onMore, menuOpen = false }) => {
           );
         })}
 
-        <button
+        {moreSections.length > 0 && <button
           type="button"
           onClick={onMore}
           aria-label="All sections"
@@ -100,7 +101,7 @@ const MobileTabBar = ({ role, onMore, menuOpen = false }) => {
               className="absolute inset-x-4 top-0 h-0.5 rounded-b-full bg-gradient-to-r from-[var(--brand)] to-[var(--brand-2)]"
             />
           )}
-        </button>
+        </button>}
       </div>
     </nav>
   );

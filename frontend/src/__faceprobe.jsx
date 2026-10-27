@@ -27,7 +27,7 @@ const liveVideo = () => {
 
 // Temporary probe: drives the real FaceCapture the way a student does after a
 // rejected attempt, so the retake path is exercised against a real camera feed.
-function Probe() {
+export default function Probe() {
   const mode = new URLSearchParams(location.search).get("mode") === "b" ? "b" : "a";
   const [attemptError, setAttemptError] = useState("");
   const [results, setResults] = useState(null);

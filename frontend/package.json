@@ -7,16 +7,16 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node scripts/check-auth-render.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",
+    "@vladmandic/face-api": "^1.7.15",
     "axios": "^1.13.6",
     "chart.js": "^4.5.1",
-    "html5-qrcode": "^2.3.8",
     "jwt-decode": "^4.0.0",
     "leaflet": "^1.9.4",
-    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.0",

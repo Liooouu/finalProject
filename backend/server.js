@@ -12,9 +12,11 @@ const { repairUserIndexes } = require("./services/repairUserIndexes");
 const Event = require("./models/Event");
 const User = require("./models/User");
 const Attendance = require("./models/Attendance");
+const CheckInSession = require("./models/CheckInSession");
 const { notifyUsers, eventRecipients } = require("./services/notify");
 const { isMailEnabled } = require("./services/mailer");
 const fileStore = require("./services/fileStore");
+const faceIdentify = require("./services/faceIdentify");
 const {
   STATUS,
   OPEN_STATUS_FILTER,
@@ -38,6 +40,7 @@ const reportRoutes = require("./routes/reportRoutes");
 const studentRoutes = require("./routes/studentRoutes");
 const organizerRoutes = require("./routes/organizerRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const checkinRoutes = require("./routes/checkinRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -79,6 +82,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/organizer", organizerRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/checkin", checkinRoutes);
 
 // ✅ HEALTH CHECK — used by the container HEALTHCHECK and by Coolify's health
 // probe. Reports database state without failing on it: the process only starts
@@ -142,6 +146,14 @@ connectDB()
     // are created so a first-run admin is never the only account that can exist.
     await repairUserIndexes();
 
+    // Build the 1:N face index once at boot so the first student at a check-in
+    // station isn't waiting on a full student scan. Failure is not fatal: the
+    // index refreshes lazily on first use and every five minutes after that.
+    faceIdentify
+      .refresh()
+      .then((count) => console.log(`[faceIdentify] indexed ${count} enrolled student(s)`))
+      .catch((err) => console.error("[faceIdentify] initial index failed:", err.message));
+
     // ✅ FIRST-RUN ADMIN — only when explicitly configured (Coolify sets
     // ADMIN_EMAIL/ADMIN_PASSWORD). Idempotent: it never touches an existing
     // admin, so restarts are harmless. Locally these vars are unset and the
@@ -177,6 +189,15 @@ connectDB()
       lifecycleRunning = true;
       try {
         const now = new Date();
+
+        // Kiosk station tokens are only a convenience: the window check is what
+        // actually refuses late scans. Closing the expired rows keeps the
+        // organizer's station list honest and stops old links from polling.
+        await CheckInSession.updateMany(
+          { closedAt: null, expiresAt: { $lt: now } },
+          { $set: { closedAt: now } }
+        );
+
         // Day boundaries and the clock come from the school's zone (Asia/Manila),
         // not the container's UTC — otherwise a 5:45 PM window notifies at 1:45 AM.
         const { start: today, end: todayEnd } = manilaDayRange(now);
@@ -247,6 +268,7 @@ connectDB()
                     student: student._id,
                     attendedAt: now,
                     status: "absent",
+                    method: "auto",
                     communityServiceHours: 8,
                     communityServiceLog: [
                       { action: "penalty", hours: 8, note: "Marked absent (auto)" },
@@ -342,7 +364,7 @@ connectDB()
               await notifyUsers(allStudents, {
                 type: "attendance",
                 title: "Attendance Upcoming",
-                message: `Attendance for "${event.title}" opens at ${event.attendanceStartTime}. Have your QR code ready.`,
+                message: `Attendance for "${event.title}" opens at ${event.attendanceStartTime}. Walk to the organizer's check-in station and have your face scanned.`,
                 relatedEvent: event._id,
                 event,
               });
@@ -360,7 +382,7 @@ connectDB()
               await notifyUsers(allStudents, {
                 type: "attendance",
                 title: "Attendance Open",
-                message: `Attendance is now open for "${event.title}". Mark your attendance before ${event.attendanceEndTime}.`,
+                message: `Attendance is now open for "${event.title}". Check in at the organizer's station before ${event.attendanceEndTime}.`,
                 relatedEvent: event._id,
                 event,
               });
@@ -377,7 +399,7 @@ connectDB()
             if (!openedThisPass) {
               await notifyNonAttendees(
                 "Attendance Closing Soon",
-                `The attendance window for "${event.title}" closes at ${event.attendanceEndTime}. Mark your attendance before you're marked late!`,
+                `The attendance window for "${event.title}" closes at ${event.attendanceEndTime}. Walk to the check-in station before you're marked late!`,
                 "attendance"
               );
             }
@@ -389,7 +411,7 @@ connectDB()
           if (!event.closedNotified && notice.late) {
             await notifyNonAttendees(
               "Late for Attendance",
-              `The attendance window for "${event.title}" closed at ${event.attendanceEndTime}. You can still check in until ${manilaDateTimeLabel(notice.lastCheckIn)}, but you will be marked late and receive 4 community service hours.`,
+              `The attendance window for "${event.title}" closed at ${event.attendanceEndTime}. You can still check in at the organizer's station until ${manilaDateTimeLabel(notice.lastCheckIn)}, but you will be marked late and receive 4 community service hours.`,
               "attendance"
             );
             event.closedNotified = true;

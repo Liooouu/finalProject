@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
+import { useSearchParams } from "react-router-dom";
+import SecuritySettings from "./SecuritySettings";
 import { getUserFromToken, logout } from "../../utils/auth";
 import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
 import { FaUser, FaLock, FaImage, FaCheck, FaTimes, FaDoorOpen, FaCamera } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { Button, Card, FlightPanel, PageHeader } from "../ui";
+import { Button, Card, FlightPanel, PageHeader, SegmentedControl } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Loading from "../shared/Loading";
 
 const ProfileSettings = () => {
   const user = getUserFromToken();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const section = user.role === "student" && searchParams.get("section") === "security" ? "security" : "profile";
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
@@ -143,6 +147,13 @@ const ProfileSettings = () => {
         subtitle="Update how you appear in TrackED and manage your sign-in details."
       />
 
+      {user.role === "student" && (
+        <SegmentedControl ariaLabel="Profile sections" value={section}
+          onChange={(value) => setSearchParams(value === "security" ? { section: "security" } : {})}
+          options={[{ value: "profile", label: "Profile" }, { value: "security", label: "Security" }]} />
+      )}
+
+      {section === "security" ? <SecuritySettings embedded /> : <>
       {message && (
         <div
           className={`alert ${messageType === "success" ? "alert-ok" : "alert-danger"}`}
@@ -395,6 +406,8 @@ const ProfileSettings = () => {
           </Button>
         </div>
       </div>
+
+      </>}
 
       <ConfirmDialog
         open={confirmLogout}

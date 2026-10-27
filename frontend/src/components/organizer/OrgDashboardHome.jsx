@@ -68,7 +68,7 @@ const OrganizerHome = () => {
     {
       icon: <FaBolt />,
       title: "Run an event smoothly",
-      text: "Enable QR scanning when an event is live to check students in on the spot.",
+      text: "Open a face check-in station when an event is live — students just look at the camera.",
       to: "/organizer/dashboard/events",
       cta: "Go to events",
     },

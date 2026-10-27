@@ -23,42 +23,10 @@ const {
   eventLiveNotification,
 } = require("../services/eventLifecycle");
 
-// Strict ownership: only the creator or an admin. Destructive actions (delete)
-// stay here; normal event operations use canManageEventOrAdminCreated below.
-function canManageEvent(event, user) {
-  if (!event || !user) return false;
-  if (user.role === "admin") return true;
-  if (user.role !== "organizer") return false;
-  return String(event.organizer) === String(user._id);
-}
-
-// Organizers run their own events and events an admin created. This covers
-// attendance plus editing/status changes; deleting an admin-created event still
-// requires the admin or the event's original creator.
-async function canManageEventOrAdminCreated(event, user) {
-  if (!event || !user) return false;
-  if (user.role === "admin") return true;
-  if (user.role !== "organizer") return false;
-
-  const ownerId = event.organizer?._id || event.organizer;
-  if (String(ownerId) === String(user._id)) return true;
-
-  const creator = await User.findById(ownerId).select("role").lean();
-  return creator?.role === "admin";
-}
-
-// Age of a scanned QR payload in milliseconds, or null when no timestamp was
-// sent. Accepts epoch seconds/ms or an ISO string.
-function qrTimestampAgeMs(timestamp) {
-  if (timestamp === undefined || timestamp === null || timestamp === "") return null;
-  const numeric = Number(timestamp);
-  if (Number.isFinite(numeric)) {
-    const ms = numeric < 1e12 ? numeric * 1000 : numeric;
-    return Date.now() - ms;
-  }
-  const parsed = Date.parse(timestamp);
-  return Number.isNaN(parsed) ? NaN : Date.now() - parsed;
-}
+// Event ownership lives in one service so the face kiosk and the event routes
+// cannot disagree about who may manage an event.
+const { canManageEvent, canManageEventOrAdminCreated } = require("../services/eventAccess");
+const { takeExcuseRestore } = require("../services/attendanceMarking");
 
 // In-flight create promises, keyed by organizer + event identity. Serializes
 // double-clicks on a slow network so both can't pass the duplicate check.
@@ -66,23 +34,6 @@ const inFlightCreates = new Map();
 function createKey(userId, title, date, time) {
   const day = date instanceof Date ? date.toISOString() : String(date || "");
   return [userId, String(title || "").trim().toLowerCase(), day, String(time || "").trim()].join("|");
-}
-
-// An approved excuse may have deducted flat hours. If the student ends up
-// attending after all, those hours must come back — attendance supersedes the
-// excuse. Returns the number of hours to restore and marks the excuse spent.
-async function takeExcuseRestore(studentId, eventId) {
-  const excuse = await Excuse.findOne({
-    student: studentId,
-    event: eventId,
-    status: "approved",
-    removedHours: { $gt: 0 },
-  });
-  if (!excuse) return 0;
-  const hours = excuse.removedHours;
-  excuse.removedHours = 0;
-  await excuse.save();
-  return hours;
 }
 
 // Rejects a schedule the system could never make sense of: unparseable dates,
@@ -406,247 +357,6 @@ router.get("/:id", protect, async (req, res) => {
 });
 
 // MARK ATTENDANCE (students)
-router.post("/:id/attendance", protect, async (req, res) => {
-  try {
-    const event = await Event.findById(req.params.id);
-    if (!event) return res.status(404).json({ error: "Event not found" });
-
-    if (req.user.role !== "student") {
-      return res.status(403).json({ error: "Only students can mark attendance" });
-    }
-
-    const now = new Date();
-
-    if (isTerminal(event.status)) {
-      const label = event.status === STATUS.CLOSED ? "closed" : "already finished";
-      return res.status(400).json({ error: `This event is ${label} — attendance can no longer be marked` });
-    }
-
-    // Attendance is only accepted inside the real window (no early check-in at
-    // 00:01, no late check-in after the grace period). `eventWindow` resolves
-    // the window as Manila instants, so a window that crosses midnight works.
-    const window = eventWindow(event);
-    const lastCheckIn = eventLastCheckInAt(event);
-    if (!window || !lastCheckIn) {
-      return res.status(400).json({ error: "This event has no valid attendance window" });
-    }
-
-    let attendance = await Attendance.findOne({
-      event: req.params.id,
-      student: req.user._id,
-    });
-
-    if (attendance && attendance.status !== "excused") {
-      return res.status(400).json({ error: "Attendance already marked" });
-    }
-
-    if (now < window.start) {
-      return res.status(400).json({ error: "Attendance is not open yet" });
-    }
-    if (now > lastCheckIn) {
-      return res.status(400).json({ error: "The attendance window has closed" });
-    }
-
-    let status = "present";
-    let communityServiceHours = 0;
-
-    // After the window closes but before the event is over, a check-in is late.
-    if (now > window.end) {
-      status = "late";
-      communityServiceHours = 4;
-    }
-
-    const replacedExcuse = attendance && attendance.status === "excused";
-    const restoredHours = replacedExcuse
-      ? await takeExcuseRestore(req.user._id, event._id)
-      : 0;
-
-    if (replacedExcuse) {
-      // Student had an approved advance excuse but attended anyway
-      attendance.attendedAt = now;
-      attendance.status = status;
-      attendance.communityServiceHours = communityServiceHours + restoredHours;
-      if (communityServiceHours > 0) {
-        attendance.communityServiceLog.push({
-          action: "penalty",
-          hours: communityServiceHours,
-          note: "Marked late",
-        });
-      }
-      if (restoredHours > 0) {
-        attendance.communityServiceLog.push({
-          action: "restored",
-          hours: restoredHours,
-          note: "Approved excuse replaced by attendance",
-        });
-      }
-      await attendance.save();
-    } else {
-      attendance = new Attendance({
-        event: req.params.id,
-        student: req.user._id,
-        attendedAt: now,
-        status,
-        communityServiceHours,
-        communityServiceLog:
-          communityServiceHours > 0
-            ? [{ action: "penalty", hours: communityServiceHours, note: "Marked late" }]
-            : [],
-      });
-
-      await attendance.save();
-    }
-
-    if (status === "late") {
-      await notifyUsers([req.user], {
-        type: "attendance",
-        title: "Marked Late",
-        message: `You were late for the event "${event.title}".${replacedExcuse ? " Your approved excuse was replaced since you attended." : ""} 4 community service hours have been added to your total.`,
-        relatedEvent: event._id,
-        event,
-      });
-    }
-
-    res.status(201).json({
-      ...attendance.toObject(),
-      message: replacedExcuse
-        ? `Your approved excuse was replaced — you were marked ${status}.`
-        : undefined,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// SCAN ATTENDANCE (organizer scans student QR)
-router.post("/:id/attendance/scan", protect, async (req, res) => {
-  try {
-    const { studentId, timestamp } = req.body;
-
-    if (!studentId) {
-      return res.status(400).json({ error: "Student ID is required" });
-    }
-
-    const event = await Event.findById(req.params.id);
-    if (!event) return res.status(404).json({ error: "Event not found" });
-
-    if (!(await canManageEventOrAdminCreated(event, req.user))) {
-      return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
-    }
-
-    const now = new Date();
-
-    // Same day/status/window rules as self-marking: scanning days early or late,
-    // or after the event closed, must not record attendance.
-    if (isTerminal(event.status)) {
-      const label = event.status === STATUS.CLOSED ? "closed" : "already finished";
-      return res.status(400).json({ error: `This event is ${label} — attendance can no longer be marked` });
-    }
-    const window = eventWindow(event);
-    const lastCheckIn = eventLastCheckInAt(event);
-    if (!window || !lastCheckIn) {
-      return res.status(400).json({ error: "This event has no valid attendance window" });
-    }
-    if (now < window.start) {
-      return res.status(400).json({ error: "Attendance is not open yet" });
-    }
-    if (now > lastCheckIn) {
-      return res.status(400).json({ error: "The attendance window has closed" });
-    }
-
-    // Reject stale/replayed QR payloads. A missing timestamp is tolerated for
-    // older clients, but a present one must be recent.
-    const age = qrTimestampAgeMs(timestamp);
-    if (age !== null && (Number.isNaN(age) || age > 10 * 60 * 1000 || age < -60 * 1000)) {
-      return res.status(400).json({ error: "This QR code has expired. Ask the student to refresh it." });
-    }
-
-    const student = await User.findById(studentId);
-    if (!student) return res.status(404).json({ error: "Student not found" });
-    if (student.role !== "student") return res.status(400).json({ error: "This user is not a student" });
-
-    let attendance = await Attendance.findOne({
-      event: req.params.id,
-      student: studentId,
-    });
-
-    if (attendance && attendance.status !== "excused") {
-      return res.status(400).json({ error: `${student.name} has already marked attendance` });
-    }
-
-    let status = "present";
-    let communityServiceHours = 0;
-
-    // Late once the window closes, until the event's own end / grace runs out.
-    if (now > window.end) {
-      status = "late";
-      communityServiceHours = 4;
-    }
-
-    const replacedExcuse = attendance && attendance.status === "excused";
-    const restoredHours = replacedExcuse
-      ? await takeExcuseRestore(studentId, event._id)
-      : 0;
-
-    if (replacedExcuse) {
-      // Student had an approved advance excuse but attended anyway
-      attendance.attendedAt = now;
-      attendance.status = status;
-      attendance.communityServiceHours = communityServiceHours + restoredHours;
-      if (communityServiceHours > 0) {
-        attendance.communityServiceLog.push({
-          action: "penalty",
-          hours: communityServiceHours,
-          note: "Marked late (scanned)",
-        });
-      }
-      if (restoredHours > 0) {
-        attendance.communityServiceLog.push({
-          action: "restored",
-          hours: restoredHours,
-          note: "Approved excuse replaced by attendance",
-        });
-      }
-      await attendance.save();
-    } else {
-      attendance = new Attendance({
-        event: req.params.id,
-        student: studentId,
-        attendedAt: now,
-        status,
-        communityServiceHours,
-        communityServiceLog:
-          communityServiceHours > 0
-            ? [{ action: "penalty", hours: communityServiceHours, note: "Marked late (scanned)" }]
-            : [],
-      });
-
-      await attendance.save();
-    }
-
-    if (status === "late") {
-      await notifyUsers([student], {
-        type: "attendance",
-        title: "Marked Late",
-        message: `You were marked as late for the event "${event.title}" by the organizer. 4 community service hours have been added to your total.`,
-        relatedEvent: event._id,
-        event,
-      });
-    }
-
-    const populatedAttendance = await Attendance.findById(attendance._id)
-      .populate("student", "name email");
-
-    res.status(201).json({
-      success: true,
-      attendance: populatedAttendance,
-      message: `${student.name} marked as ${status}${replacedExcuse ? " (approved excuse replaced)" : ""}`,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // GET ATTENDEES (organizers)
 router.get("/:id/attendees", protect, async (req, res) => {
   try {
@@ -768,6 +478,7 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
         student: req.params.studentId,
         attendedAt: new Date(),
         status,
+        method: "manual",
         communityServiceHours,
         communityServiceLog:
           communityServiceHours > 0
@@ -783,6 +494,7 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
           ? await takeExcuseRestore(req.params.studentId, event._id)
           : 0;
       attendance.status = status;
+      attendance.method = "manual";
       attendance.communityServiceHours = communityServiceHours + restoredHours;
 
       const delta = communityServiceHours - previousHours;

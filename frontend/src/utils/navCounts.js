@@ -36,29 +36,21 @@ const load = async () => {
 
   try {
     if (role === "organizer") {
-      const [stats, pins] = await Promise.allSettled([
+      const [stats] = await Promise.allSettled([
         api.get("/organizer/stats"),
-        api.get("/admin/security/pin-reset-requests", { params: { status: "pending" } }),
       ]);
       if (stats.status === "fulfilled") {
         next.excuses = stats.value.data?.pendingExcuses || 0;
-      }
-      if (pins.status === "fulfilled") {
-        next.pinResets = pins.value.data?.length || 0;
       }
     }
 
     if (role === "admin") {
-      const [stats, pins, appeals] = await Promise.allSettled([
+      const [stats, appeals] = await Promise.allSettled([
         api.get("/organizer/stats"),
-        api.get("/admin/security/pin-reset-requests", { params: { status: "pending" } }),
         api.get("/admin/security/face-appeals", { params: { status: "pending" } }),
       ]);
       if (stats.status === "fulfilled") {
         next.excuses = stats.value.data?.pendingExcuses || 0;
-      }
-      if (pins.status === "fulfilled") {
-        next.pinResets = pins.value.data?.length || 0;
       }
       if (appeals.status === "fulfilled") {
         next.appeals = appeals.value.data?.length || 0;

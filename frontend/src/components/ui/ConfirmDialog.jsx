@@ -7,7 +7,7 @@ import { FaExclamationTriangle } from "react-icons/fa";
  * ConfirmDialog — the app's standard "are you sure?" popup.
  * Overlay with a Yes/Cancel choice, Escape + backdrop-click to dismiss.
  * `busy` disables dismissal while an async action is in flight so a pending
- * result (e.g. a freshly minted PIN) can't be dismissed and lost.
+ * result (e.g. a completed action) can't be dismissed and lost.
  */
 const ConfirmDialog = ({
   open,

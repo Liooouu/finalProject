@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
 const User = require("../models/User");
@@ -6,13 +6,13 @@ const Attendance = require("../models/Attendance");
 const Excuse = require("../models/Excuse");
 const Notification = require("../models/Notification");
 const FaceAppeal = require("../models/FaceAppeal");
-const PinResetRequest = require("../models/PinResetRequest");
 const { protect, authorize } = require("../middleware/authMiddleware");
 const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
 const { getRawEmailSetting, saveEmailSetting } = require("../services/appSettings");
 const { resetTransporter, sendMail, isMailEnabled } = require("../services/mailer");
 const { notifyUsers } = require("../services/notify");
 const fileStore = require("../services/fileStore");
+const faceIdentify = require("../services/faceIdentify");
 const { seal } = require("../utils/secretBox");
 
 // ADMIN CREATES ORGANIZER
@@ -159,6 +159,7 @@ router.patch("/users/:id", protect, authorize("admin"), async (req, res) => {
     await user.save();
     const sanitized = user.toObject();
     delete sanitized.password;
+    delete sanitized.faceDescriptor;
     delete sanitized.pinHash;
     delete sanitized.pinPlain;
     delete sanitized.emailVerificationCodeHash;
@@ -170,6 +171,41 @@ router.patch("/users/:id", protect, authorize("admin"), async (req, res) => {
       return res.status(400).json({ message: "Email already exists" });
     }
     res.status(500).json({ message: error.message });
+  }
+});
+
+// RESET A STUDENT'S FACE ENROLLMENT (admin)
+// Optional support action. Students can also replace their own face photo
+// from Profile > Security.
+router.delete("/users/:id/face", protect, authorize("admin"), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.role !== "student") {
+      return res.status(400).json({ message: "Only student accounts have an attendance face" });
+    }
+
+    const previous = user.facePhoto;
+    user.facePhoto = "";
+    user.faceDescriptor = [];
+    user.faceEnrolledAt = null;
+    user.faceConsentAt = null;
+    user.faceEnrollmentVersion = (user.faceEnrollmentVersion || 0) + 1;
+    await user.save();
+
+    faceIdentify.remove(user._id);
+    if (previous) {
+      await fileStore.deleteByUrl(previous).catch((err) => {
+        console.error("face reset cleanup error:", err.message);
+      });
+    }
+
+    res.json({
+      message: "Face enrollment reset. The student can enroll again.",
+      id: user._id,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -212,58 +248,10 @@ router.delete(
         Excuse.deleteMany({ student: user._id }),
         Notification.deleteMany({ user: user._id }),
         FaceAppeal.deleteMany({ student: user._id }),
-        PinResetRequest.deleteMany({ student: user._id }),
       ]);
+      faceIdentify.remove(user._id);
 
       res.json({ message: "User deleted successfully" });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Server error" });
-    }
-  }
-);
-
-// RESET STUDENT SECURITY (admin)
-// Mints a fresh security PIN and returns it so the admin can relay it (student
-// forgot their PIN, lost every device, or got locked out). Optionally clears
-// all trusted devices too.
-router.post(
-  "/users/:id/reset-security",
-  protect,
-  authorize("admin"),
-  async (req, res) => {
-    try {
-      const user = await User.findById(req.params.id);
-
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      if (user.role !== "student") {
-        return res.status(400).json({ message: "Only student accounts have a security PIN" });
-      }
-
-      const pin = User.generatePin();
-      await user.setPin(pin);
-      user.pinAttempts = 0;
-      user.pinLockUntil = null;
-      // A security reset must also unlock face verification — otherwise a
-      // student locked out of the face scanner stays locked even after their
-      // PIN is reset.
-      user.faceAttempts = 0;
-      user.faceLockUntil = null;
-      const clearDevices = req.body.clearDevices === true;
-      if (clearDevices) {
-        user.trustedDevices = [];
-      }
-      await user.save();
-
-      console.log("Admin reset security for", user.email);
-
-      res.json({
-        message: "Student security reset",
-        pin,
-        devicesCleared: clearDevices,
-      });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Server error" });
@@ -381,115 +369,6 @@ router.post(
       console.log(`Admin ${action} appeal of`, appeal.student.email);
 
       res.json({ appeal, message: `Appeal ${action}` });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Server error" });
-    }
-  }
-);
-
-// LIST PIN RESET REQUESTS (admin/organizer)
-// Camera-less students file these from the sign-in screen; staff verify them
-// in person before any PIN is minted. Organizers see the whole queue.
-router.get(
-  "/security/pin-reset-requests",
-  protect,
-  authorize("admin", "organizer"),
-  async (req, res) => {
-    try {
-      const filter = {};
-      if (req.query.status) filter.status = req.query.status;
-      const requests = await PinResetRequest.find(filter)
-        .populate("student", "name email program yearLevel section")
-        .sort({ createdAt: -1 });
-      res.json(requests);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Server error" });
-    }
-  }
-);
-
-// REVIEW A PIN RESET REQUEST (admin/organizer)
-// Approve -> mints a fresh PIN, clears every lockout, trusts the device the
-// request came from (so the student can sign in with their password alone and
-// read the PIN), and returns the PIN for the reviewer to relay in person.
-// Reject -> records the reason and notifies the student.
-router.post(
-  "/security/pin-reset-requests/:id/review",
-  protect,
-  authorize("admin", "organizer"),
-  async (req, res) => {
-    try {
-      const { action, note, clearDevices } = req.body;
-      if (!["approved", "rejected"].includes(action)) {
-        return res.status(400).json({ message: "action must be 'approved' or 'rejected'" });
-      }
-
-      if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-        return res.status(404).json({ message: "Reset request not found" });
-      }
-      // Claim atomically: two reviewers clicking at once must not both mint a
-      // PIN (the second would invalidate the one shown to the student).
-      const request = await PinResetRequest.findOneAndUpdate(
-        { _id: req.params.id, status: "pending" },
-        {
-          status: action,
-          reviewedBy: req.user._id,
-          responseNote: (note || "").trim(),
-        },
-        { new: true }
-      );
-      if (!request) {
-        const existing = await PinResetRequest.findById(req.params.id);
-        if (!existing) {
-          return res.status(404).json({ message: "Reset request not found" });
-        }
-        return res.status(400).json({ message: `This request was already ${existing.status}` });
-      }
-
-      // Load the full document: setPin/trustDevice mutate fields we need intact.
-      const student = await User.findById(request.student);
-      if (!student) {
-        return res.status(404).json({ message: "Student not found" });
-      }
-
-      let pin = null;
-      if (action === "approved") {
-        pin = User.generatePin();
-        await student.setPin(pin);
-        student.pinAttempts = 0;
-        student.pinLockUntil = null;
-        student.faceAttempts = 0;
-        student.faceLockUntil = null;
-        if (clearDevices === true) student.trustedDevices = [];
-        // Trusted last so a device wipe can never lock the student back out.
-        if (request.deviceId) {
-          student.trustDevice(request.deviceId, request.deviceLabel);
-        }
-        await student.save();
-      }
-      await request.save();
-
-      await notifyUsers([student], {
-        type: "system",
-        title:
-          action === "approved"
-            ? "Security PIN reset approved"
-            : "Security PIN reset rejected",
-        message:
-          action === "approved"
-            ? `Your identity was verified. Your new security PIN is ${pin}.`
-            : `Your security PIN reset request was rejected.${request.responseNote ? ` Reason: ${request.responseNote}` : ""} Ask an admin if you need help.`,
-      });
-
-      console.log(
-        `${req.user.role} ${action} PIN reset request of`,
-        student.email
-      );
-
-      await request.populate("student", "name email program yearLevel section");
-      res.json({ request, pin, message: `Request ${action}` });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Server error" });

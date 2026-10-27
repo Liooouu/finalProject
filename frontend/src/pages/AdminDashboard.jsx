@@ -20,7 +20,6 @@ const NotificationsPage = lazy(() => import("../components/organizer/Notificatio
 const ProfileSettings = lazy(() => import("../components/settings/ProfileSettings"));
 const EventDetails = lazy(() => import("../components/EventDetails"));
 const OrgManageAttendees = lazy(() => import("../components/organizer/OrgManageAttendees"));
-const PinResetRequests = lazy(() => import("../components/security/PinResetRequests"));
 const EmailSettings = lazy(() => import("../components/admin/EmailSettings"));
 
 const AdminDashboard = () => {
@@ -43,7 +42,6 @@ const AdminDashboard = () => {
                   <Route path="events/:id/attendees" element={<OrgManageAttendees />} />
                   <Route path="excuses" element={<ManageExcuses />} />
                   <Route path="users" element={<ManageUsers />} />
-                  <Route path="pin-resets" element={<PinResetRequests />} />
                   <Route path="reports" element={<AttendanceReport />} />
                   <Route path="settings/email" element={<EmailSettings />} />
                   <Route path="notifications" element={<NotificationsPage role="admin" />} />

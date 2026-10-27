@@ -56,8 +56,8 @@ export const getToken = () => {
   return localStorage.getItem("token");
 };
 
-export const clearAuth = () => {
-  const context = getContextRole();
+export const clearAuth = (role = getContextRole()) => {
+  const context = role;
   localStorage.removeItem("token");
   if (context) localStorage.removeItem(`token_${context}`);
 };

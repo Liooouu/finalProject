@@ -11,7 +11,7 @@ const FaceAppeal = require("../models/FaceAppeal");
 const fileStore = require("../services/fileStore");
 const { notifyAdmins } = require("../services/notifyAdmins");
 const { notifyUsers } = require("../services/notify");
-const { isTerminal, eventStartsAt } = require("../services/eventLifecycle");
+const { isValidObjectId } = require("mongoose");
 
 const imageFilter = (req, file, cb) => {
   // JPEG/PNG only — these files are served back from the app origin, so
@@ -22,10 +22,22 @@ const imageFilter = (req, file, cb) => {
   cb(new Error("Only JPEG or PNG images are allowed"));
 };
 
+const attachmentTypes = {
+  ".pdf": ["application/pdf"],
+  ".doc": ["application/msword"],
+  ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  ".jpg": ["image/jpeg"], ".jpeg": ["image/jpeg"], ".png": ["image/png"],
+};
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 4 * 1024 * 1024 },
-  fileFilter: imageFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = attachmentTypes[path.extname(file.originalname).toLowerCase()];
+    if (allowed?.includes(file.mimetype)) return cb(null, true);
+    const error = new Error("Only PDF, DOC, DOCX, JPEG or PNG attachments are allowed");
+    error.status = 400;
+    cb(error);
+  },
 });
 
 const appealUpload = multer({
@@ -89,7 +101,11 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
     }
 
     const { eventId, excuseText } = req.body;
-    const type = req.body.type === "advance" ? "advance" : "absence";
+    if (!isValidObjectId(eventId)) return res.status(400).json({ error: "Please select a valid missed event" });
+    if (!String(excuseText || "").trim()) return res.status(400).json({ error: "Please provide an excuse description" });
+    if (req.body.type && req.body.type !== "absence") return res.status(400).json({ error: "Only missed-event excuses are supported" });
+    if (!req.files?.length) return res.status(400).json({ error: "At least one supporting attachment is required" });
+    const type = "absence";
 
     const event = await Event.findById(eventId);
     if (!event) {
@@ -111,39 +127,11 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
       });
     }
 
-    if (type === "advance") {
-      // Advance excuses must be filed before the event starts, while it can
-      // still be missed. Otherwise a student could file one after the event
-      // ends but before the absence job runs and dodge the penalty.
-      const startsAt = eventStartsAt(event);
-      if (isTerminal(event.status) || !startsAt || startsAt <= new Date()) {
-        return res.status(400).json({
-          error: "Advance excuses can only be filed for upcoming events",
-        });
-      }
-
-      // Upcoming events only — student must not have an attendance record yet
-      const existingAttendance = await Attendance.findOne({
-        event: eventId,
-        student: req.user._id,
-      });
-      if (existingAttendance) {
-        return res.status(400).json({
-          error: "You already have an attendance record for this event",
-        });
-      }
-    } else {
-      // Absence excuses require an actual absence
-      const absentRecord = await Attendance.findOne({
-        event: eventId,
-        student: req.user._id,
-        status: "absent",
-      });
-      if (!absentRecord) {
-        return res.status(400).json({
-          error: "You can only file absence excuses for events you were marked absent in",
-        });
-      }
+    const absentRecord = await Attendance.findOne({
+      event: eventId, student: req.user._id, status: "absent",
+    });
+    if (!absentRecord) {
+      return res.status(400).json({ error: "You can only file excuses for events you were marked absent in" });
     }
 
     for (const file of req.files || []) {
@@ -157,7 +145,7 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
     const excuse = new Excuse({
       student: req.user._id,
       event: eventId,
-      excuseText,
+      excuseText: String(excuseText).trim(),
       attachmentUrl: savedUrls[0] || null,
       attachments: savedUrls,
       type,
@@ -173,9 +161,7 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
       await notifyUsers(reviewers, {
         type: "excuse",
         title: "New Excuse Letter",
-        message: `${req.user.name} submitted an ${
-          type === "advance" ? "advance" : "absence"
-        } excuse letter for "${event.title}". It awaits your review.`,
+        message: `${req.user.name} submitted an absence excuse letter for "${event.title}". It awaits your review.`,
         relatedEvent: event._id,
         event,
       }).catch((e) => console.error("EXCUSE NOTIFY ERROR:", e.message));

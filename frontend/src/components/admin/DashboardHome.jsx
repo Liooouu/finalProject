@@ -12,7 +12,6 @@ import {
   FaCheckCircle,
   FaClipboardList,
   FaClock,
-  FaKey,
   FaMapMarkerAlt,
   FaPlus,
   FaRegClock,
@@ -187,11 +186,10 @@ const fetchDashboard = () =>
     api.get("/reports/users"),
     api.get("/reports/attendance"),
     api.get("/admin/security/face-appeals", { params: { status: "pending" } }),
-    api.get("/admin/security/pin-reset-requests", { params: { status: "pending" } }),
   ]);
 
 const dashboardStateFrom = (results) => {
-  const [eventsRes, usersRes, attendanceRes, appealsRes, pinsRes] = results;
+  const [eventsRes, usersRes, attendanceRes, appealsRes] = results;
 
   if ([eventsRes, usersRes, attendanceRes].every((result) => result.status === "rejected")) {
     return {
@@ -210,7 +208,6 @@ const dashboardStateFrom = (results) => {
     records: attendanceRes.status === "fulfilled" ? attendanceRes.value.data.records || [] : [],
     stats: attendanceRes.status === "fulfilled" ? attendanceRes.value.data.stats || null : null,
     appeals: appealsRes.status === "fulfilled" ? appealsRes.value.data || [] : [],
-    pinResets: pinsRes.status === "fulfilled" ? pinsRes.value.data || [] : [],
   };
 };
 
@@ -226,7 +223,6 @@ const DashboardHome = () => {
     records: [],
     stats: null,
     appeals: [],
-    pinResets: [],
   });
   // Phones only have room for one chart at a time; desktop shows both.
   const [chartView, setChartView] = useState("pulse");
@@ -328,7 +324,7 @@ const DashboardHome = () => {
       studentsSpark: monthlySeries(studentUsers, "createdAt"),
       organizersSpark: monthlySeries(organizerUsers, "createdAt"),
       rateSpark: weeklyRateSeries(records),
-      attentionTotal: state.appeals.length + state.pinResets.length + live,
+      attentionTotal: state.appeals.length + live,
     };
   }, [state, isDark]);
 
@@ -454,15 +450,6 @@ const DashboardHome = () => {
       icon: <FaShieldAlt />,
       tone: "warn",
       to: "/admin/dashboard/users",
-    },
-    {
-      key: "pins",
-      label: "PIN reset requests",
-      hint: "Verify students on-site",
-      count: state.pinResets.length,
-      icon: <FaKey />,
-      tone: "info",
-      to: "/admin/dashboard/pin-resets",
     },
     {
       key: "live",
@@ -872,7 +859,7 @@ const DashboardHome = () => {
           <EmptyState
             icon={<FaClipboardList />}
             title="No attendance records yet"
-            description="Scan a student QR at a live event to create the first record."
+            description="Open a face check-in station at a live event to create the first record."
           />
         ) : (
           <>

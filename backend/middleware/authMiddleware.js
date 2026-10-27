@@ -13,9 +13,9 @@ const protect = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     // Exclude every credential secret, not just the password: the code hashes
-    // and the PIN hash must never ride along on req.user into a response.
+    // and legacy authentication fields must never enter a response.
     const user = await User.findById(decoded.id).select(
-      "-password -pinHash -emailVerificationCodeHash -passwordResetCodeHash"
+      "-password -pinHash -pinPlain -trustedDevices -emailVerificationCodeHash -passwordResetCodeHash"
     );
     if (!user) {
       return res.status(401).json({ message: "Not authorized, user no longer exists" });
