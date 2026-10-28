@@ -12,6 +12,7 @@ import { getUserFromToken } from "../../utils/auth";
 import { FaCalendarAlt, FaPlus } from "react-icons/fa";
 import { MdClose } from "react-icons/md";
 import { usePageMeta } from "../../context/PageMetaContext";
+import { readScreen, writeScreen } from "../../utils/queryCache";
 import {
   Button,
   Card,
@@ -52,12 +53,12 @@ const EMPTY_FORM = {
 const OrgManageEvents = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [events, setEvents] = useState([]);
+  const [events, setEvents] = useState(() => readScreen("organizer:events:all")?.events ?? []);
   const periodSelection = useOrganizerPeriod();
   const { period, semester } = periodSelection;
   const [page, setPage] = useState(1);
   const [loadError, setLoadError] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => readScreen("organizer:events:all") === undefined);
   const [showForm, setShowForm] = useState(searchParams.get("create") === "1");
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
@@ -85,8 +86,22 @@ const OrgManageEvents = () => {
     const endpoint = viewMode === "my" ? "/events/my-events" : "/events/all";
     return api
       .get(endpoint)
-      .then((res) => { setEvents(res.data); setLoadError(false); setLoading(false); })
+      .then((res) => {
+        setEvents(res.data);
+        setLoadError(false);
+        setLoading(false);
+        writeScreen(`organizer:events:${viewMode}`, { events: res.data });
+      })
       .catch(() => { setLoadError(true); setLoading(false); });
+  }, [viewMode]);
+
+  // Switching between "All events" and "My events" is instant on a revisit.
+  useEffect(() => {
+    const seeded = readScreen(`organizer:events:${viewMode}`);
+    if (seeded) {
+      setEvents(seeded.events ?? []);
+      setLoading(false);
+    }
   }, [viewMode]);
 
   const toggleGroups = async (eventId) => {
@@ -113,7 +128,7 @@ const OrgManageEvents = () => {
     fetchEvents();
   }, [fetchEvents]);
 
-  useAutoRefresh(fetchEvents);
+  useAutoRefresh(fetchEvents, { interval: 30000 });
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });

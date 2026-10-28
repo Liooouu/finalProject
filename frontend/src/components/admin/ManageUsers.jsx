@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import {
@@ -28,6 +28,10 @@ import {
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Pagination from "../ui/Pagination";
 import { formatDate, formatDateTime } from "../../utils/helpers";
+import { readScreen, writeScreen } from "../../utils/queryCache";
+
+const CACHE_KEY = "admin:users";
+const APPEALS_CACHE_KEY = "admin:face-appeals";
 
 const roleStyles = {
   admin: "border-brand/25 bg-brand/10 text-brand",
@@ -40,8 +44,10 @@ const YEAR_OPTIONS = [1, 2, 3, 4];
 const SECTION_OPTIONS = ["A", "B", "C"];
 
 const ManageUsers = () => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const seed = readScreen(CACHE_KEY);
+  const appealsSeed = readScreen(APPEALS_CACHE_KEY);
+  const [users, setUsers] = useState(seed?.users ?? []);
+  const [loading, setLoading] = useState(seed === undefined);
   const [searchTerm, setSearchTerm] = useState("");
   const [programFilter, setProgramFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
@@ -53,6 +59,7 @@ const ManageUsers = () => {
   const [detailNotice, setDetailNotice] = useState(null);
   const [demoteTarget, setDemoteTarget] = useState(null);
   const [demoting, setDemoting] = useState(false);
+  const listLoaded = useRef(seed !== undefined);
 
   const mergeStudent = (student) => {
     setUsers(previous => previous.map(user => user._id === student._id ? { ...user, ...student } : user));
@@ -124,7 +131,7 @@ const ManageUsers = () => {
     if (tab === "appeals") next.set("tab", "appeals"); else next.delete("tab");
     return next;
   }, { replace: true });
-  const [appeals, setAppeals] = useState([]);
+  const [appeals, setAppeals] = useState(appealsSeed?.appeals ?? []);
   const [appealsLoading, setAppealsLoading] = useState(false);
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewNote, setReviewNote] = useState("");
@@ -133,34 +140,48 @@ const ManageUsers = () => {
 
   usePageMeta("Manage Users", "Search, inspect, and manage all accounts.");
 
-  const fetchUsers = async () => {
-    setLoading(true);
+  const fetchUsers = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const res = await api.get("/reports/users");
       setUsers(res.data.users);
+      writeScreen(CACHE_KEY, { users: res.data.users });
+      listLoaded.current = true;
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  const fetchAppeals = async () => {
-    setAppealsLoading(true);
+  const fetchAppeals = async ({ silent = false } = {}) => {
+    if (!silent) setAppealsLoading(true);
     try {
       const res = await api.get("/admin/security/face-appeals");
       setAppeals(res.data);
+      writeScreen(APPEALS_CACHE_KEY, { appeals: res.data });
     } catch (err) {
       console.error(err);
     } finally {
-      setAppealsLoading(false);
+      if (!silent) setAppealsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchUsers();
-    fetchAppeals();
+    // Anything cached is already painted, so the background refresh must not
+    // flash the table back to a skeleton.
+    fetchUsers({ silent: readScreen(CACHE_KEY) !== undefined });
+    fetchAppeals({ silent: readScreen(APPEALS_CACHE_KEY) !== undefined });
   }, []);
+
+  // Promote, unlock and delete edit the list locally, so the cache has to
+  // follow them — otherwise a deleted account reappears for a second on the
+  // next visit before the refresh lands. The flag skips the first paint,
+  // where "users" is still the cache it was seeded from.
+  useEffect(() => {
+    if (!listLoaded.current) return;
+    writeScreen(CACHE_KEY, { users });
+  }, [users]);
 
   const isFaceLocked = (u) =>
     !!u && !!u.faceLockUntil && new Date(u.faceLockUntil) > new Date();
@@ -238,8 +259,12 @@ const ManageUsers = () => {
   };
 
   const loadAttendance = async (user) => {
-    const res = await api.get("/reports/attendance");
-    const userRecords = res.data.records.filter(record => record.student?._id === user._id || record.student === user._id);
+    // The report endpoint returns a window, so ask for this student's ledger
+    // instead of pulling the institution-wide list and filtering it here.
+    const res = await api.get("/reports/attendance", {
+      params: { studentId: user._id, limit: 200 },
+    });
+    const userRecords = res.data.records;
     setUserAttendance(userRecords);
     setServiceDraft(String(userRecords.reduce((total, record) => total + (record.communityServiceHours || 0), 0)));
   };

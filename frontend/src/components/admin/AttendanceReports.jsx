@@ -775,9 +775,9 @@ const AttendanceReports = () => {
                 eyebrow="Attendance ledger"
                 title="Filtered attendance records"
                 subtitle={`Latest ${Math.min(10, attendanceData.records.length)} of ${
-                  attendanceData.records.length
+                  attendanceData.stats.total
                 } matching record${
-                  attendanceData.records.length === 1 ? "" : "s"
+                  attendanceData.stats.total === 1 ? "" : "s"
                 } — CSV exports the full filtered roster`}
                 actions={
                   <Button

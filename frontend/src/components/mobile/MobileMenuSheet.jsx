@@ -4,6 +4,7 @@ import { FaTimes } from "react-icons/fa";
 import { isNavItemActive } from "../../utils/navItems";
 import { overflowSections } from "../../utils/navMobile";
 import { useNavCounts } from "../../utils/navCounts";
+import { prefetchRoute } from "../../utils/prefetchRoutes";
 
 /**
  * MobileMenuSheet — the "More" sheet behind the phone tab bar.
@@ -96,6 +97,8 @@ const MobileMenuSheet = ({ open, onClose, role }) => {
                         navigate(item.path);
                         onClose();
                       }}
+                      onTouchStart={() => prefetchRoute(item.path)}
+                      onMouseEnter={() => prefetchRoute(item.path)}
                       className={`flex min-h-[56px] items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-[13px] font-medium transition-colors ${
                         active
                           ? "border-brand/30 bg-brand/10 text-brand"

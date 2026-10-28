@@ -10,24 +10,47 @@ import { formatDate, formatTime12Hour, isTerminalStatus } from "../../utils/help
 import { FaCamera, FaClipboardList, FaCalendarAlt, FaEnvelopeOpenText } from "react-icons/fa";
 import CheckInStation from "./CheckInStation";
 import OpenFaceStationButton from "./OpenFaceStationButton";
+import { readScreen, writeScreen } from "../../utils/queryCache";
+
+const CACHE_KEY = "organizer:home";
 
 export default function OrganizerHome() {
-  const [events, setEvents] = useState([]);
-  const [letters, setLetters] = useState([]);
+  const seed = readScreen(CACHE_KEY);
+  const [events, setEvents] = useState(seed?.events ?? []);
+  const [letters, setLetters] = useState(seed?.letters ?? []);
   const [showStationControls, setShowStationControls] = useState(false);
   const [faceEventId, setFaceEventId] = useState("");
   const [manualEventId, setManualEventId] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [eventsError, setEventsError] = useState(false);
-  const [lettersError, setLettersError] = useState(false);
+  const [loading, setLoading] = useState(seed === undefined);
+  const [eventsError, setEventsError] = useState(seed?.eventsError ?? false);
+  const [lettersError, setLettersError] = useState(seed?.lettersError ?? false);
   usePageMeta("Dashboard", "Your next event and requests needing review.");
   const refresh = useCallback(() => Promise.allSettled([api.get("/events/my-events"), api.get("/organizer/excuses")]).then(([eventResult, letterResult]) => {
-    if (eventResult.status === "fulfilled") { setEvents(eventResult.value.data); setEventsError(false); } else setEventsError(true);
-    if (letterResult.status === "fulfilled") { setLetters(letterResult.value.data); setLettersError(false); } else setLettersError(true);
+    const previous = readScreen(CACHE_KEY) || {};
+    const next = { ...previous };
+    if (eventResult.status === "fulfilled") {
+      setEvents(eventResult.value.data);
+      setEventsError(false);
+      next.events = eventResult.value.data;
+      next.eventsError = false;
+    } else {
+      setEventsError(true);
+      next.eventsError = true;
+    }
+    if (letterResult.status === "fulfilled") {
+      setLetters(letterResult.value.data);
+      setLettersError(false);
+      next.letters = letterResult.value.data;
+      next.lettersError = false;
+    } else {
+      setLettersError(true);
+      next.lettersError = true;
+    }
+    writeScreen(CACHE_KEY, next);
     setLoading(false);
   }), []);
   useEffect(() => { refresh(); }, [refresh]);
-  useAutoRefresh(refresh);
+  useAutoRefresh(refresh, { interval: 30000 });
   if (loading) return <Loading label="Loading organizer dashboard..." />;
   const active = events.filter(event => !isTerminalStatus(event.status)).sort((a, b) => (a.status === "live" ? 0 : 1) - (b.status === "live" ? 0 : 1) || new Date(a.date) - new Date(b.date));
   const next = active[0];

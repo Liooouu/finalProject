@@ -8,30 +8,43 @@ import Pagination from "../ui/Pagination";
 import Loading from "../shared/Loading";
 import EmptyState from "../shared/EmptyState";
 import { FaClipboardList, FaEnvelope, FaShieldAlt } from "react-icons/fa";
+import { readScreen, writeScreen } from "../../utils/queryCache";
+
+const CACHE_KEY = "admin:home";
 
 const sources = [
   { key: "events", label: "Events", path: "/reports/events" },
-  { key: "attendance", label: "Attendance", path: "/reports/attendance" },
+  { key: "attendance", label: "Attendance", path: "/reports/attendance?limit=30" },
   { key: "appeals", label: "Face appeals", path: "/admin/security/face-appeals?status=pending" },
   { key: "excuses", label: "Excuse letters", path: "/organizer/excuses" },
 ];
 
 export default function DashboardHome() {
-  const [state, setState] = useState({ loading: true, events: null, attendance: null, appeals: null, excuses: null, failures: [] });
+  const seed = readScreen(CACHE_KEY);
+  const [state, setState] = useState(
+    seed
+      ? { loading: false, events: null, attendance: null, appeals: null, excuses: null, failures: [], ...seed }
+      : { loading: true, events: null, attendance: null, appeals: null, excuses: null, failures: [] }
+  );
   const [page, setPage] = useState(1);
-  const load = useCallback(() => Promise.allSettled(sources.map(source => api.get(source.path))).then(results => {
-    setState(previous => {
-      const next = { ...previous, loading: false, failures: [] };
-      results.forEach((result, index) => {
-        const source = sources[index];
-        if (result.status === "fulfilled") next[source.key] = result.value.data;
-        else next.failures.push(source.label);
-      });
-      return next;
-    });
-  }), []);
+  const load = useCallback(
+    () =>
+      Promise.allSettled(sources.map((source) => api.get(source.path))).then((results) => {
+        const previous = readScreen(CACHE_KEY) || {};
+        const next = { ...previous, loading: false, failures: [] };
+        results.forEach((result, index) => {
+          const source = sources[index];
+          if (result.status === "fulfilled") next[source.key] = result.value.data;
+          else next.failures.push(source.label);
+        });
+        // Remember the dashboard so returning to this tab paints immediately.
+        writeScreen(CACHE_KEY, next);
+        setState(next);
+      }),
+    []
+  );
   useEffect(() => { load(); }, [load]);
-  useAutoRefresh(load);
+  useAutoRefresh(load, { interval: 30000 });
   if (state.loading) return <Loading label="Loading admin dashboard..." />;
   const records = [...(state.attendance?.records || [])].sort((a, b) => new Date(b.attendedAt || b.createdAt || 0) - new Date(a.attendedAt || a.createdAt || 0));
   const stats = state.attendance?.stats;

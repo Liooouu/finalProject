@@ -11,6 +11,9 @@ import {
 } from "../ui";
 import Loading from "../shared/Loading";
 import EmptyState from "../shared/EmptyState";
+import { readScreen, writeScreen } from "../../utils/queryCache";
+
+const CACHE_KEY = "student:events";
 
 const TABS = [
   { key: "active", label: "Upcoming" },
@@ -18,17 +21,20 @@ const TABS = [
 ];
 
 const AttendEvents = () => {
-  const [events, setEvents] = useState([]);
-  const [attendance, setAttendance] = useState([]);
-  const [attendanceError, setAttendanceError] = useState(false);
-  const [eventsError, setEventsError] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const seed = readScreen(CACHE_KEY);
+  const [events, setEvents] = useState(seed?.events ?? []);
+  const [attendance, setAttendance] = useState(seed?.attendance ?? []);
+  const [attendanceError, setAttendanceError] = useState(seed?.attendanceError ?? false);
+  const [eventsError, setEventsError] = useState(seed?.eventsError ?? false);
+  const [loading, setLoading] = useState(seed === undefined);
   const [tab, setTab] = useState("active");
 
   usePageMeta("Events", "Browse and attend events.");
 
   const fetchEvents = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
+    const previous = readScreen(CACHE_KEY);
+    if (!silent && previous === undefined) setLoading(true);
+    let next = previous ? { ...previous } : {};
     try {
       const [eventsResult, attendanceResult] = await Promise.allSettled([
         api.get("/events"), api.get("/events/my-attendance"),
@@ -36,11 +42,20 @@ const AttendEvents = () => {
       if (eventsResult.status === "fulfilled") {
         setEvents(eventsResult.value.data);
         setEventsError(false);
-      } else setEventsError(true);
+        next = { ...next, events: eventsResult.value.data, eventsError: false };
+      } else {
+        setEventsError(true);
+        next = { ...next, eventsError: true };
+      }
       if (attendanceResult.status === "fulfilled") {
         setAttendance(attendanceResult.value.data);
         setAttendanceError(false);
-      } else setAttendanceError(true);
+        next = { ...next, attendance: attendanceResult.value.data, attendanceError: false };
+      } else {
+        setAttendanceError(true);
+        next = { ...next, attendanceError: true };
+      }
+      writeScreen(CACHE_KEY, next);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -50,7 +65,7 @@ const AttendEvents = () => {
     fetchEvents();
   }, [fetchEvents]);
 
-  useAutoRefresh(fetchEvents);
+  useAutoRefresh(fetchEvents, { interval: 30000 });
 
   const { active, past } = useMemo(() => splitEventsByLifecycle(events), [events]);
   const visible = tab === "active" ? active : past;

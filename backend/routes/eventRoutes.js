@@ -318,9 +318,12 @@ router.patch("/:id/automation", protect, async (req, res) => {
 // still worth acting on first. The client splits them into Upcoming / Past.
 router.get("/", protect, async (req, res) => {
   try {
+    // Sorted in the database (date, then lifecycle ranking applied below) and
+    // sent as plain objects: this runs on every student dashboard visit.
     const events = await Event.find()
       .populate("organizer", "name")
-      .sort({ date: 1 });
+      .sort({ date: 1 })
+      .lean();
 
     const rank = (event) => (isTerminal(event.status) ? 1 : 0);
     events.sort(
@@ -370,8 +373,12 @@ router.get("/:id/attendees", protect, async (req, res) => {
     }
 
     const attendees = await Attendance.find({ event: req.params.id })
+      // The log is an audit trail nobody reads on this screen, and it is the
+      // only unbounded field per record — a full event would carry thousands.
+      .select("-communityServiceLog")
       .populate("student", "name email program yearLevel section enrollmentStatus faceEnrolledAt")
-      .sort({ attendedAt: -1 });
+      .sort({ attendedAt: -1 })
+      .lean();
 
     res.json(attendees);
   } catch (err) {

@@ -9,6 +9,8 @@ import AppBackground from "../components/shared/AppBackground";
 import RouteFallback from "../components/shared/RouteFallback";
 import { PageMetaProvider } from "../context/PageMetaContext";
 import api from "../api/axios";
+import { useScrollRestoration } from "../utils/useScrollRestoration";
+import { prefetchIdle } from "../utils/prefetchRoutes";
 
 // Each page is its own chunk, so opening the dashboard never downloads the
 // event details or the settings forms up front.
@@ -22,6 +24,13 @@ const EventDetails = lazy(() => import("../components/EventDetails"));
 
 const StudentDashboard = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const scrollRef = useScrollRestoration();
+
+  // Warm the pages this portal opens first while the browser is idle, so the
+  // first tab switch has nothing left to download.
+  useEffect(() => {
+    prefetchIdle("student");
+  }, []);
 
   // Toast passed in via navigation state (e.g. "Attendance successfully recorded!"
   // right after the face kiosk or an organizer marks the student). Auto-dismisses
@@ -72,7 +81,7 @@ const StudentDashboard = () => {
           <Sidebar role="student" />
           <div className="flex min-w-0 flex-1 flex-col">
             <Topbar />
-            <main className="flight-page min-w-0 flex-1 overflow-y-auto px-4 pb-24 pt-4 md:px-6 md:py-6 lg:px-8">
+            <main ref={scrollRef} className="flight-page min-w-0 flex-1 overflow-y-auto px-4 pb-24 pt-4 md:px-6 md:py-6 lg:px-8">
               {faceMissing && !(location.pathname === "/student/dashboard/profile" && new URLSearchParams(location.search).get("section") === "security") && (
                 <div className="alert alert-warn mb-4" role="status">
                   <FaCamera className="mt-0.5 shrink-0" />

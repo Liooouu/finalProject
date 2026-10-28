@@ -5,6 +5,7 @@ import TrackMark from "./shared/TrackMark";
 import { portalName } from "../utils/nav";
 import { navSections, isNavItemActive } from "../utils/navItems";
 import { useNavCounts } from "../utils/navCounts";
+import { prefetchRoute } from "../utils/prefetchRoutes";
 
 const COLLAPSE_KEY = "tracked.sidebar";
 
@@ -43,7 +44,7 @@ const Sidebar = ({ role }) => {
   return (
     <aside
       aria-label={`${portalName[role] || "Portal"} navigation`}
-      className={`hidden w-64 shrink-0 flex-col border-r border-line bg-card/95 backdrop-blur-2xl md:flex ${
+      className={`hidden w-64 shrink-0 flex-col border-r border-line bg-card md:flex ${
         collapsed ? "md:w-[78px]" : "md:w-64"
       }`}
     >
@@ -97,6 +98,8 @@ const Sidebar = ({ role }) => {
                         title={collapsed ? item.name : undefined}
                         aria-current={active ? "page" : undefined}
                         onClick={() => navigate(item.path)}
+                        onMouseEnter={() => prefetchRoute(item.path)}
+                        onFocus={() => prefetchRoute(item.path)}
                         className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition-all duration-150 ${
                           active
                             ? "bg-brand/10 font-semibold text-brand"

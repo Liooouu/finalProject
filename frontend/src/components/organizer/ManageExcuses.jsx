@@ -26,17 +26,20 @@ import AcademicPeriodFilter from "./AcademicPeriodFilter";
 import Pagination from "../ui/Pagination";
 import { formatDate, formatDateTime } from "../../utils/helpers";
 import { getUserRole } from "../../utils/auth";
+import { readScreen, writeScreen } from "../../utils/queryCache";
 
 const API_BASE = api.defaults.baseURL.replace(/\/api$/, "");
 
 const ManageExcuses = () => {
   const role = getUserRole();
   const isAdmin = role === "admin";
-  const [excuses, setExcuses] = useState([]);
+  const cacheKey = `excuses:${role}`;
+  const seed = readScreen(cacheKey);
+  const [excuses, setExcuses] = useState(seed?.excuses ?? []);
   const periodSelection = useOrganizerPeriod();
   const [page, setPage] = useState(1);
   const [loadError, setLoadError] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(seed === undefined);
   const [filter, setFilter] = useState("pending");
   const [selectedExcuse, setSelectedExcuse] = useState(null);
   const [responseNote, setResponseNote] = useState("");
@@ -55,23 +58,25 @@ const ManageExcuses = () => {
   );
 
   const fetchExcuses = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
+    const previous = readScreen(cacheKey);
+    if (!silent && previous === undefined) setLoading(true);
     try {
       const res = await api.get("/organizer/excuses");
       setExcuses(res.data);
       setLoadError(false);
+      writeScreen(cacheKey, { excuses: res.data });
     } catch {
       setLoadError(true);
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [cacheKey]);
 
   useEffect(() => {
     fetchExcuses();
   }, [fetchExcuses]);
 
-  useAutoRefresh(fetchExcuses);
+  useAutoRefresh(fetchExcuses, { interval: 30000 });
 
   const periodExcuses = recordsForAcademicPeriod(excuses, periodSelection.period, periodSelection.semester);
   const filteredExcuses = periodExcuses.filter((e) => e.status === filter);

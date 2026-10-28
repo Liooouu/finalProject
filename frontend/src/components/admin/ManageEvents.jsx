@@ -21,6 +21,9 @@ import {
 } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { MdClose } from "react-icons/md";
+import { readScreen, writeScreen } from "../../utils/queryCache";
+
+const CACHE_KEY = "admin:events";
 
 const EMPTY_FORM = {
   title: "",
@@ -36,8 +39,9 @@ const EMPTY_FORM = {
 
 const ManageEvents = () => {
   const navigate = useNavigate();
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const seed = readScreen(CACHE_KEY);
+  const [events, setEvents] = useState(seed?.events ?? []);
+  const [loading, setLoading] = useState(seed === undefined);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [attendeeSearch, setAttendeeSearch] = useState("");
@@ -57,10 +61,12 @@ const ManageEvents = () => {
   usePageMeta("Manage Events", "Monitor events and correct their information.");
 
   const fetchEvents = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
+    const previous = readScreen(CACHE_KEY);
+    if (!silent && previous === undefined) setLoading(true);
     try {
       const res = await api.get("/events/all");
       setEvents(res.data);
+      writeScreen(CACHE_KEY, { events: res.data });
     } catch (err) {
       console.error(err);
     } finally {
@@ -72,7 +78,7 @@ const ManageEvents = () => {
     fetchEvents();
   }, [fetchEvents]);
 
-  useAutoRefresh(fetchEvents);
+  useAutoRefresh(fetchEvents, { interval: 30000 });
 
   const fetchAttendees = async (eventId) => {
     setAttendees([]); setAttendeesLoading(true); setAttendeesError(false);

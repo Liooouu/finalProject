@@ -122,10 +122,30 @@ function buildStudentFilter(query = {}) {
 
 async function buildAttendanceMatch(query = {}) {
   const match = buildMatch(query);
+
+  // A single student's ledger (the admin user panel) asks for their records
+  // directly instead of downloading the whole report and filtering it here.
+  if (isActiveFilter(query.studentId)) {
+    if (!mongoose.Types.ObjectId.isValid(query.studentId)) {
+      throw badRequest("Invalid student id");
+    }
+    match.student = new mongoose.Types.ObjectId(query.studentId);
+  }
+
   const studentFilter = buildStudentFilter(query);
 
   if (Object.keys(studentFilter).length > 1) {
-    match.student = { $in: await User.distinct("_id", studentFilter) };
+    const ids = await User.distinct("_id", studentFilter);
+    if (match.student) {
+      // Both filters must hold; an id outside the demographic slice matches
+      // nothing rather than silently widening the query.
+      const allowed = new Set(ids.map(String));
+      if (!allowed.has(String(match.student))) {
+        match.student = { $in: [] };
+      }
+    } else {
+      match.student = { $in: ids };
+    }
   }
 
   return { match, studentFilter };
@@ -186,12 +206,20 @@ router.get("/attendance", async (req, res) => {
   try {
     const { match, studentFilter } = await buildAttendanceMatch(req.query);
 
-    const [attendance, statusStats, byEvent, students, matchedStudents, filters, events] =
+    // The report screen charts the aggregate results and lists only the latest
+    // rows, but this endpoint used to send every matching record (with both
+    // references populated) so the payload grew with the term. Pages ask for a
+    // window instead; the totals still describe every matching record.
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 10, 1), 200);
+
+    const [attendance, totalRecords, statusStats, byEvent, students, matchedStudents, filters, events] =
       await Promise.all([
         Attendance.find(match)
           .populate("event", "title date time")
           .populate("student", "name email program yearLevel section")
-          .sort({ attendedAt: -1 }),
+          .sort({ attendedAt: -1 })
+          .limit(limit),
+        Attendance.countDocuments(match),
         Attendance.aggregate([
           { $match: match },
           { $group: { _id: "$status", count: { $sum: 1 } } },
@@ -263,7 +291,7 @@ router.get("/attendance", async (req, res) => {
     res.json({
       records: attendance,
       stats: {
-        total: attendance.length,
+        total: totalRecords,
         students,
         studentsWithRecords: matchedStudents.length,
         present: statsMap.present,
@@ -376,41 +404,58 @@ router.get("/attendance/export", async (req, res) => {
   }
 });
 
+// One grouped pass over attendance instead of a find() per event. The old shape
+// ran an extra query — and loaded every attendance document — for every event
+// in the list, which is what made this report slow once the term filled up.
+async function attendanceCountsByEvent() {
+  const rows = await Attendance.aggregate([
+    {
+      $group: {
+        _id: "$event",
+        total: { $sum: 1 },
+        present: { $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] } },
+        late: { $sum: { $cond: [{ $eq: ["$status", "late"] }, 1, 0] } },
+        absent: { $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] } },
+        pending: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
+        excused: { $sum: { $cond: [{ $eq: ["$status", "excused"] }, 1, 0] } },
+      },
+    },
+  ]);
+
+  return new Map(rows.map((row) => [String(row._id), row]));
+}
+
 router.get("/events", async (req, res) => {
   try {
-    const events = await Event.find()
-      .populate("organizer", "name email")
-      .sort({ date: -1 });
+    const [events, counts] = await Promise.all([
+      Event.find().populate("organizer", "name email").sort({ date: -1 }).lean(),
+      attendanceCountsByEvent(),
+    ]);
 
-    const eventsWithStats = await Promise.all(
-      events.map(async (event) => {
-        const attendance = await Attendance.find({ event: event._id });
-        const present = attendance.filter((a) => a.status === "present").length;
-        const late = attendance.filter((a) => a.status === "late").length;
-        const absent = attendance.filter((a) => a.status === "absent").length;
-        const pending = attendance.filter((a) => a.status === "pending").length;
-        const excused = attendance.filter((a) => a.status === "excused").length;
-        const total = attendance.length;
+    const eventsWithStats = events.map((event) => {
+      const count = counts.get(String(event._id)) || {};
+      const total = count.total || 0;
+      const present = count.present || 0;
+      const late = count.late || 0;
 
-        return {
-          _id: event._id,
-          title: event.title,
-          description: event.description,
-          date: event.date,
-          time: event.time,
-          location: event.location,
-          status: event.status,
-          organizer: event.organizer,
-          totalAttendees: total,
-          present,
-          late,
-          absent,
-          pending,
-          excused,
-          attendanceRate: total > 0 ? Math.round(((present + late) / total) * 100 * 10) / 10 : 0,
-        };
-      })
-    );
+      return {
+        _id: event._id,
+        title: event.title,
+        description: event.description,
+        date: event.date,
+        time: event.time,
+        location: event.location,
+        status: event.status,
+        organizer: event.organizer,
+        totalAttendees: total,
+        present,
+        late,
+        absent: count.absent || 0,
+        pending: count.pending || 0,
+        excused: count.excused || 0,
+        attendanceRate: total > 0 ? Math.round(((present + late) / total) * 100 * 10) / 10 : 0,
+      };
+    });
 
     const statusCounts = {
       upcoming: events.filter((e) => e.status === "upcoming").length,
@@ -433,27 +478,24 @@ router.get("/events", async (req, res) => {
 
 router.get("/events/export", async (req, res) => {
   try {
-    const events = await Event.find()
-      .populate("organizer", "name email")
-      .sort({ date: -1 });
+    const [events, counts] = await Promise.all([
+      Event.find().populate("organizer", "name email").sort({ date: -1 }).lean(),
+      attendanceCountsByEvent(),
+    ]);
 
-    const eventsWithStats = await Promise.all(
-      events.map(async (event) => {
-        const attendance = await Attendance.find({ event: event._id });
-        const present = attendance.filter((a) => a.status === "present").length;
-        const late = attendance.filter((a) => a.status === "late").length;
-        return {
-          title: event.title,
-          date: event.date,
-          location: event.location || "",
-          status: event.status,
-          organizer: event.organizer?.name || "",
-          totalAttendees: attendance.length,
-          present,
-          late,
-        };
-      })
-    );
+    const eventsWithStats = events.map((event) => {
+      const count = counts.get(String(event._id)) || {};
+      return {
+        title: event.title,
+        date: event.date,
+        location: event.location || "",
+        status: event.status,
+        organizer: event.organizer?.name || "",
+        totalAttendees: count.total || 0,
+        present: count.present || 0,
+        late: count.late || 0,
+      };
+    });
 
     const rows = [
       ["Title", "Date", "Location", "Status", "Organizer", "Total Attendees", "Present", "Late"],
@@ -477,7 +519,7 @@ router.get("/events/export", async (req, res) => {
 
 router.get("/users", async (req, res) => {
   try {
-    const users = await User.find().select(REPORT_USER_FIELDS).sort({ createdAt: -1 });
+    const users = await User.find().select(REPORT_USER_FIELDS).sort({ createdAt: -1 }).lean();
 
     const byRole = await User.aggregate([
       { $group: { _id: "$role", count: { $sum: 1 } } },
@@ -488,18 +530,12 @@ router.get("/users", async (req, res) => {
       roleMap[r._id] = r.count;
     });
 
-    const recentUsers = await User.find()
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .select("name email role createdAt");
-
     res.json({
       users,
       stats: {
         total: users.length,
         ...roleMap,
       },
-      recentUsers,
     });
   } catch (error) {
     fail(res, error);

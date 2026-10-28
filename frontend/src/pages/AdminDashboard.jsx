@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState } from "react";
+import React, { Suspense, lazy, useState, useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
@@ -7,6 +7,8 @@ import MobileMenuSheet from "../components/mobile/MobileMenuSheet";
 import AppBackground from "../components/shared/AppBackground";
 import RouteFallback from "../components/shared/RouteFallback";
 import { PageMetaProvider } from "../context/PageMetaContext";
+import { useScrollRestoration } from "../utils/useScrollRestoration";
+import { prefetchIdle } from "../utils/prefetchRoutes";
 
 // Per-page chunks: the dashboard, event details and the
 // reports table are only fetched when that page is actually opened.
@@ -22,6 +24,13 @@ const EventDetails = lazy(() => import("../components/EventDetails"));
 
 const AdminDashboard = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const scrollRef = useScrollRestoration();
+
+  // Warm the pages this portal opens first while the browser is idle, so the
+  // first tab switch has nothing left to download. The report stays lazy.
+  useEffect(() => {
+    prefetchIdle("admin");
+  }, []);
 
   return (
     <AppBackground>
@@ -30,7 +39,7 @@ const AdminDashboard = () => {
           <Sidebar role="admin" />
           <div className="flex min-w-0 flex-1 flex-col">
             <Topbar />
-            <main className="flight-page min-w-0 flex-1 overflow-y-auto px-4 pb-24 pt-4 md:px-6 md:py-6 lg:px-8">
+            <main ref={scrollRef} className="flight-page min-w-0 flex-1 overflow-y-auto px-4 pb-24 pt-4 md:px-6 md:py-6 lg:px-8">
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   <Route index element={<DashboardHome />} />

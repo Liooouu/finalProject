@@ -11,25 +11,35 @@ import Loading from "../shared/Loading";
 import Pagination from "../ui/Pagination";
 import EmptyState from "../shared/EmptyState";
 import StudentEventCard from "./StudentEventCard";
+import { readScreen, writeScreen } from "../../utils/queryCache";
+
+// Payload of the last successful load, so coming back to this tab renders the
+// previous dashboard instantly and refreshes it silently behind the scenes.
+const CACHE_KEY = "student:home";
 
 const DashboardHome = () => {
   const navigate = useNavigate();
   usePageMeta("Student Overview", "Your attendance and service activity at a glance.");
-  const [stats, setStats] = useState(null);
-  const [upcoming, setUpcoming] = useState(0);
+  const seed = readScreen(CACHE_KEY);
+  const [stats, setStats] = useState(seed?.stats ?? null);
+  const [upcoming, setUpcoming] = useState(seed?.upcoming ?? 0);
   const [eventPage, setEventPage] = useState(1);
-  const [attendance, setAttendance] = useState([]);
-  const [attendanceError, setAttendanceError] = useState(false);
-  const [upcomingEvents, setUpcomingEvents] = useState([]);
-  const [activity, setActivity] = useState([]);
+  const [attendance, setAttendance] = useState(seed?.attendance ?? []);
+  const [attendanceError, setAttendanceError] = useState(seed?.attendanceError ?? false);
+  const [upcomingEvents, setUpcomingEvents] = useState(seed?.upcomingEvents ?? []);
+  const [activity, setActivity] = useState(seed?.activity ?? []);
   const [activityPage, setActivityPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [serviceError, setServiceError] = useState("");
-  const [eventsError, setEventsError] = useState("");
+  const [loading, setLoading] = useState(seed === undefined);
+  const [serviceError, setServiceError] = useState(seed?.serviceError ?? "");
+  const [eventsError, setEventsError] = useState(seed?.eventsError ?? "");
   const [penaltyRange, setPenaltyRange] = useState("year");
 
   const fetchAll = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
+    const previous = readScreen(CACHE_KEY);
+    // A cached dashboard is already on screen; only a first visit needs the
+    // full-page spinner.
+    if (!silent && previous === undefined) setLoading(true);
+    let next = previous ? { ...previous } : {};
     try {
       // A failed ledger request must not hide events or look like a zero balance.
       const [csResult, eventsResult, attendanceResult] = await Promise.allSettled([
@@ -40,32 +50,54 @@ const DashboardHome = () => {
       if (csResult.status === "fulfilled") {
         const data = csResult.value.data;
         const breakdown = data.breakdown || [];
-        setStats({ totalHours: data.totalHours || 0, totalAttended: data.totalAttended || 0, breakdown });
-        setActivity([...breakdown].sort((a, b) => new Date(b.attendedAt || 0) - new Date(a.attendedAt || 0)));
+        const nextStats = {
+          totalHours: data.totalHours || 0,
+          totalAttended: data.totalAttended || 0,
+          breakdown,
+        };
+        const nextActivity = [...breakdown].sort(
+          (a, b) => new Date(b.attendedAt || 0) - new Date(a.attendedAt || 0)
+        );
+        setStats(nextStats);
+        setActivity(nextActivity);
         setServiceError("");
+        next = { ...next, stats: nextStats, activity: nextActivity, serviceError: "" };
       } else {
-        setServiceError("Service records could not be refreshed. Try again.");
+        const message = "Service records could not be refreshed. Try again.";
+        setServiceError(message);
+        next = { ...next, serviceError: message };
       }
       if (eventsResult.status === "fulfilled") {
-        const active = splitEventsByLifecycle(eventsResult.value.data).active.filter((event) => event.date);
-        const visible = active;
+        const active = splitEventsByLifecycle(eventsResult.value.data).active.filter(
+          (event) => event.date
+        );
         setUpcoming(active.length);
-        setUpcomingEvents(visible);
+        setUpcomingEvents(active);
         setEventsError("");
+        next = { ...next, upcoming: active.length, upcomingEvents: active, eventsError: "" };
       } else {
-        setEventsError("Upcoming events could not be refreshed. Try again.");
+        const message = "Upcoming events could not be refreshed. Try again.";
+        setEventsError(message);
+        next = { ...next, eventsError: message };
       }
       if (attendanceResult.status === "fulfilled") {
         setAttendance(attendanceResult.value.data);
         setAttendanceError(false);
-      } else setAttendanceError(true);
+        next = { ...next, attendance: attendanceResult.value.data, attendanceError: false };
+      } else {
+        setAttendanceError(true);
+        next = { ...next, attendanceError: true };
+      }
+      writeScreen(CACHE_KEY, next);
     } finally {
       if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
-  useAutoRefresh(fetchAll);
+  // Lists change far less often than the old 10s beat; live screens pass their
+  // own shorter interval, and mutations still refresh this one immediately.
+  useAutoRefresh(fetchAll, { interval: 30000 });
 
   if (loading) return <Loading label="Loading your dashboard..." />;
 

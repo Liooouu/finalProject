@@ -20,19 +20,22 @@ import { getUserRole } from "../../utils/auth";
 import { Button, Card, PageHeader } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
+import { readScreen, writeScreen } from "../../utils/queryCache";
 
 const OrgManageAttendees = ({ embedded = false }) => {
   const { id: eventId } = useParams();
+  const cacheKey = `attendees:${eventId}`;
+  const seed = readScreen(cacheKey);
   const navigate = useNavigate();
   const location = useLocation();
-  const [students, setStudents] = useState([]);
+  const [students, setStudents] = useState(seed?.students ?? []);
   const [recordPage, setRecordPage] = useState(1);
   const [enrollment, setEnrollment] = useState("all");
   const [loadError, setLoadError] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [attendees, setAttendees] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [attendees, setAttendees] = useState(seed?.attendees ?? []);
+  const [loading, setLoading] = useState(seed === undefined);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
@@ -55,12 +58,16 @@ const OrgManageAttendees = ({ embedded = false }) => {
       setLoadError(false);
       setStudents(studentsRes.data || []);
       setAttendees(attendeesRes.data || []);
+      writeScreen(cacheKey, {
+        students: studentsRes.data || [],
+        attendees: attendeesRes.data || [],
+      });
     } catch {
       setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, [eventId]);
+  }, [cacheKey, eventId]);
 
   useEffect(() => {
     fetchData();

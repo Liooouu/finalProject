@@ -4,6 +4,7 @@ import { FaEllipsisH } from "react-icons/fa";
 import { isNavItemActive } from "../../utils/navItems";
 import { tabItems, tabLabel, overflowSections } from "../../utils/navMobile";
 import { useNavCounts } from "../../utils/navCounts";
+import { prefetchRoute } from "../../utils/prefetchRoutes";
 
 /**
  * MobileTabBar — the phone's primary (and only) navigation.
@@ -40,7 +41,7 @@ const MobileTabBar = ({ role, onMore, menuOpen = false }) => {
   return (
     <nav
       aria-label="Primary navigation"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-[var(--app-base)]/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-[var(--app-base)]/95 pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       <div className="flex items-stretch">
         {items.map((item) => {
@@ -53,6 +54,8 @@ const MobileTabBar = ({ role, onMore, menuOpen = false }) => {
               type="button"
               aria-current={active ? "page" : undefined}
               onClick={() => go(item, active)}
+              onTouchStart={() => prefetchRoute(item.path)}
+              onMouseEnter={() => prefetchRoute(item.path)}
               className={`relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-medium transition-colors ${
                 active ? "text-brand" : "text-on-muted active:text-on"
               }`}

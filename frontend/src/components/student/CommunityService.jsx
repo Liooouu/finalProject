@@ -11,27 +11,39 @@ import Pagination from "../ui/Pagination";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { formatDate, formatDateTime } from "../../utils/helpers";
 import { BaseCard, FlightPanel, PageHeader, StatTile, StatusChip } from "../ui";
+import { readScreen, writeScreen } from "../../utils/queryCache";
+
+const CACHE_KEY = "student:community-service";
 
 const CommunityService = () => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const seed = readScreen(CACHE_KEY);
+  const [data, setData] = useState(seed?.data ?? null);
+  const [loading, setLoading] = useState(seed === undefined);
   const [recordPage, setRecordPage] = useState(1);
-  const [calendar, setCalendar] = useState(null);
+  const [calendar, setCalendar] = useState(seed?.calendar ?? null);
   const [schoolYear, setSchoolYear] = useState("all");
   const [semester, setSemester] = useState("all");
   useEffect(() => {
     let active = true;
-    api.get("/student/academic-status").then(({ data }) => { if (active && data?.years) setCalendar(data); }).catch(() => {});
+    api.get("/student/academic-status").then(({ data: payload }) => {
+      if (!active || !payload?.years) return;
+      setCalendar(payload);
+      // The academic calendar changes at most once a year; cache it with the
+      // ledger so the filter is available immediately on the next visit.
+      writeScreen(CACHE_KEY, { ...(readScreen(CACHE_KEY) || {}), calendar: payload });
+    }).catch(() => {});
     return () => { active = false; };
   }, []);
 
   usePageMeta("Community Service", "Track your attendance and service hours.");
 
   const fetchData = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
+    const previous = readScreen(CACHE_KEY);
+    if (!silent && previous === undefined) setLoading(true);
     try {
       const res = await api.get("/student/community-service");
       setData(res.data);
+      writeScreen(CACHE_KEY, { ...(previous || {}), data: res.data });
     } catch (err) {
       console.error(err.response?.data || err.message);
     } finally {
@@ -43,7 +55,7 @@ const CommunityService = () => {
     fetchData();
   }, [fetchData]);
 
-  useAutoRefresh(fetchData);
+  useAutoRefresh(fetchData, { interval: 30000 });
 
   if (loading) {
     return <Loading label="Loading records..." />;

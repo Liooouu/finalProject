@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700;800&display=swap");
+@import "./styles/fonts.css";
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
@@ -469,30 +469,18 @@ textarea::placeholder {
   background-color: var(--app-base);
 }
 
+/* These are radial gradients that already fade to transparent at 70%, so the
+   old `filter: blur(16px)` only re-blurred a 40-46rem layer on every repaint —
+   one of the most expensive things on the page. The gradients are the blur.
+   The drift animation is intentionally gone: it ran forever behind a
+   full-screen `mix-blend-mode: overlay` grain layer, which forced the browser
+   to re-composite the entire background every frame, including under the
+   sticky bars. A static aurora looks the same and costs nothing. */
 .app-orb {
   position: absolute;
   border-radius: 9999px;
   background-size: 100% 100%;
   background-repeat: no-repeat;
-  will-change: transform;
-  filter: blur(16px);
-}
-
-.app-orb-1 { background: var(--orb-1); animation: aurora-drift-1 28s ease-in-out infinite; }
-.app-orb-2 { background: var(--orb-2); animation: aurora-drift-2 36s ease-in-out infinite; }
-.app-orb-3 { background: var(--orb-3); animation: aurora-drift-3 32s ease-in-out infinite; }
-
-@keyframes aurora-drift-1 {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50%      { transform: translate3d(5%, 3%, 0) scale(1.06); }
-}
-@keyframes aurora-drift-2 {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1.04); }
-  50%      { transform: translate3d(-4%, -2%, 0) scale(1); }
-}
-@keyframes aurora-drift-3 {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50%      { transform: translate3d(2%, -4%, 0) scale(1.07); }
 }
 
 /* Faint top grid, fades out toward the body */

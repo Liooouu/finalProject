@@ -43,6 +43,20 @@ cd frontend && npm run dev
 
 Uses Tailwind v4 with `@tailwindcss/vite` plugin. No `tailwind.config.js` - styles are in `src/index.css` with `@import "tailwindcss"`.
 
+## Frontend Performance
+
+- **Fonts are self-hosted.** Inter and Inter Tight (variable, latin + latin-ext) live in `frontend/src/assets/fonts` and are declared in `frontend/src/styles/fonts.css`. Nothing loads from `fonts.googleapis.com`; keep it that way when adding a family.
+- **`frontend/src/utils/queryCache.js`** is a small in-memory, account-scoped cache. Screens seed their state from `readScreen(key)` and write it back after each fetch, so revisiting a tab paints instantly and refreshes silently. Nothing is persisted, so a reload never shows stale data.
+- **`useAutoRefresh`** defaults to 10 s. List screens pass `{ interval: 30000 }`; live attendance screens keep the short beat.
+- **`frontend/src/utils/prefetchRoutes.js`** warms a portal's page chunks on nav hover and during browser idle (skipping data-saver/2G and the 190 KB report). It must never prefetch `/check-in/:token` — that kiosk chunk is 1.3 MB.
+- Do not add `backdrop-blur` to the sticky bars or animated/filtered layers behind the full-screen grain overlay; both forced whole-page recomposites.
+
+## API Performance
+
+- `server.js` runs `compression()`. nginx also gzips static assets; woff2 must not be gzipped.
+- `GET /reports/attendance` returns a **window** of records (`limit`, default 10, max 200) plus totals from aggregation — `stats.total` is the full count, not `records.length`. Pass `?studentId=` for a single student's ledger.
+- `GET /reports/events` counts attendance with one grouped aggregation, not a query per event.
+
 ## Auth Flow
 
 1. Login POST to `/api/auth/login` returns `{ token, role }`

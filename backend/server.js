@@ -1,4 +1,5 @@
 const cors = require("cors");
+const compression = require("compression");
 const express = require("express");
 const mongoose = require("mongoose");
 const path = require("path");
@@ -49,6 +50,11 @@ let serverHandle = null;
 
 // ✅ MIDDLEWARES
 app.use(cors());
+// JSON is the bulk of what this API sends (the attendance report alone is more
+// than 150 KB of it) and it compresses around ten to one. nginx already gzips
+// the two-container deployment, but the single-container image and a direct
+// API URL get nothing without this.
+app.use(compression());
 app.use(express.json());
 
 // Face photos are biometric data: never serve the private directory directly.
