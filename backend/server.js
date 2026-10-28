@@ -10,6 +10,7 @@ const { freePort } = require("./scripts/free-port");
 const { ensureAdmin } = require("./seedAdmin");
 const { repairUserIndexes } = require("./services/repairUserIndexes");
 const Event = require("./models/Event");
+const { syncAllStudentAcademicYears } = require("./services/academicProgression");
 const User = require("./models/User");
 const Attendance = require("./models/Attendance");
 const CheckInSession = require("./models/CheckInSession");
@@ -145,6 +146,8 @@ connectDB()
     // heals the database without a manual migration step. Runs before accounts
     // are created so a first-run admin is never the only account that can exist.
     await repairUserIndexes();
+    await syncAllStudentAcademicYears();
+    setInterval(() => syncAllStudentAcademicYears().catch(err => console.error("Academic progression:", err.message)), 60 * 60 * 1000);
 
     // Build the 1:N face index once at boot so the first student at a check-in
     // station isn't waiting on a full student scan. Failure is not fatal: the

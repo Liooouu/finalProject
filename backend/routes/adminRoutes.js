@@ -6,8 +6,9 @@ const Attendance = require("../models/Attendance");
 const Excuse = require("../models/Excuse");
 const Notification = require("../models/Notification");
 const FaceAppeal = require("../models/FaceAppeal");
+const CheckInSession = require("../models/CheckInSession");
 const { protect, authorize } = require("../middleware/authMiddleware");
-const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
+const { availableRoles } = require("../services/accountRoles");
 const { getRawEmailSetting, saveEmailSetting } = require("../services/appSettings");
 const { resetTransporter, sendMail, isMailEnabled } = require("../services/mailer");
 const { notifyUsers } = require("../services/notify");
@@ -15,51 +16,50 @@ const fileStore = require("../services/fileStore");
 const faceIdentify = require("../services/faceIdentify");
 const { seal } = require("../utils/secretBox");
 
-// ADMIN CREATES ORGANIZER
-// Registration is student-only, so this is the only way an organizer account is
-// created. The password is passed in plain text on purpose: the User model
-// hashes it in a pre-save hook.
-router.post(
-  "/create-organizer",
-  protect,
-  authorize("admin"),
-  async (req, res) => {
+// Organizer access is granted to an existing student; no duplicate account/password.
+router.post("/create-organizer", protect, authorize("admin"), (req, res) => res.status(410).json({ message: "Promote an existing student using the Promote Student page." }));
+router.get("/organizer-candidates", protect, authorize("admin"), async (req, res) => {
+  try {
+    const students = await User.find({ role: "student", organizerAccess: { $ne: true } }).select("name email program yearLevel section enrollmentStatus").sort({ name: 1 });
+    res.json(students);
+  } catch { res.status(500).json({ message: "Could not load eligible students" }); }
+});
+router.post("/users/:id/promote-organizer", protect, authorize("admin"), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid student ID" });
+    const existing = await User.findById(req.params.id).select("name email role organizerAccess");
+    if (!existing) return res.status(404).json({ message: "Student not found" });
+    if (existing.role !== "student") return res.status(400).json({ message: "Only an existing student can be promoted" });
+    if (existing.organizerAccess) return res.status(409).json({ message: "This student already has organizer access" });
+    const student = await User.findOneAndUpdate({ _id: existing._id, role: "student", organizerAccess: { $ne: true } }, { $set: { organizerAccess: true, organizerPromotedAt: new Date(), organizerPromotedBy: req.user._id }, $inc: { organizerAccessVersion: 1 } }, { new: true, runValidators: true }).select("name email role organizerAccess organizerPromotedAt program yearLevel section enrollmentStatus");
+    if (!student) return res.status(409).json({ message: "This student was already promoted or the account changed. Refresh the list." });
+    let notificationWarning;
     try {
-      const { name, email, password } = req.body;
+      await notifyUsers([student], { type: "system", title: "Organizer access granted", message: "An administrator granted you organizer access. Your student attendance and service ledger remain available. Use your account menu to switch between the student and organizer portals." });
+    } catch { notificationWarning = "Access was granted, but the notification could not be delivered."; }
+    res.json({ message: "Student promoted to organizer. Student access and records are retained.", student: { ...student.toObject(), availableRoles: availableRoles(student) }, ...(notificationWarning ? { notificationWarning } : {}) });
+  } catch (error) { res.status(500).json({ message: "Could not promote the student" }); }
+});
 
-      if (!name || !email || !password)
-        return res.status(400).json({ message: "Missing fields" });
-      if (!isStrongPassword(password)) {
-        return res.status(400).json({ message: PASSWORD_MESSAGE });
-      }
-
-      const existing = await User.findOne({ email: User.normalizeEmail(email) });
-      if (existing)
-        return res.status(400).json({ message: "User already exists" });
-
-      const organizer = new User({
-        name,
-        email: User.normalizeEmail(email),
-        password,
-        role: "organizer",
-      });
-
-      await organizer.save();
-
-      res.json({
-        message: "Organizer created successfully",
-        organizer: {
-          id: organizer._id,
-          email: organizer.email,
-          role: organizer.role,
-        },
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Server error" });
-    }
-  }
-);
+// Demotion removes only the additional portal grant; student records stay intact.
+router.post("/users/:id/demote-organizer", protect, authorize("admin"), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid student ID" });
+    const existing = await User.findById(req.params.id).select("role organizerAccess");
+    if (!existing) return res.status(404).json({ message: "Student not found" });
+    if (existing.role !== "student") return res.status(400).json({ message: "Only promoted students can have organizer access removed" });
+    const now = new Date();
+    const student = await User.findOneAndUpdate({ _id: existing._id, role: "student", organizerAccess: true }, { $set: { organizerAccess: false, organizerDemotedAt: now, organizerDemotedBy: req.user._id }, $inc: { organizerAccessVersion: 1 } }, { new: true, runValidators: true }).select("name email role organizerAccess program yearLevel section enrollmentStatus");
+    if (!student) return res.status(409).json({ message: "This student no longer has organizer access. Refresh the list." });
+    // The station endpoint also checks the operator's current grant/version.
+    let notificationWarning;
+    try { await CheckInSession.updateMany({ openedBy: student._id, closedAt: null }, { $set: { closedAt: now } }); }
+    catch { notificationWarning = "Access was removed. Station access is revoked, but station closure records could not be updated."; }
+    try { await notifyUsers([student], { type: "system", title: "Organizer access removed", message: "An administrator removed your organizer access. Your student account, attendance and community service ledger remain available." }); }
+    catch { notificationWarning = [notificationWarning, "The notification could not be delivered."].filter(Boolean).join(" "); }
+    res.json({ message: "Organizer access removed. Student access and records are retained.", student: { ...student.toObject(), availableRoles: availableRoles(student) }, ...(notificationWarning ? { notificationWarning } : {}) });
+  } catch { res.status(500).json({ message: "Could not remove organizer access" }); }
+});
 
 // GET USERS (admin/organizer) - optionally filter by ?role=student
 router.get("/users", protect, authorize("admin", "organizer"), async (req, res) => {
@@ -76,13 +76,14 @@ router.get("/users", protect, authorize("admin", "organizer"), async (req, res) 
         .split(",")
         .map((r) => r.trim())
         .filter((r) => ["student", "organizer", "admin"].includes(r));
-      if (roles.length) query.role = roles.length > 1 ? { $in: roles } : roles[0];
+      if (roles.includes("organizer")) query.$or = [{ role: { $in: roles } }, { role: "student", organizerAccess: true }];
+      else if (roles.length) query.role = roles.length > 1 ? { $in: roles } : roles[0];
     }
 
     const projection =
       req.user.role === "organizer"
-        ? "name email role program yearLevel section createdAt updatedAt"
-        : "name email role profilePicture program yearLevel section emailVerified facePhoto faceAttempts faceLockUntil createdAt updatedAt";
+        ? "name email role program yearLevel section enrollmentStatus academicYearStart faceEnrolledAt organizerAccess createdAt updatedAt"
+        : "name email role profilePicture program yearLevel section emailVerified facePhoto faceAttempts faceLockUntil organizerAccess organizerPromotedAt createdAt updatedAt";
 
     const users = await User.find(query).select(projection).sort({ name: 1 });
 
@@ -99,6 +100,9 @@ router.patch("/users/:id", protect, authorize("admin"), async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    if (role !== undefined && role !== user.role && (role === "organizer" || (user.role === "student" && user.organizerAccess))) {
+      return res.status(400).json({ message: "Use Promote Student to grant organizer access while keeping student records." });
+    }
     if (role !== undefined) {
       if (!["student", "organizer", "admin"].includes(role)) {
         return res.status(400).json({ message: "Invalid role" });
@@ -137,6 +141,10 @@ router.patch("/users/:id", protect, authorize("admin"), async (req, res) => {
       }
     }
 
+    if ([program, yearLevel, section].some(value => value !== undefined) && user.role !== "student") return res.status(400).json({ message: "Academic details can only be edited for students" });
+    if (program !== undefined && !["BSIT", "BSCS", "IT", "BSIS", "BSEMC", "OTHER"].includes(String(program).trim().toUpperCase())) return res.status(400).json({ message: "Invalid program" });
+    if (yearLevel !== undefined && (typeof yearLevel !== "number" && typeof yearLevel !== "string" || !String(yearLevel).trim() || !Number.isInteger(Number(yearLevel)) || Number(yearLevel) < 1 || Number(yearLevel) > 4)) return res.status(400).json({ message: "Year level must be a whole number between 1 and 4" });
+    if (section !== undefined && !/^[ABC]$/.test(String(section).trim().toUpperCase())) return res.status(400).json({ message: "Section must be A, B, or C" });
     if (program !== undefined) user.program = String(program).trim().toUpperCase();
     if (section !== undefined) user.section = String(section).trim().toUpperCase();
     if (yearLevel !== undefined) user.yearLevel = Number(yearLevel);
@@ -147,7 +155,7 @@ router.patch("/users/:id", protect, authorize("admin"), async (req, res) => {
         return res.status(400).json({ message: "Invalid program" });
       }
       if (user.yearLevel !== null && user.yearLevel !== undefined) {
-        if (!Number.isFinite(user.yearLevel) || user.yearLevel < 1 || user.yearLevel > 4) {
+        if (!Number.isInteger(user.yearLevel) || user.yearLevel < 1 || user.yearLevel > 4) {
           return res.status(400).json({ message: "Year level must be between 1 and 4" });
         }
       }
@@ -375,6 +383,57 @@ router.post(
     }
   }
 );
+
+// Overall correction uses the existing attendance ledger so every portal agrees.
+router.patch("/users/:id/community-service", protect, authorize("admin"), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid student ID" });
+    const { hours, expectedTotal } = req.body;
+    if ((typeof hours !== "number" && typeof hours !== "string") || !String(hours).trim() || !Number.isFinite(Number(hours)) || Number(hours) < 0) return res.status(400).json({ message: "Enter a valid total of zero hours or more" });
+    if (typeof expectedTotal !== "number" || !Number.isFinite(expectedTotal) || expectedTotal < 0) return res.status(400).json({ message: "Refresh the student's balance before making an adjustment" });
+    const student = await User.findById(req.params.id).select("role");
+    if (!student) return res.status(404).json({ message: "Student not found" });
+    if (student.role !== "student") return res.status(400).json({ message: "Only student balances can be adjusted" });
+    const records = await Attendance.find({ student: student._id }).sort({ attendedAt: 1, _id: 1 });
+    const total = records.reduce((sum, record) => sum + (record.communityServiceHours || 0), 0);
+    if (Math.abs(total - expectedTotal) > 0.000001) return res.status(409).json({ message: "The balance changed. Reload the student's details and try again." });
+    const target = Number(hours);
+    if (target > 0 && !records.length) return res.status(400).json({ message: "There are no attendance records to adjust yet" });
+    let remaining = Math.abs(target - total);
+    const note = `Overall balance adjusted by admin from ${total} to ${target} hours`;
+    const changed = [];
+    const preservePenalty = record => {
+      record.communityServiceLog ||= [];
+      if (record.communityServiceHours > 0 && !record.communityServiceLog.some(entry => entry.action === "penalty" || entry.action === "restored")) record.communityServiceLog.push({ action: "penalty", hours: record.communityServiceHours, note: "Existing event hours before overall adjustment" });
+    };
+    if (target > total) {
+      const record = [...records].reverse().find(record => record.communityServiceHours > 0) || records[records.length - 1];
+      preservePenalty(record);
+      record.communityServiceHours = (record.communityServiceHours || 0) + remaining;
+      record.communityServiceLog.push({ action: "penalty", hours: remaining, note });
+      changed.push(record);
+    } else if (target < total) {
+      // Apply reductions oldest first, retaining the event and its original log.
+      for (const record of records) {
+        if (remaining <= 0) break;
+        const removed = Math.min(record.communityServiceHours || 0, remaining);
+        if (removed <= 0) continue;
+        preservePenalty(record);
+        record.communityServiceHours -= removed;
+        record.communityServiceLog.push({ action: "removed", hours: removed, note });
+        changed.push(record);
+        remaining -= removed;
+      }
+    }
+    for (const record of changed) await record.save();
+    let notificationWarning;
+    if (changed.length) {
+      try { await notifyUsers([student._id], { type: "penalty", title: "Overall community service balance updated", message: `An administrator adjusted your overall community service balance from ${total} to ${target} hours.` }); }
+      catch { notificationWarning = "The balance was updated, but the notification could not be delivered."; }
+    }
+    res.json({ totalHours: target, message: "Overall service balance updated.", ...(notificationWarning ? { notificationWarning } : {}) });
+  } catch (error) { console.error(error); res.status(500).json({ message: "Could not finish the adjustment. Reload the student's details to check the latest balance before retrying." }); }
+});
 
 // MANUALLY ADJUST COMMUNITY SERVICE HOURS (admin)
 // Overwrites the hours this attendance record contributes to the student's CS

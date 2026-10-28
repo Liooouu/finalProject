@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import {
   FaCheck,
@@ -25,6 +26,7 @@ import {
   Tabs,
 } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import Pagination from "../ui/Pagination";
 import { formatDate, formatDateTime } from "../../utils/helpers";
 
 const roleStyles = {
@@ -33,7 +35,7 @@ const roleStyles = {
   student: "border-info/25 bg-info/10 text-info",
 };
 
-const PROGRAM_OPTIONS = ["BSEMC", "BSIT", "BSCS"];
+const PROGRAM_OPTIONS = ["BSEMC", "BSIT", "BSCS", "BSIS", "IT", "OTHER"];
 const YEAR_OPTIONS = [1, 2, 3, 4];
 const SECTION_OPTIONS = ["A", "B", "C"];
 
@@ -46,9 +48,47 @@ const ManageUsers = () => {
   const [sectionFilter, setSectionFilter] = useState("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [academicDraft, setAcademicDraft] = useState({ program: "", yearLevel: "", section: "" });
+  const [savingAcademic, setSavingAcademic] = useState(false);
+  const [detailNotice, setDetailNotice] = useState(null);
+  const [demoteTarget, setDemoteTarget] = useState(null);
+  const [demoting, setDemoting] = useState(false);
+
+  const mergeStudent = (student) => {
+    setUsers(previous => previous.map(user => user._id === student._id ? { ...user, ...student } : user));
+    setSelectedUser(previous => previous?._id === student._id ? { ...previous, ...student } : previous);
+  };
+  const saveAcademic = async (event) => {
+    event.preventDefault();
+    if (savingAcademic || demoting) return;
+    setSavingAcademic(true);
+    setDetailNotice(null);
+    try {
+      const response = await api.patch(`/admin/users/${selectedUser._id}`, { ...academicDraft, yearLevel: Number(academicDraft.yearLevel) });
+      mergeStudent(response.data);
+      setDetailNotice({ type: "success", text: "Student academic details updated." });
+    } catch (error) {
+      setDetailNotice({ type: "error", text: error.response?.data?.message || "Could not update academic details. Please try again." });
+    } finally { setSavingAcademic(false); }
+  };
+  const demoteStudent = async () => {
+    if (!demoteTarget || demoting) return;
+    setDemoting(true);
+    setDetailNotice(null);
+    try {
+      const response = await api.post(`/admin/users/${demoteTarget._id}/demote-organizer`);
+      mergeStudent(response.data.student);
+      setDetailNotice({ type: "success", text: [response.data.message, response.data.notificationWarning].filter(Boolean).join(" ") });
+    } catch (error) {
+      setDetailNotice({ type: "error", text: error.response?.data?.message || "Could not remove organizer access. Please try again." });
+    } finally { setDemoting(false); setDemoteTarget(null); }
+  };
   const [userAttendance, setUserAttendance] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [csDrafts, setCsDrafts] = useState({});
+  const [serviceDraft, setServiceDraft] = useState("");
+  const [attendancePage, setAttendancePage] = useState(1);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceError, setAttendanceError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [faceResetTarget, setFaceResetTarget] = useState(null);
   const [resettingFace, setResettingFace] = useState(false);
@@ -73,8 +113,17 @@ const ManageUsers = () => {
   const [messageType, setMessageType] = useState("success");
   const [pendingRemoveCS, setPendingRemoveCS] = useState(null);
   const [removingCS, setRemovingCS] = useState(false);
-  const [rowBusyId, setRowBusyId] = useState(null);
-  const [activeTab, setActiveTab] = useState("users");
+  const totalServiceHours = userAttendance.reduce((total, record) => total + (record.communityServiceHours || 0), 0);
+  const attendancePages = Math.max(1, Math.ceil(userAttendance.length / 5));
+  const currentAttendancePage = Math.min(attendancePage, attendancePages);
+  const visibleAttendance = userAttendance.slice((currentAttendancePage - 1) * 5, currentAttendancePage * 5);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") === "appeals" ? "appeals" : "users";
+  const setActiveTab = tab => setSearchParams(previous => {
+    const next = new URLSearchParams(previous);
+    if (tab === "appeals") next.set("tab", "appeals"); else next.delete("tab");
+    return next;
+  }, { replace: true });
   const [appeals, setAppeals] = useState([]);
   const [appealsLoading, setAppealsLoading] = useState(false);
   const [reviewTarget, setReviewTarget] = useState(null);
@@ -190,71 +239,45 @@ const ManageUsers = () => {
 
   const loadAttendance = async (user) => {
     const res = await api.get("/reports/attendance");
-    const userRecords = res.data.records.filter(
-      (r) => r.student?._id === user._id || r.student === user._id
-    );
+    const userRecords = res.data.records.filter(record => record.student?._id === user._id || record.student === user._id);
     setUserAttendance(userRecords);
-    setCsDrafts({});
+    setServiceDraft(String(userRecords.reduce((total, record) => total + (record.communityServiceHours || 0), 0)));
   };
 
   const openUserDetails = async (user) => {
     setSelectedUser(user);
+    setAcademicDraft({ program: user.program || "", yearLevel: String(user.yearLevel || ""), section: user.section || "" });
+    setDetailNotice(null);
+    setUserAttendance([]);
+    setServiceDraft("");
+    setAttendancePage(1);
+    setAttendanceError("");
+    setAttendanceLoading(true);
     setShowModal(true);
-    setCsDrafts({});
-    try {
-      await loadAttendance(user);
-    } catch (err) {
-      console.error(err);
-      setUserAttendance([]);
-    }
+    try { await loadAttendance(user); }
+    catch { setAttendanceError("Could not load attendance and service hours. Close this window and reopen it to retry."); }
+    finally { setAttendanceLoading(false); }
   };
 
-  const handleUpdateCS = async (record, hours) => {
-    if (rowBusyId) return;
-    const value = Number(hours);
-    if (!Number.isFinite(value) || value < 0) {
-      setMessage("Please enter a valid number of hours (0 or more)");
-      setMessageType("error");
+  const requestServiceUpdate = (hours) => {
+    const target = Number(hours);
+    if (!String(hours).trim() || !Number.isFinite(target) || target < 0) {
+      setDetailNotice({ type: "error", text: "Enter a valid total of zero hours or more." });
       return;
     }
-    setRowBusyId(record._id);
-    try {
-      const res = await api.patch(`/admin/attendance/${record._id}/community-service`, {
-        hours: value,
-      });
-      setUserAttendance((prev) => prev.map((r) => (r._id === res.data._id ? res.data : r)));
-      setCsDrafts((d) => ({ ...d, [record._id]: String(value) }));
-      setMessage(`Community service hours set to ${value} hrs`);
-      setMessageType("success");
-    } catch (err) {
-      setMessage(err.response?.data?.message || "Failed to update community service");
-      setMessageType("error");
-    } finally {
-      setRowBusyId(null);
-    }
+    setPendingRemoveCS({ studentId: selectedUser._id, previous: totalServiceHours, target });
   };
 
   const confirmRemoveCS = async () => {
-    const record = pendingRemoveCS;
-    if (!record || removingCS) return;
+    if (!pendingRemoveCS || removingCS) return;
     setRemovingCS(true);
-    const studentId = record.student?._id || record.student;
     try {
-      await api.patch(`/admin/attendance/${record._id}/community-service/remove`, {
-        hours: record.communityServiceHours || 0,
-      });
-      if (selectedUser && selectedUser._id === studentId) {
-        await loadAttendance(selectedUser);
-      }
-      setMessage("Community service hours removed");
-      setMessageType("success");
-      setPendingRemoveCS(null);
-    } catch (err) {
-      setMessage(err.response?.data?.message || "Failed to remove community service");
-      setMessageType("error");
-    } finally {
-      setRemovingCS(false);
-    }
+      const response = await api.patch(`/admin/users/${pendingRemoveCS.studentId}/community-service`, { hours: pendingRemoveCS.target, expectedTotal: pendingRemoveCS.previous });
+      await loadAttendance(selectedUser);
+      setDetailNotice({ type: "success", text: [response.data.message, response.data.notificationWarning].filter(Boolean).join(" ") });
+    } catch (error) {
+      setDetailNotice({ type: "error", text: error.response?.data?.message || "Could not finish the adjustment. Reload these details to check the latest balance." });
+    } finally { setRemovingCS(false); setPendingRemoveCS(null); }
   };
 
   const hasActiveFilters =
@@ -277,10 +300,10 @@ const ManageUsers = () => {
   };
 
   const staffUsers = users.filter(
-    (user) => user.role === "admin" || user.role === "organizer"
+    (user) => user.role === "admin" || user.role === "organizer" || user.organizerAccess === true
   );
   const studentUsers = users.filter((user) => {
-    if (user.role !== "student") return false;
+    if (user.role !== "student" || user.organizerAccess === true) return false;
     const term = searchTerm.toLowerCase();
     const matchesSearch =
       user.name.toLowerCase().includes(term) ||
@@ -297,13 +320,13 @@ const ManageUsers = () => {
     return matchesSearch && matchesProgram && matchesYear && matchesSection;
   });
 
-  const getRoleBadge = (role) => (
+  const getRoleBadge = (role, organizerAccess = false) => (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium capitalize ${
+      className={`inline-flex whitespace-nowrap items-center rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${
         roleStyles[role] || roleStyles.student
       }`}
     >
-      {role}
+      {role === "student" && organizerAccess ? "Student/Organizer" : role}
     </span>
   );
 
@@ -489,7 +512,7 @@ const ManageUsers = () => {
                             {getGroupLabel(user)}
                           </span>
                         ) : (
-                          getRoleBadge(user.role)
+                          getRoleBadge(user.role, user.organizerAccess)
                         )}
                       </div>
                     </div>
@@ -525,7 +548,7 @@ const ManageUsers = () => {
           <table className="data-table hidden table-fixed sm:table">
             <colgroup>
               <col />
-              <col className="w-[128px]" />
+              <col className={showGroup ? "w-[128px]" : "w-[152px]"} />
               <col className="w-[156px]" />
             </colgroup>
             <thead className="sticky top-0 z-10 bg-card">
@@ -573,7 +596,7 @@ const ManageUsers = () => {
                         </p>
                       </div>
                     ) : (
-                      getRoleBadge(user.role)
+                      getRoleBadge(user.role, user.organizerAccess)
                     )}
                   </td>
                   <td style={{ paddingLeft: 8, paddingRight: 8 }}>
@@ -592,8 +615,8 @@ const ManageUsers = () => {
   const stats = {
     total: users.length,
     admin: users.filter((u) => u.role === "admin").length,
-    organizer: users.filter((u) => u.role === "organizer").length,
-    student: users.filter((u) => u.role === "student").length,
+    organizer: users.filter((u) => u.role === "organizer" || (u.role === "student" && u.organizerAccess === true)).length,
+    student: users.filter((u) => u.role === "student" && u.organizerAccess !== true).length,
   };
 
   const pendingCount = appeals.filter((a) => a.status === "pending").length;
@@ -690,7 +713,7 @@ const ManageUsers = () => {
       <PageHeader
         eyebrow="People & access"
         title="Manage users"
-        subtitle={`${staffUsers.length} admin & event organizer accounts · ${studentUsers.length} of ${stats.student} students`}
+        subtitle={`${stats.total} accounts`}
       />
 
       {message && (
@@ -754,13 +777,13 @@ const ManageUsers = () => {
           <div className="grid gap-4 xl:grid-cols-2">
             {renderUserTable(staffUsers, {
               title: "Admin & Event Organizers",
-              subtitle: "Administrators and event organizers",
+              subtitle: "Admins and accounts with organizer access",
               emptyTitle: "No admin or organizer accounts found",
             })}
 
             {renderUserTable(studentUsers, {
               title: "Students",
-              subtitle: "Student accounts",
+              subtitle: "Accounts with student access only",
               emptyTitle: "No students found",
               showGroup: true,
               filters: studentFilters,
@@ -888,7 +911,7 @@ const ManageUsers = () => {
       )}
 
       {showModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div role="dialog" aria-modal="true" aria-label="User details" className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[var(--panel-radius)] border border-line bg-card shadow-[var(--elev-3)]">
             <div className="flex items-start justify-between gap-3 border-b border-line p-5">
               <div className="flex min-w-0 items-center gap-3.5">
@@ -904,6 +927,7 @@ const ManageUsers = () => {
               </div>
               <Button
                 onClick={() => setShowModal(false)}
+                disabled={savingAcademic || demoting || removingCS}
                 variant="ghost"
                 size="icon"
                 aria-label="Close user details"
@@ -914,7 +938,7 @@ const ManageUsers = () => {
             <div className="overflow-y-auto p-5">
               <div className="mb-5 flex flex-wrap items-center gap-3">
                 <span className="text-sm text-on-dim">Role:</span>
-                {getRoleBadge(selectedUser.role)}
+                {getRoleBadge(selectedUser.role, selectedUser.organizerAccess)}
                 <span className="text-sm text-on-dim">
                   Joined {formatDate(selectedUser.createdAt)}
                 </span>
@@ -928,6 +952,35 @@ const ManageUsers = () => {
                 )}
               </div>
 
+              {detailNotice && <p role="status" className={`mb-4 rounded-xl border p-3 text-sm ${detailNotice.type === "error" ? "border-danger/30 bg-danger/10 text-danger" : "border-success/30 bg-success/10 text-on"}`}>{detailNotice.text}</p>}
+              {selectedUser.role === "student" && (
+                <section className="mb-6 space-y-4 rounded-xl border border-line bg-card-alt/50 p-4">
+                  <div>
+                    <h4 className="font-medium text-on">Student academic details</h4>
+                    <p className="text-sm text-on-dim">Update the student's current program, year level and section.</p>
+                  </div>
+                  <form onSubmit={saveAcademic} className="space-y-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      {[["program", "Program", PROGRAM_OPTIONS], ["yearLevel", "Year level", YEAR_OPTIONS], ["section", "Section", SECTION_OPTIONS]].map(([field, label, options]) => (
+                        <label key={field} className="space-y-1 text-sm text-on-dim">
+                          <span>{label}</span>
+                          <select aria-label={label} required value={academicDraft[field]} disabled={savingAcademic || demoting} onChange={event => setAcademicDraft(previous => ({ ...previous, [field]: event.target.value }))} className="w-full rounded-lg border border-line bg-card px-3 py-2 text-on">
+                            <option value="">Select {label.toLowerCase()}</option>
+                            {options.map(option => <option key={option} value={option}>{field === "yearLevel" ? `Year ${option}` : option}</option>)}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                    <Button type="submit" size="sm" disabled={savingAcademic || demoting}>{savingAcademic ? "Saving…" : "Save student details"}</Button>
+                  </form>
+                  {selectedUser.organizerAccess && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+                      <div><h4 className="font-medium text-on">Organizer access</h4><p className="text-sm text-on-dim">This student also has access to the organizer portal.</p></div>
+                      <Button variant="danger" size="sm" disabled={savingAcademic || demoting} onClick={() => setDemoteTarget(selectedUser)}>Remove organizer access</Button>
+                    </div>
+                  )}
+                </section>
+              )}
               {selectedUser.role === "student" && (
                 <div className="mb-6 flex flex-col gap-4 rounded-xl border border-line bg-card-alt/50 p-4 sm:flex-row sm:items-center">
                   <div className="flex items-center gap-3">
@@ -974,93 +1027,43 @@ const ManageUsers = () => {
                 </div>
               )}
 
-              <h4 className="panel-heading text-base">
-                Attendance history ({userAttendance.length})
-              </h4>
-              {userAttendance.length === 0 ? (
-                <EmptyState
-                  compact
-                  icon={<FaUsers />}
-                  title="No attendance records"
-                  description="This account has not checked in to any event yet."
-                />
+              {selectedUser.role === "student" && (
+                <section className="mb-6 space-y-3 rounded-xl border border-brand/25 bg-brand/5 p-4" aria-label="Overall community service">
+                  <div><h4 className="font-medium text-on">Overall service balance</h4><p className="text-sm text-on-dim">Total hours remaining across all events.</p></div>
+                  <p className="text-3xl font-semibold tabular-nums text-on">{attendanceLoading || attendanceError ? "—" : totalServiceHours} <span className="text-sm font-normal text-on-dim">hrs</span></p>
+                  <form className="flex flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); requestServiceUpdate(serviceDraft); }}>
+                    <label className="text-sm text-on-dim"><span className="mb-1 block">New overall total (hrs)</span><input aria-label="New overall total (hrs)" type="number" min="0" step="any" required value={serviceDraft} onChange={event => setServiceDraft(event.target.value)} disabled={attendanceLoading || !!attendanceError || removingCS} className="field w-32" /></label>
+                    <Button type="submit" size="sm" disabled={attendanceLoading || !!attendanceError || removingCS || !userAttendance.length || Number(serviceDraft) === totalServiceHours}>Set total</Button>
+                    <Button type="button" variant="danger" size="sm" disabled={attendanceLoading || !!attendanceError || removingCS || totalServiceHours <= 0} onClick={() => requestServiceUpdate(0)}>Clear balance</Button>
+                  </form>
+                  <p className="text-xs text-on-muted">Adjustments keep the event history. Reductions apply to the oldest outstanding hours first.</p>
+                </section>
+              )}
+              <h4 className="panel-heading text-base">Attendance history ({userAttendance.length})</h4>
+              <p className="mt-1 text-sm text-on-dim">Event penalties and remaining hours are shown below.</p>
+              {attendanceLoading ? <p className="py-4 text-sm text-on-dim" role="status">Loading attendance…</p> : attendanceError ? <p role="alert" className="py-4 text-sm text-danger">{attendanceError}</p> : userAttendance.length === 0 ? (
+                <EmptyState compact icon={<FaUsers />} title="No attendance records" description="This account has not checked in to any event yet." />
               ) : (
-                <div className="mt-3 space-y-2">
-                  {userAttendance.map((record) => (
-                    <div
-                      key={record._id}
-                      className="flex flex-col gap-3 rounded-xl border border-line bg-card-alt/40 p-3.5 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-on">
-                          {record.event?.title || record.eventTitle || "Event"}
-                        </p>
-                        <p className="text-sm text-on-dim">
-                          {(record.event?.date || record.eventDate) &&
-                            formatDate(record.event?.date || record.eventDate)}
-                          {record.communityServiceHours > 0 && (
-                            <span className="font-medium text-warn">
-                              {" "}
-                              · {record.communityServiceHours} service hrs
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <StatusChip status={record.status} />
-                        <div className="flex items-center gap-1 rounded-lg border border-line bg-card p-1 shadow-[var(--elev-1)]">
-                          <span
-                            className="pl-1 text-[10px] font-semibold uppercase tracking-wider text-on-muted"
-                            aria-hidden="true"
-                          >
-                            Hrs
-                          </span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={
-                              csDrafts[record._id] ??
-                              String(record.communityServiceHours)
-                            }
-                            onChange={(e) =>
-                              setCsDrafts({ ...csDrafts, [record._id]: e.target.value })
-                            }
-                            className="h-8 w-14 rounded-md border border-line/70 bg-card-alt px-1.5 text-center text-sm font-semibold tabular-nums text-on transition-colors [appearance:textfield] hover:border-brand/30 focus:border-brand/60 focus:outline-none focus:ring-2 focus:ring-brand/25 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            title="Set this student's community service hours"
-                            aria-label={`Community service hours for ${
-                              record.event?.title || "event"
-                            }`}
-                          />
-                          <Button
-                            onClick={() =>
-                              handleUpdateCS(
-                                record,
-                                csDrafts[record._id] ?? record.communityServiceHours
-                              )
-                            }
-                            disabled={rowBusyId === record._id}
-                            size="sm"
-                            className="h-8"
-                          >
-                            Set
-                          </Button>
+                <>
+                  <div className="mt-3 space-y-2">
+                    {visibleAttendance.map(record => {
+                      const penalties = (record.communityServiceLog || []).filter(entry => entry.action === "penalty" || entry.action === "restored").reduce((sum, entry) => sum + (entry.hours || 0), 0);
+                      const penaltyHours = Math.max(penalties, record.communityServiceHours || 0);
+                      return (
+                        <div key={record._id} data-testid="attendance-history-record" className="flex flex-col gap-2 rounded-xl border border-line bg-card-alt/40 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="break-words font-medium text-on">{record.event?.title || record.eventTitle || "Event"}</p>
+                            <p className="text-sm text-on-dim">{(record.event?.date || record.eventDate) && formatDate(record.event?.date || record.eventDate)}</p>
+                            {penaltyHours > 0 && <p className="text-sm text-warn">{penaltyHours} penalty hrs added <span className="text-on-dim">· {record.communityServiceHours || 0} hrs remaining</span></p>}
+                            {(record.communityServiceLog || []).some(entry => entry.note?.startsWith("Overall balance adjusted")) && <p className="text-xs text-on-muted">Includes an overall balance adjustment</p>}
+                          </div>
+                          <StatusChip status={record.status} />
                         </div>
-                        <Button
-                          onClick={() => setPendingRemoveCS(record)}
-                          disabled={
-                            rowBusyId === record._id ||
-                            record.communityServiceHours <= 0
-                          }
-                          variant="danger"
-                          size="sm"
-                          className="h-8"
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      );
+                    })}
+                  </div>
+                  <Pagination page={currentAttendancePage} pageSize={5} total={userAttendance.length} onChange={setAttendancePage} label="Student attendance history pages" />
+                </>
               )}
             </div>
           </div>
@@ -1069,16 +1072,9 @@ const ManageUsers = () => {
 
       <ConfirmDialog
         open={!!pendingRemoveCS}
-        title="Remove community service hours?"
-        message={
-          pendingRemoveCS
-            ? `Remove the ${pendingRemoveCS.communityServiceHours} service hour${
-                pendingRemoveCS.communityServiceHours === 1 ? "" : "s"
-              } recorded for this event? This only affects this event.`
-            : ""
-        }
-        confirmLabel="Remove hours"
-        variant="danger"
+        title="Update overall service balance?"
+        message={pendingRemoveCS ? `Change this student's overall balance from ${pendingRemoveCS.previous} to ${pendingRemoveCS.target} hours across all events? Their attendance and penalty history will be retained.` : ""}
+        confirmLabel="Update balance"
         onConfirm={confirmRemoveCS}
         onCancel={() => setPendingRemoveCS(null)}
         busy={removingCS}
@@ -1088,6 +1084,7 @@ const ManageUsers = () => {
         message={`Confirm the identity of ${faceResetTarget?.name || "this student"} before resetting. Their saved face will be removed and attendance will require manual check-in until they enroll again.`}
         confirmLabel="Reset face" variant="danger" busy={resettingFace}
         onConfirm={resetFace} onCancel={() => setFaceResetTarget(null)} />
+      <ConfirmDialog open={!!demoteTarget} title="Remove organizer access?" message={`${demoteTarget?.name || "This student"} will lose organizer access and their face stations will close. Their student account, face enrollment, attendance and community service ledger will remain available.`} confirmLabel="Remove organizer access" busy={demoting} onConfirm={demoteStudent} onCancel={() => setDemoteTarget(null)} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete this user?"

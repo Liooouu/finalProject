@@ -141,7 +141,7 @@ const TemplateCard = ({ kind, value, onChange }) => {
   );
 };
 
-const EmailSettings = () => {
+const EmailSettings = ({ embedded = false }) => {
   usePageMeta("Email Settings", "Configure SMTP and edit the emails TrackED sends.");
 
   const [loading, setLoading] = useState(true);
@@ -283,11 +283,11 @@ const EmailSettings = () => {
   if (loading) {
     return (
       <div className="mx-auto max-w-4xl space-y-4">
-        <PageHeader
+        {!embedded && <PageHeader
           eyebrow="Settings"
           title="Email settings"
           subtitle="Loading the current SMTP configuration and templates…"
-        />
+        />}
         <Card>
           <div className="space-y-3" role="status" aria-label="Loading email settings">
             {[0, 1, 2, 3].map((i) => (
@@ -301,11 +301,11 @@ const EmailSettings = () => {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <PageHeader
+      {!embedded && <PageHeader
         eyebrow="Settings"
         title="Email settings"
         subtitle="Choose where outgoing mail is sent from and edit the wording of each message."
-      />
+      />}
 
       {message && (
         <div

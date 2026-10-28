@@ -7,9 +7,8 @@ const ROLES = ["student", "organizer", "admin"];
 // multiple accounts are logged in across different tabs.
 export const getContextRole = () => {
   const path = window.location.pathname;
-  if (path.startsWith("/student")) return "student";
-  if (path.startsWith("/organizer")) return "organizer";
-  if (path.startsWith("/admin")) return "admin";
+  const role = path.split("/")[1];
+  if (ROLES.includes(role)) return role;
   return null;
 };
 
@@ -47,13 +46,29 @@ export const getLastActiveRole = () => {
   }
 };
 
-export const getToken = () => {
-  const context = getContextRole();
-  if (context) {
-    const contextualToken = localStorage.getItem(`token_${context}`);
-    if (contextualToken) return contextualToken;
+// Old sessions may only have the generic key. Migrate it only when its signed
+// role matches this portal; another tab's latest login is never a fallback.
+const tokenMatchesRole = (token, role) => {
+  if (!token) return false;
+  try {
+    const payload = jwtDecode(token);
+    return ROLES.includes(payload?.role) && (!role || payload.role === role) && (!payload.exp || payload.exp * 1000 > Date.now());
+  } catch { return false; }
+};
+
+export const getToken = (role = getContextRole()) => {
+  if (role) {
+    const contextualToken = localStorage.getItem(`token_${role}`);
+    if (tokenMatchesRole(contextualToken, role)) return contextualToken;
+    const legacyToken = localStorage.getItem("token");
+    if (tokenMatchesRole(legacyToken, role)) {
+      localStorage.setItem(`token_${role}`, legacyToken);
+      return legacyToken;
+    }
+    return null;
   }
-  return localStorage.getItem("token");
+  const token = localStorage.getItem("token");
+  return tokenMatchesRole(token) ? token : null;
 };
 
 export const clearAuth = (role = getContextRole()) => {

@@ -1,3 +1,4 @@
+import EventLastEdit from "./shared/EventLastEdit";
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import api from "../api/axios";
@@ -13,12 +14,9 @@ import {
 import { FaCheck, FaEdit, FaTrash, FaUndo, FaExclamationTriangle, FaUsers, FaCamera } from "react-icons/fa";
 import Loading from "./shared/Loading";
 import { BsClipboardCheck } from "react-icons/bs";
-import CheckInStation from "./organizer/CheckInStation";
 import { usePageMeta } from "../context/PageMetaContext";
 import { useAutoRefresh } from "../utils/useAutoRefresh";
 import { Button, Card, StatusChip } from "./ui";
-import EventMap from "./shared/EventMap";
-import MapPicker from "./shared/MapPicker";
 import EmptyState from "./shared/EmptyState";
 import ConfirmDialog from "./ui/ConfirmDialog";
 
@@ -59,14 +57,11 @@ const EventDetails = () => {
     navigate(eventListPath);
   };
   const [canManage, setCanManage] = useState(false);
-  const [canManageAttendance, setCanManageAttendance] = useState(false);
+  const [canViewAttendance, setCanViewAttendance] = useState(false);
   // Ticks a few times a minute so the window message flips on its own.
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [studentId, setStudentId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [pendingRemoveCS, setPendingRemoveCS] = useState(null);
-  const [removingCS, setRemovingCS] = useState(false);
-  const [csDrafts, setCsDrafts] = useState({});
   const [saving, setSaving] = useState(false);
   const [program, setProgram] = useState("");
   const [yearLevel, setYearLevel] = useState("");
@@ -107,7 +102,7 @@ const EventDetails = () => {
     try {
       const res = await api.get(`/events/${id}`);
       setEvent(res.data);
-      if (canManageAttendance) {
+      if (role === "admin" && canViewAttendance) {
         await refreshAttendees();
       } else if (role === "student") {
         const mine = await api.get("/events/my-attendance");
@@ -118,7 +113,7 @@ const EventDetails = () => {
     } catch (err) {
       console.error(err.response?.data || err.message);
     }
-  }, [id, role, canManageAttendance, refreshAttendees]);
+  }, [id, role, canViewAttendance, refreshAttendees]);
 
   useAutoRefresh(refreshEvent, { enabled: Boolean(event) });
 
@@ -136,7 +131,6 @@ const EventDetails = () => {
           title: eventData.title,
           description: eventData.description,
           location: eventData.location,
-          mapQuery: eventData.mapQuery || "",
           date: eventData.date ? new Date(eventData.date).toISOString().split("T")[0] : "",
           time: eventData.time,
           endDate: eventData.endDate ? new Date(eventData.endDate).toISOString().split("T")[0] : "",
@@ -154,19 +148,13 @@ const EventDetails = () => {
       }
 
       const ownerId = eventData.organizer?._id || eventData.organizer;
-      const mayManage =
-        currentRole === "admin" ||
-        (currentRole === "organizer" &&
-          ((currentUser?.id &&
-            ownerId &&
-            String(ownerId) === String(currentUser.id)) ||
-            eventData.organizer?.role === "admin"));
-      const mayManageAttendance = mayManage;
+      const mayManage = currentRole === "admin" || currentRole === "organizer";
+      const mayViewAttendance = currentRole === "admin" || (currentRole === "organizer" && ((currentUser?.id && ownerId && String(ownerId) === String(currentUser.id)) || eventData.organizer?.role === "admin"));
       setCanManage(Boolean(mayManage));
-      setCanManageAttendance(Boolean(mayManageAttendance));
+      setCanViewAttendance(Boolean(mayViewAttendance));
 
       try {
-        if (mayManageAttendance) {
+        if (currentRole === "admin" && mayViewAttendance) {
           const attendeesRes = await api.get(`/events/${id}/attendees`);
           setAttendees(attendeesRes.data);
         } else if (currentRole === "student") {
@@ -226,61 +214,10 @@ const EventDetails = () => {
   // Organizer: the kiosk runs in another tab (or another device), so the
   // attendee list would otherwise sit stale while the queue moves.
   useEffect(() => {
-    if (!canManageAttendance) return undefined;
+    if (!canViewAttendance) return undefined;
     const timer = setInterval(refreshEvent, 15000);
     return () => clearInterval(timer);
-  }, [canManageAttendance, refreshEvent]);
-
-  const handleUpdateStatus = async (stdId, status) => {
-    try {
-      const res = await api.patch(`/events/${id}/attendees/${stdId}`, { status });
-      setAttendees((prev) => prev.map((a) => (a._id === res.data._id ? res.data : a)));
-      setMessage("Status updated");
-      setMessageType("success");
-    } catch (err) {
-      setMessage(err.response?.data?.error || "Failed to update status");
-      setMessageType("error");
-    }
-  };
-
-  const handleUpdateCS = async (stdId, val) => {
-    const hours = Number(val);
-    if (!Number.isFinite(hours) || hours < 0) return;
-    try {
-      const res = await api.patch(`/events/${id}/attendees/${stdId}/community-service`, { hours });
-      setAttendees((prev) => prev.map((a) => (a._id === res.data._id ? res.data : a)));
-      setCsDrafts((d) => ({ ...d, [stdId]: hours }));
-      setMessage(`Community service hours set to ${hours} hrs`);
-      setMessageType("success");
-    } catch (err) {
-      setMessage(err.response?.data?.error || "Failed to update service hours");
-      setMessageType("error");
-    }
-  };
-
-  const confirmRemoveCS = async () => {
-    const attendance = pendingRemoveCS;
-    if (!attendance || removingCS) return;
-    setRemovingCS(true);
-    const stdId = attendance.student?._id || attendance.student;
-    try {
-      const res = await api.patch(
-        `/events/${id}/attendees/${stdId}/community-service/remove`,
-        { hours: attendance.communityServiceHours || 0 }
-      );
-      const remaining = res.data.communityServiceHours || 0;
-      setAttendees((prev) => prev.map((a) => (a._id === res.data._id ? res.data : a)));
-      setCsDrafts((d) => ({ ...d, [stdId]: String(remaining) }));
-      setMessage("Community service hours removed");
-      setMessageType("success");
-      setPendingRemoveCS(null);
-    } catch (err) {
-      setMessage(err.response?.data?.error || "Failed to remove service hours");
-      setMessageType("error");
-    } finally {
-      setRemovingCS(false);
-    }
-  };
+  }, [canViewAttendance, refreshEvent]);
 
   const getStudentKey = (s) => {
     if (!s) return "unassigned";
@@ -303,9 +240,6 @@ const EventDetails = () => {
     setEditForm({ ...editForm, [e.target.name]: e.target.value });
   };
 
-  const handleMapPick = (v) => {
-    setEditForm({ ...editForm, location: v, mapQuery: v });
-  };
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
@@ -331,6 +265,9 @@ const EventDetails = () => {
         status: res.data.status,
         manualOverride: res.data.manualOverride,
         autoFinishedAt: res.data.autoFinishedAt,
+        lastEditedBy: res.data.lastEditedBy,
+        lastEditedByName: res.data.lastEditedByName,
+        lastEditedAt: res.data.lastEditedAt,
       });
       setMessage(
         newStatus === "upcoming"
@@ -346,7 +283,7 @@ const EventDetails = () => {
   const handleResumeAuto = async () => {
     try {
       const res = await api.patch(`/events/${id}/automation`, { enabled: true });
-      setEvent({ ...event, manualOverride: res.data.manualOverride });
+      setEvent({ ...event, manualOverride: res.data.manualOverride, lastEditedBy: res.data.lastEditedBy, lastEditedByName: res.data.lastEditedByName, lastEditedAt: res.data.lastEditedAt });
       setMessage("Automatic status changes are back on for this event.");
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to resume automatic status");
@@ -451,8 +388,9 @@ const EventDetails = () => {
               {formatTime12Hour(event.attendanceEndTime)}
             </p>
             <p className="mt-1 text-xs text-on-muted">
-              Students can only check in during this window.
+              Scheduled check-in window. Later check-ins may be marked late.
             </p>
+            <EventLastEdit event={event} className="mt-4" />
             {event.organizer && (
               <div className="mt-4 border-t border-line pt-3">
                 <p className="eyebrow">Organized by</p>
@@ -461,8 +399,6 @@ const EventDetails = () => {
             )}
           </div>
         </div>
-
-        <EventMap event={event} className="mt-6 h-56 w-full" />
       </Card>
 
       {/* Message */}
@@ -476,12 +412,11 @@ const EventDetails = () => {
         </div>
       )}
 
-      {role === "organizer" && !canManageAttendance && (
+      {role === "organizer" && !canViewAttendance && (
         <div className="alert alert-info" role="status">
           <span aria-hidden="true">i</span>
           <p>
-            This event belongs to {event.organizer?.name || "another organizer"}. You can view
-            the details, but only its organizer or an admin can manage attendance.
+            You can edit this event's details. Attendance is handled by {event.organizer?.name || "the original organizer"}.
           </p>
         </div>
       )}
@@ -589,43 +524,8 @@ const EventDetails = () => {
       )}
 
       {/* Organizer Management Section */}
-      {(canManage || canManageAttendance) && (
+      {(canManage || canViewAttendance) && (
         <div className="space-y-4">
-          {/* Face check-in station */}
-          {canManageAttendance && <CheckInStation eventId={id} />}
-
-          {/* Manual Attendance Card */}
-          {canManageAttendance && (
-            <Card>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-                    <FaUsers />
-                  </span>
-                  <div>
-                    <h2 className="panel-heading text-base">Manual attendance</h2>
-                    <p className="mt-1 text-sm text-on-dim">
-                      Add students or adjust community service hours without using the face scanner.
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    navigate(
-                      role === "admin"
-                        ? `/admin/dashboard/events/${id}/attendees`
-                        : `/organizer/dashboard/events/${id}/attendees`
-                    )
-                  }
-                  className="w-full shrink-0 sm:w-auto"
-                >
-                  <FaUsers /> Manage attendees
-                </Button>
-              </div>
-            </Card>
-          )}
-
           {/* Event Management Card */}
           {canManage && (
             <Card>
@@ -702,11 +602,6 @@ const EventDetails = () => {
                     className="field"
                   />
                 </div>
-                <MapPicker
-                  value={editForm.mapQuery}
-                  onChange={handleMapPick}
-                  className="h-64"
-                />
 
                 <div className="border-t border-line pt-4">
                   <h3 className="text-sm font-semibold text-on">Event starts</h3>
@@ -898,11 +793,11 @@ const EventDetails = () => {
           )}
 
           {/* Attendees Card */}
-          {canManageAttendance && (
+          {role === "admin" && canViewAttendance && (
           <Card>
             <div className="mb-4 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="panel-heading text-base">
-                Attendees by group
+                Attendance by class
                 {selectedGroup !== "all" && (
                   <span className="num ml-1.5 text-on-muted">
                     ({filteredAttendees.length})
@@ -980,7 +875,7 @@ const EventDetails = () => {
                 compact
                 icon={<FaUsers />}
                 title="No attendees yet"
-                description="Open a face check-in station or add students manually."
+                description="Attendance will appear here after an organizer records it."
               />
             ) : (
               <div className="space-y-2.5">
@@ -995,7 +890,7 @@ const EventDetails = () => {
                         {attendance.student?.email}
                       </p>
                       <p className="mt-1 text-xs text-on-muted">
-                        Checked in: {formatDateTime(attendance.attendedAt)}
+                        Recorded: {formatDateTime(attendance.attendedAt)}
                       </p>
                       {attendance.communityServiceHours > 0 && (
                         <p className="mt-1 flex items-center gap-1 text-xs font-medium text-warn">
@@ -1004,70 +899,7 @@ const EventDetails = () => {
                         </p>
                       )}
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <select
-                        value={attendance.status}
-                        onChange={(e) =>
-                          handleUpdateStatus(attendance.student._id, e.target.value)
-                        }
-                        className="field-select w-auto py-1.5 text-xs"
-                        aria-label={`Attendance status for ${attendance.student?.name}`}
-                      >
-                        <option value="present">Present (0 hrs)</option>
-                        <option value="late">Late (4 hrs)</option>
-                        <option value="absent">Absent (8 hrs)</option>
-                      </select>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex items-center gap-1 rounded-lg border border-line bg-card p-1 shadow-[var(--elev-1)]">
-                          <span
-                            className="pl-1 text-[10px] font-semibold uppercase tracking-wider text-on-muted"
-                            aria-hidden="true"
-                          >
-                            Hrs
-                          </span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={
-                              csDrafts[attendance.student._id] ??
-                              attendance.communityServiceHours
-                            }
-                            onChange={(e) =>
-                              setCsDrafts((d) => ({
-                                ...d,
-                                [attendance.student._id]: e.target.value,
-                              }))
-                            }
-                            className="h-8 w-14 rounded-md border border-line/70 bg-card-alt px-1.5 text-center text-sm font-semibold tabular-nums text-on transition-colors [appearance:textfield] hover:border-brand/30 focus:border-brand/60 focus:outline-none focus:ring-2 focus:ring-brand/25 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            title="Set this student's community service hours for this event"
-                            aria-label={`Community service hours for ${attendance.student?.name}`}
-                          />
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-8"
-                            onClick={() =>
-                              handleUpdateCS(
-                                attendance.student._id,
-                                csDrafts[attendance.student._id] ??
-                                  attendance.communityServiceHours
-                              )
-                            }
-                          >
-                            Set
-                          </Button>
-                        </div>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          className="h-8"
-                          onClick={() => setPendingRemoveCS(attendance)}
-                          disabled={attendance.communityServiceHours <= 0}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    </div>
+                    <StatusChip status={attendance.status} />
                   </div>
                 ))}
               </div>
@@ -1088,20 +920,7 @@ const EventDetails = () => {
         onCancel={() => setConfirmDelete(false)}
       />
 
-      <ConfirmDialog
-        open={!!pendingRemoveCS}
-        title="Remove community service hours?"
-        message={
-          pendingRemoveCS
-            ? `Remove the ${pendingRemoveCS.communityServiceHours} service hour${pendingRemoveCS.communityServiceHours === 1 ? "" : "s"} recorded for ${pendingRemoveCS.student?.name || "this student"} in this event? This only affects this event.`
-            : ""
-        }
-        confirmLabel="Remove hours"
-        variant="danger"
-        onConfirm={confirmRemoveCS}
-        onCancel={() => setPendingRemoveCS(null)}
-        busy={removingCS}
-      />
+
     </div>
   );
 };

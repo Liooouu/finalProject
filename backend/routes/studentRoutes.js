@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require("multer");
 const path = require("path");
 const { protect } = require("../middleware/authMiddleware");
+const { hasStudentProfile } = require("../services/accountRoles");
 const Attendance = require("../models/Attendance");
 const Excuse = require("../models/Excuse");
 const Event = require("../models/Event");
@@ -12,6 +13,22 @@ const fileStore = require("../services/fileStore");
 const { notifyAdmins } = require("../services/notifyAdmins");
 const { notifyUsers } = require("../services/notify");
 const { isValidObjectId } = require("mongoose");
+const { excuseWindow } = require("../services/excuseWindow");
+const { calendarView, promotionPlan } = require("../services/academicCalendar");
+const { syncStudentAcademicYear } = require("../services/academicProgression");
+
+router.get("/academic-status", protect, async (req, res) => {
+  try {
+    if (!hasStudentProfile(req.user)) return res.status(403).json({ error: "Only student accounts can access academic standing" });
+    const account = req.user.role === "student" ? req.user : await User.findById(req.user._id);
+    if (!account) return res.status(404).json({ error: "Student account not found" });
+    const student = await syncStudentAcademicYear(account);
+    const calendar = calendarView();
+    const basis = student.academicYearStart ?? calendar.current.startYear;
+    const next = promotionPlan({ ...student.toObject?.(), yearLevel: student.yearLevel, academicYearStart: basis, section: student.section, program: student.program, enrollmentStatus: student.enrollmentStatus }, calendar.current.startYear + 1);
+    res.json({ ...calendar, student: { yearLevel: student.yearLevel, section: student.section, program: student.program, enrollmentStatus: student.enrollmentStatus || "active", academicYearStart: student.academicYearStart, history: student.academicHistory || [] }, nextYear: { label: `${calendar.current.startYear + 1}–${calendar.current.startYear + 2}`, yearLevel: next?.yearLevel || student.yearLevel, enrollmentStatus: next?.enrollmentStatus || student.enrollmentStatus || "active" }, promotionEnabled: calendar.confirmed });
+  } catch (err) { res.status(500).json({ error: "Could not load academic standing" }); }
+});
 
 const imageFilter = (req, file, cb) => {
   // JPEG/PNG only — these files are served back from the app origin, so
@@ -112,6 +129,9 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
       return res.status(404).json({ error: "Event not found" });
     }
 
+    const window = excuseWindow(event);
+    if (!window.allowed) return res.status(400).json({ error: window.reason, deadline: window.deadline });
+
     // Only one active (pending/approved) excuse allowed per event
     const activeExcuse = await Excuse.findOne({
       student: req.user._id,
@@ -183,9 +203,9 @@ router.get("/absent-events", protect, async (req, res) => {
     const attendances = await Attendance.find({ 
       student: req.user._id,
       status: "absent"
-    }).populate("event", "title date time");
+    }).populate("event", "title date time endDate endTime");
 
-    res.json(attendances);
+    res.json(attendances.map(record => { const data = record.toObject(); const window = record.event ? excuseWindow(record.event) : { allowed: false, deadline: null }; return { ...data, canSubmitExcuse: window.allowed, excuseDeadline: window.deadline }; }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -194,7 +214,7 @@ router.get("/absent-events", protect, async (req, res) => {
 // MY FACE VERIFICATION APPEALS (student)
 router.get("/security/face-appeals", protect, async (req, res) => {
   try {
-    if (req.user.role !== "student") {
+    if (!hasStudentProfile(req.user)) {
       return res.status(403).json({ error: "Only students can access this" });
     }
     const appeals = await FaceAppeal.find({ student: req.user._id }).sort({ createdAt: -1 });
@@ -211,7 +231,7 @@ router.get("/security/face-appeals", protect, async (req, res) => {
 router.post("/security/face-appeals", protect, appealUpload.single("photo"), async (req, res) => {
   let saved = null;
   try {
-    if (req.user.role !== "student") {
+    if (!hasStudentProfile(req.user)) {
       return res.status(403).json({ error: "Only students can submit an appeal" });
     }
 

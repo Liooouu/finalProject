@@ -8,10 +8,10 @@ import AppBackground from "../components/shared/AppBackground";
 import RouteFallback from "../components/shared/RouteFallback";
 import { PageMetaProvider } from "../context/PageMetaContext";
 
-// Per-page chunks: the chart-heavy dashboard, the leaflet event map and the
+// Per-page chunks: the dashboard, event details and the
 // reports table are only fetched when that page is actually opened.
 const DashboardHome = lazy(() => import("../components/admin/DashboardHome"));
-const CreateOrganizerPage = lazy(() => import("../components/admin/CreateOrganizerPage"));
+const PromoteStudentPage = lazy(() => import("../components/admin/PromoteStudentPage"));
 const ManageEvents = lazy(() => import("../components/admin/ManageEvents"));
 const ManageExcuses = lazy(() => import("../components/organizer/ManageExcuses"));
 const ManageUsers = lazy(() => import("../components/admin/ManageUsers"));
@@ -19,8 +19,6 @@ const AttendanceReport = lazy(() => import("../components/admin/AttendanceReport
 const NotificationsPage = lazy(() => import("../components/organizer/NotificationsPage"));
 const ProfileSettings = lazy(() => import("../components/settings/ProfileSettings"));
 const EventDetails = lazy(() => import("../components/EventDetails"));
-const OrgManageAttendees = lazy(() => import("../components/organizer/OrgManageAttendees"));
-const EmailSettings = lazy(() => import("../components/admin/EmailSettings"));
 
 const AdminDashboard = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -36,14 +34,15 @@ const AdminDashboard = () => {
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   <Route index element={<DashboardHome />} />
-                  <Route path="create-organizer" element={<CreateOrganizerPage />} />
+                  <Route path="promote-student" element={<PromoteStudentPage />} />
+                  <Route path="create-organizer" element={<Navigate to="/admin/dashboard/promote-student" replace />} />
                   <Route path="events" element={<ManageEvents />} />
                   <Route path="events/:id" element={<EventDetails />} />
-                  <Route path="events/:id/attendees" element={<OrgManageAttendees />} />
+                  <Route path="events/:id/attendees" element={<EventDetails />} />
                   <Route path="excuses" element={<ManageExcuses />} />
                   <Route path="users" element={<ManageUsers />} />
                   <Route path="reports" element={<AttendanceReport />} />
-                  <Route path="settings/email" element={<EmailSettings />} />
+                  <Route path="settings/email" element={<Navigate to="/admin/dashboard/profile?section=email" replace />} />
                   <Route path="notifications" element={<NotificationsPage role="admin" />} />
                   <Route path="profile" element={<ProfileSettings />} />
                   <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />

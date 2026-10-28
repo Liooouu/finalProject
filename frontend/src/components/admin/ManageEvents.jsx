@@ -1,3 +1,4 @@
+import EventLastEdit from "../shared/EventLastEdit";
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -19,14 +20,12 @@ import {
   TableSkeleton,
 } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
-import MapPicker from "../shared/MapPicker";
 import { MdClose } from "react-icons/md";
 
 const EMPTY_FORM = {
   title: "",
   description: "",
   location: "",
-  mapQuery: "",
   date: "",
   time: "",
   endDate: "",
@@ -41,6 +40,9 @@ const ManageEvents = () => {
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [attendees, setAttendees] = useState([]);
+  const [attendeeSearch, setAttendeeSearch] = useState("");
+  const [attendeesLoading, setAttendeesLoading] = useState(false);
+  const [attendeesError, setAttendeesError] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -52,7 +54,7 @@ const ManageEvents = () => {
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_FORM);
 
-  usePageMeta("Manage Events", "Every event across the institution.");
+  usePageMeta("Manage Events", "Monitor events and correct their information.");
 
   const fetchEvents = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -73,34 +75,20 @@ const ManageEvents = () => {
   useAutoRefresh(fetchEvents);
 
   const fetchAttendees = async (eventId) => {
+    setAttendees([]); setAttendeesLoading(true); setAttendeesError(false);
     try {
       const res = await api.get(`/events/${eventId}/attendees`);
       setAttendees(res.data);
-    } catch (err) {
-      console.error(err);
-    }
+    } catch {
+      setAttendeesError(true);
+    } finally { setAttendeesLoading(false); }
   };
 
   const openEventDetails = async (event) => {
     setSelectedEvent(event);
-    await fetchAttendees(event._id);
+    setAttendeeSearch("");
     setShowModal(true);
-  };
-
-  const updateEventStatus = async (eventId, newStatus) => {
-    try {
-      await api.patch(`/events/${eventId}/status`, { status: newStatus });
-      fetchEvents();
-      if (selectedEvent?._id === eventId) {
-        setSelectedEvent((prev) => ({ ...prev, status: newStatus }));
-      }
-      setMessage(`Event status updated to ${newStatus}`);
-      setMessageType("success");
-    } catch (err) {
-      console.error(err);
-      setMessage("Failed to update status");
-      setMessageType("error");
-    }
+    await fetchAttendees(event._id);
   };
 
   const deleteEvent = async (eventId) => {
@@ -120,8 +108,6 @@ const ManageEvents = () => {
   const handleCreateChange = (e) =>
     setCreateForm({ ...createForm, [e.target.name]: e.target.value });
 
-  const handleCreateMapPick = (v) =>
-    setCreateForm({ ...createForm, location: v, mapQuery: v });
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
@@ -142,18 +128,9 @@ const ManageEvents = () => {
     }
   };
 
-  const updateAttendeeStatus = async (eventId, studentId, newStatus) => {
-    try {
-      await api.patch(`/events/${eventId}/attendees/${studentId}`, { status: newStatus });
-      fetchAttendees(eventId);
-      setMessage("Attendee status updated");
-      setMessageType("success");
-    } catch (err) {
-      console.error(err);
-      setMessage("Failed to update attendee status");
-      setMessageType("error");
-    }
-  };
+
+  const attendeeQuery = attendeeSearch.trim().toLowerCase();
+  const matchingAttendees = attendees.filter(record => `${record.student?.name || ""} ${record.student?.email || ""}`.toLowerCase().includes(attendeeQuery));
 
   const filteredEvents = events
     .filter((event) => {
@@ -181,8 +158,8 @@ const ManageEvents = () => {
     <div className="space-y-5">
       <PageHeader
         eyebrow="Institution events"
-        title="All events"
-        subtitle={`${filteredEvents.length} of ${events.length} events`}
+        title={showCreate ? "Create event" : "All events"}
+        subtitle={showCreate ? "Enter the event details and attendance schedule." : `${filteredEvents.length} of ${events.length} events`}
         actions={
           <Button
             onClick={() => setShowCreate(!showCreate)}
@@ -206,7 +183,7 @@ const ManageEvents = () => {
       )}
 
       {!showCreate && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="event-filter-row">
           <input
             type="text"
             placeholder="Search events or organizers..."
@@ -218,7 +195,7 @@ const ManageEvents = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="field-select sm:ml-auto sm:max-w-[180px]"
+            className="field-select"
             aria-label="Filter by status"
           >
             <option value="all">All statuses</option>
@@ -283,13 +260,6 @@ const ManageEvents = () => {
                 value={createForm.location}
                 onChange={handleCreateChange}
                 className="field"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <MapPicker
-                value={createForm.mapQuery}
-                onChange={handleCreateMapPick}
-                className="h-64"
               />
             </div>
           </div>
@@ -389,7 +359,7 @@ const ManageEvents = () => {
               </div>
             </div>
             <p className="field-hint">
-              Students can only mark attendance within this window.
+              Set the scheduled attendance window. Later check-ins may be marked late.
             </p>
           </div>
 
@@ -399,7 +369,7 @@ const ManageEvents = () => {
         </Card>
       )}
 
-      {loading ? (
+      {!showCreate && (loading ? (
         <Card>
           <TableSkeleton rows={5} />
         </Card>
@@ -421,6 +391,7 @@ const ManageEvents = () => {
                     </h3>
                     <StatusChip status={event.status} />
                   </div>
+                  <EventLastEdit event={event} className="mt-2" />
                   {describeEventLifecycle(event) && (
                     <p className="mt-1 text-xs text-on-muted">
                       {describeEventLifecycle(event)}
@@ -448,52 +419,42 @@ const ManageEvents = () => {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={event.status}
-                    onChange={(e) => updateEventStatus(event._id, e.target.value)}
-                    className="field-select w-auto py-1.5 text-xs"
-                    aria-label={`Status for ${event.title}`}
-                  >
-                    <option value="upcoming">Upcoming</option>
-                    <option value="live">Live</option>
-                    <option value="finished">Finished</option>
-                    <option value="closed">Closed</option>
-                  </select>
+
                   <Button
                     onClick={() => navigate(`/admin/dashboard/events/${event._id}`)}
                     variant="secondary"
                     size="sm"
                   >
-                    <FaEdit className="text-xs" /> Edit
+                    <FaEdit className="text-xs" /> Review / edit event
                   </Button>
                   <Button
                     onClick={() => openEventDetails(event)}
                     variant="secondary"
                     size="sm"
                   >
-                    View attendees
+                    View attendance
                   </Button>
-                  <Button
+                  <details className="text-xs text-on-muted"><summary className="cursor-pointer rounded-lg border border-line px-3 py-2">More actions</summary><div className="mt-2"><Button
                     onClick={() => setDeleteTarget(event._id)}
                     variant="danger"
                     size="sm"
                   >
                     Delete
-                  </Button>
+                  </Button></div></details>
                 </div>
               </div>
             </Card>
           ))}
         </div>
-      )}
+      ))}
 
       {showModal && selectedEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div role="dialog" aria-modal="true" aria-labelledby="event-monitor-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[var(--panel-radius)] border border-line bg-card shadow-[var(--elev-3)]">
             <div className="flex items-start justify-between gap-3 border-b border-line p-5">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-display text-xl font-semibold tracking-tight text-on">
+                  <h3 id="event-monitor-title" className="font-display text-xl font-semibold tracking-tight text-on">
                     {selectedEvent.title}
                   </h3>
                   <StatusChip status={selectedEvent.status} />
@@ -514,18 +475,20 @@ const ManageEvents = () => {
             </div>
             <div className="overflow-y-auto p-5">
               <h4 className="panel-heading text-base">
-                Attendees ({attendees.length})
+                Attendance records ({attendeeQuery ? `${matchingAttendees.length} of ${attendees.length}` : attendees.length})
               </h4>
-              {attendees.length === 0 ? (
+              <label htmlFor="attendee-search" className="field-label mt-4">Search attendance records</label>
+              <input id="attendee-search" type="search" className="field mb-4" placeholder="Search by student name or email" value={attendeeSearch} onChange={e => setAttendeeSearch(e.target.value)} disabled={attendeesLoading || attendeesError} />
+              {attendeesLoading ? <TableSkeleton rows={3} cols={2} /> : attendeesError ? <EmptyState compact title="Attendance unavailable" description="These event records could not be loaded. Try again." action={<Button size="sm" variant="secondary" onClick={() => fetchAttendees(selectedEvent._id)}>Try again</Button>} /> : attendees.length === 0 ? (
                 <EmptyState
                   compact
                   icon={<FaUsers />}
-                  title="No attendees yet"
-                  description="Check-ins for this event will appear here."
+                  title="No attendance records yet"
+                  description="Records will appear here after an organizer takes attendance."
                 />
-              ) : (
+              ) : !matchingAttendees.length ? <EmptyState compact title="No matching attendance records" description="Try another name or email address." action={<Button variant="ghost" size="sm" onClick={() => setAttendeeSearch("")}>Clear search</Button>} /> : (
                 <div className="mt-4 space-y-2">
-                  {attendees.map((attendee) => (
+                  {matchingAttendees.map((attendee) => (
                     <div
                       key={attendee._id}
                       className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-card-alt/40 p-3.5"
@@ -538,24 +501,7 @@ const ManageEvents = () => {
                           {attendee.student?.email}
                         </p>
                       </div>
-                      <select
-                        value={attendee.status}
-                        onChange={(e) =>
-                          updateAttendeeStatus(
-                            selectedEvent._id,
-                            attendee.student._id,
-                            e.target.value
-                          )
-                        }
-                        className="field-select w-auto py-1.5 text-xs"
-                        aria-label={`Attendance status for ${attendee.student?.name}`}
-                      >
-                        <option value="present">Present</option>
-                        <option value="late">Late</option>
-                        <option value="absent">Absent</option>
-                        <option value="pending">Pending</option>
-                        <option value="excused">Excused</option>
-                      </select>
+                      <StatusChip status={attendee.status} />
                     </div>
                   ))}
                 </div>

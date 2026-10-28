@@ -25,6 +25,13 @@ const userSchema = new mongoose.Schema(
       enum: ["student", "organizer", "admin"],
       required: true,
     },
+    // Student officers keep their student identity and gain organizer access.
+    organizerAccess: { type: Boolean, default: false },
+    organizerAccessVersion: { type: Number, default: 0 },
+    organizerDemotedAt: { type: Date, default: null },
+    organizerDemotedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    organizerPromotedAt: { type: Date, default: null },
+    organizerPromotedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     profilePicture: {
       type: String,
       default: "",
@@ -116,6 +123,9 @@ const userSchema = new mongoose.Schema(
         return this.role === "student";
       },
     },
+    enrollmentStatus: { type: String, enum: ["active", "graduated"], default: "active" },
+    academicYearStart: { type: Number, default: null },
+    academicHistory: [{ schoolYearStart: Number, yearLevel: Number, section: String, program: String }],
     yearLevel: {
       type: Number,
       min: 1,

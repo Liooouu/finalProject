@@ -10,6 +10,8 @@ import {
   FaUserPlus,
   FaUsers,
 } from "react-icons/fa";
+import Pagination from "../ui/Pagination";
+import { formatDateTime } from "../../utils/helpers";
 import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
@@ -19,11 +21,14 @@ import { Button, Card, PageHeader } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
 
-const OrgManageAttendees = () => {
+const OrgManageAttendees = ({ embedded = false }) => {
   const { id: eventId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const [students, setStudents] = useState([]);
+  const [recordPage, setRecordPage] = useState(1);
+  const [enrollment, setEnrollment] = useState("all");
+  const [loadError, setLoadError] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [attendees, setAttendees] = useState([]);
@@ -39,18 +44,19 @@ const OrgManageAttendees = () => {
   const [yearLevel, setYearLevel] = useState("");
   const [section, setSection] = useState("");
 
-  usePageMeta("Manage Attendees", "Manually add or adjust student attendance.");
+  usePageMeta(embedded ? "Manual attendance" : "Manage Attendees", "Manually add or adjust student attendance.");
 
   const fetchData = useCallback(async () => {
     try {
       const [studentsRes, attendeesRes] = await Promise.all([
-        api.get("/admin/users?role=student").catch(() => ({ data: [] })),
+        api.get("/admin/users?role=student"),
         api.get(`/events/${eventId}/attendees`),
       ]);
+      setLoadError(false);
       setStudents(studentsRes.data || []);
       setAttendees(attendeesRes.data || []);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
+    } catch {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -80,12 +86,18 @@ const OrgManageAttendees = () => {
       ? `${program}-${yearLevel}${section.trim().toUpperCase()}`
       : "";
 
+  const matchesEnrollment = student => enrollment === "all" || (student?.enrollmentStatus || "active") === enrollment;
   const filteredByGroupAttendees = attendees.filter((a) => {
+    if (!matchesEnrollment(a.student)) return false;
     if (!selectedGroup) return true;
     return getStudentKey(a.student) === selectedGroup;
   });
 
+  const currentRecordPage = Math.min(recordPage, Math.max(1, Math.ceil(filteredByGroupAttendees.length / 10)));
+  const pageAttendees = filteredByGroupAttendees.slice((currentRecordPage - 1) * 10, currentRecordPage * 10);
+
   const filteredStudents = students.filter((s) => {
+    if (!matchesEnrollment(s)) return false;
     const matchesSearch =
       s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.email.toLowerCase().includes(searchTerm.toLowerCase());
@@ -98,7 +110,7 @@ const OrgManageAttendees = () => {
   const availableStudents = filteredStudents.filter(
     (s) => !alreadyAttended.includes(s._id)
   );
-  const matchedAlready = students.filter(
+  const matchedAlready = filteredStudents.filter(
     (s) =>
       alreadyAttended.includes(s._id) &&
       (s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -128,6 +140,19 @@ const OrgManageAttendees = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleStatusChange = async (attendance, status) => {
+    if (rowBusyId) return;
+    setRowBusyId(attendance._id);
+    try {
+      const studentId = attendance.student?._id || attendance.student;
+      const { data } = await api.patch(`/events/${eventId}/attendees/${studentId}`, { status });
+      setAttendees(rows => rows.map(row => row._id === data._id ? data : row));
+      setCsDrafts(drafts => ({ ...drafts, [data._id]: String(data.communityServiceHours || 0) }));
+      setMessage("Attendance status updated."); setMessageType("success");
+    } catch (err) { setMessage(err.response?.data?.error || "Attendance could not be updated."); setMessageType("error"); }
+    finally { setRowBusyId(null); }
   };
 
   const handleUpdateCS = async (attendance, hours) => {
@@ -199,7 +224,8 @@ const OrgManageAttendees = () => {
 
   return (
     <div className="space-y-5">
-      <PageHeader
+      {loadError && <div role="alert" className="alert alert-danger">Student attendance could not be refreshed. Showing any previously loaded records. Reload to try again.</div>}
+      {!embedded && <PageHeader
         eyebrow="Attendance desk"
         title="Manage attendees"
         subtitle="Add students manually or adjust community service hours for this event."
@@ -208,7 +234,7 @@ const OrgManageAttendees = () => {
             <FaArrowLeft /> Back to event
           </Button>
         }
-      />
+      />}
 
       {message && (
         <div
@@ -293,6 +319,10 @@ const OrgManageAttendees = () => {
         </p>
       </Card>
 
+      <label className="block max-w-xs text-xs text-on-muted">Enrollment status
+        <select aria-label="Enrollment status" className="field-select mt-1" value={enrollment} onChange={e => { setEnrollment(e.target.value); setRecordPage(1); }}><option value="all">All students</option><option value="active">Active</option><option value="graduated">Graduated</option></select>
+      </label>
+      <p className="text-xs text-on-muted">Class and enrollment labels reflect the student’s current academic record. Historical attendance remains available.</p>
       {selectedGroup && (
         <>
           <Card>
@@ -420,7 +450,7 @@ const OrgManageAttendees = () => {
                   <div className="alert alert-warn">
                     <FaCheck className="mt-0.5 shrink-0" />
                     <div>
-                      <p className="font-medium">Already checked in for this event</p>
+                      <p className="font-medium">Attendance already recorded for this event</p>
                       <div className="mt-1.5 space-y-1">
                         {matchedAlready.map((s) => (
                           <div key={s._id} className="flex items-center justify-between gap-3">
@@ -438,7 +468,7 @@ const OrgManageAttendees = () => {
                 )
               ) : (
                 <p className="text-sm text-on-muted">
-                  No students to add — everyone is already checked in for this event.
+                  All matching students already have an attendance record for this event.
                 </p>
               )}
             </div>
@@ -447,7 +477,7 @@ const OrgManageAttendees = () => {
           <Card>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="panel-heading">
-                Checked-in students ({filteredByGroupAttendees.length})
+                Attendance records ({filteredByGroupAttendees.length})
               </h2>
               <p className="text-xs text-on-muted">
                 Adjust hours per student for this event only.
@@ -457,13 +487,13 @@ const OrgManageAttendees = () => {
             {filteredByGroupAttendees.length === 0 ? (
               <EmptyState
                 icon={<FaUsers />}
-                title="No attendees in this class"
-                description="No students checked in for this class yet."
+                title="No attendance records in this class"
+                description="No attendance records match the selected class and enrollment status."
                 compact
               />
             ) : (
               <ul className="mt-4 space-y-2.5">
-                {filteredByGroupAttendees.map((attendance) => (
+                {pageAttendees.map((attendance) => (
                   <li
                     key={attendance._id}
                     className="flex flex-col gap-3 rounded-xl border border-line bg-card-alt/30 p-3.5 sm:flex-row sm:items-center sm:justify-between"
@@ -475,6 +505,8 @@ const OrgManageAttendees = () => {
                       <p className="truncate text-xs text-on-dim">
                         {attendance.student?.email || ""}
                       </p>
+                      <p className="mt-1 text-xs text-on-muted">{attendance.student?.enrollmentStatus === "graduated" ? "Graduated" : "Active"} · {attendance.student?.faceEnrolledAt ? "Face enrolled" : "Face enrollment required"}</p>
+                      <p className="mt-1 text-xs text-on-muted">{attendance.method === "face" ? "Face verified" : attendance.method === "auto" ? "Automatic record" : attendance.method === "manual" ? "Manually recorded" : "Attendance record"}{["present", "late"].includes(attendance.status) && (attendance.verifiedAt || attendance.attendedAt) ? ` · ${formatDateTime(attendance.verifiedAt || attendance.attendedAt)}` : ""}</p>
                       <div className="mt-1.5 flex items-center gap-2">
                         <StatusBadge status={attendance.status} />
                         <span className="text-xs text-on-muted">
@@ -483,6 +515,10 @@ const OrgManageAttendees = () => {
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
+                      <select aria-label={`Attendance status for ${attendance.student?.name || "student"}`} value={attendance.status} disabled={!!rowBusyId} onChange={e => handleStatusChange(attendance, e.target.value)} className="field-select w-auto text-xs">
+                        {!["present", "late", "absent"].includes(attendance.status) && <option value={attendance.status} disabled>{attendance.status}</option>}
+                        <option value="present">Present</option><option value="late">Late</option><option value="absent">Absent</option>
+                      </select>
                       <input
                         type="number"
                         min="0"
@@ -523,6 +559,7 @@ const OrgManageAttendees = () => {
                 ))}
               </ul>
             )}
+            <Pagination page={currentRecordPage} pageSize={10} total={filteredByGroupAttendees.length} onChange={setRecordPage} label="Attendance record pages" />
           </Card>
         </>
       )}

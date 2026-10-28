@@ -107,7 +107,7 @@ const SecuritySettings = ({ embedded = false }) => {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
+    <div className={embedded ? "space-y-5" : "mx-auto max-w-4xl space-y-5"}>
       {!embedded && <PageHeader
         eyebrow="Account"
         title="Security"

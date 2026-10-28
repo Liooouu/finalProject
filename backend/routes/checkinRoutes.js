@@ -15,7 +15,7 @@ const User = require("../models/User");
 const Attendance = require("../models/Attendance");
 const CheckInSession = require("../models/CheckInSession");
 const { protect } = require("../middleware/authMiddleware");
-const { canManageEventOrAdminCreated } = require("../services/eventAccess");
+const { canManageEventOrAdminCreated, canRecordAttendance } = require("../services/eventAccess");
 const {
   isTerminal,
   eventWindow,
@@ -84,6 +84,8 @@ async function loadStation(token) {
   const tokenHash = sha256(token);
   const session = await CheckInSession.findOne({ tokenHash });
   if (!session) return { error: "not-found" };
+  const operator = await User.findById(session.openedBy).select("role organizerAccess organizerAccessVersion");
+  if (!operator || !(operator.role === "organizer" || (operator.role === "student" && operator.organizerAccess && (operator.organizerAccessVersion || 0) === (session.organizerAccessVersion || 0)))) return { error: "not-found" };
   const event = await Event.findById(session.event);
   if (!event) return { error: "not-found" };
   return { session, event, tokenHash };
@@ -97,9 +99,10 @@ router.post("/sessions", protect, async (req, res) => {
     const { eventId, stationLabel } = req.body || {};
     if (!isValidObjectId(eventId)) return res.status(400).json({ error: "A valid eventId is required" });
 
+    if (req.user.role !== "organizer") return res.status(403).json({ error: "Only event organizers can open attendance stations" });
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+    if (!(await canRecordAttendance(event, req.user))) {
       return res.status(403).json({ error: "You are not allowed to manage this event" });
     }
 
@@ -120,6 +123,7 @@ router.post("/sessions", protect, async (req, res) => {
     const session = await CheckInSession.create({
       event: event._id,
       openedBy: req.user._id,
+      organizerAccessVersion: req.user.organizerAccessVersion || 0,
       tokenHash: sha256(token),
       stationLabel: String(stationLabel || "").trim().slice(0, 80),
       expiresAt,

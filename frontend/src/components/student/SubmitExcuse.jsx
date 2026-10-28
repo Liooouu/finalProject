@@ -8,11 +8,11 @@ import {
 } from "react-icons/fa";
 import Loading from "../shared/Loading";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { formatDate } from "../../utils/helpers";
+import { formatDate, formatDateTime } from "../../utils/helpers";
 import { BaseCard, Button, FlightPanel, PageHeader } from "../ui";
 
 const GUIDELINES = [
-  "Submit your excuse within 24 hours after the event.",
+  "Submit your excuse within 7 days after the event ends.",
   "Attach at least one supporting document, such as a medical certificate.",
   "Provide a clear and detailed explanation for your absence.",
   "Approved excuses remove your community service hours for that event.",
@@ -46,7 +46,7 @@ const SubmitExcuse = () => {
             .map((e) => e.event?._id || e.event)
         );
 
-        setAbsentEvents(absentRes.data.filter((r) => r.event && !excusedEventIds.has(r.event._id)));
+        setAbsentEvents(absentRes.data.filter((r) => r.event && r.canSubmitExcuse !== false && !excusedEventIds.has(r.event._id)));
 
       } catch (err) {
         console.error(err.response?.data || err.message);
@@ -228,10 +228,12 @@ const SubmitExcuse = () => {
               </select>
               {eventOptions.length === 0 && (
                 <p className="field-hint">
-                  You don't have any absent events to excuse.
+                  You have no eligible absences within the 7-day submission window.
                 </p>
               )}
             </div>
+
+            {selectedEvent && eventOptions.find(item => item.event._id === selectedEvent)?.excuseDeadline && <p className="alert alert-info text-xs">Submit by {formatDateTime(eventOptions.find(item => item.event._id === selectedEvent).excuseDeadline)}.</p>}
 
             <div>
               <label htmlFor="excuse-text" className="field-label">

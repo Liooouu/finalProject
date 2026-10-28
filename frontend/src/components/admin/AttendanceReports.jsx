@@ -1057,7 +1057,7 @@ const AttendanceReports = () => {
             <ChartCard
               className="xl:col-span-5"
               title="Users by role"
-              subtitle="Every account in the institution"
+              subtitle="Student organizers are included under Students."
               actions={
                 <span className="num rounded-full border border-line bg-card-alt/60 px-2.5 py-1 text-[10px] font-medium text-on-muted">
                   {usersData.stats.total}
@@ -1097,7 +1097,7 @@ const AttendanceReports = () => {
             <ChartCard
               className="xl:col-span-7"
               title="Role distribution"
-              subtitle="Share of all accounts by access level"
+              subtitle="Account distribution; student organizers keep student access."
             >
               <div className="flex h-[320px] flex-col justify-center gap-6">
                 {roleRows.map((row) => (
@@ -1164,7 +1164,7 @@ const AttendanceReports = () => {
                             roleStyles[u.role] || roleStyles.student
                           }`}
                         >
-                          {u.role}
+                          {u.role === "student" && u.organizerAccess ? "Student/Organizer" : u.role}
                         </span>
                       </td>
                       <td className="whitespace-nowrap">{formatDate(u.createdAt)}</td>

@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import api from "../../api/axios";
+import { recordsForAcademicPeriod } from "../../utils/academicPeriods";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import { FaBook, FaCheck, FaClock, FaTimes } from "react-icons/fa";
 import { BsClipboardCheck } from "react-icons/bs";
 import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
+import Pagination from "../ui/Pagination";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { formatDate, formatDateTime } from "../../utils/helpers";
 import { BaseCard, FlightPanel, PageHeader, StatTile, StatusChip } from "../ui";
@@ -13,6 +15,15 @@ import { BaseCard, FlightPanel, PageHeader, StatTile, StatusChip } from "../ui";
 const CommunityService = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [recordPage, setRecordPage] = useState(1);
+  const [calendar, setCalendar] = useState(null);
+  const [schoolYear, setSchoolYear] = useState("all");
+  const [semester, setSemester] = useState("all");
+  useEffect(() => {
+    let active = true;
+    api.get("/student/academic-status").then(({ data }) => { if (active && data?.years) setCalendar(data); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   usePageMeta("Community Service", "Track your attendance and service hours.");
 
@@ -37,6 +48,11 @@ const CommunityService = () => {
   if (loading) {
     return <Loading label="Loading records..." />;
   }
+
+  const period = calendar?.years.find(item => String(item.startYear) === schoolYear);
+  const records = recordsForAcademicPeriod(data?.breakdown || [], period, semester);
+  const currentPage = Math.min(recordPage, Math.max(1, Math.ceil(records.length / 10)));
+  const visibleRecords = records.slice((currentPage - 1) * 10, currentPage * 10);
 
   const removedHours = (data?.breakdown || []).reduce(
     (sum, rec) =>
@@ -87,25 +103,41 @@ const CommunityService = () => {
         />
       </div>
 
+      {calendar && <section className="rounded-xl border border-line bg-card/60 p-4" aria-label="School year and semester filters">
+        {!calendar.confirmed && <p className="mb-3 text-xs text-warn">Calendar preview: semester dates are not official. Filters below use the sample calendar.</p>}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-xs text-on-dim" htmlFor="history-school-year">School year
+            <select aria-label="School year" id="history-school-year" className="field-select mt-1" value={schoolYear} onChange={event => { setSchoolYear(event.target.value); setSemester("all"); setRecordPage(1); }}>
+              <option value="all">All school years</option>{calendar.years.map(item => <option key={item.startYear} value={item.startYear}>{item.label}</option>)}
+            </select>
+          </label>
+          <label className="text-xs text-on-dim" htmlFor="history-semester">Semester
+            <select aria-label="Semester" id="history-semester" className="field-select mt-1" value={semester} disabled={!period} onChange={event => { setSemester(event.target.value); setRecordPage(1); }}>
+              <option value="all">All semesters</option>{period?.semesters.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+            </select>
+          </label>
+        </div>
+        <p className="mt-3 text-xs text-on-muted">Filters change the records below. Your total service balance includes all school years.</p>
+      </section>}
+
       <FlightPanel
         level="ledger"
         glass
         flush
         eyebrow="Student ledger"
         title="Detailed breakdown"
-        subtitle={`${data?.breakdown?.length || 0} attendance record${
-          data?.breakdown?.length === 1 ? "" : "s"
-        }`}
+        subtitle={`${records.length} attendance record${records.length === 1 ? "" : "s"}`}
         icon={<BsClipboardCheck />}
         className="overflow-hidden"
       >
-        {!data?.breakdown?.length ? (
+        {!records.length ? (
           <EmptyState
             icon={<BsClipboardCheck />}
             title="No attendance records"
-            description="Your attendance and community service records will appear here."
+            description={period ? "No attendance records match this school year and semester." : "Your attendance and community service records will appear here."}
           />
         ) : (
+          <div>
           <div className="overflow-x-auto">
             <table className="data-table">
               <thead>
@@ -118,7 +150,7 @@ const CommunityService = () => {
                 </tr>
               </thead>
               <tbody>
-                {data.breakdown.map((record, index) => (
+                {visibleRecords.map((record, index) => (
                   <tr key={index}>
                     <td className="font-medium text-on">
                       {record.event?.title || record.eventTitle || "Unknown event"}
@@ -149,6 +181,8 @@ const CommunityService = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="px-4 pb-4"><Pagination page={currentPage} pageSize={10} total={records.length} onChange={setRecordPage} label="Attendance history pages" /></div>
           </div>
         )}
       </FlightPanel>

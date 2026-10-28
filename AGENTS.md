@@ -54,10 +54,10 @@ Uses Tailwind v4 with `@tailwindcss/vite` plugin. No `tailwind.config.js` - styl
 ## Role System
 
 - **student** - Can register, view events, mark attendance
-- **organizer** - Created by admin, manages events and attendees
-- **admin** - Seeding only, creates organizers
+- **organizer** - Organizer portal access is granted by an admin to an existing student via Promote Student; the student retains both portals, face enrollment and records. Legacy organizer accounts still work.
+- **admin** - Promotes students to organizers, removes organizer access, edits student academic details, manages accounts and event information, monitors attendance and reports; cannot open stations or record/change attendance statuses. Existing-record service-hour corrections and identity/absence reviews remain administrative interventions.
 
-Registration is **student-only**. Organizers must be created by admins.
+Registration is **student-only**. Admins grant organizer access through `POST /api/admin/users/:id/promote-organizer`; do not create duplicate organizer accounts. Promoted accounts keep `role: student` plus `organizerAccess: true`. `/api/auth/switch-role` mints an explicitly scoped token after checking current database access.
 
 ## API Endpoints
 
@@ -68,6 +68,7 @@ Registration is **student-only**. Organizers must be created by admins.
 | POST /api/auth/forgot-password | None | all |
 | POST /api/auth/forgot-password/verify | None | all |
 | /api/admin/* | Bearer | admin (organizer also: student directory) |
+| POST /api/auth/switch-role | Bearer | granted student/organizer portals only |
 | /api/events/* | Bearer | varies |
 | /api/account/* | Bearer | all |
 
@@ -122,3 +123,7 @@ Atlas).
 When changing anything that touches URLs or ports, verify it in the containers,
 not just with `npm run dev` — that is exactly how the hardcoded
 `http://localhost:5000` references in the frontend went unnoticed.
+
+Administrators remove additional organizer access with `POST /api/admin/users/:id/demote-organizer`; student records remain intact. Organizer sessions and face stations check `organizerAccessVersion`, which increments whenever the grant changes. Academic details are editable in Manage Users > View via the admin user PATCH endpoint.
+
+Organizers may edit all event information/status/automation through `canEditEvent`; attendance scope and delete ownership are separate checks. Human edits set server-side latest-editor metadata. Manage Events exposes past events separately.

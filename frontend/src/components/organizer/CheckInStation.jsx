@@ -14,7 +14,7 @@ import { formatDateTime } from "../../utils/helpers";
 // Organizer-side control for the face kiosk. Opening a station mints a token
 // and launches the public kiosk page; the organizer keeps this page open to
 // watch the live count and close the station when the queue ends.
-const CheckInStation = ({ eventId }) => {
+const CheckInStation = ({ eventId, controlsOnly = false }) => {
   const [sessions, setSessions] = useState([]);
   const [opening, setOpening] = useState(false);
   const [closingId, setClosingId] = useState(null);
@@ -27,7 +27,7 @@ const CheckInStation = ({ eventId }) => {
       setSessions(Array.isArray(data) ? data : []);
     } catch (err) {
       // A station list is a convenience; never break the event page over it.
-      console.error(err.response?.data || err.message);
+      setError(err.response?.data?.error || "Station sessions could not be loaded.");
     }
   }, [eventId]);
 
@@ -82,8 +82,10 @@ const CheckInStation = ({ eventId }) => {
     }
   };
 
+  const Container = controlsOnly ? "div" : Card;
   return (
-    <Card>
+    <Container>
+      {!controlsOnly && <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h3 className="flex items-center gap-2.5 font-display text-[17px] font-semibold tracking-tight text-on">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
@@ -120,6 +122,7 @@ const CheckInStation = ({ eventId }) => {
         </div>
       )}
 
+      </>}
       {error && (
         <div className="alert alert-danger mt-4" role="alert">
           <FaExclamationTriangle className="mt-0.5 shrink-0" />
@@ -171,14 +174,14 @@ const CheckInStation = ({ eventId }) => {
         )}
       </div>
 
-      <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-line bg-card-alt/30 p-3.5 text-xs text-on-dim">
+      {!controlsOnly && <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-line bg-card-alt/30 p-3.5 text-xs text-on-dim">
         <FaCheck className="mt-0.5 shrink-0 text-ok" />
         <p>
           A student the camera cannot recognise can still be marked by hand in the attendance
           list below — face check-in never blocks a legitimate student.
         </p>
-      </div>
-    </Card>
+      </div>}
+    </Container>
   );
 };
 

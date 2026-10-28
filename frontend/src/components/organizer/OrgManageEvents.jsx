@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import {
@@ -9,18 +9,8 @@ import {
   formatDate,
 } from "../../utils/helpers";
 import { getUserFromToken } from "../../utils/auth";
-import {
-  FaCalendarAlt,
-  FaChevronDown,
-  FaChevronRight,
-  FaClock,
-  FaMapMarkerAlt,
-  FaPlus,
-  FaTrash,
-  FaUndo,
-} from "react-icons/fa";
+import { FaCalendarAlt, FaPlus } from "react-icons/fa";
 import { MdClose } from "react-icons/md";
-import { BsClipboardCheck } from "react-icons/bs";
 import { usePageMeta } from "../../context/PageMetaContext";
 import {
   Button,
@@ -29,9 +19,14 @@ import {
   SegmentedControl,
   StatusChip,
 } from "../ui";
+import { useOrganizerPeriod } from "../../utils/useOrganizerPeriod";
+import { recordsForAcademicPeriod } from "../../utils/academicPeriods";
+import AcademicPeriodFilter from "./AcademicPeriodFilter";
+import Pagination from "../ui/Pagination";
+import Loading from "../shared/Loading";
 import EmptyState from "../shared/EmptyState";
-import MapPicker from "../shared/MapPicker";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import EventLastEdit from "../shared/EventLastEdit";
 
 const STATUS_FILTERS = [
   { key: "all", label: "All statuses" },
@@ -46,7 +41,6 @@ const EMPTY_FORM = {
   title: "",
   description: "",
   location: "",
-  mapQuery: "",
   date: "",
   time: "",
   endDate: "",
@@ -57,11 +51,18 @@ const EMPTY_FORM = {
 
 const OrgManageEvents = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [events, setEvents] = useState([]);
-  const [showForm, setShowForm] = useState(false);
+  const periodSelection = useOrganizerPeriod();
+  const { period, semester } = periodSelection;
+  const [page, setPage] = useState(1);
+  const [loadError, setLoadError] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(searchParams.get("create") === "1");
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
-  const [viewMode, setViewMode] = useState("my");
+  const [viewMode, setViewMode] = useState("all");
+  const [eventRange, setEventRange] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [expandedEvent, setExpandedEvent] = useState(null);
@@ -70,7 +71,7 @@ const OrgManageEvents = () => {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
 
-  usePageMeta("Manage Events", "Create and manage your events.");
+  usePageMeta("Manage Events", "Create and edit shared events, or review past events.");
 
   const currentUserId = getUserFromToken()?.id;
   const isOwnEvent = (event) => {
@@ -84,8 +85,8 @@ const OrgManageEvents = () => {
     const endpoint = viewMode === "my" ? "/events/my-events" : "/events/all";
     return api
       .get(endpoint)
-      .then((res) => setEvents(res.data))
-      .catch((err) => console.error(err.response?.data || err.message));
+      .then((res) => { setEvents(res.data); setLoadError(false); setLoading(false); })
+      .catch(() => { setLoadError(true); setLoading(false); });
   }, [viewMode]);
 
   const toggleGroups = async (eventId) => {
@@ -117,8 +118,6 @@ const OrgManageEvents = () => {
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleMapPick = (v) =>
-    setForm({ ...form, location: v, mapQuery: v });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -169,9 +168,14 @@ const OrgManageEvents = () => {
     }
   };
 
+  const periodEvents = useMemo(() => recordsForAcademicPeriod(events, period, semester), [events, period, semester]);
+
   // Finished events sink to the bottom so the live work stays on top.
   const visibleEvents = useMemo(() => {
-    const matches = events.filter((event) => {
+    const matches = periodEvents.filter((event) => {
+      const past = isTerminalStatus(event.status);
+      if (eventRange === "past" && !past) return false;
+      if (eventRange === "active" && past) return false;
       if (statusFilter === "all") return true;
       if (statusFilter === "active") return !isTerminalStatus(event.status);
       return event.status === statusFilter;
@@ -182,16 +186,20 @@ const OrgManageEvents = () => {
       if (aDone !== bDone) return aDone - bDone;
       return aDone ? new Date(b.date) - new Date(a.date) : new Date(a.date) - new Date(b.date);
     });
-  }, [events, statusFilter]);
+  }, [periodEvents, statusFilter, eventRange]);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(visibleEvents.length / 6)));
+  const pageEvents = visibleEvents.slice((currentPage - 1) * 6, currentPage * 6);
 
-  const attendeeTotal = events.reduce((sum, e) => sum + (e.attendeeCount || 0), 0);
+  const attendeeTotal = visibleEvents.reduce((sum, e) => sum + (e.attendeeCount || 0), 0);
+
+  if (loading) return <Loading label="Loading your events..." />;
 
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="Organizer events"
-        title="Events"
-        subtitle={`${events.length} ${events.length === 1 ? "event" : "events"} · ${attendeeTotal} total ${
+        title={showForm ? "Create event" : eventRange === "past" ? "Past events" : eventRange === "active" ? "Active events" : viewMode === "my" ? "My events" : "All events"}
+        subtitle={showForm ? "Enter the event details and attendance schedule." : `${visibleEvents.length} ${visibleEvents.length === 1 ? "event" : "events"} · ${attendeeTotal} total ${
           attendeeTotal === 1 ? "attendee" : "attendees"
         }`}
         actions={
@@ -206,11 +214,17 @@ const OrgManageEvents = () => {
         }
       />
 
-      <div className="flex flex-wrap items-center gap-2">
+      {!showForm && <>
+      <SegmentedControl ariaLabel="Event timeline" value={eventRange} onChange={value => { setEventRange(value); setStatusFilter("all"); setPage(1); }} options={[{ value: "all", label: "All events" }, { value: "active", label: "Active events" }, { value: "past", label: "Past events" }]} />
+      <details className="rounded-xl border border-line bg-card-alt/20 p-3">
+        <summary className="cursor-pointer text-sm font-medium text-on">Filters{viewMode !== "all" || statusFilter !== "all" || period ? " · Applied" : ""}</summary>
+        <div className="mt-3 space-y-3">
+          <AcademicPeriodFilter selection={periodSelection} />
+      <div className="event-filter-row">
         <SegmentedControl
           ariaLabel="Event ownership"
           value={viewMode}
-          onChange={setViewMode}
+          onChange={value => { if (value === viewMode) return; setLoading(true); setViewMode(value); setPage(1); }}
           options={[
             { value: "my", label: "My events" },
             { value: "all", label: "All events" },
@@ -218,9 +232,9 @@ const OrgManageEvents = () => {
         />
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           aria-label="Filter by status"
-          className="field-select ml-auto max-w-[180px]"
+          className="field-select"
         >
           {STATUS_FILTERS.map((filter) => (
             <option key={filter.key} value={filter.key}>
@@ -229,6 +243,10 @@ const OrgManageEvents = () => {
           ))}
         </select>
       </div>
+        </div>
+      </details>
+      </>}
+      {loadError && <div role="alert" className="alert alert-danger">Events could not be refreshed. Please reload to try again.</div>}
 
       {message && (
         <div
@@ -285,13 +303,6 @@ const OrgManageEvents = () => {
                 value={form.location}
                 onChange={handleChange}
                 className="field"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <MapPicker
-                value={form.mapQuery}
-                onChange={handleMapPick}
-                className="h-64"
               />
             </div>
           </div>
@@ -398,10 +409,10 @@ const OrgManageEvents = () => {
         </Card>
       )}
 
-      {visibleEvents.length === 0 ? (
+      {!showForm && (visibleEvents.length === 0 ? (
         <EmptyState
           icon={<FaCalendarAlt />}
-          title={viewMode === "my" ? "No events yet" : "No events found"}
+          title={events.length ? "No matching events" : viewMode === "my" ? "No events yet" : "No events found"}
           description={
             viewMode === "my"
               ? "Create your first event to start tracking attendance."
@@ -417,141 +428,42 @@ const OrgManageEvents = () => {
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {visibleEvents.map((event) => {
-            const lifecycleNote = describeEventLifecycle(event);
+          {pageEvents.map((event) => {
             const ownedByMe = isOwnEvent(event);
             const canManageAttendance = canTakeAttendance(event);
-            const canReopen = canManageAttendance && isTerminalStatus(event.status);
-            return (
-              <Card
-                key={event._id}
-                as="article"
-                onClick={() => navigate(`/organizer/dashboard/events/${event._id}`)}
-                className="group flex cursor-pointer flex-col transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-[var(--elev-2)] motion-reduce:hover:translate-y-0"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-                      <FaCalendarAlt />
-                    </span>
-                    <div className="min-w-0">
-                      <h3 className="truncate font-display text-[17px] font-semibold tracking-tight text-on transition-colors group-hover:text-brand">
-                        {event.title}
-                      </h3>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <StatusChip status={event.status} />
-                        {canReopen && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleReopen(event._id);
-                            }}
-                            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-brand transition-colors hover:bg-brand/10"
-                          >
-                            <FaUndo className="text-[10px]" />
-                            Reopen
-                          </button>
-                        )}
-                      </div>
-                      {lifecycleNote && (
-                        <p className="mt-1 text-xs text-on-muted">{lifecycleNote}</p>
-                      )}
+            const terminal = isTerminalStatus(event.status);
+            return <Card key={event._id} as="article" className="flex min-w-0 flex-col">
+              <div className="flex items-start justify-between gap-3"><h3 className="min-w-0 flex-1 font-display text-lg font-semibold text-on [overflow-wrap:anywhere]">{event.title}</h3><StatusChip status={event.status} /></div>
+              <div className="mt-4 space-y-2 text-sm text-on-dim">
+                <p><span className="text-on-muted">Starts: </span>{formatDate(event.date)} at {formatTime12Hour(event.time)}</p>
+                <p><span className="text-on-muted">Ends: </span>{formatDate(event.endDate || event.date)} at {formatTime12Hour(event.endTime || "23:59")}</p>
+                <p className="[overflow-wrap:anywhere]"><span className="text-on-muted">Venue: </span>{event.location || "TBA"}</p>
+                <p className="text-xs text-on-muted">{event.attendeeCount ?? 0} checked in · Attendance {formatTime12Hour(event.attendanceStartTime) || "TBA"} – {formatTime12Hour(event.attendanceEndTime) || "TBA"}</p>
+              </div>
+              <EventLastEdit event={event} className="mt-3" />
+              <details className="mt-3 text-xs text-on-muted">
+                <summary className="cursor-pointer py-1 font-medium">Event information</summary>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-on-dim [overflow-wrap:anywhere]">{event.description || "No description provided."}</p>
+                <p className="mt-2">{describeEventLifecycle(event)}</p>
+                {viewMode === "all" && <p className="mt-2">Organized by {event.organizer?.name || "Organizer TBA"}</p>}
+                {canManageAttendance && <div className="mt-3"><button type="button" className="font-medium text-brand" onClick={() => toggleGroups(event._id)}>Attendees by group</button>{expandedEvent === event._id && <div className="mt-2 space-y-1">{loadingGroups[event._id] ? "Loading…" : eventGroups[event._id]?.length ? eventGroups[event._id].map(group => <p key={group.key || group.label}>{group.label || "Unassigned"}: {group.attended || 0}</p>) : "No groups found."}</div>}</div>}
+              </details>
+              <div className="mt-auto pt-4">
+                <div className="flex flex-wrap items-start gap-3 border-t border-line pt-3">
+                  <Button variant="secondary" size="sm" onClick={() => navigate(`/organizer/dashboard/events/${event._id}`)}>View / edit event</Button>
+                  {(terminal || ownedByMe) && <details className="min-w-0 text-xs text-on-muted">
+                    <summary className="cursor-pointer rounded-lg border border-line px-3 py-2 font-medium">More actions</summary>
+                    <div className="mt-2 flex flex-col items-start gap-2 rounded-lg border border-line bg-card p-2">
+                      {terminal && <Button variant="ghost" size="sm" onClick={() => handleReopen(event._id)}>Reopen event</Button>}
+                      {ownedByMe && <Button variant="danger" size="sm" onClick={() => setDeleteTarget(event._id)}>Delete event</Button>}
                     </div>
-                  </div>
-                  {ownedByMe && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteTarget(event._id);
-                      }}
-                      className="shrink-0 rounded-lg p-2 text-on-muted transition-colors hover:bg-danger/10 hover:text-danger"
-                      aria-label="Delete event"
-                    >
-                      <FaTrash className="text-sm" />
-                    </button>
-                  )}
+                  </details>}
                 </div>
-
-                <p className="mt-4 line-clamp-2 text-sm text-on-dim">
-                  {event.description || "No description"}
-                </p>
-
-                <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-on-dim">
-                  <span className="flex items-center gap-1.5">
-                    <FaMapMarkerAlt className="text-on-muted" /> {event.location || "TBA"}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <FaCalendarAlt className="text-on-muted" /> {formatDate(event.date)}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <FaClock className="text-on-muted" /> {formatTime12Hour(event.time)}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <BsClipboardCheck className="text-on-muted" /> {event.attendeeCount ?? 0}{" "}
-                    {event.attendeeCount === 1 ? "attendee" : "attendees"}
-                  </span>
-                </div>
-                <p className="mt-2 text-xs text-on-muted">
-                  Ends: {formatDate(event.endDate || event.date)} at{" "}
-                  {formatTime12Hour(event.endTime || "23:59")}
-                </p>
-
-                <div className="alert alert-warn alert-sm mt-4">
-                  <BsClipboardCheck className="mt-0.5 shrink-0" />
-                  <p>
-                    Attendance: {formatTime12Hour(event.attendanceStartTime)} –{" "}
-                    {formatTime12Hour(event.attendanceEndTime)}
-                  </p>
-                </div>
-
-                {canManageAttendance && (
-                  <div className="mt-auto border-t border-line pt-4">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleGroups(event._id);
-                      }}
-                      className="flex items-center gap-2 text-sm text-on-dim transition-colors hover:text-on"
-                    >
-                      {expandedEvent === event._id ? <FaChevronDown /> : <FaChevronRight />}
-                      Attendees by group
-                    </button>
-                    {expandedEvent === event._id && (
-                      <div className="mt-3 space-y-2">
-                        {loadingGroups[event._id] ? (
-                          <p className="text-xs text-on-muted">Loading...</p>
-                        ) : (eventGroups[event._id] || []).length > 0 ? (
-                          (eventGroups[event._id] || []).map((g) => (
-                            <div
-                              key={g.key || g.label}
-                              className="flex items-center justify-between gap-3 rounded-lg border border-line bg-card-alt/40 px-3 py-2 text-sm"
-                            >
-                              <span className="text-on-dim">{g.label || "Unassigned"}</span>
-                              <span className="num text-on">
-                                {g.attended || 0}{" "}
-                                {g.attended === 1 ? "student" : "students"}
-                              </span>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-xs text-on-muted">No groups found.</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {viewMode === "all" && event.organizer && (
-                  <p className="mt-4 border-t border-line pt-4 text-xs text-on-muted">
-                    Created by <span className="text-on-dim">{event.organizer.name}</span>
-                  </p>
-                )}
-              </Card>
-            );
+              </div>
+            </Card>;
           })}
         </div>
-      )}
+      ))}
 
       <ConfirmDialog
         open={!!deleteTarget}
@@ -567,6 +479,7 @@ const OrgManageEvents = () => {
         }}
         onCancel={() => setDeleteTarget(null)}
       />
+      {!showForm && <Pagination page={currentPage} pageSize={6} total={visibleEvents.length} onChange={setPage} label="Organizer event pages" />}
     </div>
   );
 };

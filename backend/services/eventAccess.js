@@ -12,9 +12,7 @@ function canManageEvent(event, user) {
   return String(event.organizer?._id || event.organizer) === String(user._id);
 }
 
-// Organizers run their own events and events an admin created. This covers
-// attendance plus editing/status changes; deleting an admin-created event still
-// requires the admin or the event's original creator.
+// Attendance operations remain limited to the owner and admin-created events.
 async function canManageEventOrAdminCreated(event, user) {
   if (!event || !user) return false;
   if (user.role === "admin") return true;
@@ -27,4 +25,13 @@ async function canManageEventOrAdminCreated(event, user) {
   return creator?.role === "admin";
 }
 
-module.exports = { canManageEvent, canManageEventOrAdminCreated };
+// Recording attendance is an organizer responsibility. Admin access above is
+// for event correction and read-only monitoring, not check-in or status entry.
+async function canRecordAttendance(event, user) {
+  return user?.role === "organizer" && await canManageEventOrAdminCreated(event, user);
+}
+// Event information is shared work; editing does not transfer ownership.
+function canEditEvent(event, user) {
+  return Boolean(event && user && ["organizer", "admin"].includes(user.role));
+}
+module.exports = { canManageEvent, canManageEventOrAdminCreated, canRecordAttendance, canEditEvent };

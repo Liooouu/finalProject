@@ -11,7 +11,7 @@ import { PageMetaProvider } from "../context/PageMetaContext";
 import api from "../api/axios";
 
 // Each page is its own chunk, so opening the dashboard never downloads the
-// event map (leaflet) or the settings forms up front.
+// event details or the settings forms up front.
 const DashboardHome = lazy(() => import("../components/student/StDashboardHome"));
 const AttendEvents = lazy(() => import("../components/student/AttendEvents"));
 const CommunityService = lazy(() => import("../components/student/CommunityService"));

@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { availableRoles } = require("../services/accountRoles");
 
 const protect = async (req, res, next) => {
   let token;
@@ -20,7 +21,13 @@ const protect = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ message: "Not authorized, user no longer exists" });
     }
-    req.user = user;
+    const activeRole = decoded.role || user.role;
+    if (!availableRoles(user).includes(activeRole) || (activeRole === "organizer" && user.role === "student" && (decoded.organizerVersion || 0) !== (user.organizerAccessVersion || 0))) {
+      return res.status(401).json({ message: "Your account access has changed. Please sign in again." });
+    }
+    // Never modify the Mongoose document's stored student role for a portal switch.
+    req.user = activeRole === user.role ? user : { ...(user.toObject ? user.toObject() : user), accountRole: user.role, role: activeRole };
+    req.authRole = activeRole;
     next();
   } catch (err) {
     console.error(err);

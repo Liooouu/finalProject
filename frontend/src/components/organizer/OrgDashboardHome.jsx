@@ -1,251 +1,93 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
-import { Link } from "react-router-dom";
-import {
-  FaCalendarDays,
-  FaUsers,
-  FaInbox,
-  FaBolt,
-  FaCircleQuestion,
-} from "react-icons/fa6";
-import { FaArrowRight, FaCalendarCheck } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
-import {
-  BaseCard,
-  Button,
-  FlightPanel,
-  ProgressBar,
-  StatTile,
-  CompactStat,
-} from "../ui";
+import { BaseCard, Button, StatusChip } from "../ui";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
-import { formatDate } from "../../utils/helpers";
+import { formatDate, formatTime12Hour, isTerminalStatus } from "../../utils/helpers";
+import { FaCamera, FaClipboardList, FaCalendarAlt, FaEnvelopeOpenText } from "react-icons/fa";
+import CheckInStation from "./CheckInStation";
+import OpenFaceStationButton from "./OpenFaceStationButton";
 
-const OrganizerHome = () => {
-  const [stats, setStats] = useState({
-    totalEvents: 0,
-    totalAttendees: 0,
-    pendingExcuses: 0,
-    attendeesPerEvent: [],
-  });
+export default function OrganizerHome() {
+  const [events, setEvents] = useState([]);
+  const [letters, setLetters] = useState([]);
+  const [showStationControls, setShowStationControls] = useState(false);
+  const [faceEventId, setFaceEventId] = useState("");
+  const [manualEventId, setManualEventId] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  usePageMeta("Organizer Overview", "Manage your events and track attendance.");
-
-  const fetchStats = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
-    setError("");
-    try {
-      const res = await api.get("/organizer/stats");
-      setStats({
-        totalEvents: res.data.totalEvents ?? 0,
-        totalAttendees: res.data.totalAttendees ?? 0,
-        pendingExcuses: res.data.pendingExcuses ?? 0,
-        attendeesPerEvent: res.data.attendeesPerEvent ?? [],
-      });
-    } catch (err) {
-      setError(
-        err.response?.data?.error ||
-          err.message ||
-          "Could not load organizer statistics."
-      );
-      console.error(err.response?.data || err.message);
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
-
-  useAutoRefresh(fetchStats);
-
-  const resources = [
-    {
-      icon: <FaBolt />,
-      title: "Run an event smoothly",
-      text: "Open a face check-in station when an event is live — students just look at the camera.",
-      to: "/organizer/dashboard/events",
-      cta: "Go to events",
-    },
-    {
-      icon: <FaCircleQuestion />,
-      title: "Handle excuses",
-      text: "Review student excuses and decide whether to mark them as excused.",
-      to: "/organizer/dashboard/excuses",
-      cta: "Review excuses",
-    },
-  ];
-
-  const avgAttendance = stats.totalEvents
-    ? Math.round((stats.totalAttendees / stats.totalEvents) * 10) / 10
-    : 0;
-  const maxAttendees = Math.max(
-    1,
-    ...stats.attendeesPerEvent.map((event) => event.attendeeCount || 0)
-  );
-
-  const kpis = [
-    {
-      label: "Your events",
-      value: stats.totalEvents,
-      icon: <FaCalendarDays />,
-      hint: "Created and managed by you",
-      tone: "brand",
-      to: "/organizer/dashboard/events",
-    },
-    {
-      label: "Total attendees",
-      value: stats.totalAttendees,
-      icon: <FaUsers />,
-      hint: "Across every event",
-      tone: "info",
-    },
-    {
-      label: "Avg per event",
-      value: avgAttendance,
-      icon: <FaCalendarCheck />,
-      hint: "Mean check-ins",
-      tone: "ok",
-    },
-    {
-      label: "Pending excuses",
-      value: stats.pendingExcuses,
-      icon: <FaInbox />,
-      hint: stats.pendingExcuses > 0 ? "Needs your review" : "All caught up",
-      tone: stats.pendingExcuses > 0 ? "warn" : "ok",
-      to: "/organizer/dashboard/excuses",
-    },
-  ];
-
-  if (loading) return <Loading label="Loading organizer overview..." />;
-
-  return (
-    <div className="space-y-5">
-      <FlightPanel
-        level="command"
-        glass
-        eyebrow="Organizer workspace"
-        status={stats.totalEvents ? `${stats.totalEvents} events` : "Ready"}
-        statusTone={stats.totalEvents ? "ok" : "info"}
-      >
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="font-display text-2xl font-bold tracking-tight text-on sm:text-4xl">
-              Keep every event on track
-            </h1>
-            <p className="mt-2 hidden max-w-xl text-sm leading-relaxed text-on-dim md:block">
-              Your events, attendance and pending decisions in one place.
-            </p>
+  const [eventsError, setEventsError] = useState(false);
+  const [lettersError, setLettersError] = useState(false);
+  usePageMeta("Dashboard", "Your next event and requests needing review.");
+  const refresh = useCallback(() => Promise.allSettled([api.get("/events/my-events"), api.get("/organizer/excuses")]).then(([eventResult, letterResult]) => {
+    if (eventResult.status === "fulfilled") { setEvents(eventResult.value.data); setEventsError(false); } else setEventsError(true);
+    if (letterResult.status === "fulfilled") { setLetters(letterResult.value.data); setLettersError(false); } else setLettersError(true);
+    setLoading(false);
+  }), []);
+  useEffect(() => { refresh(); }, [refresh]);
+  useAutoRefresh(refresh);
+  if (loading) return <Loading label="Loading organizer dashboard..." />;
+  const active = events.filter(event => !isTerminalStatus(event.status)).sort((a, b) => (a.status === "live" ? 0 : 1) - (b.status === "live" ? 0 : 1) || new Date(a.date) - new Date(b.date));
+  const next = active[0];
+  const faceEvent = active.find(event => event._id === faceEventId) || next;
+  const manualEvents = [...events].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const manualEvent = events.find(event => event._id === manualEventId) || next || manualEvents[0];
+  const pending = letters.filter(letter => letter.status === "pending");
+  const cardClass = "flex min-w-0 flex-col overflow-hidden [&>.fd-rail]:shrink-0";
+  const bodyClass = "flex min-h-0 flex-1 flex-col gap-2";
+  return <div className="space-y-3">
+    <header className="fd-surface fd-command fd-glass overflow-hidden" style={{ "--fd-accent": "var(--brand)" }} data-testid="organizer-page-header">
+      <div className="fd-rail fd-rail-command">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <span className="fd-rail-icon" aria-hidden="true"><FaCalendarAlt /></span>
+          <div className="min-w-0"><h1 className="fd-title">Organizer dashboard</h1><p className="fd-subtitle">Record attendance, manage events, and review requests.</p></div>
+        </div>
+        <Button as={Link} to="/organizer/dashboard/events?create=1" size="sm" variant="secondary" className="shrink-0">Create event</Button>
+      </div>
+    </header>
+    {eventsError && <div role="alert" className="alert alert-danger">Events could not be refreshed. <button onClick={() => refresh()} className="underline">Try again</button></div>}
+    <div className="grid auto-rows-fr items-stretch gap-3 md:grid-cols-2" data-testid="organizer-dashboard-cards">
+      <BaseCard title="Face station" eyebrow="01 · Primary attendance" icon={<FaCamera />} className={`${cardClass} border-brand/40`} bodyClassName={bodyClass}>
+        <p className="text-sm text-on-dim">Verify students by face and record their attendance.</p>
+        {faceEvent ? <>
+          <label className="text-xs text-on-muted">Event<select aria-label="Face station event" value={faceEvent._id} onChange={e => { setFaceEventId(e.target.value); setShowStationControls(false); }} className="field-select mt-1 w-full">{active.map(event => <option key={event._id} value={event._id}>{event.title}</option>)}</select></label>
+          <p className="text-xs text-on-muted">Attendance window: {formatTime12Hour(faceEvent.attendanceStartTime) || "TBA"} – {formatTime12Hour(faceEvent.attendanceEndTime) || "TBA"}</p>
+          <div className="mt-auto flex flex-wrap items-start gap-2 border-t border-line pt-3">
+            <OpenFaceStationButton key={faceEvent._id} eventId={faceEvent._id} />
+            <Button onClick={() => setShowStationControls(value => !value)} aria-expanded={showStationControls} size="sm" variant="ghost">{showStationControls ? "Hide station controls" : "Station controls"}</Button>
           </div>
-          <Button as={Link} to="/organizer/dashboard/events" size="sm">
-            <FaCalendarDays className="text-xs" />
-            Manage events
-          </Button>
-        </div>
-      </FlightPanel>
-
-      {error && (
-        <div className="alert alert-danger" role="alert">
-          <span aria-hidden="true">!</span>
-          <p>{error}</p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-2.5 sm:hidden">
-        {kpis.map((kpi) => (
-          <CompactStat key={kpi.label} {...kpi} />
-        ))}
-      </div>
-      <div className="hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((kpi) => (
-          <StatTile key={kpi.label} {...kpi} />
-        ))}
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-3">
-        <BaseCard
-          title="Attendance by event"
-          description="Relative to your busiest event."
-          icon={<FaUsers />}
-          className="xl:col-span-2"
-          menu={
-            <Link
-              to="/organizer/dashboard/events"
-              className="text-xs font-medium text-brand hover:opacity-80"
-            >
-              View all
-            </Link>
-          }
-        >
-          {!stats.attendeesPerEvent.length ? (
-            <EmptyState
-              compact
-              title="No attendee data yet"
-              description="Attendance appears once students check in to one of your events."
-              action={
-                <Button as={Link} to="/organizer/dashboard/events" size="sm" variant="secondary">
-                  Create an event
-                </Button>
-              }
-            />
-          ) : (
-            <ul className="space-y-4">
-              {stats.attendeesPerEvent.map((event) => (
-                <li key={event._id}>
-                  <div className="flex items-end justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-on">{event.title}</p>
-                      <p className="truncate text-xs text-on-muted">
-                        {formatDate(event.date, {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </p>
-                    </div>
-                    <span className="num shrink-0 text-sm font-semibold text-on">
-                      {event.attendeeCount}
-                      <span className="ml-1 text-[11px] font-medium text-on-muted">checked in</span>
-                    </span>
-                  </div>
-                  <ProgressBar
-                    className="mt-2"
-                    current={event.attendeeCount || 0}
-                    target={maxAttendees}
-                    showLabel={false}
-                    tone="brand"
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-        </BaseCard>
-
-        <div className="space-y-5">
-          {resources.map((item) => (
-            <BaseCard key={item.title} title={item.title} icon={item.icon}>
-              <p className="text-sm leading-relaxed text-on-dim">{item.text}</p>
-              <Button
-                as={Link}
-                to={item.to}
-                variant="secondary"
-                size="sm"
-                className="mt-4"
-              >
-                {item.cta}
-                <FaArrowRight className="text-[10px]" />
-              </Button>
-            </BaseCard>
-          ))}
-        </div>
-      </div>
+          {showStationControls && <CheckInStation key={faceEvent._id} eventId={faceEvent._id} controlsOnly />}
+        </> : <EmptyState compact title={eventsError ? "Events unavailable" : "No event ready for face attendance"} description={eventsError ? "Try loading your events again." : "Create or reopen an event to use the face station."} />}
+      </BaseCard>
+      <BaseCard title="Manual attendance" eyebrow="02 · Record adjustments" icon={<FaClipboardList />} className={cardClass} bodyClassName={bodyClass}>
+        <p className="text-sm text-on-dim">Add or correct attendance and adjust service hours.</p>
+        {manualEvent ? <>
+          <label className="text-xs text-on-muted">Event<select aria-label="Manual attendance event" value={manualEvent._id} onChange={e => setManualEventId(e.target.value)} className="field-select mt-1 w-full">{manualEvents.map(event => <option key={event._id} value={event._id}>{event.title}</option>)}</select></label>
+          <p className="text-xs text-on-muted">Includes past events for reviewing and correcting records.</p>
+          <div className="mt-auto border-t border-line pt-3"><Button as={Link} to={`/organizer/dashboard/manual-attendance/${manualEvent._id}`} variant="secondary" size="sm">Open manual attendance</Button></div>
+        </> : <EmptyState compact title={eventsError ? "Events unavailable" : "No attendance records to manage"} description="Choose an event here once one has been created." />}
+      </BaseCard>
+      <BaseCard title={next?.status === "live" ? "Live event" : "Next event"} eyebrow="03 · Event overview" icon={<FaCalendarAlt />} className={cardClass} bodyClassName={bodyClass}>
+        {next ? <>
+          <div className="flex flex-wrap items-start justify-between gap-2"><h2 className="min-w-0 flex-1 font-display text-base font-semibold text-on [overflow-wrap:anywhere]">{next.title}</h2><StatusChip status={next.status} /></div>
+          <dl className="grid grid-cols-2 gap-2 text-sm">
+            <div><dt className="text-xs text-on-muted">Starts</dt><dd className="text-on-dim">{formatDate(next.date)} at {formatTime12Hour(next.time) || "Time TBA"}</dd></div>
+            <div><dt className="text-xs text-on-muted">Ends</dt><dd className="text-on-dim">{formatDate(next.endDate || next.date)} at {formatTime12Hour(next.endTime || "23:59")}</dd></div>
+            <div className="col-span-2"><dt className="text-xs text-on-muted">Venue</dt><dd className="text-on-dim [overflow-wrap:anywhere]">{next.location || "Venue TBA"}</dd></div>
+          </dl>
+          <div className="mt-auto border-t border-line pt-3"><Button as={Link} to="/organizer/dashboard/events" variant="ghost" size="sm">View events</Button></div>
+        </> : <><EmptyState compact title={eventsError ? "Events unavailable" : "No upcoming events"} description={eventsError ? "Try loading your events again." : "Create an event to get started."} /><div className="mt-auto"><Button as={Link} to="/organizer/dashboard/events" variant="ghost" size="sm">View events</Button></div></>}
+      </BaseCard>
+      <BaseCard title="Excuse letters" eyebrow="04 · Requests to review" icon={<FaEnvelopeOpenText />} className={cardClass} bodyClassName={bodyClass}>
+        {lettersError && <p role="alert" className="text-xs text-danger">Letters could not be refreshed. <button onClick={() => refresh()} className="underline">Try again</button></p>}
+        {!lettersError || letters.length ? <>
+          <p className="text-sm text-on-dim"><strong className="num text-lg text-on">{pending.length}</strong> waiting for review</p>
+          {pending.length ? <ul className="divide-y divide-line">{pending.slice(0, 2).map(letter => <li key={letter._id} className="py-2"><p className="text-sm font-medium text-on">{letter.student?.name || "Student"}</p><p className="mt-0.5 text-xs text-on-muted [overflow-wrap:anywhere]">{letter.event?.title || "Event unavailable"}</p></li>)}</ul> : <p className="text-xs text-on-muted">You’re all caught up.</p>}
+        </> : <p className="text-sm text-on-muted">Review count unavailable.</p>}
+        <div className="mt-auto border-t border-line pt-3"><Button as={Link} to="/organizer/dashboard/excuses" variant="secondary" size="sm">Review letters</Button></div>
+      </BaseCard>
     </div>
-  );
-};
-
-export default OrganizerHome;
+  </div>;
+}

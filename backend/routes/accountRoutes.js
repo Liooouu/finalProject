@@ -4,11 +4,13 @@ const multer = require("multer");
 const path = require("path");
 
 const User = require("../models/User");
+const { accountView, hasStudentProfile } = require("../services/accountRoles");
 const bcrypt = require("bcryptjs");
 const faceMatcher = require("../services/faceMatcher");
 const fileStore = require("../services/fileStore");
 const { isMailEnabled } = require("../services/mailer");
-const { protect, authorize } = require("../middleware/authMiddleware");
+const { syncStudentAcademicYear } = require("../services/academicProgression");
+const { protect } = require("../middleware/authMiddleware");
 const faceIdentify = require("../services/faceIdentify");
 const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
 
@@ -40,7 +42,7 @@ const faceUpload = multer({
 // Fields the client is allowed to see about an account: never the password, the
 // legacy authentication fields or the email/reset code hashes.
 const ACCOUNT_FIELDS =
-  "name email role profilePicture program yearLevel section facePhoto faceEnrolledAt faceConsentAt createdAt updatedAt";
+  "name email role organizerAccess organizerPromotedAt profilePicture program yearLevel section academicYearStart academicHistory enrollmentStatus facePhoto faceEnrolledAt faceConsentAt createdAt updatedAt";
 
 // =======================
 // GET ACCOUNT INFO
@@ -48,7 +50,8 @@ const ACCOUNT_FIELDS =
 router.get("/", protect, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select(ACCOUNT_FIELDS);
-    res.json(user);
+    await syncStudentAcademicYear(user);
+    res.json(accountView(await User.findById(req.user._id).select(ACCOUNT_FIELDS), req.user.role));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -88,7 +91,7 @@ router.patch("/", protect, async (req, res) => {
 
     await user.save();
     const safe = await User.findById(user._id).select(ACCOUNT_FIELDS);
-    res.json(safe);
+    res.json(accountView(safe, req.user.role));
   } catch (err) {
     if (err && err.code === 11000) {
       return res.status(400).json({ error: "Email already in use" });
@@ -183,7 +186,10 @@ router.post("/picture", protect, upload.single("picture"), async (req, res) => {
 router.post(
   "/face",
   protect,
-  authorize("student"),
+  (req, res, next) => {
+    if (!hasStudentProfile(req.user)) return res.status(403).json({ error: "Only student accounts can manage their face enrollment" });
+    next();
+  },
   faceUpload.single("face"),
   async (req, res) => {
     if (!req.file) {

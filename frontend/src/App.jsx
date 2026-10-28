@@ -6,7 +6,7 @@ import ChunkBoundary from "./components/shared/ChunkBoundary";
 import TrackMark from "./components/shared/TrackMark";
 
 // Route-level code splitting. Everything used to be one 1.37 MB bundle, so the
-// landing page had to download chart.js and leaflet before it could paint. Each
+// landing page had to download chart.js before it could paint. Each
 // shell and public page now arrives on its first visit.
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const AuthPage = lazy(() => import("./pages/auth/AuthPage"));

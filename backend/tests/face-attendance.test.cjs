@@ -10,8 +10,9 @@ let writes = 0;
 let enrolledUser;
 let session;
 let event;
+let operator;
 const chain = (value) => ({ select: () => ({ lean: async () => value, then: (ok, bad) => Promise.resolve(value).then(ok, bad) }) });
-const users = { find: () => chain([]), findById: () => chain(enrolledUser) };
+const users = { find: () => chain([]), findById: id => chain(String(id) === studentId ? enrolledUser : operator) };
 const attendance = { findOne: async () => stored, create: async (value) => { writes++; stored = value; return value; }, countDocuments: async () => 0 };
 const excuses = { findOne: async () => null };
 const sessions = { findOne: async () => session, updateOne: async () => {}, findById: async () => session };
@@ -36,7 +37,8 @@ const enrolled = (id, descriptor) => ({ _id: id, name: 'Test Student', role: 'st
 beforeEach(() => {
   faceIdentify.clear(); stored = null; writes = 0;
   enrolledUser = enrolled(studentId, vector());
-  session = { _id: '333333333333333333333333', event: eventId, expiresAt: new Date(Date.now() + 3600000), closedAt: null };
+  operator = { role: 'organizer' };
+  session = { openedBy: '444444444444444444444444', _id: '333333333333333333333333', event: eventId, expiresAt: new Date(Date.now() + 3600000), closedAt: null };
   const day = new Date(Date.now() + 8 * 3600000).toISOString().slice(0,10);
   event = { _id: eventId, title: 'Test event', date: day, attendanceStartTime: '00:00', attendanceEndTime: '23:59', endTime: '23:59', status: 'live', organizer: '444444444444444444444444' };
   identified = { result: 'match', distance: 0.1, student: { id: studentId, enrollmentVersion: 1 } };
@@ -70,3 +72,6 @@ test('station records a match then reports repeat attendance without another wri
 test('students cannot create stations', async () => { assert.equal((await request('sessions',{eventId})).status,403); });
 test('malformed event IDs return a client error', async () => { assert.equal((await request('sessions',{eventId:'wrong'})).status,400); });
 
+
+test('a demoted organizer cannot use an already-open face station',async()=>{operator={role:'student',organizerAccess:false,organizerAccessVersion:2};const response=await request('demoted', {descriptor:vector()});assert.equal(response.status,404);assert.equal(writes,0);});
+test('re-promotion cannot revive an old face station',async()=>{operator={role:'student',organizerAccess:true,organizerAccessVersion:3};session.organizerAccessVersion=1;const response=await request('old-grant', {descriptor:vector()});assert.equal(response.status,404);assert.equal(writes,0);});

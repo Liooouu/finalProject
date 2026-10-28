@@ -3,10 +3,10 @@ const assert=require('node:assert/strict');
 const Module=require('node:module');
 const originalLoad=Module._load;
 const eventId='222222222222222222222222';
-let absent,active,created,savedFiles;
+let absent,active,created,savedFiles,eventDate;
 class Excuse {constructor(values){Object.assign(this,values);}async save(){created=this;}static async findOne(){return active;}}
 Module._load=function(request,parent,...rest){const mocks={
- '../models/Excuse':Excuse,'../models/Event':{findById:async()=>({_id:eventId,title:'Missed event',organizer:'organizer'})},
+ '../models/Excuse':Excuse,'../models/Event':{findById:async()=>({_id:eventId,title:'Missed event',organizer:'organizer',date:eventDate,endTime:'23:59'})},
  '../models/Attendance':{findOne:async query=>{assert.equal(query.student,'self');assert.equal(query.status,'absent');return absent;}},
  '../models/User':{find:()=>({select:async()=>[]})},
  '../middleware/authMiddleware':{protect:(req,res,next)=>{req.user={_id:'self',name:'Test',role:req.headers['x-test-role']||'student'};next();}},
@@ -15,7 +15,7 @@ Module._load=function(request,parent,...rest){const mocks={
 const router=require('../routes/studentRoutes');Module._load=originalLoad;
 const app=require('express')();app.use('/student',router);app.use((err,req,res,next)=>res.status(err.status||400).json({error:err.message}));
 let server;const ready=new Promise(resolve=>{server=app.listen(0,'127.0.0.1',resolve);});after(()=>new Promise(resolve=>server.close(resolve)));
-beforeEach(()=>{absent={status:'absent'};active=null;created=null;savedFiles=[];});
+beforeEach(()=>{eventDate=new Date(Date.now()-86400000).toISOString().slice(0,10);absent={status:'absent'};active=null;created=null;savedFiles=[];});
 async function submit({files=[{name:'proof.pdf',type:'application/pdf',content:'%PDF-1.4'}],type='absence',text='A supported explanation',id=eventId,role='student'}={}){
  await ready;const data=new FormData();data.set('eventId',id);data.set('excuseText',text);data.set('type',type);
  for(const file of files)data.append('attachments',new Blob([file.content||'document'],{type:file.type}),file.name);
@@ -31,3 +31,5 @@ test('DOC, DOCX and image attachments match the advertised file types',async()=>
 test('five attachments are allowed and six are rejected by upload middleware',async()=>{const files=Array.from({length:5},(_,i)=>({name:`proof${i}.pdf`,type:'application/pdf'}));assert.equal((await submit({files})).status,201);assert.equal((await submit({files:[...files,files[0]]})).status,400);});
 test('oversized and unsupported files are rejected',async()=>{assert.equal((await submit({files:[{name:'large.pdf',type:'application/pdf',content:Buffer.alloc(5*1024*1024+1)}]})).status,400);assert.equal((await submit({files:[{name:'proof.html',type:'text/html'}]})).status,400);assert.equal(created,null);});
 test('non-students cannot submit student excuse letters',async()=>{assert.equal((await submit({role:'organizer'})).status,403);assert.equal(created,null);});
+
+test('excuses older than seven days are rejected',async()=>{eventDate=new Date(Date.now()-10*86400000).toISOString().slice(0,10);const result=await submit();assert.equal(result.status,400);assert.match(result.body.error,/7-day/);assert.equal(created,null);});

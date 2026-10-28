@@ -4,6 +4,9 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 
 const User = require("../models/User");
+const { protect } = require("../middleware/authMiddleware");
+const { availableRoles } = require("../services/accountRoles");
+const { syncStudentAcademicYear } = require("../services/academicProgression");
 const { sendMail, isMailEnabled } = require("../services/mailer");
 const { renderVerificationEmail, renderPasswordResetEmail } = require("../services/emailTemplate");
 const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
@@ -74,8 +77,8 @@ async function issuePasswordResetCode(user) {
   return sent;
 }
 
-const signToken = (user) =>
-  jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
+const signToken = (user, role = user.role) =>
+  jwt.sign({ id: user._id, role, ...(role === "organizer" && user.role === "student" ? { organizerVersion: user.organizerAccessVersion || 0 } : {}) }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "1d",
   });
 
@@ -412,7 +415,7 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Please fill in all fields" });
     }
 
-    const user = await User.findOne({ email: User.normalizeEmail(email) });
+    let user = await User.findOne({ email: User.normalizeEmail(email) });
     // Identical message for unknown address and wrong password so this endpoint
     // can't be used to enumerate accounts.
     if (!user) return res.status(400).json({ message: "Invalid email or password" });
@@ -435,7 +438,8 @@ router.post("/login", async (req, res) => {
       await user.save();
     }
 
-    return res.json({ token: signToken(user), role: user.role,
+    user = await syncStudentAcademicYear(user);
+    return res.json({ token: signToken(user), role: user.role, availableRoles: availableRoles(user),
       requiresFaceEnrollment: user.role === "student" && (!user.faceEnrolledAt || !user.faceConsentAt || user.faceDescriptor?.length !== 128),
     });
   } catch (err) {
@@ -445,4 +449,15 @@ router.post("/login", async (req, res) => {
 });
 
 
+// A signed role-specific token keeps each portal explicit; DB grants are rechecked
+// by protect on every request, so editing localStorage cannot grant access.
+router.post("/switch-role", protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ message: "Account not found" });
+    const role = req.body?.role;
+    if (!availableRoles(user).includes(role)) return res.status(403).json({ message: "This account does not have access to that portal" });
+    res.json({ token: signToken(user, role), role, availableRoles: availableRoles(user), requiresFaceEnrollment: role === "student" && (!user.faceEnrolledAt || !user.faceConsentAt || user.faceDescriptor?.length !== 128) });
+  } catch { res.status(500).json({ message: "Could not switch portals" }); }
+});
 module.exports = router;

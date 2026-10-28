@@ -13,7 +13,13 @@ export default defineConfig({
     dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react/jsx-runtime'],
+    // Reports load lazily. Pre-bundle their React wrapper with the renderer so
+    // discovering charts later cannot introduce a second optimized React runtime.
+    include: [
+      'react', 'react-dom', 'react-dom/client',
+      'react/jsx-runtime', 'react/jsx-dev-runtime',
+      'chart.js', 'react-chartjs-2',
+    ],
   },
   server: {
     host: true,        // listen on all network interfaces

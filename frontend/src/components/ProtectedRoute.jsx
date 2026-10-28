@@ -1,8 +1,20 @@
-import React, { useEffect } from "react"; // <-- ADD THIS
+import React, { useEffect, useReducer } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { getUserFromToken, markRoleActive } from "../utils/auth";
 
 const ProtectedRoute = ({ allowedRoles }) => {
+  const [, refreshSession] = useReducer(value => value + 1, 0);
+  useEffect(() => {
+    const onStorage = event => {
+      if (!event.key || event.key === "token" || event.key.startsWith("token_")) refreshSession();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", refreshSession);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", refreshSession);
+    };
+  }, []);
   const user = getUserFromToken();
 
   // Every successful pass through a role's routes counts as "actively using

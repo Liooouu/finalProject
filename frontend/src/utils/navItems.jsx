@@ -7,7 +7,6 @@ import {
   FaChartBar,
   FaEdit,
   FaClock,
-  FaEnvelopeOpenText,
   FaCalendarCheck,
 } from "react-icons/fa";
 import { ROLE_PATHS } from "./nav";
@@ -32,8 +31,8 @@ const sectionsByRole = {
         },
         { name: "Manage Users", path: "/admin/dashboard/users", icon: <FaUsers /> },
         {
-          name: "Create Organizer",
-          path: "/admin/dashboard/create-organizer",
+          name: "Promote Student",
+          path: "/admin/dashboard/promote-student",
           icon: <FaUserPlus />,
         },
       ],
@@ -42,16 +41,6 @@ const sectionsByRole = {
       label: "Security & insight",
       items: [
         { name: "Attendance Report", path: "/admin/dashboard/reports", icon: <FaChartBar /> },
-      ],
-    },
-    {
-      label: "System",
-      items: [
-        {
-          name: "Email Settings",
-          path: "/admin/dashboard/settings/email",
-          icon: <FaEnvelopeOpenText />,
-        },
       ],
     },
     {
@@ -69,6 +58,7 @@ const sectionsByRole = {
       label: "Management",
       items: [
         { name: "Manage Events", path: "/organizer/dashboard/events", icon: <FaCalendarAlt /> },
+        { name: "Manual Attendance", path: "/organizer/dashboard/manual-attendance", icon: <FaCalendarCheck /> },
         {
           name: "Manage Excuses",
           path: "/organizer/dashboard/excuses",

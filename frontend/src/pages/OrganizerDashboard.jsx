@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import MobileTabBar from "../components/mobile/MobileTabBar";
@@ -8,7 +8,7 @@ import AppBackground from "../components/shared/AppBackground";
 import RouteFallback from "../components/shared/RouteFallback";
 import { PageMetaProvider } from "../context/PageMetaContext";
 
-// Per-page chunks; the event map (leaflet) and the attendee screens are only
+// Per-page chunks; the event details and the attendee screens are only
 // downloaded when they are opened.
 const OrganizerHome = lazy(() => import("../components/organizer/OrgDashboardHome"));
 const OrgManageEvents = lazy(() => import("../components/organizer/OrgManageEvents"));
@@ -16,7 +16,11 @@ const ManageExcuses = lazy(() => import("../components/organizer/ManageExcuses")
 const NotificationsPage = lazy(() => import("../components/organizer/NotificationsPage"));
 const ProfileSettings = lazy(() => import("../components/settings/ProfileSettings"));
 const EventDetails = lazy(() => import("../components/EventDetails"));
-const OrgManageAttendees = lazy(() => import("../components/organizer/OrgManageAttendees"));
+const ManualAttendance = lazy(() => import("../components/organizer/ManualAttendance"));
+const LegacyAttendanceRedirect = () => {
+  const { id } = useParams();
+  return <Navigate to={`/organizer/dashboard/manual-attendance/${id}`} replace />;
+};
 
 const OrganizerDashboard = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -34,7 +38,9 @@ const OrganizerDashboard = () => {
                   <Route index element={<OrganizerHome />} />
                   <Route path="events" element={<OrgManageEvents />} />
                   <Route path="events/:id" element={<EventDetails />} />
-                  <Route path="events/:id/attendees" element={<OrgManageAttendees />} />
+                  <Route path="events/:id/attendees" element={<LegacyAttendanceRedirect />} />
+                  <Route path="manual-attendance" element={<ManualAttendance />} />
+                  <Route path="manual-attendance/:id" element={<ManualAttendance />} />
                   <Route path="excuses" element={<ManageExcuses />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="profile" element={<ProfileSettings />} />

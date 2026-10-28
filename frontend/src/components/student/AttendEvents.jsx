@@ -1,25 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
-import { formatTime12Hour, splitEventsByLifecycle, formatDate } from "../../utils/helpers";
-import {
-  FaArrowRight,
-  FaCalendarAlt,
-  FaClock,
-  FaMapMarkerAlt,
-} from "react-icons/fa";
-import { BsClipboardCheck } from "react-icons/bs";
+import { splitEventsByLifecycle } from "../../utils/helpers";
+import { FaCalendarAlt } from "react-icons/fa";
+import StudentEventCard from "./StudentEventCard";
 import { usePageMeta } from "../../context/PageMetaContext";
 import {
-  Button,
   PageHeader,
   SegmentedControl,
-  StatusChip,
 } from "../ui";
 import Loading from "../shared/Loading";
 import EmptyState from "../shared/EmptyState";
-import EventMap from "../shared/EventMap";
 
 const TABS = [
   { key: "active", label: "Upcoming" },
@@ -27,8 +18,10 @@ const TABS = [
 ];
 
 const AttendEvents = () => {
-  const navigate = useNavigate();
   const [events, setEvents] = useState([]);
+  const [attendance, setAttendance] = useState([]);
+  const [attendanceError, setAttendanceError] = useState(false);
+  const [eventsError, setEventsError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("active");
 
@@ -37,10 +30,17 @@ const AttendEvents = () => {
   const fetchEvents = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const res = await api.get("/events");
-      setEvents(res.data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
+      const [eventsResult, attendanceResult] = await Promise.allSettled([
+        api.get("/events"), api.get("/events/my-attendance"),
+      ]);
+      if (eventsResult.status === "fulfilled") {
+        setEvents(eventsResult.value.data);
+        setEventsError(false);
+      } else setEventsError(true);
+      if (attendanceResult.status === "fulfilled") {
+        setAttendance(attendanceResult.value.data);
+        setAttendanceError(false);
+      } else setAttendanceError(true);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -64,7 +64,7 @@ const AttendEvents = () => {
       <PageHeader
         eyebrow="Student events"
         title="Find your next event"
-        subtitle="Open events you can still join, plus everything you have attended before."
+        subtitle="Full event details and your recorded attendance, all in one place."
         actions={
           <SegmentedControl
             ariaLabel="Event timeframe"
@@ -79,102 +79,20 @@ const AttendEvents = () => {
         }
       />
 
+      {eventsError && <div role="alert" className="alert alert-danger">Events could not be refreshed. Please reload to try again.</div>}
       {visible.length === 0 ? (
         <EmptyState
           icon={<FaCalendarAlt />}
-          title={tab === "active" ? "No upcoming events" : "No past events"}
+          title={eventsError ? "Events unavailable" : tab === "active" ? "No upcoming events" : "No past events"}
           description={
-            tab === "active"
+            eventsError ? "Please reload to try again." : tab === "active"
               ? "Check back soon — new events will show up here."
               : "Events you have already attended or missed will be listed here."
           }
         />
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {visible.map((event) => (
-            <article
-              key={event._id}
-              className="fd-surface fd-instrument fd-glass panel-hover group flex flex-col overflow-hidden"
-            >
-              <div className="border-b border-line bg-card-alt/40 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <span className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl border border-line bg-card text-center">
-                    <span className="num text-base font-bold leading-none text-on">
-                      {event.date ? new Date(event.date).getDate() : "–"}
-                    </span>
-                    <span className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-on-muted">
-                      {event.date
-                        ? new Date(event.date).toLocaleString("en-PH", { month: "short" })
-                        : "TBA"}
-                    </span>
-                  </span>
-                  <StatusChip status={event.status} />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/student/dashboard/events/${event._id}`)}
-                  className="mt-3 block text-left"
-                >
-                  <h3 className="font-display text-lg font-semibold leading-snug tracking-tight text-on transition-colors group-hover:text-brand">
-                    {event.title}
-                  </h3>
-                </button>
-                <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-on-dim">
-                  {event.description || "No description provided."}
-                </p>
-              </div>
-
-              <div className="flex flex-1 flex-col p-5">
-                <div className="space-y-2 text-sm text-on-dim">
-                  <div className="flex items-center gap-2">
-                    <FaCalendarAlt className="text-[11px] text-on-muted" />
-                    <span>{formatDate(event.date)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <FaClock className="text-[11px] text-on-muted" />
-                    <span>{formatTime12Hour(event.time)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <FaMapMarkerAlt className="text-[11px] text-on-muted" />
-                    <span className="truncate">{event.location || "TBA"}</span>
-                  </div>
-                </div>
-
-                {event.attendanceStartTime && event.attendanceEndTime && (
-                  <div className="alert alert-warn alert-sm mt-3">
-                    <BsClipboardCheck className="mt-0.5 shrink-0" />
-                    <p>
-                      Attendance: {formatTime12Hour(event.attendanceStartTime)} –{" "}
-                      {formatTime12Hour(event.attendanceEndTime)}
-                    </p>
-                  </div>
-                )}
-
-                <div className="mt-3 overflow-hidden rounded-xl border border-line">
-                  <EventMap event={event} className="h-32 w-full" placeholder={false} frame={false} />
-                </div>
-
-                <div className="mt-auto flex items-center justify-between gap-3 border-t border-line pt-4">
-                  <p className="min-w-0 truncate text-xs text-on-muted">
-                    {event.organizer ? (
-                      <>
-                        By <span className="text-on-dim">{event.organizer.name}</span>
-                      </>
-                    ) : (
-                      "Organizer TBA"
-                    )}
-                  </p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate(`/student/dashboard/events/${event._id}`)}
-                  >
-                    Details <FaArrowRight className="text-[10px]" />
-                  </Button>
-                </div>
-              </div>
-            </article>
-          ))}
+          {visible.map((event) => <StudentEventCard key={event._id} event={event} attendance={attendance.find((record) => (record.event?._id || record.event) === event._id)} attendanceError={attendanceError} />)}
         </div>
       )}
     </div>

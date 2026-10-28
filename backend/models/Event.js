@@ -31,6 +31,9 @@ const eventSchema = new mongoose.Schema({
   // event stored with an older version has its notice flags cleared once, so a
   // corrected job can notify it again (see the self-heal in server.js).
   noticesVersion: { type: Number, default: 0 },
+  lastEditedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  lastEditedByName: { type: String, default: "" },
+  lastEditedAt: { type: Date, default: null },
   organizer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 }, { timestamps: true });
 

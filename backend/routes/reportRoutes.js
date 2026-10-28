@@ -53,7 +53,7 @@ function formatEventTime(value) {
 
 
 // Safe account fields for reports: never hashes, PINs, device ids, or photos.
-const REPORT_USER_FIELDS = "name email role program yearLevel section createdAt";
+const REPORT_USER_FIELDS = "name email role organizerAccess program yearLevel section createdAt";
 
 function badRequest(message) {
   const err = new Error(message);

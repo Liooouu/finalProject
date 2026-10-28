@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getToken, clearAuth } from "../utils/auth";
+import { getToken, getContextRole, clearAuth } from "../utils/auth";
 import { announceDataChange } from "../utils/dataSync";
 
 const api = axios.create({
@@ -11,7 +11,19 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = getToken();
+  // A student page may finish a refresh while its owner switches portals.
+  // Never send that request with an organizer/admin token from the new page.
+  const studentRequest = /^\/student(?:\/|$)/.test(config.url || "");
+  const context = getContextRole();
+  // Personal academic/face settings belong to the same student account in both
+  // portals. The server verifies the stored identity for these endpoints.
+  const sharedProfileRequest = context === "organizer" && /^\/student\/(?:academic-status|security\/face-appeals)(?:\?|$)/.test(config.url || "");
+  if (studentRequest && context !== "student" && !sharedProfileRequest) throw new axios.CanceledError("Student portal is no longer active");
+  const token = getToken(studentRequest && !sharedProfileRequest ? "student" : context);
+  if (!token && context && !/^\/auth(?:\/|$)/.test(config.url || "")) {
+    window.location.href = "/auth";
+    throw new axios.CanceledError("This portal session needs a fresh sign-in");
+  }
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

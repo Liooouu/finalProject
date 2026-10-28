@@ -25,8 +25,11 @@ const {
 
 // Event ownership lives in one service so the face kiosk and the event routes
 // cannot disagree about who may manage an event.
-const { canManageEvent, canManageEventOrAdminCreated } = require("../services/eventAccess");
+const { canManageEvent, canManageEventOrAdminCreated, canRecordAttendance, canEditEvent } = require("../services/eventAccess");
 const { takeExcuseRestore } = require("../services/attendanceMarking");
+
+// Only explicit human edits stamp the editor; scheduled jobs do not impersonate one.
+const editorStamp = user => ({ lastEditedBy: user._id, lastEditedByName: user.name || "Staff member", lastEditedAt: new Date() });
 
 // In-flight create promises, keyed by organizer + event identity. Serializes
 // double-clicks on a slow network so both can't pass the duplicate check.
@@ -168,7 +171,7 @@ router.post("/", protect, async (req, res) => {
 // GET MY EVENTS
 router.get("/my-events", protect, async (req, res) => {
   try {
-    const events = await Event.find({ organizer: req.user._id });
+    const events = await Event.find({ organizer: req.user._id }).populate("organizer", "name email role");
     const eventIds = events.map((e) => e._id);
     const counts = await Attendance.aggregate([
       { $match: { event: { $in: eventIds }, status: { $in: ["present", "late"] } } },
@@ -222,11 +225,11 @@ router.patch("/:id/status", protect, async (req, res) => {
     const oldEvent = await Event.findById(req.params.id);
 
     if (!oldEvent) return res.status(404).json({ error: "Event not found" });
-    if (!(await canManageEventOrAdminCreated(oldEvent, req.user))) {
+    if (!canEditEvent(oldEvent, req.user)) {
       return res.status(403).json({ error: "You are not allowed to manage this event" });
     }
 
-    const update = { status };
+    const update = { status, ...editorStamp(req.user) };
     // Reopening an event means it is no longer sitting finished.
     if (status !== STATUS.FINISHED) update.autoFinishedAt = null;
 
@@ -293,13 +296,13 @@ router.patch("/:id/automation", protect, async (req, res) => {
 
     const existing = await Event.findById(req.params.id);
     if (!existing) return res.status(404).json({ error: "Event not found" });
-    if (!(await canManageEventOrAdminCreated(existing, req.user))) {
+    if (!canEditEvent(existing, req.user)) {
       return res.status(403).json({ error: "You are not allowed to manage this event" });
     }
 
     const event = await Event.findByIdAndUpdate(
       req.params.id,
-      { manualOverride: !enabled },
+      { manualOverride: !enabled, ...editorStamp(req.user) },
       { new: true }
     );
     if (!event) return res.status(404).json({ error: "Event not found" });
@@ -367,7 +370,7 @@ router.get("/:id/attendees", protect, async (req, res) => {
     }
 
     const attendees = await Attendance.find({ event: req.params.id })
-      .populate("student", "name email program yearLevel section")
+      .populate("student", "name email program yearLevel section enrollmentStatus faceEnrolledAt")
       .sort({ attendedAt: -1 });
 
     res.json(attendees);
@@ -440,9 +443,10 @@ router.get("/:id/attendees/groups", protect, async (req, res) => {
 // UPDATE ATTENDEE STATUS (organizers)
 router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
   try {
+    if (req.user.role !== "organizer") return res.status(403).json({ error: "Only event organizers can record or change attendance" });
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+    if (!(await canRecordAttendance(event, req.user))) {
       return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 
@@ -540,15 +544,16 @@ router.patch("/:id/attendees/:studentId", protect, async (req, res) => {
   }
 });
 
-// SET A STUDENT'S COMMUNITY SERVICE HOURS FOR THIS EVENT (organizers/admins)
+// SET A STUDENT'S COMMUNITY SERVICE HOURS FOR THIS EVENT (organizers)
 // Overwrites the hours this event contributes to the student's CS balance (e.g.
 // correcting the automatic 8 absent / 4 late). Creates a `present` record with
 // the given hours if the student has no attendance record for this event yet.
 router.patch("/:id/attendees/:studentId/community-service", protect, async (req, res) => {
   try {
+    if (req.user.role !== "organizer") return res.status(403).json({ error: "Only event organizers can record or change attendance" });
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+    if (!(await canRecordAttendance(event, req.user))) {
       return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 
@@ -597,7 +602,7 @@ router.patch("/:id/attendees/:studentId/community-service", protect, async (req,
     await notifyUsers([req.params.studentId], {
       type: "penalty",
       title: "Community Service Hours Updated",
-      message: `Your community service hours for "${event.title}" have been set to ${hours} hour${hours === 1 ? "" : "s"} by the organizer or admin.`,
+      message: `Your community service hours for "${event.title}" have been set to ${hours} hour${hours === 1 ? "" : "s"} by the organizer.`,
       relatedEvent: event._id,
       event,
     });
@@ -609,15 +614,16 @@ router.patch("/:id/attendees/:studentId/community-service", protect, async (req,
   }
 });
 
-// REMOVE A STUDENT'S COMMUNITY SERVICE HOURS (organizers/admins)
+// REMOVE A STUDENT'S COMMUNITY SERVICE HOURS (organizers)
 // No `hours` in body = full forgiveness: clears all accumulated penalty hours
 // across every attendance record.
 // With `hours` = remove that many hours from this event's record only.
 router.patch("/:id/attendees/:studentId/community-service/remove", protect, async (req, res) => {
   try {
+    if (req.user.role !== "organizer") return res.status(403).json({ error: "Only event organizers can record or change attendance" });
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+    if (!(await canRecordAttendance(event, req.user))) {
       return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 
@@ -626,7 +632,7 @@ router.patch("/:id/attendees/:studentId/community-service/remove", protect, asyn
 
     const studentId = attendance.student;
 
-    // --- Full forgiveness (all admin/organizer UI buttons hit this path) ---
+    // --- Full forgiveness (organizer UI buttons hit this path) ---
     if (req.body.hours === undefined) {
       const penalized = await Attendance.find({ student: studentId, communityServiceHours: { $gt: 0 } });
       for (const rec of penalized) {
@@ -673,7 +679,7 @@ router.patch("/:id/attendees/:studentId/community-service/remove", protect, asyn
     await notifyUsers([studentId], {
       type: "penalty",
       title: "Community Service Hours Removed",
-      message: `${removed} community service hour${removed === 1 ? "" : "s"} ${removed === 1 ? "has" : "have"} been removed from your record by the organizer or admin.`,
+      message: `${removed} community service hour${removed === 1 ? "" : "s"} ${removed === 1 ? "has" : "have"} been removed from your record by the organizer.`,
       relatedEvent: event._id,
       event,
     });
@@ -688,9 +694,10 @@ router.patch("/:id/attendees/:studentId/community-service/remove", protect, asyn
 // MANUAL ATTENDANCE (organizers add student manually)
 router.post("/:id/attendees/manual", protect, async (req, res) => {
   try {
+    if (req.user.role !== "organizer") return res.status(403).json({ error: "Only event organizers can record or change attendance" });
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+    if (!(await canRecordAttendance(event, req.user))) {
       return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 
@@ -766,7 +773,7 @@ router.put("/:id", protect, async (req, res) => {
 
     const existing = await Event.findById(req.params.id);
     if (!existing) return res.status(404).json({ error: "Event not found" });
-    if (!(await canManageEventOrAdminCreated(existing, req.user))) {
+    if (!canEditEvent(existing, req.user)) {
       return res.status(403).json({ error: "You are not allowed to edit this event" });
     }
 
@@ -793,6 +800,7 @@ router.put("/:id", protect, async (req, res) => {
     }
 
     const update = {
+      ...editorStamp(req.user),
       title,
       description,
       date,

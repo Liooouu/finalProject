@@ -1,0 +1,9 @@
+{
+  "confirmed": false,
+  "schoolYearStartMonth": 8,
+  "schoolYearStartDay": 1,
+  "semesters": [
+    { "id": "first", "label": "1st semester", "startMonth": 8, "startDay": 1, "endMonth": 12, "endDay": 31 },
+    { "id": "second", "label": "2nd semester", "startMonth": 1, "startDay": 1, "endMonth": 5, "endDay": 31 }
+  ]
+}

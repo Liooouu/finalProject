@@ -7,9 +7,10 @@ import {
   FaSignOutAlt,
   FaChevronDown,
   FaSearch,
+  FaExchangeAlt,
 } from "react-icons/fa";
 import api from "../api/axios";
-import { getUserFromToken, logout } from "../utils/auth";
+import { getUserFromToken, logout, setAuth } from "../utils/auth";
 import { profilePathFor, getPageTitle } from "../utils/nav";
 import { breadcrumbTrail, flatNavItems } from "../utils/navItems";
 import { subscribeToDataChanges } from "../utils/dataSync";
@@ -32,6 +33,8 @@ const Topbar = () => {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [account, setAccount] = useState(null);
+  const [switchingRole, setSwitchingRole] = useState(false);
+  const [switchError, setSwitchError] = useState("");
   const menuRef = useRef(null);
 
   // Close the user dropdown when navigating to another route.
@@ -119,6 +122,19 @@ const Topbar = () => {
   const openProfile = () => {
     setMenuOpen(false);
     navigate(profilePathFor[role] || "/");
+  };
+
+  const switchPortal = async targetRole => {
+    if (switchingRole) return;
+    setSwitchingRole(true); setSwitchError("");
+    try {
+      const { data } = await api.post("/auth/switch-role", { role: targetRole });
+      setAuth(data.token, data.role);
+      window.location.assign(`/${data.role}/dashboard`);
+    } catch (error) {
+      setSwitchError(error.response?.data?.message || "Could not switch portals. Please try again.");
+      setSwitchingRole(false);
+    }
   };
 
   return (
@@ -233,6 +249,8 @@ const Topbar = () => {
                   </div>
                 </div>
 
+                {(account?.availableRoles || []).filter(target => target !== role && ["student", "organizer"].includes(target)).map(target => <button key={target} role="menuitem" disabled={switchingRole} onClick={() => switchPortal(target)} className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-brand hover:bg-brand/10 disabled:opacity-50"><FaExchangeAlt className="shrink-0 text-xs" />{switchingRole ? "Switching portal…" : `Switch to ${target} portal`}</button>)}
+                {switchError && <p role="alert" className="px-3 py-2 text-xs text-danger">{switchError}</p>}
                 <button
                   role="menuitem"
                   onClick={openProfile}

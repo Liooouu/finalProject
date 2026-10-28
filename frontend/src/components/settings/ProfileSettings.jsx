@@ -1,21 +1,26 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import api from "../../api/axios";
 import { useSearchParams } from "react-router-dom";
 import SecuritySettings from "./SecuritySettings";
+import AcademicStanding from "../student/AcademicStanding";
 import { getUserFromToken, logout } from "../../utils/auth";
 import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
-import { FaUser, FaLock, FaImage, FaCheck, FaTimes, FaDoorOpen, FaCamera } from "react-icons/fa";
+import { FaUser, FaLock, FaCheck, FaTimes, FaDoorOpen, FaCamera } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { Button, Card, FlightPanel, PageHeader, SegmentedControl } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Loading from "../shared/Loading";
 
+const EmailSettings = lazy(() => import("../admin/EmailSettings"));
+
 const ProfileSettings = () => {
   const user = getUserFromToken();
   const [searchParams, setSearchParams] = useSearchParams();
-  const section = user.role === "student" && searchParams.get("section") === "security" ? "security" : "profile";
+  const requestedSection = searchParams.get("section");
   const [profile, setProfile] = useState(null);
-  const [stats, setStats] = useState({});
+  const hasStudentProfile = (profile?.accountRole || profile?.role || user.role) === "student";
+  const section = user.role === "admin" && requestedSection === "email" ? "email" : hasStudentProfile && ["security", "academic"].includes(requestedSection) ? requestedSection : "profile";
+  const profileRole = hasStudentProfile && profile?.organizerAccess ? "Student/Organizer" : profile?.role || user.role;
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -37,19 +42,6 @@ const ProfileSettings = () => {
         setProfile(profileRes.data);
         setForm({ name: profileRes.data.name, email: profileRes.data.email });
 
-        if (user.role === "student") {
-          const statsRes = await api.get("/student/community-service");
-          setStats({
-            totalHours: statsRes.data.totalHours || 0,
-            totalAttended: statsRes.data.totalAttended || 0,
-          });
-        } else if (user.role === "organizer") {
-          const statsRes = await api.get("/organizer/stats");
-          setStats({
-            totalEvents: statsRes.data.totalEvents || 0,
-            totalAttendees: statsRes.data.totalAttendees || 0,
-          });
-        }
       } catch (err) {
         console.error(err.response?.data || err.message);
       } finally {
@@ -141,87 +133,41 @@ const ProfileSettings = () => {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <PageHeader
-        eyebrow="Account"
-        title="Profile settings"
-        subtitle="Update how you appear in TrackED and manage your sign-in details."
-      />
+      <PageHeader eyebrow="Account" title="Profile settings" subtitle="Your personal details, academic record, and account security." />
 
-      {user.role === "student" && (
-        <SegmentedControl ariaLabel="Profile sections" value={section}
-          onChange={(value) => setSearchParams(value === "security" ? { section: "security" } : {})}
-          options={[{ value: "profile", label: "Profile" }, { value: "security", label: "Security" }]} />
-      )}
-
-      {section === "security" ? <SecuritySettings embedded /> : <>
-      {message && (
-        <div
-          className={`alert ${messageType === "success" ? "alert-ok" : "alert-danger"}`}
-          role="status"
-        >
-          <span aria-hidden="true">{messageType === "success" ? "✓" : "!"}</span>
-          <p>{message}</p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <Card>
-          <div className="relative overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-[var(--brand)] to-[#312e81] p-5">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-white/10 blur-3xl"
-            />
-            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
-              <div className="relative shrink-0">
-                {profile?.profilePicture ? (
-                  <img
-                    src={profile.profilePicture}
-                    alt="Profile"
-                    className="h-20 w-20 rounded-full object-cover ring-4 ring-white/20"
-                  />
-                ) : (
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/15 ring-4 ring-white/20">
-                    <FaUser className="text-3xl text-white" />
-                  </div>
-                )}
-                <label
-                  className={`absolute -bottom-1 -right-1 cursor-pointer rounded-full bg-white p-2 text-indigo-700 shadow-md transition-colors hover:bg-slate-100 ${
-                    uploadingPic ? "pointer-events-none opacity-60" : ""
-                  }`}
-                >
-                  <FaCamera className="text-xs" aria-hidden="true" />
-                  <span className="sr-only">Upload profile picture</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePictureUpload}
-                    className="hidden"
-                    disabled={uploadingPic}
-                    aria-label="Upload profile picture"
-                  />
-                </label>
-              </div>
-              <div className="min-w-0 text-white">
-                <h2 className="truncate font-display text-2xl font-semibold tracking-tight">
-                  {profile?.name}
-                </h2>
-                <p className="truncate text-sm text-white/75">{profile?.email}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-medium capitalize">
-                    {profile?.role}
-                  </span>
-                  {uploadingPic && (
-                    <span className="text-[11px] text-white/80">Uploading…</span>
-                  )}
-                </div>
-              </div>
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-5">
+          <div className="relative shrink-0">
+            {profile?.profilePicture ? <img src={profile.profilePicture} alt="Profile" className="h-16 w-16 rounded-2xl object-cover ring-1 ring-line sm:h-20 sm:w-20" /> :
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20 sm:h-20 sm:w-20"><FaUser className="text-2xl" /></div>}
+            <label title="Change profile picture" className={`absolute -bottom-1 -right-1 cursor-pointer rounded-lg border border-line bg-card p-2 text-brand shadow-sm hover:bg-card-alt ${uploadingPic ? "pointer-events-none opacity-60" : ""}`}>
+              <FaCamera className="text-xs" aria-hidden="true" /><span className="sr-only">Upload profile picture</span>
+              <input type="file" accept="image/*" onChange={handlePictureUpload} className="hidden" disabled={uploadingPic} aria-label="Upload profile picture" />
+            </label>
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="break-words font-display text-xl font-semibold tracking-tight text-on sm:text-2xl">{profile?.name || "Your profile"}</h1>
+            <p className="mt-1 break-words text-sm text-on-muted [overflow-wrap:anywhere]">{profile?.email}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="rounded-full border border-brand/20 bg-brand/10 px-2.5 py-1 font-medium capitalize text-brand">{profileRole}</span>
+              {profile?.program && <span className="text-on-muted">{profile.program}</span>}
+              {uploadingPic && <span role="status" className="text-on-muted">Updating photo…</span>}
             </div>
           </div>
+        </div>
+      </Card>
 
-          <div className="mt-6">
+      {(hasStudentProfile || user.role === "admin") && <SegmentedControl ariaLabel="Profile sections" value={section}
+        onChange={(value) => { setSearchParams(value === "profile" ? {} : { section: value }); setEditing(false); setShowPasswordForm(false); }}
+        options={user.role === "admin" ? [{ value: "profile", label: "Profile" }, { value: "email", label: "Email settings" }] : [{ value: "profile", label: "Profile" }, { value: "academic", label: "Academic record" }, { value: "security", label: "Security" }]} />}
+
+      {section === "email" ? <Suspense fallback={<Loading label="Loading email settings..." />}><EmailSettings embedded /></Suspense> : section === "security" ? <SecuritySettings embedded /> : section === "academic" ? <AcademicStanding /> : <>
+        {message && <div className={`alert ${messageType === "success" ? "alert-ok" : "alert-danger"}`} role="status"><span aria-hidden="true">{messageType === "success" ? "✓" : "!"}</span><p>{message}</p></div>}
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(260px,1fr)]">
+          <FlightPanel level="ledger" glass title={editing ? "Edit personal information" : showPasswordForm ? "Update password" : "Personal information"} icon={<FaUser />}>
             {editing ? (
               <form onSubmit={handleSubmit} className="space-y-4">
-                <h3 className="panel-heading text-base">Edit profile</h3>
+
                 <div>
                   <label htmlFor="pf-name" className="field-label">
                     Full name
@@ -268,7 +214,7 @@ const ProfileSettings = () => {
               </form>
             ) : showPasswordForm ? (
               <form onSubmit={handlePasswordChange} className="space-y-4">
-                <h3 className="panel-heading text-base">Change password</h3>
+
                 <div>
                   <label htmlFor="pw-current" className="field-label">
                     Current password
@@ -318,21 +264,19 @@ const ProfileSettings = () => {
               </form>
             ) : (
               <div className="space-y-4">
-                <h3 className="panel-heading text-base">Account details</h3>
+
                 <dl className="divide-y divide-line rounded-xl border border-line">
                   {[
                     { label: "Full name", value: profile?.name },
                     { label: "Email address", value: profile?.email },
                     {
                       label: "Role",
-                      value: profile?.role
-                        ? profile.role[0].toUpperCase() + profile.role.slice(1)
-                        : "",
+                      value: profileRole[0].toUpperCase() + profileRole.slice(1),
                     },
                   ].map((field) => (
                     <div key={field.label} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                       <dt className="text-sm text-on-dim">{field.label}</dt>
-                      <dd className="text-sm font-medium text-on">{field.value}</dd>
+                      <dd className="min-w-0 break-words text-sm font-medium text-on [overflow-wrap:anywhere]">{field.value}</dd>
                     </div>
                   ))}
                 </dl>
@@ -340,85 +284,22 @@ const ProfileSettings = () => {
                   <Button onClick={() => setEditing(true)}>
                     <FaUser /> Edit profile
                   </Button>
-                  <Button
-                    onClick={() => setShowPasswordForm(true)}
-                    variant="secondary"
-                  >
-                    <FaLock /> Change password
-                  </Button>
+
                 </div>
               </div>
             )}
-          </div>
-        </Card>
-
-        <div className="space-y-4">
-          <FlightPanel
-            level="instrument"
-            glass
-            eyebrow="Account"
-            title="Your statistics"
-            icon={<FaImage />}
-          >
-            <div className="space-y-2.5">
-              {user.role === "student" && (
-                <>
-                  <div className="flex items-center justify-between rounded-xl border border-line bg-card-alt/40 p-3.5">
-                    <span className="text-sm text-on-dim">Events attended</span>
-                    <span className="num text-lg font-semibold text-brand">
-                      {stats.totalAttended || 0}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-xl border border-line bg-card-alt/40 p-3.5">
-                    <span className="text-sm text-on-dim">Community service</span>
-                    <span className="num text-lg font-semibold text-warn">
-                      {stats.totalHours || 0} hrs
-                    </span>
-                  </div>
-                </>
-              )}
-              {user.role === "organizer" && (
-                <>
-                  <div className="flex items-center justify-between rounded-xl border border-line bg-card-alt/40 p-3.5">
-                    <span className="text-sm text-on-dim">Events created</span>
-                    <span className="num text-lg font-semibold text-brand">
-                      {stats.totalEvents || 0}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-xl border border-line bg-card-alt/40 p-3.5">
-                    <span className="text-sm text-on-dim">Total attendees</span>
-                    <span className="num text-lg font-semibold text-ok">
-                      {stats.totalAttendees || 0}
-                    </span>
-                  </div>
-                </>
-              )}
-              {user.role === "admin" && (
-                <p className="text-sm leading-relaxed text-on-dim">
-                  Admin accounts have full system access.
-                </p>
-              )}
+          </FlightPanel>
+          <FlightPanel level="instrument" glass title="Account access" icon={<FaLock />}>
+            <p className="text-sm leading-relaxed text-on-dim">Manage your sign-in password or securely sign out of this device.</p>
+            <div className="mt-4 space-y-2">
+              <Button onClick={() => { setEditing(false); setShowPasswordForm(true); }} variant="secondary" className="w-full"><FaLock /> Change password</Button>
+              <Button onClick={handleLogout} variant="danger" className="w-full"><FaDoorOpen /> Log out</Button>
             </div>
           </FlightPanel>
-
-          <Button onClick={handleLogout} variant="danger" className="w-full">
-            <FaDoorOpen /> Log out
-          </Button>
         </div>
-      </div>
-
       </>}
 
-      <ConfirmDialog
-        open={confirmLogout}
-        title="Log out of TrackED?"
-        message="You will need to sign back in to continue tracking attendance."
-        confirmLabel="Log Out"
-        cancelLabel="Cancel"
-        variant="danger"
-        onConfirm={logout}
-        onCancel={() => setConfirmLogout(false)}
-      />
+      <ConfirmDialog open={confirmLogout} title="Log out of TrackED?" message="You will need to sign back in to continue tracking attendance." confirmLabel="Log Out" cancelLabel="Cancel" variant="danger" onConfirm={logout} onCancel={() => setConfirmLogout(false)} />
     </div>
   );
 };

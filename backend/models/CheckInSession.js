@@ -23,6 +23,7 @@ const checkInSessionSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
+    organizerAccessVersion: { type: Number, default: 0 },
     stationLabel: { type: String, default: "", trim: true },
     expiresAt: { type: Date, required: true },
     closedAt: { type: Date, default: null },
