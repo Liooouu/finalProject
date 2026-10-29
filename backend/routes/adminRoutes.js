@@ -142,7 +142,7 @@ router.patch("/users/:id", protect, authorize("admin"), async (req, res) => {
     }
 
     if ([program, yearLevel, section].some(value => value !== undefined) && user.role !== "student") return res.status(400).json({ message: "Academic details can only be edited for students" });
-    if (program !== undefined && !["BSIT", "BSCS", "IT", "BSIS", "BSEMC", "OTHER"].includes(String(program).trim().toUpperCase())) return res.status(400).json({ message: "Invalid program" });
+    if (program !== undefined && !["BSIT", "BSCS", "BSEMC"].includes(String(program).trim().toUpperCase())) return res.status(400).json({ message: "Program must be BSIT, BSCS, or BSEMC" });
     if (yearLevel !== undefined && (typeof yearLevel !== "number" && typeof yearLevel !== "string" || !String(yearLevel).trim() || !Number.isInteger(Number(yearLevel)) || Number(yearLevel) < 1 || Number(yearLevel) > 4)) return res.status(400).json({ message: "Year level must be a whole number between 1 and 4" });
     if (section !== undefined && !/^[ABC]$/.test(String(section).trim().toUpperCase())) return res.status(400).json({ message: "Section must be A, B, or C" });
     if (program !== undefined) user.program = String(program).trim().toUpperCase();
@@ -150,7 +150,7 @@ router.patch("/users/:id", protect, authorize("admin"), async (req, res) => {
     if (yearLevel !== undefined) user.yearLevel = Number(yearLevel);
 
     if (user.role === "student") {
-      const allowedPrograms = ["BSIT", "BSCS", "IT", "BSIS", "BSEMC", "OTHER"];
+      const allowedPrograms = ["BSIT", "BSCS", "BSEMC"];
       if (user.program && !allowedPrograms.includes(user.program)) {
         return res.status(400).json({ message: "Invalid program" });
       }
@@ -237,14 +237,14 @@ router.delete(
       // Cascade: removing the account must not leave orphaned attendance,
       // excuse, notification, appeal or reset records (or their files).
       const [excuses, appeals] = await Promise.all([
-        Excuse.find({ student: user._id }).select("attachments attachmentUrl"),
+        Excuse.find({ student: user._id }).select("attachments attachmentUrl submissionHistory"),
         FaceAppeal.find({ student: user._id }).select("photoUrl"),
       ]);
       const files = new Set(
         [
           user.facePhoto,
           user.profilePicture,
-          ...excuses.flatMap((e) => [...(e.attachments || []), e.attachmentUrl]),
+          ...excuses.flatMap((e) => [...(e.attachments || []), e.attachmentUrl, ...(e.submissionHistory || []).flatMap(revision => revision.attachments || [])]),
           ...appeals.map((a) => a.photoUrl),
         ].filter(Boolean)
       );

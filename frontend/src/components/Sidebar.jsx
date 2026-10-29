@@ -9,9 +9,7 @@ import { prefetchRoute } from "../utils/prefetchRoutes";
 
 const COLLAPSE_KEY = "tracked.sidebar";
 
-// Desktop/tablet rail. Phones get the bottom tab bar + "More" sheet instead
-// (components/mobile), so this element is hidden below `md` rather than being
-// an off-canvas drawer — that removed the hamburger that duplicated the bar.
+// Desktop/tablet rail. Phones use the topbar hamburger navigation drawer.
 const Sidebar = ({ role }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -44,6 +42,7 @@ const Sidebar = ({ role }) => {
   return (
     <aside
       aria-label={`${portalName[role] || "Portal"} navigation`}
+      data-collapsed={collapsed}
       className={`hidden w-64 shrink-0 flex-col border-r border-line bg-card md:flex ${
         collapsed ? "md:w-[78px]" : "md:w-64"
       }`}

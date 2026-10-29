@@ -16,6 +16,7 @@ import {
   Button,
   Card,
   PageHeader,
+  SegmentedControl,
   StatusChip,
   TableSkeleton,
 } from "../ui";
@@ -50,6 +51,7 @@ const ManageEvents = () => {
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [eventRange, setEventRange] = useState("all");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
@@ -148,7 +150,8 @@ const ManageEvents = () => {
         (statusFilter === "active"
           ? !isTerminalStatus(event.status)
           : event.status === statusFilter);
-      return matchesSearch && matchesStatus;
+      const matchesRange = eventRange === "all" || (eventRange === "past" ? isTerminalStatus(event.status) : !isTerminalStatus(event.status));
+      return matchesSearch && matchesStatus && matchesRange;
     })
     // Finished/closed events sink to the bottom of the list.
     .sort((a, b) => {
@@ -163,19 +166,10 @@ const ManageEvents = () => {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Institution events"
+        eyebrow="Department events"
         title={showCreate ? "Create event" : "All events"}
         subtitle={showCreate ? "Enter the event details and attendance schedule." : `${filteredEvents.length} of ${events.length} events`}
-        actions={
-          <Button
-            onClick={() => setShowCreate(!showCreate)}
-            variant={showCreate ? "secondary" : "primary"}
-            size="sm"
-          >
-            {showCreate ? <MdClose /> : <FaPlus className="text-xs" />}
-            {showCreate ? "Cancel" : "Create event"}
-          </Button>
-        }
+        actions={showCreate ? <Button onClick={() => setShowCreate(false)} variant="secondary" size="sm"><MdClose /> Cancel</Button> : undefined}
       />
 
       {message && (
@@ -188,6 +182,12 @@ const ManageEvents = () => {
         </div>
       )}
 
+      {!showCreate && (
+        <div className="event-view-toolbar">
+          <SegmentedControl ariaLabel="Event timeline" value={eventRange} onChange={value => { setEventRange(value); setStatusFilter("all"); }} options={[{ value: "all", label: "All events", shortLabel: "All" }, { value: "active", label: "Active events", shortLabel: "Active" }, { value: "past", label: "Past events", shortLabel: "Past" }]} />
+          <Button onClick={() => setShowCreate(true)} size="sm"><FaPlus className="text-xs" /> Create event</Button>
+        </div>
+      )}
       {!showCreate && (
         <div className="event-filter-row">
           <input
@@ -440,13 +440,13 @@ const ManageEvents = () => {
                   >
                     View attendance
                   </Button>
-                  <details className="text-xs text-on-muted"><summary className="cursor-pointer rounded-lg border border-line px-3 py-2">More actions</summary><div className="mt-2"><Button
+                  <Button
                     onClick={() => setDeleteTarget(event._id)}
                     variant="danger"
                     size="sm"
                   >
                     Delete
-                  </Button></div></details>
+                  </Button>
                 </div>
               </div>
             </Card>
@@ -456,8 +456,8 @@ const ManageEvents = () => {
 
       {showModal && selectedEvent && (
         <div role="dialog" aria-modal="true" aria-labelledby="event-monitor-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[var(--panel-radius)] border border-line bg-card shadow-[var(--elev-3)]">
-            <div className="flex items-start justify-between gap-3 border-b border-line p-5">
+          <div className="portal-card flex max-h-[90dvh] w-full max-w-3xl flex-col overflow-hidden rounded-[var(--panel-radius)] border border-line bg-card shadow-[var(--elev-3)]">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line p-5">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 id="event-monitor-title" className="font-display text-xl font-semibold tracking-tight text-on">
@@ -479,7 +479,7 @@ const ManageEvents = () => {
                 <MdClose />
               </Button>
             </div>
-            <div className="overflow-y-auto p-5">
+            <div className="min-h-0 overflow-y-auto p-5">
               <h4 className="panel-heading text-base">
                 Attendance records ({attendeeQuery ? `${matchingAttendees.length} of ${attendees.length}` : attendees.length})
               </h4>
@@ -497,7 +497,7 @@ const ManageEvents = () => {
                   {matchingAttendees.map((attendee) => (
                     <div
                       key={attendee._id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-card-alt/40 p-3.5"
+                      className="portal-card flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-card-alt/40 p-3.5"
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-on">

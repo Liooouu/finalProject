@@ -7,29 +7,14 @@ import {
   Card,
   ChartCard,
   FlightPanel,
-  PageHeader,
   ProgressBar,
-  ProgressRing,
-  StatTile,
   StatusChip,
   TableSkeleton,
   Tabs,
 } from "../ui";
 import { formatDate, formatTime12Hour } from "../../utils/helpers";
-import {
-  FaCalendarAlt,
-  FaCheckCircle,
-  FaClipboardList,
-  FaClock,
-  FaFlagCheckered,
-  FaPercent,
-  FaPlayCircle,
-  FaShieldAlt,
-  FaTimesCircle,
-  FaUserGraduate,
-  FaUsers,
-  FaUserTie,
-} from "react-icons/fa";
+import Pagination from "../ui/Pagination";
+
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -80,6 +65,8 @@ const AttendanceReports = () => {
   const [attendanceError, setAttendanceError] = useState("");
   const [exporting, setExporting] = useState(false);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [attendancePage, setAttendancePage] = useState(1);
+  const attendancePageSize = 10;
   const [filterOptions, setFilterOptions] = useState({
     programs: [],
     yearLevels: [1, 2, 3, 4],
@@ -106,8 +93,10 @@ const AttendanceReports = () => {
       setAttendanceLoading(true);
       setAttendanceError("");
       try {
-        const res = await api.get("/reports/attendance", { params: attendanceParams, signal });
+        const res = await api.get("/reports/attendance", { params: { ...attendanceParams, page: attendancePage, limit: attendancePageSize }, signal });
         setAttendanceData(res.data);
+        const lastPage = Math.max(1, Math.ceil(res.data.stats.total / attendancePageSize));
+        if (attendancePage > lastPage) setAttendancePage(lastPage);
         if (res.data.filters) setFilterOptions(res.data.filters);
       } catch (err) {
         if (err.code === "ERR_CANCELED") return;
@@ -118,7 +107,7 @@ const AttendanceReports = () => {
         if (!signal?.aborted) setAttendanceLoading(false);
       }
     },
-    [attendanceParams]
+    [attendanceParams, attendancePage]
   );
 
   const fetchEvents = useCallback(async () => {
@@ -188,7 +177,7 @@ const AttendanceReports = () => {
   };
 
   const palette = isDark ? REPORT_CHART_DARK : REPORT_CHART_LIGHT;
-  const chartText = isDark ? "#94a3b8" : "#64748b";
+  const chartText = isDark ? "#b4b1c2" : "#64616c";
   const chartGrid = isDark ? "rgba(148, 163, 184, 0.12)" : "rgba(15, 23, 42, 0.07)";
   const tooltipStyle = {
     backgroundColor: "#0f172a",
@@ -201,10 +190,11 @@ const AttendanceReports = () => {
     cornerRadius: 8,
   };
 
-  const horizontalBarOptions = {
+  const attendanceBarOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    indexAxis: "y",
+    indexAxis: "x",
+    datasets: { bar: { maxBarThickness: 36, borderRadius: 3, borderSkipped: false } },
     interaction: { mode: "index", intersect: false },
     plugins: { legend: { display: false }, tooltip: tooltipStyle },
     scales: {
@@ -212,39 +202,14 @@ const AttendanceReports = () => {
         stacked: true,
         beginAtZero: true,
         border: { display: false },
-        grid: { color: chartGrid },
-        ticks: { color: chartText, font: { size: 10 }, precision: 0 },
+        grid: { display: false },
+        ticks: { color: chartText, font: { size: 11 }, maxRotation: 0, minRotation: 0 },
       },
       y: {
         stacked: true,
         border: { display: false },
-        grid: { display: false },
-        ticks: { color: chartText, font: { size: 10 }, autoSkip: false },
-      },
-    },
-  };
-
-  const rankedBarOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    indexAxis: "y",
-    plugins: { legend: { display: false }, tooltip: tooltipStyle },
-    scales: {
-      x: {
-        beginAtZero: true,
-        max: 100,
-        border: { display: false },
         grid: { color: chartGrid },
-        ticks: {
-          color: chartText,
-          font: { size: 10 },
-          callback: (value) => `${value}%`,
-        },
-      },
-      y: {
-        border: { display: false },
-        grid: { display: false },
-        ticks: { color: chartText, font: { size: 10 }, autoSkip: false },
+        ticks: { color: chartText, font: { size: 11 }, precision: 0 },
       },
     },
   };
@@ -277,14 +242,6 @@ const AttendanceReports = () => {
   const attendanceRate = attendanceData?.stats.total
     ? Math.round((attendedCount / attendanceData.stats.total) * 100)
     : 0;
-
-  const eventLeaders = attendanceData
-    ? attendanceData.byEvent
-        .filter((event) => event.total > 0)
-        .slice()
-        .sort((a, b) => b.attendanceRate - a.attendanceRate)
-        .slice(0, 5)
-    : [];
 
   const attendanceChartData = statusRows.length
     ? {
@@ -366,31 +323,6 @@ const AttendanceReports = () => {
       }
     : null;
 
-  const eventRankedRows = eventsData
-    ? eventsData.events
-        .slice()
-        .sort((a, b) => b.attendanceRate - a.attendanceRate)
-        .slice(0, 8)
-    : [];
-
-  const eventRateData = eventRankedRows.length
-    ? {
-        labels: eventRankedRows.map((event) =>
-          event.title.length > 26 ? `${event.title.substring(0, 26)}...` : event.title
-        ),
-        datasets: [
-          {
-            label: "Attendance rate",
-            data: eventRankedRows.map((event) => event.attendanceRate),
-            backgroundColor: palette.brand,
-            borderRadius: 6,
-            borderSkipped: false,
-            barPercentage: 0.62,
-          },
-        ],
-      }
-    : null;
-
   const roleRows = usersData
     ? [
         {
@@ -435,22 +367,11 @@ const AttendanceReports = () => {
   };
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        eyebrow="Analytics"
-        title="Reports"
-        subtitle="Attendance, events, and account totals across the institution."
-      />
-
-      <Tabs
-        active={activeTab}
-        onChange={setActiveTab}
-        tabs={[
-          { key: "attendance", label: "Attendance" },
-          { key: "events", label: "Events" },
-          { key: "users", label: "Users" },
-        ]}
-      />
+    <div className="admin-report-page">
+      <header className="admin-report-heading">
+        <div><h1>{activeTab === "attendance" ? "Attendance report" : activeTab === "events" ? "Event report" : "User report"}</h1><p>Monitor records and export the information you need.</p></div>
+        <Tabs active={activeTab} onChange={setActiveTab} tabs={[{key:"attendance",label:"Attendance"},{key:"events",label:"Events"},{key:"users",label:"Users"}]} />
+      </header>
 
       {loading && !attendanceData && !eventsData && !usersData && (
         <Card>
@@ -460,98 +381,6 @@ const AttendanceReports = () => {
 
       {activeTab === "attendance" && (
         <>
-          <Card>
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="min-w-[150px] flex-1">
-                <label htmlFor="attendance-program" className="field-label">
-                  Program
-                </label>
-                <select
-                  id="attendance-program"
-                  value={filters.program}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, program: e.target.value }))}
-                  className="field-select"
-                >
-                  <option value="all">All programs</option>
-                  {filterOptions.programs.map((program) => (
-                    <option key={program} value={program}>
-                      {program}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="min-w-[150px] flex-1">
-                <label htmlFor="attendance-year" className="field-label">
-                  Year level
-                </label>
-                <select
-                  id="attendance-year"
-                  value={filters.yearLevel}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, yearLevel: e.target.value }))}
-                  className="field-select"
-                >
-                  <option value="all">All year levels</option>
-                  {(filterOptions.yearLevels || [1, 2, 3, 4]).map((year) => (
-                    <option key={year} value={year}>
-                      {YEAR_LABELS[year] || `Year ${year}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="min-w-[150px] flex-1">
-                <label htmlFor="attendance-section" className="field-label">
-                  Section
-                </label>
-                <select
-                  id="attendance-section"
-                  value={filters.section}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, section: e.target.value }))}
-                  className="field-select"
-                >
-                  <option value="all">All sections</option>
-                  {filterOptions.sections.map((section) => (
-                    <option key={section} value={section}>
-                      Section {section}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="min-w-[220px] flex-[1.5]">
-                <label htmlFor="attendance-event" className="field-label">
-                  Event
-                </label>
-                <select
-                  id="attendance-event"
-                  value={filters.eventId}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, eventId: e.target.value }))}
-                  className="field-select"
-                >
-                  <option value="all">All events</option>
-                  {filterOptions.events.map((event) => (
-                    <option key={event._id} value={event._id}>
-                      {event.title} — {formatDate(event.date)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <Button
-                variant="ghost"
-                onClick={() => setFilters(EMPTY_FILTERS)}
-                disabled={!hasActiveFilters}
-                className="w-full sm:w-auto"
-              >
-                Reset filters
-              </Button>
-            </div>
-            {attendanceLoading && attendanceData && (
-              <p className="mt-3 text-xs text-on-muted">Updating results…</p>
-            )}
-          </Card>
-
           {attendanceError && (
             <div role="alert" className="alert alert-danger">
               {attendanceError}
@@ -566,45 +395,18 @@ const AttendanceReports = () => {
 
           {attendanceData && (
             <>
-              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                <StatTile
-                  label="Enrolled students"
-                  value={attendanceData.stats.students ?? 0}
-                  icon={<FaUsers />}
-                  hint={`${attendanceData.stats.studentsWithRecords ?? 0} with records`}
-                  tone="brand"
-                />
-                <StatTile
-                  label="Attendance records"
-                  value={attendanceData.stats.total}
-                  icon={<FaClipboardList />}
-                  hint={`${attendanceData.stats.studentsWithRecords ?? 0} students represented`}
-                  tone="info"
-                />
-                <StatTile
-                  label="Attended"
-                  value={attendedCount}
-                  icon={<FaCheckCircle />}
-                  hint={`${attendanceRate}% of matching records`}
-                  tone="ok"
-                />
-                <StatTile
-                  label="Attendance rate"
-                  value={`${attendanceRate}%`}
-                  icon={<FaPercent />}
-                  hint={`${attendedCount} of ${attendanceData.stats.total} records`}
-                  tone={attendanceRate >= 75 ? "ok" : attendanceRate >= 50 ? "warn" : "danger"}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+              <Card as="section" padding="none" className="admin-report-overview" aria-label="Attendance summary">
+                <div><span className="admin-overview-label">Attendance rate</span><strong>{attendanceData.stats.total ? `${attendanceRate}%` : "—"}</strong></div>
+                <div className="admin-overview-copy"><p>{attendedCount} attended out of {attendanceData.stats.total} attendance records.</p><span>Present and late records count as attended.</span></div>
+              </Card>
+              <div className="admin-report-charts">
                 <ChartCard
-                  className="xl:col-span-8"
+                  className="admin-report-chart"
                   title="Attendance by event"
                   subtitle="Status mix for the latest events in this filter"
                   actions={
                     <span className="num rounded-full border border-line bg-card-alt/60 px-2.5 py-1 text-[10px] font-medium text-on-muted">
-                      {byEventChartRows.length} events
+                      {byEventChartRows.length} {byEventChartRows.length === 1 ? "event" : "events"}
                     </span>
                   }
                   legend={statusRows.map((row) => (
@@ -622,28 +424,28 @@ const AttendanceReports = () => {
                   ))}
                 >
                   {byEventChartRows.length ? (
-                    <div className="h-[320px]">
-                      <Bar data={attendanceByEventData} options={horizontalBarOptions} />
+                    <div className="admin-event-plot">
+                      <Bar data={attendanceByEventData} options={attendanceBarOptions} />
                     </div>
                   ) : (
-                    <div className="flex h-[320px] items-center justify-center rounded-xl border border-dashed border-line text-sm text-on-muted">
+                    <div className="admin-event-plot flex items-center justify-center text-sm text-on-muted">
                       No attendance records match these filters.
                     </div>
                   )}
                 </ChartCard>
 
                 <ChartCard
-                  className="xl:col-span-4"
-                  title="Status distribution"
-                  subtitle="Share of every matching record"
+                  className="admin-report-chart"
+                  title="Attendance status"
+                  subtitle="All recorded statuses in this filter"
                   actions={
                     <span className="num rounded-full border border-line bg-card-alt/60 px-2.5 py-1 text-[10px] font-medium text-on-muted">
                       {attendanceData.stats.total}
                     </span>
                   }
                 >
-                  <div className="flex h-[320px] flex-col items-center justify-between gap-4">
-                    <div className="relative h-[180px] w-[180px] shrink-0">
+                  <div className="admin-status-plot">
+                    <div className="admin-status-donut relative">
                       <Doughnut data={attendanceChartData} options={donutOptions} />
                       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                         <span className="num font-display text-2xl font-bold leading-none text-on">
@@ -677,125 +479,34 @@ const AttendanceReports = () => {
                 </ChartCard>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-                <ChartCard
-                  className="xl:col-span-4"
-                  title="Attendance rate"
-                  subtitle="Present and late count as attended"
-                >
-                  <div className="flex h-full min-h-[280px] flex-col items-center justify-center gap-5 py-2">
-                    <ProgressRing
-                      value={attendanceRate}
-                      max={100}
-                      size={176}
-                      stroke={14}
-                      label={`${attendanceRate}%`}
-                      sublabel="attended"
-                      tone={
-                        attendanceRate >= 75 ? "ok" : attendanceRate >= 50 ? "warn" : "danger"
-                      }
-                    />
-                    <div className="grid w-full grid-cols-2 gap-3">
-                      <div className="rounded-xl border border-line bg-card-alt/50 p-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-on-muted">
-                          Attended
-                        </p>
-                        <p className="num mt-1.5 text-xl font-bold text-on">
-                          {attendedCount}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-line bg-card-alt/50 p-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-on-muted">
-                          Not attended
-                        </p>
-                        <p className="num mt-1.5 text-xl font-bold text-on">
-                          {Math.max(0, attendanceData.stats.total - attendedCount)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </ChartCard>
-
-                <ChartCard
-                  className="xl:col-span-8"
-                  title="Event attendance leaders"
-                  subtitle="Highest attendance rates in the current filter"
-                  actions={
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card-alt/60 px-2.5 py-1 text-[10px] font-medium text-on-muted">
-                      <FaCheckCircle className="text-[10px]" />
-                      Top 5
-                    </span>
-                  }
-                >
-                  {eventLeaders.length ? (
-                    <ul className="space-y-4">
-                      {eventLeaders.map((event) => (
-                        <li key={event._id || event.eventTitle}>
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="truncate text-sm font-medium text-on">
-                              {event.eventTitle}
-                            </p>
-                            <span className="num shrink-0 text-sm font-semibold text-on">
-                              {event.attendanceRate}%
-                            </span>
-                          </div>
-                          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-on-muted">
-                            <span>{formatDate(event.eventDate)}</span>
-                            <span aria-hidden="true">·</span>
-                            <span>{event.total} records</span>
-                          </div>
-                          <ProgressBar
-                            className="mt-2"
-                            current={event.attendanceRate}
-                            target={100}
-                            showLabel={false}
-                            tone={
-                              event.attendanceRate >= 75
-                                ? "ok"
-                                : event.attendanceRate >= 50
-                                  ? "warn"
-                                  : "danger"
-                            }
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="flex h-full min-h-[240px] items-center justify-center rounded-xl border border-dashed border-line text-sm text-on-muted">
-                      No event attendance to rank yet.
-                    </div>
-                  )}
-                </ChartCard>
+              <div className="admin-record-toolbar" role="region" aria-label="Attendance record filters">
+                {[
+                  {key:"program",label:"Program",all:"All programs",options:filterOptions.programs.map(value=>({value,label:value}))},
+                  {key:"yearLevel",label:"Year level",all:"All year levels",options:(filterOptions.yearLevels || [1,2,3,4]).map(value=>({value,label:YEAR_LABELS[value] || `Year ${value}`}))},
+                  {key:"section",label:"Section",all:"All sections",options:filterOptions.sections.map(value=>({value,label:`Section ${value}`}))},
+                  {key:"eventId",label:"Event",all:"All events",options:filterOptions.events.map(event=>({value:event._id,label:`${event.title} — ${formatDate(event.date)}`}))},
+                ].map(field=><label key={field.key} className={`admin-report-filter admin-report-filter-${field.key}`}><span className="sr-only">{field.label}</span><select aria-label={field.label} className="field-select" value={filters[field.key]} onChange={event=>{setAttendancePage(1);setFilters(previous=>({...previous,[field.key]:event.target.value}));}}><option value="all">{field.all}</option>{field.options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>)}
+                <Button variant="ghost" size="sm" onClick={()=>{setAttendancePage(1);setFilters(EMPTY_FILTERS);}} disabled={!hasActiveFilters}>Reset filters</Button>
+                <Button variant="primary" size="sm" loading={exporting} title="Export all records matching the current filters" onClick={()=>downloadCSV("attendance")}>Export CSV</Button>
+                <p className="sr-only">Filters apply to both graphs, attendance records and CSV export.</p>
               </div>
-
+              {attendanceLoading && <p role="status" className="text-xs text-on-muted">Updating results…</p>}
               <FlightPanel
                 level="ledger"
                 glass
                 flush
-                eyebrow="Attendance ledger"
-                title="Filtered attendance records"
-                subtitle={`Latest ${Math.min(10, attendanceData.records.length)} of ${
-                  attendanceData.stats.total
-                } matching record${
-                  attendanceData.stats.total === 1 ? "" : "s"
-                } — CSV exports the full filtered roster`}
-                actions={
-                  <Button
-                    onClick={() => downloadCSV("attendance")}
-                    variant="secondary"
-                    size="sm"
-                    loading={exporting}
-                  >
-                    Export filtered CSV
-                  </Button>
-                }
+                title="Recent attendance records"
+                className="admin-records-panel"
+                subtitle={`${attendanceData.stats.total} matching records · ${attendancePageSize} per page`}
+
               >
                 <div className="overflow-x-auto">
-                  <table className="data-table min-w-[860px]">
+                  <table className="data-table admin-records-table min-w-[960px]" aria-busy={attendanceLoading}>
+                    <colgroup><col style={{width:"24%"}} /><col style={{width:"24%"}} /><col style={{width:"22%"}} /><col style={{width:"13%"}} /><col style={{width:"17%"}} /></colgroup>
                     <thead>
                       <tr>
-                        <th>Event</th>
                         <th>Student</th>
+                        <th>Event</th>
                         <th>Program / Year / Section</th>
                         <th>Status</th>
                         <th>Event schedule</th>
@@ -809,24 +520,15 @@ const AttendanceReports = () => {
                           </td>
                         </tr>
                       ) : (
-                        attendanceData.records.slice(0, 10).map((r, i) => {
+                        attendanceData.records.map((r, i) => {
                           const eventDate = r.event?.date || r.eventDate;
                           const program = r.student?.program || "";
                           const year = r.student?.yearLevel;
                           const section = r.student?.section || "";
                           return (
                             <tr key={i}>
-                              <td className="text-on">
-                                {r.event?.title || r.eventTitle || "N/A"}
-                              </td>
-                              <td>
-                                <p className="font-medium text-on">
-                                  {r.student?.name || "N/A"}
-                                </p>
-                                <p className="mt-0.5 text-xs text-on-muted">
-                                  {r.student?.email || "No email"}
-                                </p>
-                              </td>
+                              <td><div className="admin-person-cell"><span className="admin-person-avatar" aria-hidden="true">{(r.student?.name || "?").split(/\s+/).filter(Boolean).slice(0,2).map(word=>word[0]).join("").toUpperCase()}</span><div><p className="font-medium text-on">{r.student?.name || "N/A"}</p><p className="mt-0.5 text-xs text-on-muted">{r.student?.email || "No email"}</p></div></div></td>
+                              <td className="text-on">{r.event?.title || r.eventTitle || "N/A"}</td>
                               <td>
                                 {program || year || section ? (
                                   <span className="text-on-dim">
@@ -857,6 +559,7 @@ const AttendanceReports = () => {
                     </tbody>
                   </table>
                 </div>
+                <div className="admin-table-pager"><Pagination page={attendancePage} pageSize={attendancePageSize} total={attendanceData.stats.total} disabled={attendanceLoading} onChange={setAttendancePage} label="Attendance report pages" /></div>
               </FlightPanel>
             </>
           )}
@@ -865,42 +568,9 @@ const AttendanceReports = () => {
 
       {activeTab === "events" && eventsData && (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-            <StatTile
-              label="Total events"
-              value={eventsData.stats.total}
-              icon={<FaCalendarAlt />}
-              tone="brand"
-            />
-            <StatTile
-              label="Upcoming"
-              value={eventsData.stats.upcoming}
-              icon={<FaClock />}
-              tone="info"
-            />
-            <StatTile
-              label="Live"
-              value={eventsData.stats.live}
-              icon={<FaPlayCircle />}
-              tone="ok"
-            />
-            <StatTile
-              label="Finished"
-              value={eventsData.stats.finished ?? 0}
-              icon={<FaFlagCheckered />}
-              tone="excused"
-            />
-            <StatTile
-              label="Closed"
-              value={eventsData.stats.closed}
-              icon={<FaTimesCircle />}
-              tone="danger"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <div className="grid grid-cols-1 gap-4">
             <ChartCard
-              className="xl:col-span-5"
+              className="min-w-0"
               title="Events by status"
               subtitle="Current lifecycle of every event"
               actions={
@@ -909,8 +579,8 @@ const AttendanceReports = () => {
                 </span>
               }
             >
-              <div className="flex h-[320px] flex-col items-center justify-between gap-4">
-                <div className="relative h-[180px] w-[180px] shrink-0">
+              <div className="grid items-center gap-6 sm:grid-cols-2 sm:py-4">
+                <div className="relative mx-auto h-[180px] w-[180px]">
                   <Doughnut data={eventStatusData} options={donutOptions} />
                   <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                     <span className="num font-display text-2xl font-bold leading-none text-on">
@@ -939,26 +609,7 @@ const AttendanceReports = () => {
               </div>
             </ChartCard>
 
-            <ChartCard
-              className="xl:col-span-7"
-              title="Top events by attendance"
-              subtitle="Highest attendance rates across all events"
-              actions={
-                <span className="num rounded-full border border-line bg-card-alt/60 px-2.5 py-1 text-[10px] font-medium text-on-muted">
-                  Top {eventRankedRows.length}
-                </span>
-              }
-            >
-              {eventRankedRows.length ? (
-                <div className="h-[320px]">
-                  <Bar data={eventRateData} options={rankedBarOptions} />
-                </div>
-              ) : (
-                <div className="flex h-[320px] items-center justify-center rounded-xl border border-dashed border-line text-sm text-on-muted">
-                  No event attendance to rank yet.
-                </div>
-              )}
-            </ChartCard>
+
           </div>
 
           <FlightPanel
@@ -1026,36 +677,9 @@ const AttendanceReports = () => {
 
       {activeTab === "users" && usersData && (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatTile
-              label="Total users"
-              value={usersData.stats.total}
-              icon={<FaUsers />}
-              tone="brand"
-            />
-            <StatTile
-              label="Students"
-              value={usersData.stats.student}
-              icon={<FaUserGraduate />}
-              tone="info"
-            />
-            <StatTile
-              label="Organizers"
-              value={usersData.stats.organizer}
-              icon={<FaUserTie />}
-              tone="warn"
-            />
-            <StatTile
-              label="Admins"
-              value={usersData.stats.admin}
-              icon={<FaShieldAlt />}
-              tone="ok"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <div className="grid grid-cols-1 gap-4">
             <ChartCard
-              className="xl:col-span-5"
+              className="min-w-0"
               title="Users by role"
               subtitle="Student organizers are included under Students."
               actions={
@@ -1064,8 +688,8 @@ const AttendanceReports = () => {
                 </span>
               }
             >
-              <div className="flex h-[320px] flex-col items-center justify-between gap-4">
-                <div className="relative h-[180px] w-[180px] shrink-0">
+              <div className="grid items-center gap-6 sm:grid-cols-2 sm:py-4">
+                <div className="relative mx-auto h-[180px] w-[180px]">
                   <Doughnut data={usersRoleData} options={donutOptions} />
                   <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                     <span className="num font-display text-2xl font-bold leading-none text-on">
@@ -1094,38 +718,7 @@ const AttendanceReports = () => {
               </div>
             </ChartCard>
 
-            <ChartCard
-              className="xl:col-span-7"
-              title="Role distribution"
-              subtitle="Account distribution; student organizers keep student access."
-            >
-              <div className="flex h-[320px] flex-col justify-center gap-6">
-                {roleRows.map((row) => (
-                  <div key={row.label}>
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <span className="flex items-center gap-2 text-sm font-medium text-on">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: row.color }}
-                          aria-hidden="true"
-                        />
-                        {row.label}
-                      </span>
-                      <span className="text-xs text-on-muted">
-                        <span className="num font-semibold text-on">{row.value}</span> ·{" "}
-                        <span className="num">{row.pct}%</span>
-                      </span>
-                    </div>
-                    <ProgressBar
-                      current={row.pct}
-                      target={100}
-                      showLabel={false}
-                      tone={row.tone}
-                    />
-                  </div>
-                ))}
-              </div>
-            </ChartCard>
+
           </div>
 
           <FlightPanel

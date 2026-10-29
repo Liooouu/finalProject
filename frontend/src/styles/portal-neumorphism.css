@@ -1,0 +1,122 @@
+/* TrackED-palette Soft UI trial based on the user's raised, strongly beveled
+   reference. Remove portal-neumorphic from the three portal shells to restore
+   the pre-neumorphism design without reverting functional changes. */
+.portal-refined.portal-neumorphic {
+  --portal-card:#e5e2df;
+  --portal-card-tint:#dcd4e5;
+  --portal-card-text:#30303b;
+  --portal-card-dim:#575763;
+  --portal-card-muted:#656573;
+  --portal-card-line:#9c93a7;
+  --neo-plane:#d2cecb;
+  --neo-surface:linear-gradient(145deg,#eae7e4,#e0dcdf);
+  --neo-inner:#dcd4e5;
+  --neo-low:rgba(69,56,78,.39);
+  --neo-contact:rgba(57,45,68,.31);
+  --neo-high:rgba(255,255,255,.65);
+  --neo-raised:inset 2px 2px 0 var(--neo-high),inset -1px -2px 0 rgba(151,139,163,.24),-2px 4px 2px var(--neo-contact),-7px 11px 7px var(--neo-low);
+  --neo-small:inset 1px 1px 0 var(--neo-high),inset -1px -1px 0 rgba(151,139,163,.16),-1px 3px 1px var(--neo-contact),-4px 7px 5px var(--neo-low);
+  --neo-well:var(--neo-small);
+  --neo-pressed:inset 1px 3px 4px var(--neo-low),inset 0 -1px 0 var(--neo-high);
+  --app-base:var(--neo-plane);
+  --card-bg:var(--neo-plane);
+  --on:var(--portal-card-text);
+  --on-dim:var(--portal-card-dim);
+  --on-muted:var(--portal-card-muted);
+  background:var(--neo-plane);
+}
+.dark .portal-refined.portal-neumorphic {
+  --portal-card:#1a1d28;
+  --portal-card-tint:#2c2440;
+  --portal-card-text:#f0eff6;
+  --portal-card-dim:#cbc8d8;
+  --portal-card-muted:#a5a5b7;
+  --portal-card-line:#303342;
+  --neo-plane:#12141e;
+  --neo-surface:linear-gradient(145deg,#242331,#1a1d28);
+  --neo-inner:#2c2440;
+  --neo-low:rgba(5,4,12,.64);
+  --neo-contact:rgba(5,4,12,.48);
+  --neo-high:rgba(159,144,191,.34);
+}
+.portal-neumorphic .app-aurora { background:var(--neo-plane); }
+.portal-neumorphic :is(aside,header.sticky) { background:var(--neo-plane); }
+.portal-refined.portal-neumorphic main :is(.fd-surface.fd-glass,.fd-surface,.panel-surface,.portal-card,.student-card) {
+  --fd-radius:18px;
+  border-width:0;
+  border-radius:18px;
+  background:var(--neo-surface);
+  box-shadow:var(--neo-raised);
+}
+.portal-refined.portal-neumorphic main .fd-surface :is(.fd-surface.fd-glass,.portal-card,.student-card),
+.portal-refined.portal-neumorphic main .portal-card .portal-card {
+  border-radius:12px;
+  box-shadow:var(--neo-small);
+}
+.portal-refined.portal-neumorphic main :is(.admin-rate-box,.portal-inset,.excuse-event-box),
+.portal-refined.portal-neumorphic main .student-service-summary .fd-body>div:first-child {
+  border-width:0;
+  border-radius:14px;
+  background:var(--neo-surface);
+  box-shadow:var(--neo-well);
+}
+.portal-refined.portal-neumorphic main :is(.admin-review-box,.portal-action-box) {
+  border-radius:14px;
+  background:var(--neo-surface);
+  box-shadow:var(--neo-small);
+}
+.portal-refined.portal-neumorphic main :is(.admin-review-box,.portal-action-box):focus-visible {
+  outline:2px solid var(--portal-card-accent);
+  outline-offset:3px;
+  background:var(--neo-surface);
+  box-shadow:var(--neo-raised);
+}
+.portal-neumorphic main :is(input.field,textarea.field,select.field-select) {
+  background-color:var(--portal-card);
+  box-shadow:var(--neo-well);
+  border-radius:12px;
+}
+.portal-neumorphic main input.field-search { border-radius:999px; }
+.portal-neumorphic main :is(input.field,textarea.field,select.field-select):focus-visible {
+  outline:2px solid var(--portal-card-accent);
+  outline-offset:2px;
+}
+.portal-neumorphic [data-ui-variant="secondary"] {
+  background:var(--neo-surface);
+  border-radius:12px;
+  border-color:transparent;
+  box-shadow:var(--neo-small);
+}
+.portal-neumorphic [data-ui-variant="secondary"]:active:not(:disabled),
+.portal-refined.portal-neumorphic main :is(.admin-review-box,.portal-action-box):active {
+  background:var(--neo-plane);
+  box-shadow:var(--neo-pressed);
+}
+.portal-neumorphic aside nav button[aria-current="page"] {
+  background:var(--neo-plane);
+  box-shadow:var(--neo-pressed);
+}
+.event-view-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; }
+.event-view-toolbar>[data-ui-variant] { flex-shrink:0; white-space:nowrap; }
+@media(max-width:639px) {
+  .event-view-toolbar { gap:8px; }
+  .event-view-toolbar>[role="group"] { gap:2px; padding:3px; overflow:visible; }
+  .event-view-toolbar>[role="group"] button { padding:7px 6px; }
+  .event-view-toolbar>[data-ui-variant] { font-size:12px; padding:8px; }
+}
+@media(hover:hover) and (pointer:fine) {
+  .portal-refined.portal-neumorphic main :is(.admin-review-box,.portal-action-box):hover {
+    background:var(--neo-surface);
+    box-shadow:var(--neo-raised);
+  }
+  .portal-refined.portal-neumorphic main :is(.admin-review-box,.portal-action-box):active {
+    box-shadow:var(--neo-pressed);
+  }
+}
+@media(max-width:767px) {
+  .portal-refined.portal-neumorphic {
+    --neo-raised:inset 2px 2px 0 var(--neo-high),inset -1px -1px 0 rgba(151,139,163,.2),-1px 3px 2px var(--neo-contact),-4px 8px 6px var(--neo-low);
+  }
+  .portal-refined.portal-neumorphic main .student-service-summary>.fd-surface { border-radius:12px; }
+  .portal-refined.portal-neumorphic main .student-service-summary .fd-body>div:first-child { border-radius:8px; }
+}

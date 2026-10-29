@@ -1,5 +1,6 @@
 @import "./styles/fonts.css";
 @import "tailwindcss";
+@import "./styles/portal-refinements.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -207,6 +208,39 @@
   /* Native pickers (select lists, date/time dropdowns) follow the theme
      instead of forcing the OS default palette. */
   color-scheme: light;
+}
+
+/* A muted warm-gray light theme avoids large, bright white surfaces. */
+:root:not(.dark) {
+  --on:#30313b; --on-dim:#555765; --on-muted:#60616d;
+  --card-bg:#e5e2df; --card-alt-bg:#dad6d4; --surface-bg:#dcd8d5;
+  --panel-bg:#e5e2df; --panel-2-bg:#ddd8d4;
+  --line-color:#aaa2ad; --line-dim-color:#d6d0cb;
+  --app-base:#d2cecb;
+  --orb-1:radial-gradient(65% 65% at 50% 50%,rgba(79,70,229,.07) 0%,transparent 70%);
+  --orb-2:radial-gradient(65% 65% at 50% 50%,rgba(14,165,233,.04) 0%,transparent 70%);
+  --orb-3:radial-gradient(65% 65% at 50% 50%,rgba(139,92,246,.04) 0%,transparent 70%);
+  --app-grid-line:rgba(48,49,59,.025); --app-noise-opacity:.1;
+  --panel-from:var(--card-bg);
+  --panel-to:color-mix(in srgb,var(--card-bg) 96%,var(--brand) 4%);
+  --panel-sheen:none; --panel-highlight:none; --panel-glow:none;
+  --panel-shadow:0 2px 8px -6px rgba(48,41,52,.16);
+  --panel-topline-opacity:.35; --glow-brand:none;
+  --fd-panel:var(--card-bg); --fd-panel-2:#ddd8d4; --fd-rail:#ddd8d5;
+  --fd-line:var(--line-color); --fd-line-strong:#c9c2bb;
+  --fd-highlight:none; --fd-well:#dad6d1;
+  --fd-glass-panel:rgba(229,226,223,.92);
+  --fd-glass-panel-strong:rgba(229,226,223,.98);
+  --fd-glass-rail:rgba(221,216,213,.96);
+  --fd-glass-line:var(--line-color); --fd-glass-sheen:none;
+  --fd-glass-shadow:0 2px 8px -6px rgba(48,41,52,.16);
+  --fd-glass-halo:none; --fd-glass-halo-soft:none;
+}
+
+@media (prefers-reduced-motion:no-preference) {
+  .theme-changing :is(body,.app-aurora,aside,header.sticky,.fd-surface,.panel-surface,.student-card,.portal-card) {
+    transition:background-color 220ms ease-out,color 220ms ease-out,border-color 220ms ease-out;
+  }
 }
 
 .dark {

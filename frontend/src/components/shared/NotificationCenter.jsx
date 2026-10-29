@@ -352,7 +352,7 @@ const NotificationCenter = ({ actions = [], role = "student" }) => {
                 key={action.label}
                 type="button"
                 onClick={() => navigate(action.to)}
-                className="group flex items-center gap-3 rounded-xl border border-line bg-card-alt/30 p-4 text-left transition-colors hover:border-brand/25 hover:bg-card-alt/60"
+                className="student-card group flex items-center gap-3 rounded-xl border border-line bg-card-alt/30 p-4 text-left transition-colors hover:border-brand/25 hover:bg-card-alt/60"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-sm text-brand ring-1 ring-inset ring-brand/20">
                   {action.icon}

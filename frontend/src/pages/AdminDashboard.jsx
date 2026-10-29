@@ -1,14 +1,14 @@
-import React, { Suspense, lazy, useState, useEffect } from "react";
+import React, { Suspense, lazy, useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
-import MobileTabBar from "../components/mobile/MobileTabBar";
-import MobileMenuSheet from "../components/mobile/MobileMenuSheet";
 import AppBackground from "../components/shared/AppBackground";
 import RouteFallback from "../components/shared/RouteFallback";
 import { PageMetaProvider } from "../context/PageMetaContext";
 import { useScrollRestoration } from "../utils/useScrollRestoration";
 import { prefetchIdle } from "../utils/prefetchRoutes";
+import "../styles/admin-workspace.css";
+import "../styles/portal-neumorphism.css";
 
 // Per-page chunks: the dashboard, event details and the
 // reports table are only fetched when that page is actually opened.
@@ -23,7 +23,6 @@ const ProfileSettings = lazy(() => import("../components/settings/ProfileSetting
 const EventDetails = lazy(() => import("../components/EventDetails"));
 
 const AdminDashboard = () => {
-  const [menuOpen, setMenuOpen] = useState(false);
   const scrollRef = useScrollRestoration();
 
   // Warm the pages this portal opens first while the browser is idle, so the
@@ -33,13 +32,13 @@ const AdminDashboard = () => {
   }, []);
 
   return (
-    <AppBackground>
+    <AppBackground className="portal-refined admin-refined portal-neumorphic">
       <PageMetaProvider>
-        <div className="relative flex h-screen w-full overflow-hidden">
+        <div className="relative flex h-dvh w-full overflow-hidden">
           <Sidebar role="admin" />
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <Topbar />
-            <main ref={scrollRef} className="flight-page min-w-0 flex-1 overflow-y-auto px-4 pb-24 pt-4 md:px-6 md:py-6 lg:px-8">
+            <main ref={scrollRef} className="flight-page min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pb-6 pt-4 md:px-6 md:py-6 lg:px-8">
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   <Route index element={<DashboardHome />} />
@@ -58,16 +57,6 @@ const AdminDashboard = () => {
                 </Routes>
               </Suspense>
             </main>
-            <MobileTabBar
-              role="admin"
-              menuOpen={menuOpen}
-              onMore={() => setMenuOpen((open) => !open)}
-            />
-            <MobileMenuSheet
-              role="admin"
-              open={menuOpen}
-              onClose={() => setMenuOpen(false)}
-            />
           </div>
         </div>
       </PageMetaProvider>

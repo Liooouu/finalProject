@@ -161,7 +161,7 @@ const SecuritySettings = ({ embedded = false }) => {
         )}
 
         {enrollingFace && (
-          <div className="mt-4 rounded-xl border border-line bg-card-alt/40 p-4">
+          <div className="student-card mt-4 rounded-xl border border-line bg-card-alt/40 p-4">
             <label className="mb-4 flex items-start gap-3 text-sm text-on-dim">
               <input type="checkbox" checked={faceAgreed}
                 onChange={(e) => setFaceAgreed(e.target.checked)} disabled={faceUploading}
@@ -194,7 +194,7 @@ const SecuritySettings = ({ embedded = false }) => {
             {appeals.map((appeal) => (
               <div
                 key={appeal._id}
-                className="flex flex-col gap-2 rounded-xl border border-line bg-card-alt/40 p-3.5 text-sm sm:flex-row sm:items-center sm:justify-between"
+                className="student-card flex flex-col gap-2 rounded-xl border border-line bg-card-alt/40 p-3.5 text-sm sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -216,7 +216,7 @@ const SecuritySettings = ({ embedded = false }) => {
         )}
 
         {showAppealForm ? (
-          <div className="mt-4 rounded-xl border border-line bg-card-alt/40 p-4">
+          <div className="student-card mt-4 rounded-xl border border-line bg-card-alt/40 p-4">
             <FaceCapture
               title="Take proof photo"
               onCapture={submitAppeal}

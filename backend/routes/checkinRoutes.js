@@ -142,38 +142,45 @@ router.post("/sessions", protect, async (req, res) => {
   }
 });
 
-// Active stations for an event, with live counts.
+// Active stations across permitted events, or a single event when requested.
 router.get("/sessions", protect, async (req, res) => {
   try {
     const { eventId } = req.query;
-    if (!isValidObjectId(eventId)) return res.status(400).json({ error: "A valid eventId is required" });
-
-    const event = await Event.findById(eventId);
-    if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!(await canManageEventOrAdminCreated(event, req.user))) {
-      return res.status(403).json({ error: "You are not allowed to manage this event" });
+    let events;
+    if (eventId !== undefined) {
+      if (!isValidObjectId(eventId)) return res.status(400).json({ error: "A valid eventId is required" });
+      const event = await Event.findById(eventId);
+      if (!event) return res.status(404).json({ error: "Event not found" });
+      if (!(await canManageEventOrAdminCreated(event, req.user))) {
+        return res.status(403).json({ error: "You are not allowed to manage this event" });
+      }
+      events = [event];
+    } else {
+      if (!["organizer", "admin"].includes(req.user.role)) {
+        return res.status(403).json({ error: "Organizer access is required" });
+      }
+      // Match the same owner/admin-created scope used by station open/close.
+      const adminIds = req.user.role === "organizer" ? await User.find({ role: "admin" }).distinct("_id") : [];
+      events = await Event.find(req.user.role === "admin" ? {} : { organizer: { $in: [req.user._id, ...adminIds] } })
+        .select("_id title").lean();
     }
-
-    const now = new Date();
+    const eventTitles = new Map(events.map(event => [String(event._id), event.title]));
     const sessions = await CheckInSession.find({
-      event: event._id,
+      event: { $in: events.map(event => event._id) },
       closedAt: null,
-      expiresAt: { $gt: now },
-    })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    res.json(
-      sessions.map((s) => ({
-        id: s._id,
-        stationLabel: s.stationLabel,
-        createdAt: s.createdAt,
-        expiresAt: s.expiresAt,
-        lastUsedAt: s.lastUsedAt,
-        matchCount: s.matchCount,
-        failedCount: s.failedCount,
-      }))
-    );
+      expiresAt: { $gt: new Date() },
+    }).sort({ createdAt: -1, _id: -1 }).lean();
+    res.json(sessions.map(session => ({
+      id: session._id,
+      eventId: session.event,
+      eventTitle: eventTitles.get(String(session.event)) || "Event",
+      stationLabel: session.stationLabel,
+      createdAt: session.createdAt,
+      expiresAt: session.expiresAt,
+      lastUsedAt: session.lastUsedAt,
+      matchCount: session.matchCount,
+      failedCount: session.failedCount,
+    })));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

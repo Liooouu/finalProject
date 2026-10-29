@@ -1,0 +1,40 @@
+/* Uses TrackED's raised off-white/charcoal surfaces and purple accents. */
+.auth-responsive:not(.auth-neumorphic) .auth-field { background-color:rgba(229,226,223,.8); }
+.dark .auth-responsive:not(.auth-neumorphic) .auth-field { background-color:rgba(55,69,99,.68); border-color:rgba(165,180,211,.26); }
+.auth-neumorphic {
+  --line-color:var(--portal-card-line);
+  --card-alt-bg:var(--portal-card-tint);
+  --color-on:var(--portal-card-text);
+  --color-on-dim:var(--portal-card-dim);
+  --color-on-muted:var(--portal-card-muted);
+  --color-card:var(--portal-card);
+  --color-card-alt:var(--portal-card-tint);
+  --color-line:var(--portal-card-line);
+  --color-brand:var(--portal-card-accent);
+}
+.auth-neumorphic :is(.app-orb,.app-noise) { display:none; }
+.auth-neumorphic .auth-panel {
+  min-width:0;
+  padding:28px;
+  border:0;
+  border-radius:20px;
+  background:var(--neo-surface);
+  box-shadow:var(--neo-raised);
+  color:var(--portal-card-text);
+}
+.auth-neumorphic .auth-panel :is(h1,.font-display) { font-family:var(--font-sans); font-weight:500; }
+.auth-neumorphic .auth-panel .auth-field {
+  min-height:46px;
+  background-color:var(--portal-card);
+  border-color:var(--portal-card-line);
+  border-radius:12px;
+  box-shadow:var(--neo-small);
+  color:var(--portal-card-text);
+}
+.auth-neumorphic .auth-panel .auth-field::placeholder { color:var(--portal-card-muted); opacity:1; }
+.auth-neumorphic .auth-panel .auth-field:focus-visible { outline:2px solid var(--portal-card-accent); outline-offset:2px; }
+.auth-neumorphic .auth-panel [type="submit"] { min-height:46px; border-radius:12px; }
+.auth-neumorphic .auth-panel [data-ui-variant="primary"] { box-shadow:inset 1px 1px 0 rgba(255,255,255,.25),-3px 5px 8px rgba(54,37,120,.32); }
+.auth-neumorphic .auth-panel [data-ui-variant="primary"]:active:not(:disabled) { box-shadow:inset 0 2px 5px rgba(16,10,52,.28); }
+.auth-neumorphic .auth-panel [class*="bg-card-alt/"] { background:var(--neo-surface); border-color:transparent; box-shadow:var(--neo-small); }
+.auth-neumorphic .auth-feature-card { box-shadow:inset 1px 1px 0 rgba(255,255,255,.18),-4px 7px 10px rgba(5,8,32,.36); }

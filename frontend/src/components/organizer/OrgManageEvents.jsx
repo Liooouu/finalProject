@@ -167,22 +167,6 @@ const OrgManageEvents = () => {
     }
   };
 
-  // Put a finished/closed event back in play. Reopening hands the event back to
-  // the clock, so it finishes again within a minute unless its end time moves.
-  const handleReopen = async (id) => {
-    try {
-      await api.patch(`/events/${id}/status`, { status: "upcoming" });
-      setMessage(
-        "Event reopened. It will finish again at its end time — extend the schedule to keep it running."
-      );
-      setMessageType("success");
-      fetchEvents();
-    } catch (err) {
-      setMessage(err.response?.data?.error || "Failed to reopen event.");
-      setMessageType("error");
-    }
-  };
-
   const periodEvents = useMemo(() => recordsForAcademicPeriod(events, period, semester), [events, period, semester]);
 
   // Finished events sink to the bottom so the live work stays on top.
@@ -217,21 +201,15 @@ const OrgManageEvents = () => {
         subtitle={showForm ? "Enter the event details and attendance schedule." : `${visibleEvents.length} ${visibleEvents.length === 1 ? "event" : "events"} · ${attendeeTotal} total ${
           attendeeTotal === 1 ? "attendee" : "attendees"
         }`}
-        actions={
-          <Button
-            onClick={() => setShowForm(!showForm)}
-            variant={showForm ? "secondary" : "primary"}
-            size="sm"
-          >
-            {showForm ? <MdClose /> : <FaPlus className="text-xs" />}
-            {showForm ? "Cancel" : "Create event"}
-          </Button>
-        }
+        actions={showForm ? <Button onClick={() => setShowForm(false)} variant="secondary" size="sm"><MdClose /> Cancel</Button> : undefined}
       />
 
       {!showForm && <>
-      <SegmentedControl ariaLabel="Event timeline" value={eventRange} onChange={value => { setEventRange(value); setStatusFilter("all"); setPage(1); }} options={[{ value: "all", label: "All events" }, { value: "active", label: "Active events" }, { value: "past", label: "Past events" }]} />
-      <details className="rounded-xl border border-line bg-card-alt/20 p-3">
+      <div className="event-view-toolbar">
+        <SegmentedControl ariaLabel="Event timeline" value={eventRange} onChange={value => { setEventRange(value); setStatusFilter("all"); setPage(1); }} options={[{ value: "all", label: "All events", shortLabel: "All" }, { value: "active", label: "Active events", shortLabel: "Active" }, { value: "past", label: "Past events", shortLabel: "Past" }]} />
+        <Button onClick={() => setShowForm(true)} size="sm"><FaPlus className="text-xs" /> Create event</Button>
+      </div>
+      <details className="portal-card rounded-xl border border-line bg-card-alt/20 p-3">
         <summary className="cursor-pointer text-sm font-medium text-on">Filters{viewMode !== "all" || statusFilter !== "all" || period ? " · Applied" : ""}</summary>
         <div className="mt-3 space-y-3">
           <AcademicPeriodFilter selection={periodSelection} />
@@ -446,7 +424,6 @@ const OrgManageEvents = () => {
           {pageEvents.map((event) => {
             const ownedByMe = isOwnEvent(event);
             const canManageAttendance = canTakeAttendance(event);
-            const terminal = isTerminalStatus(event.status);
             return <Card key={event._id} as="article" className="flex min-w-0 flex-col">
               <div className="flex items-start justify-between gap-3"><h3 className="min-w-0 flex-1 font-display text-lg font-semibold text-on [overflow-wrap:anywhere]">{event.title}</h3><StatusChip status={event.status} /></div>
               <div className="mt-4 space-y-2 text-sm text-on-dim">
@@ -466,13 +443,7 @@ const OrgManageEvents = () => {
               <div className="mt-auto pt-4">
                 <div className="flex flex-wrap items-start gap-3 border-t border-line pt-3">
                   <Button variant="secondary" size="sm" onClick={() => navigate(`/organizer/dashboard/events/${event._id}`)}>View / edit event</Button>
-                  {(terminal || ownedByMe) && <details className="min-w-0 text-xs text-on-muted">
-                    <summary className="cursor-pointer rounded-lg border border-line px-3 py-2 font-medium">More actions</summary>
-                    <div className="mt-2 flex flex-col items-start gap-2 rounded-lg border border-line bg-card p-2">
-                      {terminal && <Button variant="ghost" size="sm" onClick={() => handleReopen(event._id)}>Reopen event</Button>}
-                      {ownedByMe && <Button variant="danger" size="sm" onClick={() => setDeleteTarget(event._id)}>Delete event</Button>}
-                    </div>
-                  </details>}
+                  {ownedByMe && <Button variant="danger" size="sm" onClick={() => setDeleteTarget(event._id)}>Delete</Button>}
                 </div>
               </div>
             </Card>;

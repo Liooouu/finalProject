@@ -1,0 +1,162 @@
+/* Keep TrackED's layout and use Campus's type, colors and quieter surfaces
+   consistently across student, organizer and admin cards. */
+.portal-refined {
+  min-height:100dvh;
+  --portal-card:#e5e2df;
+  --portal-card-tint:#dcd4e5;
+  --portal-card-line:#9c93a7;
+  --portal-card-shadow:0 1px 2px rgba(48,41,52,.08),0 4px 12px -6px rgba(48,41,52,.18);
+  --portal-card-text:#30303b;
+  --portal-card-dim:#575763;
+  --portal-card-muted:#656573;
+  --portal-card-accent:#6443c4;
+}
+.dark .portal-refined {
+  --portal-card:#1a1d28;
+  --portal-card-tint:#2c2440;
+  --portal-card-line:#303342;
+  --portal-card-shadow:0 3px 12px -10px rgba(15,23,42,.18);
+  --portal-card-text:#f0eff6;
+  --portal-card-dim:#cbc8d8;
+  --portal-card-muted:#a5a5b7;
+  --portal-card-accent:#b6a2f2;
+}
+.portal-refined main .font-display,
+.portal-refined main .fd-title {
+  font-family:var(--font-sans);
+  font-weight:500;
+  letter-spacing:-.025em;
+}
+.portal-refined main :is(.font-bold,.font-semibold) {
+  font-weight:500;
+}
+.portal-refined main .fd-title {
+  font-size:15px;
+  line-height:1.4;
+}
+.portal-refined main .fd-subtitle {
+  font-size:12px;
+  line-height:1.5;
+}
+.portal-refined main .fd-surface,
+.portal-refined main .fd-surface.fd-glass,
+.portal-refined main .panel-surface,
+.portal-refined main .student-card,
+.portal-refined main .portal-card {
+  --on:var(--portal-card-text);
+  --on-dim:var(--portal-card-dim);
+  --on-muted:var(--portal-card-muted);
+  --brand:var(--portal-card-accent);
+  --card-bg:var(--portal-card);
+  --card-alt-bg:var(--portal-card-tint);
+  --line-color:var(--portal-card-line);
+  --color-on:var(--on);
+  --color-on-dim:var(--on-dim);
+  --color-on-muted:var(--on-muted);
+  --color-brand:var(--brand);
+  --color-card:var(--card-bg);
+  --color-card-alt:var(--card-alt-bg);
+  --color-line:var(--line-color);
+  --fd-panel:var(--card-bg);
+  --fd-panel-2:var(--card-alt-bg);
+  --fd-line:var(--line-color);
+  --fd-command-text:var(--on);
+  --fd-command-muted:var(--on-muted);
+  --fd-well:color-mix(in srgb,var(--card-bg) 96%,var(--brand) 4%);
+  --fd-glass-line:var(--line-color);
+  --fd-radius:14px;
+  border:1px solid var(--line-color);
+  border-radius:14px;
+  background:var(--fd-panel);
+  color:var(--on);
+  box-shadow:var(--portal-card-shadow);
+  backdrop-filter:none;
+  transform:none;
+}
+.portal-refined main .fd-surface::before,
+.portal-refined main .fd-surface::after,
+.portal-refined main .panel-surface::before,
+.portal-refined main .panel-surface::after {
+  display:none;
+}
+.portal-refined main .fd-surface>.fd-rail {
+  border-bottom:1px solid var(--line-color);
+  background:color-mix(in srgb,var(--fd-panel) 97%,var(--brand) 3%);
+  box-shadow:none;
+}
+.portal-refined main .fd-rail-command::after { display:none; }
+.portal-refined main .fd-rail-icon {
+  border-color:var(--line-color);
+  background:color-mix(in srgb,var(--brand) 7%,transparent);
+  box-shadow:none;
+}
+.portal-refined main .fd-eyebrow {
+  font-weight:500;
+  letter-spacing:.14em;
+}
+.portal-refined main .student-event-card>div:first-child {
+  background:transparent;
+}
+.portal-refined main .student-event-card>div:first-child>div>span[aria-hidden="true"] {
+  border-color:transparent;
+  background:var(--card-alt-bg);
+}
+.portal-refined main .student-event-card>div:first-child>div>span[aria-hidden="true"]>span {
+  color:var(--brand);
+}
+.portal-refined main .student-event-card h3 {
+  font-size:17px;
+  line-height:1.4;
+}
+.portal-refined main .student-event-card [role="status"] {
+  border-color:color-mix(in srgb,currentColor 22%,transparent);
+}
+.portal-refined main .fd-body { background:transparent; }
+
+/* Natural card sizes: only long content overflows. Fixed columns keep table
+   text aligned between pages without reserving a tall empty page slot. */
+.student-history-viewport { overflow-anchor:none; max-height:46rem; }
+.student-history-table { table-layout:fixed; min-width:900px; }
+.student-history-table tbody td { overflow-wrap:anywhere; }
+.student-history-table tbody td:nth-child(2) { white-space:nowrap; }
+.student-history-pagination nav { flex-wrap:nowrap; margin-top:0; border-top:0; padding-top:0; padding-bottom:1rem; }
+.student-history-pagination nav>p { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.student-history-pagination nav>div>span { min-width:5.5rem; text-align:center; font-variant-numeric:tabular-nums; white-space:nowrap; }
+@media (max-width:639px) {
+  .student-history-pagination nav { flex-direction:column; align-items:stretch; }
+  .student-history-pagination nav>div { justify-content:space-between; }
+}
+
+@media (min-width:1024px) {
+  .student-dashboard-card { display:flex; flex-direction:column; }
+  .student-dashboard-card>.fd-rail { flex-shrink:0; }
+  .student-dashboard-card>.fd-body { min-height:0; flex:1; }
+}
+
+/* Three compact, equal summary boxes on phones. Keep the longer hints
+   available to assistive technology without filling the small cards. */
+@media (max-width:767px) {
+  .portal-refined main .student-service-summary>.fd-surface { min-width:0; }
+  .portal-refined main .student-service-summary .fd-rail { min-height:44px; padding:8px 9px; gap:0; }
+  .student-service-summary .fd-rail>div { display:none; }
+  .portal-refined main .student-service-summary .fd-eyebrow { min-height:2.6em; font-size:11px; line-height:1.3; letter-spacing:0; text-transform:none; }
+  .student-service-summary .fd-body { padding:10px 9px 12px; }
+  .student-service-summary .fd-body .num { font-size:clamp(20px,6vw,28px); line-height:1.1; overflow-wrap:anywhere; }
+  .student-service-summary .fd-body>div:nth-child(2) { position:absolute; width:1px; height:1px; min-height:0; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+}
+
+/* Portals use surface contrast and spacing instead of card outlines. Keep
+   borders on form controls and the table's useful row separators. */
+.portal-refined main :is(.fd-surface.fd-glass,.fd-surface,.panel-surface,.portal-card,.student-card) {
+  border-width:0;
+  border-color:transparent;
+  box-shadow:0 3px 14px -8px rgba(48,41,52,.16);
+}
+.dark .portal-refined main :is(.fd-surface.fd-glass,.fd-surface,.panel-surface,.portal-card,.student-card) {
+  box-shadow:0 4px 16px rgba(0,0,0,.16);
+}
+.portal-refined main .fd-surface>.fd-rail {
+  border-bottom-width:0;
+  border-bottom-color:transparent;
+  background:transparent;
+}

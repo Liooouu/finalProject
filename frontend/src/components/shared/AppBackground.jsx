@@ -6,9 +6,9 @@ import React from "react";
  * clean neutral base, a faint top grid, and subtle film grain for texture.
  * Theme-aware via CSS variables (the `.dark` variant flips the orbs).
  */
-const AppBackground = ({ children }) => {
+const AppBackground = ({ children, className = "" }) => {
   return (
-    <div className="relative flex min-h-screen overflow-hidden text-on">
+    <div className={`relative flex min-h-screen overflow-hidden text-on ${className}`}>
       {/* Aurora canvas */}
       <div
         aria-hidden="true"

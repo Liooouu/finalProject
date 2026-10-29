@@ -39,7 +39,7 @@ const roleStyles = {
   student: "border-info/25 bg-info/10 text-info",
 };
 
-const PROGRAM_OPTIONS = ["BSEMC", "BSIT", "BSCS", "BSIS", "IT", "OTHER"];
+const PROGRAM_OPTIONS = ["BSIT", "BSCS", "BSEMC"];
 const YEAR_OPTIONS = [1, 2, 3, 4];
 const SECTION_OPTIONS = ["A", "B", "C"];
 
@@ -454,7 +454,7 @@ const ManageUsers = () => {
       activeFilterCount = 0,
     }
   ) => (
-    <Card padding="none" className="flex h-[34rem] min-h-0 flex-col overflow-hidden">
+    <Card padding="none" className="flex max-h-[34rem] min-h-0 flex-col overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3.5">
         <div>
           <h2 className="text-sm font-semibold text-on">{title}</h2>
@@ -514,7 +514,7 @@ const ManageUsers = () => {
             {list.map((user) => (
               <article
                 key={user._id}
-                className="relative overflow-hidden rounded-xl border border-line/80 bg-card-alt/35 p-3.5"
+                className="portal-card relative overflow-hidden rounded-xl border border-line/80 bg-card-alt/35 p-3.5"
               >
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand)] to-[var(--brand-2)] text-sm font-semibold text-white shadow-[var(--glow-brand)]">
@@ -573,7 +573,7 @@ const ManageUsers = () => {
           <table className="data-table hidden table-fixed sm:table">
             <colgroup>
               <col />
-              <col className={showGroup ? "w-[128px]" : "w-[152px]"} />
+              <col className={showGroup ? "w-[180px]" : "w-[152px]"} />
               <col className="w-[156px]" />
             </colgroup>
             <thead className="sticky top-0 z-10 bg-card">
@@ -615,7 +615,7 @@ const ManageUsers = () => {
                     {showGroup ? (
                       <div>
                         <p className="text-on-dim">{getGroupLabel(user)}</p>
-                        <p className="truncate text-xs text-on-muted">
+                        <p className="whitespace-normal break-words text-xs text-on-muted">
                           {user.program || "?"} · Year {user.yearLevel ?? "?"} · Section{" "}
                           {user.section || "?"}
                         </p>
@@ -937,8 +937,8 @@ const ManageUsers = () => {
 
       {showModal && selectedUser && (
         <div role="dialog" aria-modal="true" aria-label="User details" className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[var(--panel-radius)] border border-line bg-card shadow-[var(--elev-3)]">
-            <div className="flex items-start justify-between gap-3 border-b border-line p-5">
+          <div className="portal-card flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-[var(--panel-radius)] border border-line bg-card shadow-[var(--elev-3)]">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line p-5">
               <div className="flex min-w-0 items-center gap-3.5">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand)] to-[var(--brand-2)] text-lg font-semibold text-white">
                   {selectedUser.name.charAt(0).toUpperCase()}
@@ -960,7 +960,7 @@ const ManageUsers = () => {
                 <FaTimes />
               </Button>
             </div>
-            <div className="overflow-y-auto p-5">
+            <div className="min-h-0 overflow-y-auto p-5">
               <div className="mb-5 flex flex-wrap items-center gap-3">
                 <span className="text-sm text-on-dim">Role:</span>
                 {getRoleBadge(selectedUser.role, selectedUser.organizerAccess)}
@@ -979,7 +979,7 @@ const ManageUsers = () => {
 
               {detailNotice && <p role="status" className={`mb-4 rounded-xl border p-3 text-sm ${detailNotice.type === "error" ? "border-danger/30 bg-danger/10 text-danger" : "border-success/30 bg-success/10 text-on"}`}>{detailNotice.text}</p>}
               {selectedUser.role === "student" && (
-                <section className="mb-6 space-y-4 rounded-xl border border-line bg-card-alt/50 p-4">
+                <section className="portal-card mb-6 space-y-4 rounded-xl border border-line bg-card-alt/50 p-4">
                   <div>
                     <h4 className="font-medium text-on">Student academic details</h4>
                     <p className="text-sm text-on-dim">Update the student's current program, year level and section.</p>
@@ -1007,7 +1007,7 @@ const ManageUsers = () => {
                 </section>
               )}
               {selectedUser.role === "student" && (
-                <div className="mb-6 flex flex-col gap-4 rounded-xl border border-line bg-card-alt/50 p-4 sm:flex-row sm:items-center">
+                <div className="portal-card mb-6 flex flex-col gap-4 rounded-xl border border-line bg-card-alt/50 p-4 sm:flex-row sm:items-center">
                   <div className="flex items-center gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
                       <FaShieldAlt />
@@ -1075,7 +1075,7 @@ const ManageUsers = () => {
                       const penalties = (record.communityServiceLog || []).filter(entry => entry.action === "penalty" || entry.action === "restored").reduce((sum, entry) => sum + (entry.hours || 0), 0);
                       const penaltyHours = Math.max(penalties, record.communityServiceHours || 0);
                       return (
-                        <div key={record._id} data-testid="attendance-history-record" className="flex flex-col gap-2 rounded-xl border border-line bg-card-alt/40 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+                        <div key={record._id} data-testid="attendance-history-record" className="portal-card flex flex-col gap-2 rounded-xl border border-line bg-card-alt/40 p-3.5 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
                             <p className="break-words font-medium text-on">{record.event?.title || record.eventTitle || "Event"}</p>
                             <p className="text-sm text-on-dim">{(record.event?.date || record.eventDate) && formatDate(record.event?.date || record.eventDate)}</p>

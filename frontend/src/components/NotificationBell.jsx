@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../api/axios";
+import { fetchNotificationCount } from "../utils/notificationCount";
 import { FaBell } from "react-icons/fa";
 import { NOTIFICATIONS_CHANGED_EVENT } from "../utils/helpers";
 import { subscribeToDataChanges } from "../utils/dataSync";
@@ -16,11 +16,17 @@ const NotificationBell = ({ role }) => {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    const fetchUnreadCount = () => {
-      api
-        .get("/notifications/unread-count")
-        .then((res) => setUnreadCount(res.data.count))
-        .catch(() => {});
+    let active = true;
+    let inFlight = false;
+    const controller = new AbortController();
+    const fetchUnreadCount = async () => {
+      if (!active || inFlight || document.visibilityState === "hidden") return;
+      inFlight = true;
+      try {
+        const count = await fetchNotificationCount(controller.signal);
+        if (active) setUnreadCount(count);
+      } catch { /* Retain the last successful count until the next refresh. */ }
+      finally { inFlight = false; }
     };
 
     fetchUnreadCount();
@@ -33,12 +39,16 @@ const NotificationBell = ({ role }) => {
     const unsubscribe = subscribeToDataChanges(fetchUnreadCount);
     window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged);
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
 
     return () => {
+      active = false;
+      controller.abort();
       clearInterval(interval);
       unsubscribe();
       window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged);
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
     };
   }, []);
 

@@ -30,7 +30,6 @@ const OrgManageAttendees = ({ embedded = false }) => {
   const location = useLocation();
   const [students, setStudents] = useState(seed?.students ?? []);
   const [recordPage, setRecordPage] = useState(1);
-  const [enrollment, setEnrollment] = useState("all");
   const [loadError, setLoadError] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -43,9 +42,6 @@ const OrgManageAttendees = ({ embedded = false }) => {
   const [pendingRemove, setPendingRemove] = useState(null);
   const [removing, setRemoving] = useState(false);
   const [csDrafts, setCsDrafts] = useState({});
-  const [program, setProgram] = useState("");
-  const [yearLevel, setYearLevel] = useState("");
-  const [section, setSection] = useState("");
 
   usePageMeta(embedded ? "Manual attendance" : "Manage Attendees", "Manually add or adjust student attendance.");
 
@@ -75,54 +71,13 @@ const OrgManageAttendees = ({ embedded = false }) => {
 
   useAutoRefresh(fetchData);
 
-  const getStudentKey = (s) => {
-    if (!s) return "unassigned";
-    const p = String(s.program || "").trim().toUpperCase();
-    const y = s.yearLevel != null ? String(s.yearLevel) : "";
-    const sec = String(s.section || "").trim().toUpperCase();
-    if (p && y && sec) return `${p}-${y}${sec}`;
-    if (p || y || sec) return "partial";
-    return "unassigned";
-  };
-
-  // The class the organizer is inspecting: built from the program dropdown plus
-  // the year and section inputs (e.g. BSIT + 1 + A -> "BSIT-1A"). Empty until
-  // all three are filled, so no student info shows before a class is chosen.
-  const selectedGroup =
-    program && yearLevel && section.trim()
-      ? `${program}-${yearLevel}${section.trim().toUpperCase()}`
-      : "";
-
-  const matchesEnrollment = student => enrollment === "all" || (student?.enrollmentStatus || "active") === enrollment;
-  const filteredByGroupAttendees = attendees.filter((a) => {
-    if (!matchesEnrollment(a.student)) return false;
-    if (!selectedGroup) return true;
-    return getStudentKey(a.student) === selectedGroup;
-  });
-
-  const currentRecordPage = Math.min(recordPage, Math.max(1, Math.ceil(filteredByGroupAttendees.length / 10)));
-  const pageAttendees = filteredByGroupAttendees.slice((currentRecordPage - 1) * 10, currentRecordPage * 10);
-
-  const filteredStudents = students.filter((s) => {
-    if (!matchesEnrollment(s)) return false;
-    const matchesSearch =
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.email.toLowerCase().includes(searchTerm.toLowerCase());
-    if (!matchesSearch) return false;
-    if (!selectedGroup) return true;
-    return getStudentKey(s) === selectedGroup;
-  });
-
-  const alreadyAttended = attendees.map((a) => a.student?._id || a.student);
-  const availableStudents = filteredStudents.filter(
-    (s) => !alreadyAttended.includes(s._id)
-  );
-  const matchedAlready = filteredStudents.filter(
-    (s) =>
-      alreadyAttended.includes(s._id) &&
-      (s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.email.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const query = searchTerm.trim().toLowerCase();
+  const matchesSearch = student => !query || [student?.name, student?.email].some(value => String(value || "").toLowerCase().includes(query));
+  const matchingAttendees = attendees.filter(record => matchesSearch(record.student));
+  const currentRecordPage = Math.min(recordPage, Math.max(1, Math.ceil(matchingAttendees.length / 10)));
+  const pageAttendees = matchingAttendees.slice((currentRecordPage - 1) * 10, currentRecordPage * 10);
+  const recordedStudentIds = new Set(attendees.map(record => String(record.student?._id || record.student)));
+  const availableStudents = students.filter(student => matchesSearch(student) && !recordedStudentIds.has(String(student._id)));
 
   const handleAddAttendance = async (status, student = selectedStudent) => {
     if (!student || submitting) return;
@@ -253,85 +208,6 @@ const OrgManageAttendees = ({ embedded = false }) => {
         </div>
       )}
 
-      <Card>
-        <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-            <FaUsers />
-          </span>
-          <div>
-            <h2 className="panel-heading">Choose a class</h2>
-            <p className="mt-0.5 text-xs text-on-muted">
-              Students only appear after program, year and section are set.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-3">
-          <div>
-            <label htmlFor="attendee-program" className="field-label">Program</label>
-            <select
-              id="attendee-program"
-              value={program}
-              onChange={(e) => setProgram(e.target.value)}
-              className="field-select"
-            >
-              <option value="" disabled hidden />
-              <option value="BSIT">BSIT</option>
-              <option value="BSCS">BSCS</option>
-              <option value="BSEMC">BSEMC</option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="attendee-year" className="field-label">Year</label>
-            <input
-              id="attendee-year"
-              type="number"
-              min={1}
-              max={4}
-              placeholder="1 – 4"
-              value={yearLevel}
-              onChange={(e) => setYearLevel(e.target.value)}
-              className="field"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="attendee-section" className="field-label">Section</label>
-            <input
-              id="attendee-section"
-              type="text"
-              maxLength={1}
-              placeholder="A – C"
-              value={section}
-              onChange={(e) =>
-                setSection(e.target.value.toUpperCase().replace(/[^ABC]/g, ""))
-              }
-              className="field"
-            />
-          </div>
-        </div>
-
-        <p className="mt-4 text-sm text-on-dim">
-          {selectedGroup ? (
-            <>
-              Showing students for{" "}
-              <span className="font-semibold text-on">{selectedGroup}</span>
-            </>
-          ) : (
-            <span className="text-on-muted">
-              Pick a program, year and section to view its students.
-            </span>
-          )}
-        </p>
-      </Card>
-
-      <label className="block max-w-xs text-xs text-on-muted">Enrollment status
-        <select aria-label="Enrollment status" className="field-select mt-1" value={enrollment} onChange={e => { setEnrollment(e.target.value); setRecordPage(1); }}><option value="all">All students</option><option value="active">Active</option><option value="graduated">Graduated</option></select>
-      </label>
-      <p className="text-xs text-on-muted">Class and enrollment labels reflect the student’s current academic record. Historical attendance remains available.</p>
-      {selectedGroup && (
-        <>
           <Card>
             <div className="flex items-center gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-ok/10 text-ok ring-1 ring-inset ring-ok/20">
@@ -340,7 +216,7 @@ const OrgManageAttendees = ({ embedded = false }) => {
               <div>
                 <h2 className="panel-heading">Add attendance manually</h2>
                 <p className="mt-0.5 text-xs text-on-muted">
-                  Search the class and choose a status.
+                  Search by name or email to add attendance or find an existing record below.
                 </p>
               </div>
             </div>
@@ -357,6 +233,7 @@ const OrgManageAttendees = ({ embedded = false }) => {
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
+                      setRecordPage(1);
                       if (selectedStudent) setSelectedStudent(null);
                     }}
                     className="field field-search"
@@ -368,8 +245,8 @@ const OrgManageAttendees = ({ embedded = false }) => {
                 <div className="rounded-xl border border-ok/25 bg-ok/10 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-on">{selectedStudent.name}</p>
-                      <p className="truncate text-sm text-on-dim">{selectedStudent.email}</p>
+                      <p className="break-words font-medium text-on">{selectedStudent.name}</p>
+                      <p className="break-all text-sm text-on-dim">{selectedStudent.email}</p>
                     </div>
                     <button
                       onClick={() => {
@@ -414,7 +291,7 @@ const OrgManageAttendees = ({ embedded = false }) => {
                   {availableStudents.map((student) => (
                     <div
                       key={student._id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-card p-2.5"
+                      className="portal-card flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-card p-2.5"
                     >
                       <button
                         onClick={() => {
@@ -423,8 +300,8 @@ const OrgManageAttendees = ({ embedded = false }) => {
                         }}
                         className="min-w-0 flex-1 text-left"
                       >
-                        <p className="truncate text-sm font-medium text-on">{student.name}</p>
-                        <p className="truncate text-xs text-on-dim">{student.email}</p>
+                        <p className="break-words text-sm font-medium text-on">{student.name}</p>
+                        <p className="break-all text-xs text-on-dim">{student.email}</p>
                       </button>
                       <div className="flex shrink-0 items-center gap-1.5">
                         <button
@@ -452,30 +329,9 @@ const OrgManageAttendees = ({ embedded = false }) => {
                     </div>
                   ))}
                 </div>
-              ) : searchTerm ? (
-                matchedAlready.length > 0 ? (
-                  <div className="alert alert-warn">
-                    <FaCheck className="mt-0.5 shrink-0" />
-                    <div>
-                      <p className="font-medium">Attendance already recorded for this event</p>
-                      <div className="mt-1.5 space-y-1">
-                        {matchedAlready.map((s) => (
-                          <div key={s._id} className="flex items-center justify-between gap-3">
-                            <span className="text-on">{s.name}</span>
-                            <span className="text-xs opacity-80">{s.email}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-on-muted">
-                    No students match &quot;{searchTerm}&quot;.
-                  </p>
-                )
               ) : (
                 <p className="text-sm text-on-muted">
-                  All matching students already have an attendance record for this event.
+                  {query ? (matchingAttendees.length ? "Matching students already have attendance records. Update them below." : `No students match "${searchTerm.trim()}".`) : "All students already have an attendance record, or no students are available."}
                 </p>
               )}
             </div>
@@ -484,18 +340,18 @@ const OrgManageAttendees = ({ embedded = false }) => {
           <Card>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="panel-heading">
-                Attendance records ({filteredByGroupAttendees.length})
+                Attendance records ({matchingAttendees.length})
               </h2>
               <p className="text-xs text-on-muted">
                 Adjust hours per student for this event only.
               </p>
             </div>
 
-            {filteredByGroupAttendees.length === 0 ? (
+            {matchingAttendees.length === 0 ? (
               <EmptyState
                 icon={<FaUsers />}
-                title="No attendance records in this class"
-                description="No attendance records match the selected class and enrollment status."
+                title={query ? "No matching attendance records" : "No attendance records yet"}
+                description={query ? "Try another student name or email, or add attendance above." : "Recorded students will appear here for review and corrections."}
                 compact
               />
             ) : (
@@ -503,13 +359,13 @@ const OrgManageAttendees = ({ embedded = false }) => {
                 {pageAttendees.map((attendance) => (
                   <li
                     key={attendance._id}
-                    className="flex flex-col gap-3 rounded-xl border border-line bg-card-alt/30 p-3.5 sm:flex-row sm:items-center sm:justify-between"
+                    className="portal-card flex flex-col gap-3 rounded-xl border border-line bg-card-alt/30 p-3.5 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-on">
+                      <p className="break-words text-sm font-medium text-on">
                         {attendance.student?.name || "Unknown"}
                       </p>
-                      <p className="truncate text-xs text-on-dim">
+                      <p className="break-all text-xs text-on-dim">
                         {attendance.student?.email || ""}
                       </p>
                       <p className="mt-1 text-xs text-on-muted">{attendance.student?.enrollmentStatus === "graduated" ? "Graduated" : "Active"} · {attendance.student?.faceEnrolledAt ? "Face enrolled" : "Face enrollment required"}</p>
@@ -566,10 +422,8 @@ const OrgManageAttendees = ({ embedded = false }) => {
                 ))}
               </ul>
             )}
-            <Pagination page={currentRecordPage} pageSize={10} total={filteredByGroupAttendees.length} onChange={setRecordPage} label="Attendance record pages" />
+            <Pagination page={currentRecordPage} pageSize={10} total={matchingAttendees.length} onChange={setRecordPage} label="Attendance record pages" />
           </Card>
-        </>
-      )}
 
       <ConfirmDialog
         open={!!pendingRemove}

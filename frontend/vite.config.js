@@ -2,7 +2,19 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-const backend = process.env.VITE_BACKEND_ORIGIN || 'http://localhost:5000'
+const backend = process.env.VITE_BACKEND_ORIGIN || 'http://127.0.0.1:5000'
+
+const backendProxy = () => ({
+  target: backend,
+  changeOrigin: true,
+  configure(proxy) {
+    proxy.on('error', (_error, _request, response) => {
+      if (!response.writeHead || response.headersSent || response.writableEnded) return
+      response.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '2' })
+      response.end(JSON.stringify({ code: 'BACKEND_UNAVAILABLE', message: 'TrackED server is temporarily unavailable. Please try again shortly.' }))
+    })
+  },
+})
 
 export default defineConfig({
   plugins: [
@@ -25,8 +37,8 @@ export default defineConfig({
     host: true,        // listen on all network interfaces
     port: 5173,
     proxy: {
-      '/api': { target: backend, changeOrigin: true },
-      '/uploads': { target: backend, changeOrigin: true },
+      '/api': backendProxy(),
+      '/uploads': backendProxy(),
     },
   },
 })

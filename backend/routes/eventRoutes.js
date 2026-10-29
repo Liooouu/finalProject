@@ -926,10 +926,11 @@ router.delete("/:id", protect, async (req, res) => {
     // leaving them behind creates orphan records that break later approval and
     // keep stale notifications around. Attendance is intentionally preserved
     // above to keep community-service history.
-    const excuses = await Excuse.find({ event: req.params.id }).select("attachments attachmentUrl");
+    const excuses = await Excuse.find({ event: req.params.id }).select("attachments attachmentUrl submissionHistory");
     for (const excuse of excuses) {
       const files = new Set([
         ...(excuse.attachments || []),
+        ...(excuse.submissionHistory || []).flatMap(revision => revision.attachments || []),
         ...(excuse.attachmentUrl ? [excuse.attachmentUrl] : []),
       ]);
       await fileStore.deleteByUrls([...files]);

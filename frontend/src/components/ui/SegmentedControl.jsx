@@ -23,6 +23,7 @@ const SegmentedControl = ({
           key={option.value}
           type="button"
           aria-pressed={active}
+          aria-label={option.shortLabel ? option.label : undefined}
           onClick={() => onChange(option.value)}
           className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 ${
             active
@@ -31,7 +32,7 @@ const SegmentedControl = ({
           }`}
         >
           {option.icon && <span className="text-[11px]">{option.icon}</span>}
-          {option.label}
+          {option.shortLabel ? <><span className="hidden sm:inline">{option.label}</span><span className="sm:hidden">{option.shortLabel}</span></> : option.label}
           {option.count != null && (
             <span
               className={`num rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${

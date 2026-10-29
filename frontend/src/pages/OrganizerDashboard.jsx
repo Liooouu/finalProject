@@ -1,9 +1,9 @@
-import React, { Suspense, lazy, useState, useEffect } from "react";
+import React, { Suspense, lazy, useEffect } from "react";
+import "../styles/portal-workspace.css";
+import "../styles/portal-neumorphism.css";
 import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
-import MobileTabBar from "../components/mobile/MobileTabBar";
-import MobileMenuSheet from "../components/mobile/MobileMenuSheet";
 import AppBackground from "../components/shared/AppBackground";
 import RouteFallback from "../components/shared/RouteFallback";
 import { PageMetaProvider } from "../context/PageMetaContext";
@@ -25,7 +25,6 @@ const LegacyAttendanceRedirect = () => {
 };
 
 const OrganizerDashboard = () => {
-  const [menuOpen, setMenuOpen] = useState(false);
   const scrollRef = useScrollRestoration();
 
   // Warm the pages this portal opens first while the browser is idle, so the
@@ -35,13 +34,13 @@ const OrganizerDashboard = () => {
   }, []);
 
   return (
-    <AppBackground>
+    <AppBackground className="portal-refined organizer-refined portal-neumorphic">
       <PageMetaProvider>
-        <div className="relative flex h-screen w-full overflow-hidden">
+        <div className="relative flex h-dvh w-full overflow-hidden">
           <Sidebar role="organizer" />
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <Topbar />
-            <main ref={scrollRef} className="flight-page min-w-0 flex-1 overflow-y-auto px-4 pb-24 pt-4 md:px-6 md:py-6 lg:px-8">
+            <main ref={scrollRef} className="flight-page min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pb-6 pt-4 md:px-6 md:py-6 lg:px-8">
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   <Route index element={<OrganizerHome />} />
@@ -57,16 +56,6 @@ const OrganizerDashboard = () => {
                 </Routes>
               </Suspense>
             </main>
-            <MobileTabBar
-              role="organizer"
-              menuOpen={menuOpen}
-              onMore={() => setMenuOpen((open) => !open)}
-            />
-            <MobileMenuSheet
-              role="organizer"
-              open={menuOpen}
-              onClose={() => setMenuOpen(false)}
-            />
           </div>
         </div>
       </PageMetaProvider>

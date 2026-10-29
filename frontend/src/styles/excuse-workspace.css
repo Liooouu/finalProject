@@ -1,0 +1,32 @@
+.excuse-workspace { display:flex; flex-direction:column; gap:14px; min-width:0; }
+.excuse-toolbar { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+.excuse-toolbar-tools { display:flex; gap:8px; }
+.excuse-toolbar-tools>details { position:relative; font-size:12px; color:var(--on-dim); }
+.excuse-toolbar-tools summary { cursor:pointer; padding:10px 12px; border-radius:8px; background:var(--card-bg); }
+.excuse-toolbar-popover { position:absolute; top:calc(100% + 8px); right:0; z-index:30; width:min(360px,calc(100vw - 32px)); padding:12px; border-radius:10px; background:var(--card-bg); color:var(--on-dim); box-shadow:0 6px 24px rgba(0,0,0,.2); font-size:12px; line-height:1.5; }
+.excuse-toolbar-popover .academic-period-filters { padding:0; border:0; background:transparent; }
+.excuse-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; align-items:start; }
+.excuse-letter-card { min-width:0; padding:16px; }
+.excuse-letter-card>div:first-child>div:first-child { min-width:0; flex:1 1 200px; }
+.excuse-letter-card>div:first-child>div:first-child>div { min-width:0; }
+.excuse-event-box { border-radius:8px; padding:10px 12px; background:color-mix(in srgb,var(--card-alt-bg) 65%,var(--card-bg)); overflow-wrap:anywhere; }
+.excuse-letter-text p:last-child { font-size:13px; }
+.excuse-attachment-preview { width:56px; height:56px; }
+.excuse-review-controls { margin-top:14px; }
+.excuse-review-fields { display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+.excuse-review-fields>p { margin:0; border:0; padding:8px 10px; }
+.excuse-decision-buttons { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.excuse-decision-buttons button { min-height:40px; }
+.excuse-workspace>nav { margin-top:0; padding-top:12px; }
+@media(min-width:1280px) { .excuse-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:900px) { .excuse-grid { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:480px) {
+  .excuse-toolbar>[role="group"] { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); width:100%; gap:3px; overflow:visible; }
+  .excuse-toolbar>[role="group"] button { min-width:0; justify-content:center; padding:7px 5px; gap:4px; font-size:11px; }
+  .excuse-toolbar-tools { width:100%; }
+  .excuse-toolbar-tools>details { position:static; }
+  .excuse-toolbar { position:relative; }
+  .excuse-toolbar-tools summary { padding:8px 12px; }
+  .excuse-toolbar-popover { top:100%; left:0; right:auto; width:100%; }
+  .excuse-letter-card { padding:14px; }
+}

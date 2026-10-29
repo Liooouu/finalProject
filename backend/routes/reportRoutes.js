@@ -211,13 +211,18 @@ router.get("/attendance", async (req, res) => {
     // references populated) so the payload grew with the term. Pages ask for a
     // window instead; the totals still describe every matching record.
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 10, 1), 200);
+    const requestedPage = Number(req.query.page ?? 1);
+    if (!Number.isSafeInteger(requestedPage) || requestedPage < 1 || requestedPage > Math.floor(Number.MAX_SAFE_INTEGER / limit)) {
+      throw badRequest("Invalid attendance page");
+    }
 
     const [attendance, totalRecords, statusStats, byEvent, students, matchedStudents, filters, events] =
       await Promise.all([
         Attendance.find(match)
           .populate("event", "title date time")
           .populate("student", "name email program yearLevel section")
-          .sort({ attendedAt: -1 })
+          .sort({ attendedAt: -1, _id: -1 })
+          .skip((requestedPage - 1) * limit)
           .limit(limit),
         Attendance.countDocuments(match),
         Attendance.aggregate([
@@ -290,6 +295,7 @@ router.get("/attendance", async (req, res) => {
 
     res.json({
       records: attendance,
+      pagination: { page: requestedPage, pageSize: limit, total: totalRecords, totalPages: Math.max(1, Math.ceil(totalRecords / limit)) },
       stats: {
         total: totalRecords,
         students,

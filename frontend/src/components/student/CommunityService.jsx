@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import api from "../../api/axios";
 import { recordsForAcademicPeriod } from "../../utils/academicPeriods";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
@@ -10,10 +10,23 @@ import Loading from "../shared/Loading";
 import Pagination from "../ui/Pagination";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { formatDate, formatDateTime } from "../../utils/helpers";
-import { BaseCard, FlightPanel, PageHeader, StatTile, StatusChip } from "../ui";
+import { BaseCard, Card, FlightPanel, PageHeader, StatusChip } from "../ui";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 
 const CACHE_KEY = "student:community-service";
+
+const ServiceSummaryTile = ({ label, value, icon, hint, tone }) => (
+  <Card padding="none" className="service-summary-card">
+    <div className="portal-inset service-summary-box">
+      <div className="service-summary-heading">
+        <h3 className="service-summary-label">{label}</h3>
+        <span aria-hidden="true" className={{ ok: "text-ok", danger: "text-danger", info: "text-info" }[tone]}>{icon}</span>
+      </div>
+      <p className="num service-summary-value">{value}</p>
+      <p className="service-summary-hint">{hint}</p>
+    </div>
+  </Card>
+);
 
 const CommunityService = () => {
   const seed = readScreen(CACHE_KEY);
@@ -23,6 +36,7 @@ const CommunityService = () => {
   const [calendar, setCalendar] = useState(seed?.calendar ?? null);
   const [schoolYear, setSchoolYear] = useState("all");
   const [semester, setSemester] = useState("all");
+  const historyViewportRef = useRef(null);
   useEffect(() => {
     let active = true;
     api.get("/student/academic-status").then(({ data: payload }) => {
@@ -65,6 +79,10 @@ const CommunityService = () => {
   const records = recordsForAcademicPeriod(data?.breakdown || [], period, semester);
   const currentPage = Math.min(recordPage, Math.max(1, Math.ceil(records.length / 10)));
   const visibleRecords = records.slice((currentPage - 1) * 10, currentPage * 10);
+  const changeRecordPage = (page) => {
+    setRecordPage(page);
+    if (historyViewportRef.current) historyViewportRef.current.scrollTop = 0;
+  };
 
   const removedHours = (data?.breakdown || []).reduce(
     (sum, rec) =>
@@ -91,22 +109,22 @@ const CommunityService = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <StatTile
+      <div className="student-service-summary grid grid-cols-3 gap-2 md:gap-4" role="group" aria-label="Community service summary">
+        <ServiceSummaryTile
           label="Events attended"
           value={data?.totalAttended || 0}
           icon={<FaCheck />}
           hint="All-time check-ins"
           tone="ok"
         />
-        <StatTile
+        <ServiceSummaryTile
           label="Penalty hours"
           value={`${data?.totalHours || 0}h`}
           icon={<FaTimes />}
           hint="From late (4) and absent (8) marks"
           tone="danger"
         />
-        <StatTile
+        <ServiceSummaryTile
           label="Removed hours"
           value={`${removedHours}h`}
           icon={<FaClock />}
@@ -115,7 +133,7 @@ const CommunityService = () => {
         />
       </div>
 
-      {calendar && <section className="rounded-xl border border-line bg-card/60 p-4" aria-label="School year and semester filters">
+      {calendar && <section className="student-card rounded-xl border border-line bg-card/60 p-4" aria-label="School year and semester filters">
         {!calendar.confirmed && <p className="mb-3 text-xs text-warn">Calendar preview: semester dates are not official. Filters below use the sample calendar.</p>}
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-xs text-on-dim" htmlFor="history-school-year">School year
@@ -150,8 +168,16 @@ const CommunityService = () => {
           />
         ) : (
           <div>
-          <div className="overflow-x-auto">
-            <table className="data-table">
+          <div className="student-history-pagination px-4 pt-4"><Pagination page={currentPage} pageSize={10} total={records.length} onChange={changeRecordPage} label="Attendance history pages" /></div>
+          <div ref={historyViewportRef} className="student-history-viewport overflow-x-auto" role="region" aria-label="Attendance breakdown table" tabIndex={0}>
+            <table className="data-table student-history-table">
+              <colgroup>
+                <col style={{ width: "35%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "17%" }} />
+                <col style={{ width: "20%" }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Event</th>
@@ -163,7 +189,7 @@ const CommunityService = () => {
               </thead>
               <tbody>
                 {visibleRecords.map((record, index) => (
-                  <tr key={index}>
+                  <tr key={record._id || index}>
                     <td className="font-medium text-on">
                       {record.event?.title || record.eventTitle || "Unknown event"}
                     </td>
@@ -194,7 +220,6 @@ const CommunityService = () => {
               </tbody>
             </table>
           </div>
-          <div className="px-4 pb-4"><Pagination page={currentPage} pageSize={10} total={records.length} onChange={setRecordPage} label="Attendance history pages" /></div>
           </div>
         )}
       </FlightPanel>
@@ -212,7 +237,7 @@ const CommunityService = () => {
           ].map((item) => (
             <div
               key={item.status}
-              className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card-alt/40 p-3.5"
+              className="student-card flex items-center justify-between gap-3 rounded-xl border border-line bg-card-alt/40 p-3.5"
             >
               <StatusChip status={item.status} />
               <div className="text-right">

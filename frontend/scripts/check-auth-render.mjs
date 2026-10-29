@@ -63,6 +63,27 @@ try {
   window.location.pathname = "/student/dashboard";store.delete("token_student");
   assert.throws(() => authenticateRequest({url:"/student/community-service",headers:{}}), /fresh sign-in/);
   assert.equal(window.location.href, "/auth");
+  store.set("token_student", studentToken);store.set("token", studentToken);window.location.pathname="/student/dashboard";
+  const { fetchNotificationCount } = await server.ssrLoadModule('/src/utils/notificationCount.js');
+  let countRequests=0;
+  const originalAdapter=api.defaults.adapter;
+  api.defaults.adapter=async config=>{
+    countRequests++;
+    if(countRequests===1)throw {response:{status:500},config};
+    return {data:{count:7},status:200,statusText:"OK",headers:{},config};
+  };
+  assert.equal(await fetchNotificationCount(new AbortController().signal),7);
+  assert.equal(countRequests,2,"temporary unread-count failures should recover");
+  countRequests=0;
+  api.defaults.adapter=async config=>{countRequests++;throw {response:{status:403},config};};
+  await assert.rejects(fetchNotificationCount(new AbortController().signal));
+  assert.equal(countRequests,1,"permissions failures must not be retried");
+  countRequests=0;
+  api.defaults.adapter=async config=>{countRequests++;return {data:{count:0},status:200,statusText:"OK",headers:{},config};};
+  assert.equal(await fetchNotificationCount(new AbortController().signal),0);
+  const aborted=new AbortController();aborted.abort();await assert.rejects(fetchNotificationCount(aborted.signal));
+  assert.equal(countRequests,1,"unmounted bells must cancel rather than retry");
+  api.defaults.adapter=originalAdapter;
   delete globalThis.window;
   delete globalThis.localStorage;
   console.log('PASS: auth/face settings, legacy session migration, cross-portal token isolation, stale/expired session rejection and student ledger request authentication.');

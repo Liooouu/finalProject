@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
+  FaBars,
   FaMoon,
   FaSun,
   FaIdBadge,
@@ -16,6 +17,7 @@ import { breadcrumbTrail, flatNavItems } from "../utils/navItems";
 import { subscribeToDataChanges } from "../utils/dataSync";
 import { useTheme } from "../context/ThemeContext";
 import { usePageMeta } from "../context/PageMetaContext";
+import MobileMenuSheet from "./mobile/MobileMenuSheet";
 import NotificationBell from "./NotificationBell";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import Breadcrumbs from "./ui/Breadcrumbs";
@@ -29,6 +31,8 @@ const Topbar = () => {
   const user = getUserFromToken();
   const role = user?.role || getContextRoleFallback();
 
+  const [navOpen, setNavOpen] = useState(false);
+  const closeNav = useCallback(() => setNavOpen(false), [setNavOpen]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -138,8 +142,10 @@ const Topbar = () => {
   };
 
   return (
+    <>
     <header className="sticky top-0 z-30 border-b border-line bg-[var(--app-base)]/95">
       <div className="flex h-16 items-center gap-2 px-4 sm:gap-3 md:px-6">
+        <button type="button" aria-label="Open navigation" aria-expanded={navOpen} aria-haspopup="dialog" onClick={() => setNavOpen(true)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line bg-card text-on md:hidden"><FaBars /></button>
         {/* Breadcrumb + page title */}
         <div className="min-w-0 flex-1">
           <Breadcrumbs items={trail} />
@@ -291,6 +297,8 @@ const Topbar = () => {
         items={paletteItems}
       />
     </header>
+    <MobileMenuSheet role={role} open={navOpen} onClose={closeNav} />
+    </>
   );
 };
 

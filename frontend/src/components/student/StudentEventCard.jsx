@@ -19,7 +19,7 @@ export default function StudentEventCard({ event, attendance, attendanceError = 
   const recorded = attendance?.status === "present" || attendance?.status === "late";
   const timestamp = attendance?.verifiedAt || attendance?.attendedAt;
   return (
-    <article aria-label={event.title} className="fd-surface fd-instrument fd-glass flex min-w-0 flex-col overflow-hidden">
+    <article aria-label={event.title} className="student-event-card fd-surface fd-instrument fd-glass flex min-w-0 flex-col overflow-hidden">
       <div className="border-b border-line bg-card-alt/40 p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <span aria-hidden="true" className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl border border-line bg-card text-center">

@@ -9,6 +9,17 @@ const excuseSchema = new mongoose.Schema({
   attachments: [{ type: String }],
   type: { type: String, enum: ["absence", "advance"], default: "absence" },
   status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+  lastSubmittedAt: { type: Date },
+  submissionVersion: { type: Number, default: 1 },
+  submissionHistory: [{
+    submittedAt: Date,
+    submissionVersion: Number,
+    excuseText: String,
+    attachments: [String],
+    status: String,
+    responseNote: String,
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  }],
   responseNote: { type: String },
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   // Flat hours actually deducted when this excuse was approved. Recorded so a

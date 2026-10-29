@@ -1,10 +1,10 @@
 import React, { Suspense, lazy, useState, useEffect } from "react";
+import "../styles/portal-workspace.css";
+import "../styles/portal-neumorphism.css";
 import { Routes, Route, Navigate, useLocation, useNavigate, Link } from "react-router-dom";
 import { FaCheck, FaCamera } from "react-icons/fa";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
-import MobileTabBar from "../components/mobile/MobileTabBar";
-import MobileMenuSheet from "../components/mobile/MobileMenuSheet";
 import AppBackground from "../components/shared/AppBackground";
 import RouteFallback from "../components/shared/RouteFallback";
 import { PageMetaProvider } from "../context/PageMetaContext";
@@ -23,7 +23,6 @@ const ProfileSettings = lazy(() => import("../components/settings/ProfileSetting
 const EventDetails = lazy(() => import("../components/EventDetails"));
 
 const StudentDashboard = () => {
-  const [menuOpen, setMenuOpen] = useState(false);
   const scrollRef = useScrollRestoration();
 
   // Warm the pages this portal opens first while the browser is idle, so the
@@ -67,7 +66,7 @@ const StudentDashboard = () => {
   }, [toast, location.pathname, navigate]);
 
   return (
-    <AppBackground>
+    <AppBackground className="portal-refined student-refined portal-neumorphic">
       <PageMetaProvider>
         {toast && (
           <div className="fixed inset-x-0 top-6 z-[100] flex justify-center px-4 pointer-events-none">
@@ -77,11 +76,11 @@ const StudentDashboard = () => {
             </div>
           </div>
         )}
-        <div className="relative flex h-screen w-full overflow-hidden">
+        <div className="relative flex h-dvh w-full overflow-hidden">
           <Sidebar role="student" />
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <Topbar />
-            <main ref={scrollRef} className="flight-page min-w-0 flex-1 overflow-y-auto px-4 pb-24 pt-4 md:px-6 md:py-6 lg:px-8">
+            <main ref={scrollRef} className="flight-page min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pb-6 pt-4 md:px-6 md:py-6 lg:px-8">
               {faceMissing && !(location.pathname === "/student/dashboard/profile" && new URLSearchParams(location.search).get("section") === "security") && (
                 <div className="alert alert-warn mb-4" role="status">
                   <FaCamera className="mt-0.5 shrink-0" />
@@ -114,16 +113,6 @@ const StudentDashboard = () => {
                 </Routes>
               </Suspense>
             </main>
-            <MobileTabBar
-              role="student"
-              menuOpen={menuOpen}
-              onMore={() => setMenuOpen((open) => !open)}
-            />
-            <MobileMenuSheet
-              role="student"
-              open={menuOpen}
-              onClose={() => setMenuOpen(false)}
-            />
           </div>
         </div>
       </PageMetaProvider>

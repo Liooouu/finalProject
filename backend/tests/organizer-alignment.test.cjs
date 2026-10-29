@@ -63,3 +63,5 @@ test('excuse queue stays limited to owned events and exposes submission deadline
 });
 
 test('notification delivery failure does not undo an approved absence', async () => { failNotice = true; const result = await review(); assert.equal(result.status, 200); assert.equal(result.body.status, 'approved'); assert.equal(record.status, 'excused'); assert.equal(record.communityServiceHours, 0); assert.match(result.body.notificationWarning, /Review saved/); });
+
+test('a reviewer cannot approve a version older than the student resubmission',async()=>{letter.submissionVersion=2;const result=await review({status:'approved',expectedVersion:1});assert.equal(result.status,409);assert.equal(claims,0);assert.equal(saves,0);});

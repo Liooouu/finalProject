@@ -123,7 +123,7 @@ test('admin can correct academic details on ordinary and promoted students witho
  }
 });
 test('academic changes reject invalid values and non-admin access',async()=>{
- for(const body of [{yearLevel:1.5},{yearLevel:0},{yearLevel:5},{yearLevel:''},{yearLevel:true},{program:''},{program:'invalid'},{section:'D'},{section:''}]){
+ for(const body of [{yearLevel:1.5},{yearLevel:0},{yearLevel:5},{yearLevel:''},{yearLevel:true},{program:''},{program:'invalid'},{program:'IT'},{program:'BSIS'},{program:'OTHER'},{section:'D'},{section:''}]){
  const response=await request(`/admin/users/${studentId}`,{method:'PATCH',auth:token(adminId,'admin'),body});assert.equal(response.status,400,JSON.stringify(body));
  }
  const denied=await request(`/admin/users/${studentId}`,{method:'PATCH',auth:token(studentId,'student'),body:{yearLevel:4}});assert.equal(denied.status,403);assert.equal(users.get(studentId).yearLevel,3);

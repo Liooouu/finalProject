@@ -1,19 +1,11 @@
 import React, { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FaTimes } from "react-icons/fa";
-import { isNavItemActive } from "../../utils/navItems";
-import { overflowSections } from "../../utils/navMobile";
+import { navSections, isNavItemActive } from "../../utils/navItems";
 import { useNavCounts } from "../../utils/navCounts";
 import { prefetchRoute } from "../../utils/prefetchRoutes";
 
-/**
- * MobileMenuSheet — the "More" sheet behind the phone tab bar.
- *
- * This replaces the old hamburger + off-canvas drawer: on a phone there is now
- * one way to navigate (the tab bar) and one place to find everything that is
- * not on it. Items are two-up tiles sized for thumbs, and anything on the tab
- * bar is left out rather than listed twice.
- */
+/** Mobile navigation drawer shared by all three portals. */
 const MobileMenuSheet = ({ open, onClose, role }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -23,6 +15,7 @@ const MobileMenuSheet = ({ open, onClose, role }) => {
   useEffect(() => {
     if (!open) return undefined;
 
+    const previousFocus = document.activeElement;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     // Focus the sheet itself rather than its first control, so opening it does
@@ -31,23 +24,35 @@ const MobileMenuSheet = ({ open, onClose, role }) => {
 
     const onKeyDown = (event) => {
       if (event.key === "Escape") onClose();
+      if (event.key === "Tab") {
+        const buttons = panelRef.current?.querySelectorAll('button:not(:disabled),a[href]');
+        if (!buttons?.length) return;
+        const first = buttons[0], last = buttons[buttons.length - 1];
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panelRef.current)) { event.preventDefault(); first.focus(); }
+      }
     };
     document.addEventListener("keydown", onKeyDown);
+    const desktop = window.matchMedia("(min-width:768px)");
+    const onResize = () => { if (desktop.matches) onClose(); };
+    desktop.addEventListener("change", onResize);
 
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", onKeyDown);
+      desktop.removeEventListener("change", onResize);
+      previousFocus?.focus?.();
     };
   }, [open, onClose]);
 
   if (!open) return null;
 
-  const sections = overflowSections(role);
+  const sections = navSections[role] || [];
 
   return (
     <div className="fixed inset-0 z-[60] md:hidden">
       <div
-        className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-950/60"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -58,13 +63,9 @@ const MobileMenuSheet = ({ open, onClose, role }) => {
         aria-modal="true"
         aria-label="All sections"
         tabIndex={-1}
-        className="sheet-rise nice-scroll absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-3xl border-t border-line bg-[var(--panel-bg)] pb-[calc(env(safe-area-inset-bottom)+12px)] shadow-[var(--elev-3)] outline-none"
+        className="nice-scroll absolute inset-y-0 left-0 w-[min(320px,88vw)] overflow-y-auto border-r border-line bg-[var(--panel-bg)] pb-[calc(env(safe-area-inset-bottom)+12px)] shadow-[var(--elev-3)] outline-none"
       >
-        <div className="sticky top-0 z-10 flex items-end justify-between gap-3 border-b border-line/70 bg-[var(--panel-bg)]/95 px-4 pb-2.5 pt-4 backdrop-blur-xl">
-          <span
-            aria-hidden="true"
-            className="absolute left-1/2 top-1.5 h-1 w-10 -translate-x-1/2 rounded-full bg-line"
-          />
+        <div className="sticky top-0 z-10 flex items-end justify-between gap-3 border-b border-line/70 bg-[var(--panel-bg)] px-4 pb-3 pt-4">
           <p className="font-display text-sm font-bold tracking-tight text-on">All sections</p>
           <button
             type="button"
@@ -83,7 +84,7 @@ const MobileMenuSheet = ({ open, onClose, role }) => {
                 {section.label}
               </p>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid gap-2">
                 {section.items.map((item) => {
                   const active = isNavItemActive(item, location.pathname);
                   const count = item.badge ? counts[item.badge] || 0 : 0;

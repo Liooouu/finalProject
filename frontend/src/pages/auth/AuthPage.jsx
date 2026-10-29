@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import "../../styles/portal-neumorphism.css";
+import "../../styles/auth-neumorphism.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "../../api/axios";
 import {
@@ -29,14 +31,18 @@ import { useTheme } from "../../context/ThemeContext";
 import techDark from "../../assets/images/tech-bg-dark.jpg";
 import techLight from "../../assets/images/tech-bg-light.jpg";
 
-// One card for every auth screen. On desktop it's the familiar bordered,
-// raised card; below `lg` it loses its box entirely so content sits straight
-// on the phone gradient backdrop (the mobile mockup look) without changing a
-// single flow or field.
-const panelClasses =
-  "animate-fade-up lg:rounded-[var(--panel-radius)] lg:border lg:border-line lg:bg-card lg:p-8 lg:shadow-[var(--panel-shadow)]";
+// Original mobile form; the raised treatment is enabled only at desktop widths.
+const panelClasses = "auth-panel animate-fade-up lg:rounded-[var(--panel-radius)] lg:border lg:border-line lg:bg-card lg:p-8 lg:shadow-[var(--panel-shadow)]";
 
 const AuthPage = () => {
+  const [desktopAuth, setDesktopAuth] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1024px)");
+    const update = () => setDesktopAuth(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
   // Sign-in and sign-up each own a route (/auth and /auth/signup), so the
   // switch behaves like a real page change — the URL updates and the browser's
   // back button works — instead of a silent in-place toggle.
@@ -354,10 +360,10 @@ const AuthPage = () => {
   };
 
   // One field language for every auth screen, matching the rest of the app.
-  const inputClasses = "field";
+  const inputClasses = "field auth-field";
 
   return (
-    <AppBackground>
+    <AppBackground className={`auth-responsive ${desktopAuth ? "portal-refined portal-neumorphic auth-neumorphic" : ""}`}>
       <div className="relative flex w-full min-h-screen">
         {/* Left — photo + branding panel. Sign-in only: sign-up drops the
             split so the form sits alone on the backdrop at every size. */}

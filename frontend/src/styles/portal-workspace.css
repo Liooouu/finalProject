@@ -1,0 +1,108 @@
+/* Reference layout + Campus typography. Keep the existing theme colors. */
+.portal-refined:is(.student-refined,.organizer-refined) .app-grid,.portal-refined:is(.student-refined,.organizer-refined) .app-noise,.portal-refined:is(.student-refined,.organizer-refined) .app-orb { display:none; }
+.portal-refined:is(.student-refined,.organizer-refined) aside[data-collapsed="false"] { width:208px; }
+.portal-refined:is(.student-refined,.organizer-refined) aside>div:first-child { height:64px; gap:10px; border-bottom-color:transparent; }
+.portal-refined:is(.student-refined,.organizer-refined) aside>div:first-child>span { width:30px; height:34px; border-radius:8px; box-shadow:none; }
+.portal-refined:is(.student-refined,.organizer-refined) aside>div:first-child>span svg { width:22px; height:22px; }
+.portal-refined:is(.student-refined,.organizer-refined) aside>div:first-child p:first-child { font-family:var(--font-sans); font-size:19px; font-weight:500; }
+.portal-refined:is(.student-refined,.organizer-refined) aside nav button { font-size:12px; font-weight:400; gap:9px; padding:8px 10px; border-radius:6px; }
+.portal-refined:is(.student-refined,.organizer-refined) aside nav button>span.flex { width:20px; height:26px; background:transparent; font-size:13px; }
+.portal-refined:is(.student-refined,.organizer-refined) aside nav button>span[aria-hidden="true"] { display:none; }
+.portal-refined:is(.student-refined,.organizer-refined) aside nav>div>p { font-size:9px; font-weight:500; letter-spacing:.12em; }
+.portal-refined:is(.student-refined,.organizer-refined) header.sticky>div { height:54px; }
+.portal-refined:is(.student-refined,.organizer-refined) header.sticky h1,.portal-refined:is(.student-refined,.organizer-refined) header.sticky h1+span { display:none; }
+.portal-refined:is(.student-refined,.organizer-refined) header.sticky { border-bottom-color:transparent; }
+.portal-refined:is(.student-refined,.organizer-refined) .flight-page { padding:20px 24px 28px; }
+.portal-refined:is(.student-refined,.organizer-refined) main :is(.fd-surface,.panel-surface,.portal-card,.student-card) { --fd-radius:10px; border-radius:10px; }
+.portal-refined:is(.student-refined,.organizer-refined) main .fd-surface>.fd-rail { padding:14px 16px 0; min-height:44px; }
+.portal-refined:is(.student-refined,.organizer-refined) main .fd-body { padding:12px 16px 16px; }
+.portal-refined:is(.student-refined,.organizer-refined) main .fd-body-flush { padding:0; }
+.portal-refined:is(.student-refined,.organizer-refined) main .data-table { font-size:12px; }
+.portal-refined:is(.student-refined,.organizer-refined) main .data-table thead th { padding:10px 16px; font-size:10px; font-weight:500; letter-spacing:.06em; background:color-mix(in srgb,var(--card-alt-bg) 35%,var(--card-bg)); }
+.portal-refined:is(.student-refined,.organizer-refined) main .data-table tbody td { padding:11px 16px; border-color:color-mix(in srgb,var(--line-color) 25%,transparent); }
+.portal-refined:is(.student-refined,.organizer-refined) main .data-table .text-xs { font-size:11px; }
+.portal-refined:is(.student-refined,.organizer-refined) main .fd-title { font-size:14px; }
+.portal-refined:is(.student-refined,.organizer-refined) main .fd-subtitle { font-size:11px; }
+
+/* Inner boxes use the existing purple tint; only actionable boxes lift. */
+.portal-refined main .portal-inset { border:0; border-radius:9px; background:color-mix(in srgb,var(--card-alt-bg) 65%,var(--card-bg)); }
+.portal-refined main .portal-action-box { transition:transform 160ms ease,box-shadow 160ms ease,background-color 160ms ease; }
+.portal-refined main .portal-action-box:focus-visible { outline:2px solid var(--brand); outline-offset:3px; transform:translateY(-3px); box-shadow:0 6px 14px -6px color-mix(in srgb,var(--brand) 30%,transparent); }
+.organizer-event-box { padding:14px; }
+.portal-refined.organizer-refined main [data-testid="organizer-page-header"]>.fd-rail { padding-bottom:14px; }
+.organizer-review-box { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; min-height:130px; padding:16px; text-align:center; }
+.organizer-review-box strong { font-size:56px; line-height:1; font-weight:500; }
+.student-balance-box,.student-penalty-box { text-align:center; }
+.portal-refined.student-refined main .student-dashboard-card .student-event-card { background:color-mix(in srgb,var(--card-alt-bg) 40%,var(--card-bg)); box-shadow:none; }
+.student-balance-box [data-testid="service-balance"] { font-size:clamp(48px,5vw,64px); }
+.student-service-summary .fd-body>div:first-child { justify-content:center; align-items:center; border-radius:8px; padding:14px 8px; background:color-mix(in srgb,var(--card-alt-bg) 65%,var(--card-bg)); text-align:center; }
+.student-service-summary .fd-body .num { font-size:42px; }
+.portal-refined.student-refined main .student-service-summary>.service-summary-card { display:flex; min-width:0; padding:10px; }
+.service-summary-box { display:flex; flex:1; flex-direction:column; justify-content:center; gap:12px; min-width:0; min-height:148px; padding:16px; }
+.service-summary-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.service-summary-label { margin:0; font-size:12px; line-height:1.4; font-weight:500; color:var(--on-dim); }
+.service-summary-heading>span { flex-shrink:0; font-size:12px; }
+.service-summary-value { margin:0; font-size:48px; line-height:1.1; font-weight:500; letter-spacing:-1px; text-align:center; overflow-wrap:anywhere; }
+.service-summary-hint { margin:0; font-size:12px; line-height:1.5; color:var(--on-muted); text-align:center; }
+.portal-refined:is(.student-refined,.organizer-refined) main .student-event-card>div:first-child { border-bottom:0; }
+.portal-refined:is(.student-refined,.organizer-refined) main .student-event-card>div:last-child>p:last-child { border-top:0; }
+.portal-refined.organizer-refined main [data-testid="organizer-dashboard-cards"]>.fd-surface>.fd-body>div.border-t { border-top:0; }
+@media(hover:hover) and (pointer:fine) {
+  .portal-refined main .portal-action-box:hover { transform:translateY(-3px); background:var(--card-alt-bg); box-shadow:0 6px 14px -6px color-mix(in srgb,var(--brand) 30%,transparent); }
+}
+@media(prefers-reduced-motion:reduce) {
+  .portal-refined main .portal-action-box { transition:none; }
+  .portal-refined main .portal-action-box:hover,.portal-refined main .portal-action-box:focus-visible { transform:none; }
+}
+@media(max-width:767px) {
+  .portal-refined:is(.student-refined,.organizer-refined) .flight-page { padding:16px 16px calc(24px + env(safe-area-inset-bottom)); }
+  .portal-refined.student-refined main .student-service-summary .fd-rail { padding:8px 9px; min-height:44px; }
+  .portal-refined.student-refined main .student-service-summary .fd-body { padding:8px; }
+  .student-service-summary .fd-body>div:first-child { padding:12px 3px; }
+  .portal-refined.student-refined main .student-service-summary .fd-body .num { font-size:clamp(20px,6vw,28px); }
+  .portal-refined.student-refined main .student-service-summary>.service-summary-card { padding:6px; }
+  .service-summary-box { min-height:0; padding:10px 6px; gap:6px; }
+  .service-summary-heading { justify-content:center; }
+  .service-summary-label { min-height:2.6em; font-size:11px; line-height:1.3; text-align:center; }
+  .service-summary-heading>span { display:none; }
+  .service-summary-value { font-size:clamp(22px,6vw,28px); }
+  .service-summary-hint { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+}
+
+/* Organizer hierarchy follows the sketch: tall event left, tools and reviews right. */
+.organizer-home-grid .organizer-upcoming-card { min-height:280px; }
+.organizer-home-grid .organizer-attendance-card .organizer-review-box { min-height:100px; }
+.organizer-home-grid .organizer-excuses-card .organizer-review-box { min-height:90px; gap:6px; }
+.organizer-home-grid .organizer-excuses-card .organizer-review-box strong { font-size:40px; }
+.organizer-home-grid .organizer-station-actions>* { max-width:100%; }
+.organizer-home-grid .organizer-station-actions button { white-space:normal; }
+@media(max-width:639px) {
+  .portal-refined.organizer-refined main .organizer-attendance-card>.fd-rail { padding:12px 10px 0; gap:6px; }
+  .portal-refined.organizer-refined main .organizer-attendance-card .fd-body { padding:10px; }
+  .organizer-home-grid .organizer-attendance-card .fd-rail-icon,
+  .organizer-home-grid .organizer-attendance-card .fd-eyebrow { display:none; }
+  .organizer-home-grid .organizer-attendance-card .text-sm { font-size:12px; }
+  .organizer-home-grid .organizer-attendance-card .organizer-event-box,
+  .organizer-home-grid .organizer-attendance-card .organizer-review-box { padding:10px; }
+  .organizer-home-grid .organizer-attendance-card .field-select { padding-left:8px; font-size:12px; }
+  .organizer-home-grid .organizer-station-actions { flex-direction:column; align-items:stretch; }
+  .organizer-home-grid .organizer-station-actions button { width:100%; padding:7px 5px; font-size:11px; }
+  .organizer-home-grid .organizer-upcoming-card { min-height:0; }
+}
+
+@media(max-width:639px) {
+  .organizer-home-grid .organizer-manual-card .organizer-review-box>.text-xs { display:none; }
+  .organizer-home-grid .organizer-face-card .organizer-event-box>p { margin-top:8px; }
+  .organizer-home-grid .organizer-station-actions { gap:4px; margin-top:8px; }
+}
+
+@media(min-width:1024px) {
+  .organizer-home-grid { grid-template-columns:minmax(0,1.5fr) repeat(2,minmax(0,1fr)); grid-template-rows:auto minmax(auto,1fr); }
+  .organizer-home-grid .organizer-upcoming-card { grid-area:1 / 1 / 3 / 2; }
+  .organizer-home-grid .organizer-face-card { grid-area:1 / 2 / 2 / 3; }
+  .organizer-home-grid .organizer-manual-card { grid-area:1 / 3 / 2 / 4; }
+  .organizer-home-grid .organizer-excuses-card { grid-area:2 / 2 / 3 / 4; }
+  .organizer-home-grid .organizer-upcoming-card h2 { font-size:24px; line-height:1.3; }
+  .organizer-home-grid .organizer-upcoming-card .organizer-event-box { gap:20px; padding:20px; }
+}
+

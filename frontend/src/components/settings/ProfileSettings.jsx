@@ -265,7 +265,7 @@ const ProfileSettings = () => {
             ) : (
               <div className="space-y-4">
 
-                <dl className="divide-y divide-line rounded-xl border border-line">
+                <dl className="student-card divide-y divide-line rounded-xl border border-line">
                   {[
                     { label: "Full name", value: profile?.name },
                     { label: "Email address", value: profile?.email },

@@ -138,19 +138,19 @@ const DashboardHome = () => {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1.2fr_1fr_1fr]">
-              <div className="col-span-2 rounded-xl border border-brand/25 bg-brand/5 p-4 sm:col-span-1">
+              <div className="portal-inset student-balance-box col-span-2 p-4 sm:col-span-1">
                 <p className="text-xs font-medium text-on-dim">Current service balance</p>
                 <p className="num mt-2 font-display text-4xl font-bold tracking-tight text-on sm:text-5xl" data-testid="service-balance">
                   {stats.totalHours}<span className="ml-2 text-sm font-medium text-on-muted">hrs</span>
                 </p>
                 <p className="mt-1 text-xs text-on-muted">All-time hours remaining</p>
               </div>
-              <div className="rounded-xl border border-line bg-card-alt/30 p-4">
+              <div className="portal-inset student-penalty-box p-4">
                 <p className="text-xs font-medium text-on-dim">Absent penalties</p>
                 <p className="num mt-2 text-3xl font-semibold text-danger">{sumLog("penalty", "absent")}<span className="ml-1 text-sm font-normal">hrs</span></p>
                 <p className="mt-1 text-xs text-on-muted">8 hours per absent mark</p>
               </div>
-              <div className="rounded-xl border border-line bg-card-alt/30 p-4">
+              <div className="portal-inset student-penalty-box p-4">
                 <p className="text-xs font-medium text-on-dim">Late penalties</p>
                 <p className="num mt-2 text-3xl font-semibold text-warn">{sumLog("penalty", "late")}<span className="ml-1 text-sm font-normal">hrs</span></p>
                 <p className="mt-1 text-xs text-on-muted">4 hours per late mark</p>
@@ -174,7 +174,7 @@ const DashboardHome = () => {
       </FlightPanel>
 
       <div className="grid gap-5 lg:grid-cols-2" data-testid="dashboard-panels">
-        <BaseCard title={eventsError && !upcomingEvents.length ? "Upcoming events" : `Upcoming events (${upcoming})`} description="Event details and your attendance at a glance." icon={<FaCalendarAlt />} className="min-w-0 overflow-hidden lg:flex lg:h-[32rem] lg:flex-col [&>.fd-rail]:shrink-0" bodyClassName="min-h-0 flex-1 lg:overflow-y-auto [scrollbar-gutter:stable]" menu={<Button variant="ghost" size="sm" onClick={() => navigate("/student/dashboard/events")}>View all <FaArrowRight className="text-[10px]" /></Button>}>
+        <BaseCard title={eventsError && !upcomingEvents.length ? "Upcoming events" : `Upcoming events (${upcoming})`} description="Event details and your attendance at a glance." icon={<FaCalendarAlt />} className="student-dashboard-card min-w-0 overflow-hidden" menu={<Button variant="ghost" size="sm" onClick={() => navigate("/student/dashboard/events")}>View all <FaArrowRight className="text-[10px]" /></Button>}>
           {eventsError && <div role="alert" className="alert alert-danger mb-4"><p>{eventsError}</p>{retry}</div>}
           {!upcomingEvents.length ? <EmptyState compact title={eventsError ? "Events unavailable" : "No upcoming events"} description={eventsError ? "Try loading the event list again." : "New events will appear here when they are published."} /> : <>
             {visibleEvents.map((event) => <StudentEventCard key={event._id} event={event} attendance={attendance.find((record) => (record.event?._id || record.event) === event._id)} attendanceError={attendanceError} />)}
@@ -182,7 +182,7 @@ const DashboardHome = () => {
           </>}
         </BaseCard>
 
-        <BaseCard title="Recent activity" description="Your latest attendance updates." icon={<MdLocalActivity />} className="min-w-0 overflow-hidden lg:flex lg:h-[32rem] lg:flex-col [&>.fd-rail]:shrink-0" bodyClassName="min-h-0 flex-1 lg:overflow-y-auto [scrollbar-gutter:stable]">
+        <BaseCard title="Recent activity" description="Your latest attendance updates." icon={<MdLocalActivity />} className="student-dashboard-card min-w-0 overflow-hidden">
           {!stats ? <EmptyState compact title="Activity unavailable" description="Activity will appear when your service records can be loaded." /> : !activity.length ? <EmptyState compact title="No activity yet" description="Check in at your next event to start your record." /> : <><ul className="divide-y divide-line">
             {visibleActivity.map((record, index) => <li key={record._id || index} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${record.status === "absent" ? "bg-danger/10 text-danger ring-danger/20" : record.status === "late" ? "bg-warn/10 text-warn ring-warn/20" : "bg-card-alt text-on-dim ring-line"}`}>{record.status === "present" ? <FaUserCheck /> : <FaClock />}</span>

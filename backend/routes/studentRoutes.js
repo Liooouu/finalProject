@@ -14,6 +14,7 @@ const { notifyAdmins } = require("../services/notifyAdmins");
 const { notifyUsers } = require("../services/notify");
 const { isValidObjectId } = require("mongoose");
 const { excuseWindow } = require("../services/excuseWindow");
+const { submissionRevisionFilter, resubmissionIssue } = require("../services/excuseReview");
 const { calendarView, promotionPlan } = require("../services/academicCalendar");
 const { syncStudentAcademicYear } = require("../services/academicProgression");
 
@@ -101,10 +102,16 @@ router.get("/excuses", protect, async (req, res) => {
     }
 
     const excuses = await Excuse.find({ student: req.user._id })
-      .populate("event", "title date")
+      .populate("event", "title date time endDate endTime")
       .sort({ createdAt: -1 });
-
-    res.json(excuses);
+    const absent = await Attendance.find({ student: req.user._id, status: "absent" }).select("event");
+    const absentIds = new Set(absent.map(record => String(record.event?._id || record.event)));
+    const approvedIds = new Set(excuses.filter(letter => letter.status === "approved").map(letter => String(letter.event?._id || letter.event)));
+    res.json(excuses.map(letter => {
+      const eventId = String(letter.event?._id || letter.event);
+      const issue = resubmissionIssue(letter, absentIds.has(eventId) ? { status: "absent" } : null, approvedIds.has(eventId));
+      return { ...letter.toObject(), lastSubmittedAt: letter.lastSubmittedAt || letter.createdAt, submissionVersion: letter.submissionVersion || 1, canResubmit: !issue, resubmissionIssue: issue };
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -136,14 +143,14 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
     const activeExcuse = await Excuse.findOne({
       student: req.user._id,
       event: eventId,
-      status: { $in: ["pending", "approved"] },
+      status: { $in: ["pending", "approved", "rejected"] },
     });
     if (activeExcuse) {
       return res.status(400).json({
         error:
           activeExcuse.status === "pending"
-            ? "You already have a pending excuse for this event"
-            : "Your excuse for this event was already approved",
+            ? "You already have a pending letter. Use Edit and resubmit in My excuse letters."
+            : activeExcuse.status === "approved" ? "Your excuse for this event was already approved" : "Use Edit and resubmit on your existing letter for this event.",
       });
     }
 
@@ -169,11 +176,15 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
       attachmentUrl: savedUrls[0] || null,
       attachments: savedUrls,
       type,
+      lastSubmittedAt: new Date(),
+      submissionVersion: 1,
     });
 
     await excuse.save();
 
     // Notify the event organizer and admins that a letter awaits their review
+    let notificationWarning;
+    try {
     const reviewers = await User.find({
       $or: [{ _id: event.organizer }, { role: "admin" }],
     }).select("_id name email");
@@ -187,10 +198,67 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
       }).catch((e) => console.error("EXCUSE NOTIFY ERROR:", e.message));
     }
 
-    res.status(201).json(excuse);
+    } catch { notificationWarning = "The letter was saved, but the reviewers could not be notified."; }
+    res.status(201).json({ ...(excuse.toObject ? excuse.toObject() : excuse), ...(notificationWarning ? { notificationWarning } : {}) });
   } catch (err) {
     await fileStore.deleteByUrls(savedUrls);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Revise the same letter while preserving its first submission and prior versions.
+router.patch("/excuses/:id", protect, upload.array("attachments", 5), async (req, res) => {
+  const savedUrls = [];
+  let committed = false;
+  try {
+    if (req.user.role !== "student") return res.status(403).json({ error: "Only students can resubmit excuse letters" });
+    if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid excuse letter ID" });
+    const letter = await Excuse.findOne({ _id: req.params.id, student: req.user._id }).populate("event", "title date time endDate endTime organizer");
+    if (!letter) return res.status(404).json({ error: "Excuse letter not found" });
+    const expectedVersion = Number(req.body.expectedVersion);
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 1) return res.status(400).json({ error: "Reload the letter before resubmitting" });
+    if (expectedVersion !== (letter.submissionVersion || 1)) return res.status(409).json({ error: "This letter changed. Reload it before resubmitting." });
+    const eventId = letter.event?._id;
+    const [attendance, approved] = await Promise.all([
+      Attendance.findOne({ student: req.user._id, event: eventId, status: "absent" }),
+      Excuse.findOne({ _id: { $ne: letter._id }, student: req.user._id, event: eventId, status: "approved" }),
+    ]);
+    const issue = resubmissionIssue(letter, attendance, Boolean(approved));
+    if (issue) return res.status(400).json({ error: issue });
+    const text = String(req.body.excuseText || "").trim();
+    if (!text) return res.status(400).json({ error: "Please provide an excuse description" });
+    const originalFiles = [...new Set([...(letter.attachments || []), letter.attachmentUrl].filter(Boolean))];
+    let retained;
+    try { retained = req.body.retainedAttachments === undefined ? originalFiles : JSON.parse(req.body.retainedAttachments); }
+    catch { return res.status(400).json({ error: "Invalid attachment selection" }); }
+    if (!Array.isArray(retained) || retained.some(url => typeof url !== "string" || !originalFiles.includes(url)) || new Set(retained).size !== retained.length) return res.status(400).json({ error: "Only this letter's existing attachments can be retained" });
+    const totalFiles = retained.length + (req.files?.length || 0);
+    if (totalFiles < 1 || totalFiles > 5) return res.status(400).json({ error: "Keep or upload one to five supporting attachments" });
+    for (const file of req.files || []) {
+      const saved = await fileStore.saveBuffer(file.buffer, { originalName: file.originalname, contentType: file.mimetype });
+      savedUrls.push(saved.url);
+    }
+    const attachments = [...retained, ...savedUrls];
+    const revised = await Excuse.findOneAndUpdate(
+      { _id: letter._id, student: req.user._id, status: letter.status, ...submissionRevisionFilter(letter) },
+      { $set: { excuseText: text, attachments, attachmentUrl: attachments[0], status: "pending", responseNote: "", reviewedBy: null, lastSubmittedAt: new Date(), submissionVersion: expectedVersion + 1 },
+        $push: { submissionHistory: { submittedAt: letter.lastSubmittedAt || letter.createdAt, submissionVersion: expectedVersion, excuseText: letter.excuseText, attachments: originalFiles, status: letter.status, responseNote: letter.responseNote || "", reviewedBy: letter.reviewedBy } } },
+      { new: true, runValidators: true }
+    ).populate("event", "title date time endDate endTime");
+    if (!revised) {
+      await fileStore.deleteByUrls(savedUrls);
+      return res.status(409).json({ error: "This letter was changed or reviewed while you were editing. Reload to see the latest status." });
+    }
+    committed = true;
+    let notificationWarning;
+    try {
+      const reviewers = await User.find({ $or: [{ _id: letter.event.organizer }, { role: "admin" }] }).select("_id name email");
+      await notifyUsers(reviewers, { type: "excuse", title: "Excuse Letter Resubmitted", message: `${req.user.name} resubmitted the absence letter for "${letter.event.title}". Please review the latest version.`, relatedEvent: eventId, event: letter.event });
+    } catch { notificationWarning = "The letter was saved, but the reviewers could not be notified."; }
+    res.json({ ...revised.toObject(), canResubmit: true, resubmissionIssue: "", ...(notificationWarning ? { notificationWarning } : {}) });
+  } catch (err) {
+    if (!committed) await fileStore.deleteByUrls(savedUrls);
+    res.status(500).json({ error: "Could not resubmit the letter. Reload your letters before retrying." });
   }
 });
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import "../../styles/excuse-workspace.css";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import {
@@ -27,6 +28,8 @@ import Pagination from "../ui/Pagination";
 import { formatDate, formatDateTime } from "../../utils/helpers";
 import { getUserRole } from "../../utils/auth";
 import { readScreen, writeScreen } from "../../utils/queryCache";
+
+const formatSubmissionTime = value => formatDateTime(value, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
 
 const API_BASE = api.defaults.baseURL.replace(/\/api$/, "");
 
@@ -94,6 +97,7 @@ const ManageExcuses = () => {
     try {
       const res = await api.patch(`/organizer/excuses/${id}`, {
         status: "approved",
+        expectedVersion: (selectedExcuse?._id === id ? selectedExcuse : excuses.find(letter => letter._id === id))?.submissionVersion || 1,
         responseNote: isAdmin ? responseNote : responseNotes[id] || "",
         removal: "complete",
       });
@@ -103,6 +107,7 @@ const ManageExcuses = () => {
       setResponseNote("");
     } catch (err) {
       showMessage(err.response?.data?.error || "Failed to approve excuse", "error");
+      if (err.response?.status === 409) { setSelectedExcuse(null); await fetchExcuses({ silent: true }); }
     } finally {
       setReviewingId(null);
     }
@@ -114,6 +119,7 @@ const ManageExcuses = () => {
     try {
       const res = await api.patch(`/organizer/excuses/${id}`, {
         status: "rejected",
+        expectedVersion: (selectedExcuse?._id === id ? selectedExcuse : excuses.find(letter => letter._id === id))?.submissionVersion || 1,
         responseNote: isAdmin ? responseNote : responseNotes[id] || "",
       });
       setExcuses((prev) => prev.map((e) => (e._id === id ? res.data : e)));
@@ -122,6 +128,7 @@ const ManageExcuses = () => {
       setResponseNote("");
     } catch (err) {
       showMessage(err.response?.data?.error || "Failed to reject excuse", "error");
+      if (err.response?.status === 409) { setSelectedExcuse(null); await fetchExcuses({ silent: true }); }
     } finally {
       setReviewingId(null);
     }
@@ -172,7 +179,7 @@ const ManageExcuses = () => {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="excuse-workspace">
       <PageHeader
         eyebrow={isAdmin ? "Institution review" : "Organizer review"}
         title="Excuse letters"
@@ -194,19 +201,23 @@ const ManageExcuses = () => {
         </div>
       )}
 
-      <details className="rounded-xl border border-line bg-card-alt/20 p-3"><summary className="cursor-pointer text-sm font-medium text-on">Filters{periodSelection.period ? " · Applied" : ""}</summary><div className="mt-3"><AcademicPeriodFilter selection={periodSelection} /></div></details>
-      <details className="text-xs text-on-muted"><summary className="cursor-pointer">Excuse policy</summary><p className="mt-2">Only recorded absences with supporting attachments can be approved. Students must submit after the event ends and within 7 days; on-time letters can be reviewed later.</p></details>
       {loadError && <div role="alert" className="alert alert-danger">Excuse letters could not be refreshed. Please reload to try again.</div>}
-      <SegmentedControl
-        ariaLabel="Filter excuses"
-        value={filter}
-        onChange={setFilter}
-        options={[
-          { value: "pending", label: "Pending", count: counts.pending },
-          { value: "approved", label: "Approved", count: counts.approved },
-          { value: "rejected", label: "Rejected", count: counts.rejected },
-        ]}
-      />
+      <div className="excuse-toolbar">
+        <SegmentedControl
+          ariaLabel="Filter excuses"
+          value={filter}
+          onChange={value => { setFilter(value); setPage(1); }}
+          options={[
+            { value: "pending", label: "Pending", count: counts.pending },
+            { value: "approved", label: "Approved", count: counts.approved },
+            { value: "rejected", label: "Rejected", count: counts.rejected },
+          ]}
+        />
+        <div className="excuse-toolbar-tools">
+          <details className="excuse-filter-menu"><summary>Filters{periodSelection.period ? " · Applied" : ""}</summary><div className="excuse-toolbar-popover"><AcademicPeriodFilter selection={periodSelection} /></div></details>
+          <details className="excuse-policy-menu"><summary>Excuse policy</summary><p className="excuse-toolbar-popover">Only recorded absences with supporting attachments can be approved. Students must submit after the event ends and within 7 days; on-time letters can be reviewed later.</p></details>
+        </div>
+      </div>
 
       {filteredExcuses.length === 0 ? (
         <Card>
@@ -217,19 +228,19 @@ const ManageExcuses = () => {
           />
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="excuse-grid">
           {pageExcuses.map((excuse) => (
-            <Card key={excuse._id} as="article">
+            <Card key={excuse._id} as="article" className="excuse-letter-card">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
                     <FaUser />
                   </span>
                   <div className="min-w-0">
-                    <h3 className="truncate font-display text-[17px] font-semibold tracking-tight text-on">
+                    <h3 className="break-words font-display text-base font-semibold tracking-tight text-on">
                       {excuse.student?.name || "Unknown student"}
                     </h3>
-                    <p className="truncate text-sm text-on-dim">{excuse.student?.email}</p>
+                    <p className="break-all text-xs text-on-dim">{excuse.student?.email}</p>
                     <p className="mt-1 text-xs text-on-muted">Current class: {excuse.student?.program || "Unassigned"} · Year {excuse.student?.yearLevel || "–"} · {excuse.student?.section || "–"}{excuse.student?.enrollmentStatus === "graduated" ? " · Graduated" : ""}</p>
                   </div>
                 </div>
@@ -250,7 +261,7 @@ const ManageExcuses = () => {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-xl border border-line bg-card-alt/40 p-3.5">
+              <div className="excuse-event-box mt-3">
                 <p className="text-xs text-on-muted">
                   Event
                   {excuse.type === "advance" && (
@@ -265,11 +276,11 @@ const ManageExcuses = () => {
                 </p>
               </div>
 
-              <p className="mt-3 text-xs text-on-muted">Submitted: {formatDateTime(excuse.createdAt)}{excuse.submissionDeadline ? ` · Submission deadline: ${formatDateTime(excuse.submissionDeadline)}` : ""}</p>
+              <p className="mt-3 text-xs text-on-muted">First submitted: {formatSubmissionTime(excuse.createdAt)}{(excuse.submissionVersion || 1) > 1 ? ` · Last resubmitted: ${formatSubmissionTime(excuse.lastSubmittedAt)} · Version ${excuse.submissionVersion}` : ""}{excuse.submissionDeadline ? ` · Submission deadline: ${formatDateTime(excuse.submissionDeadline)}` : ""}</p>
               {excuse.status === "pending" && excuse.approvalIssue && <div role="note" className="alert alert-warn mt-3">{excuse.approvalIssue}</div>}
-              <div className="mt-4">
+              <div className="excuse-letter-text mt-3">
                 <p className="text-xs font-medium text-on-muted">Excuse</p>
-                <p className="mt-1 text-sm leading-relaxed text-on">{excuse.excuseText}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-on">{excuse.excuseText}</p>
               </div>
 
               {(excuse.attachments?.length || excuse.attachmentUrl) && (
@@ -292,7 +303,7 @@ const ManageExcuses = () => {
                           <img
                             src={fileUrl(url)}
                             alt={`Attachment ${idx + 1}`}
-                            className="h-24 w-24 rounded-lg object-cover ring-1 ring-line transition-all group-hover:ring-2 group-hover:ring-brand/50"
+                            className="excuse-attachment-preview rounded-lg object-cover ring-1 ring-line transition-all group-hover:ring-2 group-hover:ring-brand/50"
                           />
                         </a>
                       ) : (
@@ -328,7 +339,7 @@ const ManageExcuses = () => {
               )}
 
               {filter === "pending" && (
-                <div className="mt-4 border-t border-line pt-4">
+                <div className="excuse-review-controls">
                   {isAdmin && <Button
                     onClick={() =>
                       { setSelectedExcuse(selectedExcuse === excuse._id ? null : excuse._id); setResponseNote(""); }
@@ -340,7 +351,7 @@ const ManageExcuses = () => {
                   </Button>}
 
                   {(!isAdmin || selectedExcuse === excuse._id) && (
-                    <div className="mt-4 space-y-4">
+                    <div className="excuse-review-fields">
                       <details><summary className="cursor-pointer text-xs text-on-muted">Add a response note (optional)</summary>
                         <textarea aria-label={`Response note for ${excuse.student?.name || "student"}`} value={isAdmin ? responseNote : responseNotes[excuse._id] || ""} onChange={e => isAdmin ? setResponseNote(e.target.value) : setResponseNotes(notes => ({ ...notes, [excuse._id]: e.target.value }))} rows={2} className="field mt-2" />
                       </details>
@@ -349,7 +360,7 @@ const ManageExcuses = () => {
                           Approval clears this event’s remaining penalty only.
                         </p>
                       )}
-                      <div className="flex flex-col gap-3 sm:flex-row">
+                      <div className="excuse-decision-buttons">
                         <Button
                           onClick={() => handleApprove(excuse._id)}
                           className="flex-1"

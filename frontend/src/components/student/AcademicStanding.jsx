@@ -27,7 +27,7 @@ const AcademicStanding = () => {
         { label: "Year level", value: graduated ? "Graduated" : yearLabel(student.yearLevel) },
         { label: graduated ? "Last section" : "Section", value: data.student.section || "—" },
         { label: "School year", value: displayedYear.label },
-      ].map(field => <div key={field.label} className={`rounded-xl border border-line bg-card-alt/30 p-4 ${field.label === "School year" ? "col-span-2 sm:col-span-1" : ""}`}><dt className="text-xs text-on-muted">{field.label}</dt><dd className="mt-2 font-display text-xl font-semibold text-on">{field.value}</dd></div>)}
+      ].map(field => <div key={field.label} className={`student-card rounded-xl border border-line bg-card-alt/30 p-4 ${field.label === "School year" ? "col-span-2 sm:col-span-1" : ""}`}><dt className="text-xs text-on-muted">{field.label}</dt><dd className="mt-2 font-display text-xl font-semibold text-on">{field.value}</dd></div>)}
     </dl>
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
       <p className="text-xs text-on-muted">{previewNext ? "Next-year preview · Your account has not been changed." : `${data.student.program} · ${data.currentSemester?.label || "Between semesters"}`}</p>
@@ -36,7 +36,7 @@ const AcademicStanding = () => {
     <div className="mt-5 border-t border-line pt-5">
       <h3 className="text-sm font-semibold text-on">Semester schedule</h3>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        {displayedYear.semesters.map(term => <div key={term.id} className="rounded-xl border border-line px-4 py-3"><p className="text-sm font-medium text-on">{term.label}</p><p className="mt-1 text-xs text-on-muted">{formatDate(term.start)} – {formatDate(term.end)}</p></div>)}
+        {displayedYear.semesters.map(term => <div key={term.id} className="student-card rounded-xl border border-line px-4 py-3"><p className="text-sm font-medium text-on">{term.label}</p><p className="mt-1 text-xs text-on-muted">{formatDate(term.start)} – {formatDate(term.end)}</p></div>)}
       </div>
     </div>
     <details className="mt-5 rounded-xl border border-line px-4 py-3 text-xs text-on-dim">

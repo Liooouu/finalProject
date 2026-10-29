@@ -6,7 +6,7 @@ const Event = require("../models/Event");
 const Attendance = require("../models/Attendance");
 const { calendarView } = require("../services/academicCalendar");
 const { excuseWindow } = require("../services/excuseWindow");
-const { excuseReviewIssue } = require("../services/excuseReview");
+const { excuseReviewIssue, submissionRevisionFilter } = require("../services/excuseReview");
 const fileStore = require("../services/fileStore");
 const { notifyUsers } = require("../services/notify");
 
@@ -131,11 +131,13 @@ router.patch("/excuses/:id", protect, async (req, res) => {
       if (removal !== undefined && removal !== "complete") return res.status(400).json({ error: "Approval only removes the penalty for this event" });
     }
 
+    if (req.body.expectedVersion !== undefined && Number(req.body.expectedVersion) !== (loaded.submissionVersion || 1)) return res.status(409).json({ error: "This letter was resubmitted. Refresh and review the latest version." });
+
     // Claim the excuse atomically. A second (double-click / concurrent reviewer)
     // request finds it non-pending and is refused, so hours can't be deducted
     // twice.
     const excuse = await Excuse.findOneAndUpdate(
-      { _id: req.params.id, status: "pending" },
+      { _id: req.params.id, status: "pending", ...submissionRevisionFilter(loaded) },
       { status, responseNote, reviewedBy: req.user._id },
       { new: true }
     )
@@ -144,7 +146,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
       .populate("reviewedBy", "name");
 
     if (!excuse) {
-      return res.status(409).json({ error: "This excuse was already reviewed" });
+      return res.status(409).json({ error: "This letter was changed or reviewed. Refresh and review the latest version." });
     }
 
     try {
@@ -210,10 +212,10 @@ router.delete("/excuses", protect, async (req, res) => {
       status: { $in: ["approved", "rejected"] },
       ...(ids === null ? {} : { event: { $in: ids } }),
     };
-    const excuses = await Excuse.find(filter).select("attachments attachmentUrl");
+    const excuses = await Excuse.find(filter).select("attachments attachmentUrl submissionHistory");
     const result = await Excuse.deleteMany(filter);
     await fileStore.deleteByUrls(
-      excuses.flatMap((e) => [...(e.attachments || []), e.attachmentUrl])
+      excuses.flatMap((e) => [...(e.attachments || []), e.attachmentUrl, ...(e.submissionHistory || []).flatMap(revision => revision.attachments || [])])
     );
     res.json({ deleted: result.deletedCount });
   } catch (err) {
@@ -236,7 +238,7 @@ router.delete("/excuses/:id", protect, async (req, res) => {
       return res.status(403).json({ error: "You are not the organizer of this event" });
     }
 
-    const files = [...(excuse.attachments || []), excuse.attachmentUrl];
+    const files = [...(excuse.attachments || []), excuse.attachmentUrl, ...(excuse.submissionHistory || []).flatMap(revision => revision.attachments || [])];
     await excuse.deleteOne();
     await fileStore.deleteByUrls(files);
     res.json({ message: "Excuse deleted" });
