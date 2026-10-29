@@ -1,5 +1,5 @@
 import EventLastEdit from "./shared/EventLastEdit";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import api from "../api/axios";
 import { getUserRole, getUserFromToken } from "../utils/auth";
@@ -19,6 +19,12 @@ import { useAutoRefresh } from "../utils/useAutoRefresh";
 import { Button, Card, StatusChip } from "./ui";
 import EmptyState from "./shared/EmptyState";
 import ConfirmDialog from "./ui/ConfirmDialog";
+import {
+  UNASSIGNED_CLASS,
+  classKeyOf,
+  classLabelOf,
+  groupAttendeesByClass,
+} from "../utils/classGroups";
 
 // Window boundaries arrive as absolute instants, so the message carries the
 // calendar day too: "opens Fri, Oct 30, 8:00 AM" cannot be misread as today.
@@ -63,16 +69,9 @@ const EventDetails = () => {
   const [studentId, setStudentId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [program, setProgram] = useState("");
-  const [yearLevel, setYearLevel] = useState("");
-  const [section, setSection] = useState("");
-  // Class filter: built from the program dropdown plus the year and section
-  // inputs (e.g. BSIT + 1 + A -> "BSIT-1A"). Stays "all" until all three are
-  // filled, so the full attendee list shows before a class is picked.
-  const selectedGroup =
-    program && yearLevel && section.trim()
-      ? `${program}-${yearLevel}${section.trim().toUpperCase()}`
-      : "all";
+  // Chosen class key ("BSIT-1A", "unassigned", or "" before anything is
+  // picked). The roster stays hidden until a class is selected.
+  const [classKey, setClassKey] = useState("");
 
   usePageMeta(event?.title || "Event", event?.date
     ? formatDate(event.date, { weekday: "long", month: "long", day: "numeric", year: "numeric" })
@@ -219,21 +218,22 @@ const EventDetails = () => {
     return () => clearInterval(timer);
   }, [canViewAttendance, refreshEvent]);
 
-  const getStudentKey = (s) => {
-    if (!s) return "unassigned";
-    const p = String(s.program || "").trim().toUpperCase();
-    const y = s.yearLevel != null ? String(s.yearLevel) : "";
-    const sec = String(s.section || "").trim().toUpperCase();
-    if (p && y && sec) return `${p}-${y}${sec}`;
-    if (p || y || sec) return "partial";
-    return "unassigned";
-  };
+  // Classes come from this event's own attendance records, not a fixed list:
+  // every option is guaranteed to have students behind it, and students whose
+  // program/year/section sit outside the common BSIT/BSCS/BSEMC choices (legacy
+  // rows, transfers) stay reachable instead of vanishing.
+  const classGroups = useMemo(() => groupAttendeesByClass(attendees), [attendees]);
+
+  // The live refresh replaces the attendee list every few seconds; if the last
+  // record of the chosen class is corrected away, fall back to the picker
+  // instead of showing an empty list for a class that no longer exists.
+  useEffect(() => {
+    if (!classKey) return;
+    if (!classGroups.some((group) => group.key === classKey)) setClassKey("");
+  }, [classGroups, classKey]);
 
   const filteredAttendees = (role === "organizer" || role === "admin")
-    ? attendees.filter((a) => {
-        if (selectedGroup === "all") return true;
-        return getStudentKey(a.student) === selectedGroup;
-      })
+    ? attendees.filter((a) => !classKey || classKeyOf(a.student) === classKey)
     : attendees;
 
   const handleEditChange = (e) => {
@@ -798,84 +798,68 @@ const EventDetails = () => {
             <div className="mb-4 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="panel-heading text-base">
                 Attendance by class
-                {selectedGroup !== "all" && (
+                {classKey && (
                   <span className="num ml-1.5 text-on-muted">
                     ({filteredAttendees.length})
                   </span>
                 )}
               </h2>
               <p className="text-xs text-on-muted">
-                {selectedGroup === "all"
-                  ? "Select a program, year level and section to view students"
-                  : `Showing ${selectedGroup}`}
+                {!classGroups.length
+                  ? "No attendance has been recorded for this event yet"
+                  : classKey
+                    ? classKey === UNASSIGNED_CLASS
+                      ? "Showing students without a class on record"
+                      : `Showing ${classKey}`
+                    : "Select a class to view students"}
               </p>
             </div>
 
-            <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div>
-                <label htmlFor="group-program" className="field-label">
-                  Program
-                </label>
-                <select
-                  id="group-program"
-                  value={program}
-                  onChange={(e) => setProgram(e.target.value)}
-                  className="field-select"
-                >
-                  <option value="" disabled hidden />
-                  <option value="BSIT">BSIT</option>
-                  <option value="BSCS">BSCS</option>
-                  <option value="BSEMC">BSEMC</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="group-year" className="field-label">
-                  Year level
-                </label>
-                <input
-                  id="group-year"
-                  type="number"
-                  min={1}
-                  max={4}
-                  placeholder="1 – 4"
-                  value={yearLevel}
-                  onChange={(e) => setYearLevel(e.target.value)}
-                  className="field"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="group-section" className="field-label">
-                  Section
-                </label>
-                <input
-                  id="group-section"
-                  type="text"
-                  maxLength={1}
-                  placeholder="A – C"
-                  value={section}
-                  onChange={(e) =>
-                    setSection(e.target.value.toUpperCase().replace(/[^ABC]/g, ""))
-                  }
-                  className="field"
-                />
-              </div>
+            <div className="mb-5 max-w-sm">
+              <label htmlFor="attendance-class" className="field-label">
+                Class
+              </label>
+              <select
+                id="attendance-class"
+                value={classKey}
+                onChange={(e) => setClassKey(e.target.value)}
+                className="field-select"
+                disabled={!classGroups.length}
+              >
+                <option value="" disabled hidden>
+                  Select a class
+                </option>
+                {classGroups.map((group) => (
+                  <option key={group.key} value={group.key}>
+                    {group.label} — {group.count} student{group.count === 1 ? "" : "s"}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-xs text-on-muted">
+                Classes are built from this event&apos;s attendance records.
+              </p>
             </div>
 
-            {selectedGroup === "all" ? (
+            {!classGroups.length ? (
+              <EmptyState
+                compact
+                icon={<FaUsers />}
+                title="No attendance recorded"
+                description="Nobody has an attendance record for this event yet. Records appear after check-in, manual recording, or the automatic absence pass."
+              />
+            ) : !classKey ? (
               <EmptyState
                 compact
                 icon={<FaUsers />}
                 title="Select a class"
-                description="Student information stays hidden until a program, year level, and section are selected."
+                description="Student information stays hidden until a class is selected."
               />
             ) : filteredAttendees.length === 0 ? (
               <EmptyState
                 compact
                 icon={<FaUsers />}
-                title="No attendees yet"
-                description="Attendance will appear here after an organizer records it."
+                title="No students in this class"
+                description="No attendance record for this event belongs to the selected class."
               />
             ) : (
               <div className="space-y-2.5">
@@ -885,12 +869,17 @@ const EventDetails = () => {
                     className="flex flex-col gap-4 rounded-xl border border-line bg-card-alt/40 p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="min-w-0">
-                      <p className="font-medium text-on">{attendance.student?.name}</p>
-                      <p className="truncate text-sm text-on-dim">
-                        {attendance.student?.email}
+                      <p className="font-medium text-on">
+                        {attendance.student?.name || "Deleted account"}
                       </p>
+                      {attendance.student?.email && (
+                        <p className="truncate text-sm text-on-dim">
+                          {attendance.student.email}
+                        </p>
+                      )}
                       <p className="mt-1 text-xs text-on-muted">
-                        Recorded: {formatDateTime(attendance.attendedAt)}
+                        {classLabelOf(attendance.student)} · Recorded{" "}
+                        {formatDateTime(attendance.attendedAt)}
                       </p>
                       {attendance.communityServiceHours > 0 && (
                         <p className="mt-1 flex items-center gap-1 text-xs font-medium text-warn">
