@@ -96,10 +96,10 @@ Registration is **student-only**. Admins grant organizer access through `POST /a
 
 Deployed on Coolify as **two applications plus a MongoDB service in one
 project**: `backend/` and `frontend/`, each built from its own Dockerfile.
-There is also a **single-container deployment** (root `Dockerfile`) for
-OpenShift or Vercel: it serves the SPA and API together on port `8080`
-(OpenShift) or `PORT=80` (Vercel) - see `docs/DEPLOY_OPENSHIFT.md` and
-`docs/DEPLOY_VERCEL.md`.
+There is also an optional **single-container deployment** (root `Dockerfile`)
+that serves the SPA and API together. The default port is `8080`; other hosts
+can override `PORT` (see `docs/DEPLOY_VERCEL.md`). The active production site
+uses the separate Coolify web and API applications described below.
 
 - The frontend container serves the SPA with nginx and proxies `/api` and
   `/uploads` to the API over the internal Docker network, so the SPA uses

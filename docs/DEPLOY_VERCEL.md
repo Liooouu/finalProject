@@ -53,7 +53,7 @@ photos are the main consumers.
    | `FACE_MATCH_THRESHOLD` | optional, default `0.5` |
 
    Set `PORT` to `80`, which is what Vercel expects. The image defaults to
-   `8080` for OpenShift, so this override is required on Vercel. Do not set
+   `8080`, so this override is required on Vercel. Do not set
    `TRACKED_NO_AUTO_FREE`; it is baked into the image.
 
 4. Optional mail variables (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
@@ -114,7 +114,7 @@ is roughly 240 GB-hours, below the 360 GB-hour Hobby allowance.
 ## Troubleshooting
 
 **Deployment builds but the site 502s.** Set `PORT=80` in Vercel; the image
-defaults to `8080` for OpenShift. Do not use `PORT=5000`.
+defaults to `8080`. Do not use `PORT=5000`.
 
 **`/api/health` says `db: "down"` or the container exits at boot.** Atlas network
 access or `MONGO_URI` is wrong. The API exits on a failed initial connection by
