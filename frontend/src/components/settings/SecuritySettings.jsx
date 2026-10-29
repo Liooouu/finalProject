@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import {
-  FaExclamationTriangle,
   FaCameraRetro,
   FaHeadset,
 } from "react-icons/fa";

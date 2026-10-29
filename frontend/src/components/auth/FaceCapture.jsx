@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { FaCamera, FaRedo, FaCheck, FaExclamationTriangle } from "react-icons/fa";
+import { FaCamera, FaRedo, FaExclamationTriangle } from "react-icons/fa";
 import Button from "../ui/Button";
 import { dataUrlToBlob } from "../../utils/image";
 import { describeCameraError } from "../../utils/camera";

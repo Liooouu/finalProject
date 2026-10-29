@@ -17,8 +17,6 @@ import {
   FaEyeSlash,
   FaArrowRight,
   FaShieldAlt,
-  FaKey,
-  FaCamera,
   FaArrowLeft,
 } from "react-icons/fa";
 import TrackMark from "../../components/shared/TrackMark";
