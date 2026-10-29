@@ -2,7 +2,7 @@ const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('node:module');
 const owner = '111111111111111111111111', eventId = '222222222222222222222222', studentId = '333333333333333333333333';
-let event, attendanceWrites, eventWrites, stationWrites, stored, creatorRole;
+let event, attendanceWrites, eventWrites, stationWrites, stored, creatorRole, notificationOptions, failEventNotification;
 const query = value => ({ populate() { return this; }, select() { return this; }, sort() { return this; }, lean: async () => value, then(ok, bad) { return Promise.resolve(value).then(ok, bad); } });
 class FakeEvent { constructor(data) { Object.assign(this, data, { _id: eventId }); } async save() { eventWrites++; } }
 FakeEvent.findById = async () => event;
@@ -19,7 +19,7 @@ Module._load = function(name, parent, ...rest) {
   '../models/User': { findById: id => query(id === studentId ? { _id: studentId, role: 'student' } : { role: creatorRole }) },
   '../models/Excuse': {}, '../models/Notification': {},
   '../models/CheckInSession': { create: async data => { stationWrites++; return { ...data, _id: 'session' }; } },
-  '../services/notify': { notifyUsers: async () => {}, eventRecipients: async () => [] },
+  '../services/notify': { notifyUsers: async (recipients,options) => {notificationOptions=options;if(failEventNotification)throw Error('Storage unavailable');}, eventRecipients: async () => [] },
   '../services/fileStore': {}, '../services/faceIdentify': {},
   '../middleware/authMiddleware': { protect: (req, res, next) => next() },
  };
@@ -29,7 +29,7 @@ const access = require('../services/eventAccess');
 const events = require('../routes/eventRoutes');
 const checkin = require('../routes/checkinRoutes');
 Module._load = originalLoad;
-beforeEach(() => { attendanceWrites = 0; eventWrites = 0; stationWrites = 0; stored = null; creatorRole = 'admin'; event = { _id: eventId, organizer: owner, title: 'Original title', date: '2027-01-01', time: '09:00', endDate: '2027-01-01', endTime: '12:00', attendanceStartTime: '08:00', attendanceEndTime: '09:30', status: 'upcoming' }; });
+beforeEach(() => { attendanceWrites = 0; eventWrites = 0; stationWrites = 0; stored = null; notificationOptions=null;failEventNotification=false; creatorRole = 'admin'; event = { _id: eventId, organizer: owner, title: 'Original title', date: '2027-01-01', time: '09:00', endDate: '2027-01-01', endTime: '12:00', attendanceStartTime: '08:00', attendanceEndTime: '09:30', status: 'upcoming' }; });
 async function call(router, path, method, role, body = {}, id = owner) {
  const handler = router.stack.find(layer => layer.route?.path === path && layer.route.methods[method]).route.stack.at(-1).handle;
  const result = { status: 200 }; const res = { status(code) { result.status = code; return this; }, json(data) { result.body = data; return this; } };
@@ -69,3 +69,6 @@ test('past events remain available to organizers including other organizers even
  event.status='finished';creatorRole='organizer';assert.equal(access.canEditEvent(event,{role:'organizer',_id:'555555555555555555555555'}),true);
  const result=await call(events,'/:id','put','organizer',{description:'Corrected past event description'},'555555555555555555555555');assert.equal(result.status,200);assert.equal(event.status,'finished');assert.equal(event.description,'Corrected past event description');
 });
+
+test('event creation defers SMTP for both organizer and admin',async()=>{for(const role of ['organizer','admin']){const r=await call(events,'/','post',role,{title:'Fast '+role,date:'2027-01-01',time:'09:00',endTime:'12:00',attendanceStartTime:'08:00',attendanceEndTime:'09:30',location:'Hall'});assert.equal(r.status,201);assert.equal(notificationOptions.deferEmail,true);}});
+test('saved event still returns success with a warning if notification storage fails',async()=>{failEventNotification=true;const r=await call(events,'/','post','organizer',{title:'Saved even if notification fails',date:'2027-01-01',time:'09:00',endTime:'12:00',attendanceStartTime:'08:00',attendanceEndTime:'09:30',location:'Hall'});assert.equal(r.status,201);assert.equal(eventWrites,1);assert.match(r.body.notificationWarning,/Event saved/);});

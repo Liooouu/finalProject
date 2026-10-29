@@ -125,10 +125,15 @@ const ManageEvents = () => {
     setCreating(true);
     try {
       const res = await api.post("/events", createForm);
-      setEvents((prev) => [res.data, ...prev]);
+      setEvents((prev) => [res.data, ...prev.filter(event => event._id !== res.data._id)]);
+      setSearchTerm("");
+      setEventRange("all");
+      setStatusFilter("all");
       setCreateForm(EMPTY_FORM);
       setShowCreate(false);
       setCreateMsg("");
+      setMessage(res.data.notificationWarning || "Event created successfully!");
+      setMessageType("success");
     } catch (err) {
       setCreateMsg(err.response?.data?.error || "Failed to create event");
     } finally {

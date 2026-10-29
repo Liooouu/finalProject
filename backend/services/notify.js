@@ -39,7 +39,7 @@ async function resolveRecipients(recipients) {
   });
 }
 
-async function notifyUsers(recipients, { type, title, message, relatedEvent, event }) {
+async function notifyUsers(recipients, { type, title, message, relatedEvent, event, deferEmail = false }) {
   const users = await resolveRecipients(recipients);
   if (users.length === 0) return;
 
@@ -53,14 +53,18 @@ async function notifyUsers(recipients, { type, title, message, relatedEvent, eve
     }))
   );
 
-  if (!(await isMailEnabled())) return;
-
-  const { subject, html, text } = await renderNotificationEmail({ title, message, event });
-  const recipientsWithEmail = users.filter((u) => u.email);
-
-  await Promise.all(
-    recipientsWithEmail.map((u) => sendMail({ to: u.email, subject, html, text }))
-  );
+  const deliverEmail = async () => {
+    if (!(await isMailEnabled())) return;
+    const { subject, html, text } = await renderNotificationEmail({ title, message, event });
+    await Promise.all(users.filter(user => user.email).map(user => sendMail({ to: user.email, subject, html, text })));
+  };
+  if (deferEmail) {
+    // In-app notices are persisted above. Slow SMTP delivery must not delay
+    // confirmation of a successfully saved event.
+    setImmediate(() => { deliverEmail().catch(error => console.error("Notification email delivery failed:", error.message)); });
+    return;
+  }
+  await deliverEmail();
 }
 
 // Everyone who should hear about an event: all students, all admins, and the

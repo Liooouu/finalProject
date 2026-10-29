@@ -6,7 +6,7 @@ const Event = require("../models/Event");
 const Attendance = require("../models/Attendance");
 const { calendarView } = require("../services/academicCalendar");
 const { excuseWindow } = require("../services/excuseWindow");
-const { excuseReviewIssue, submissionRevisionFilter } = require("../services/excuseReview");
+const { excuseReviewIssue, submissionRevisionFilter, excuseReviewFilter, canReviewExcuse } = require("../services/excuseReview");
 const fileStore = require("../services/fileStore");
 const { notifyUsers } = require("../services/notify");
 
@@ -36,8 +36,8 @@ router.get("/excuses", protect, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const ids = await ownedEventIds(req.user);
-    const filter = ids === null ? {} : { event: { $in: ids } };
+    // Own letters stay visible; review permission is returned separately.
+    const filter = {};
 
     const excuses = await Excuse.find(filter)
       .populate("student", "name email program yearLevel section enrollmentStatus")
@@ -45,7 +45,7 @@ router.get("/excuses", protect, async (req, res) => {
       .populate("reviewedBy", "name")
       .sort({ createdAt: -1 });
 
-    res.json(excuses.map(excuse => ({ ...excuse.toObject(), approvalIssue: excuseReviewIssue(excuse), submissionDeadline: excuse.event ? excuseWindow(excuse.event).deadline : null })));
+    res.json(excuses.map(excuse => ({ ...excuse.toObject(), canReview: canReviewExcuse(excuse, req.user), canDelete: canManageExcuse(excuse, req.user), approvalIssue: excuseReviewIssue(excuse), submissionDeadline: excuse.event ? excuseWindow(excuse.event).deadline : null })));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -74,10 +74,9 @@ router.get("/stats", protect, async (req, res) => {
     );
 
     const totalAttendees = counts.reduce((sum, c) => sum + c.count, 0);
-    // Only this organizer's pending letters are actionable for them (admins
-    // own the whole queue).
+    // Officers review other students across events; admins review every letter.
     const pendingExcuses = await Excuse.countDocuments({
-      event: { $in: eventIds },
+      ...excuseReviewFilter(req.user),
       status: "pending",
     });
     const totalEvents = events.length;
@@ -114,11 +113,11 @@ router.patch("/excuses/:id", protect, async (req, res) => {
       return res.status(400).json({ error: "Invalid review status" });
     }
 
-    // Load with the event so ownership can be checked before any side effect.
+    // Check the reviewer identity before any status, penalty or notification change.
     const loaded = await Excuse.findById(req.params.id).populate("event", "title date time endDate endTime organizer");
     if (!loaded) return res.status(404).json({ error: "Excuse not found" });
-    if (!canManageExcuse(loaded, req.user)) {
-      return res.status(403).json({ error: "You are not the organizer of this event" });
+    if (!canReviewExcuse(loaded, req.user)) {
+      return res.status(403).json({ error: "You cannot approve or reject your own excuse letter" });
     }
     if (loaded.status !== "pending") {
       return res.status(400).json({ error: `This excuse was already ${loaded.status}` });
@@ -194,7 +193,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
       throw sideEffectErr;
     }
 
-    res.json(excuse);
+    res.json({ ...(excuse.toObject ? excuse.toObject() : excuse), canReview: canReviewExcuse(excuse, req.user), canDelete: canManageExcuse(excuse, req.user) });
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }

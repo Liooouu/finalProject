@@ -141,8 +141,18 @@ const OrgManageEvents = () => {
     if (submitting) return;
     setSubmitting(true);
     try {
-      await api.post("/events", form);
-      setMessage("Event created successfully!");
+      const res = await api.post("/events", form);
+      const created = { ...res.data, attendeeCount: res.data.attendeeCount || 0 };
+      setEvents(previous => {
+        const updated = [created, ...previous.filter(event => event._id !== created._id)];
+        writeScreen(`organizer:events:${viewMode}`, { events: updated });
+        return updated;
+      });
+      setLoading(false);
+      setPage(1);
+      setEventRange("all");
+      setStatusFilter("all");
+      setMessage(res.data.notificationWarning || "Event created successfully!");
       setMessageType("success");
       setForm(EMPTY_FORM);
       setShowForm(false);

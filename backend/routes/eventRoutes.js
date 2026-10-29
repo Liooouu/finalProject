@@ -153,16 +153,23 @@ router.post("/", protect, async (req, res) => {
     const { event, created } = result;
     if (!created) return res.status(200).json(event);
 
-    // Announce the new event to students, admins and the organizer
-    await notifyUsers(await eventRecipients(event), {
-      type: "info",
-      title: "New Event Posted",
-      message: `A new event "${event.title}" has been scheduled for ${new Date(event.date).toLocaleDateString()} at ${event.time}.`,
-      relatedEvent: event._id,
-      event,
-    });
-
-    res.status(201).json(event);
+    // Persist bell notifications before confirming; email delivery continues
+    // separately so SMTP latency is not part of event creation.
+    let notificationWarning;
+    try {
+      await notifyUsers(await eventRecipients(event), {
+        type: "info",
+        title: "New Event Posted",
+        message: `A new event "${event.title}" has been scheduled for ${new Date(event.date).toLocaleDateString()} at ${event.time}.`,
+        relatedEvent: event._id,
+        event,
+        deferEmail: true,
+      });
+    } catch (error) {
+      console.error("Event notification failed:", error.message);
+      notificationWarning = "Event saved, but notifications could not be delivered.";
+    }
+    res.status(201).json(notificationWarning ? { ...(event.toObject ? event.toObject() : event), notificationWarning } : event);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

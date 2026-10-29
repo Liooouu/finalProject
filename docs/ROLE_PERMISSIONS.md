@@ -1,7 +1,7 @@
 # Role responsibilities
 
 - Students enroll their face and view their attendance, service ledger, events, and excuse letters.
-- Event organizers operate face stations and manually record or correct attendance for their own events and events created by an administrator.
+- Event organizers operate face stations and manually record or correct attendance for their own events and events created by an administrator. They can approve/reject other students’ excuse letters across all events, including letters from other promoted student organizers, but cannot review their own letters.
 - Administrators monitor all events, records, users, and reports. They can create and edit any event, correct its schedule or venue, manage accounts, review excuses/identity appeals, and correct service hours on existing records through user management.
 - Administrators cannot open face stations, manually add attendance, change attendance status, or create attendance records through the event attendance APIs. Attendance monitoring is read-only. Administrators retain permission to close an unsafe station as an oversight intervention.
 
@@ -82,3 +82,14 @@ On phones, all three portals use the topbar hamburger to open a full navigation 
 
 
 Local reliability/scroll cleanup: the Vite proxy defaults to IPv4 loopback to match the backend listener, and backend connection failures return a JSON 503 with a retry hint instead of an empty proxy 500. Portal shells use the dynamic viewport height and a single main scroll area, with safe-area padding at the bottom. Paginated student dashboard cards no longer force a second vertical scrollbar; admin user tables only become internally scrollable when they exceed their maximum height. Unused MobileTabBar.jsx, navMobile.js and the unmounted CheckInStation.jsx component were removed. The attendance kiosk opener and backend station APIs remain available.
+
+
+Excuse review follows the active organizer grant rather than event ownership. GET /api/organizer/excuses includes all students’ letters, including the reviewer’s own submissions. Each letter exposes canReview separately. Organizer own pending submissions remain visible with an awaiting-review notice and no Approve/Reject controls; both organizer approval and rejection of an own letter are rejected by the API before any change or notification. Promoted student officers use the same account ID in both portals, so switching portals cannot bypass this rule. Admins can review every student letter regardless of event owner or student organizer access. Attachment, absence eligibility, seven-day original-submission window, revision checks and concurrent-review safeguards still apply. Review notifications target admins, legacy organizers and promoted student organizers, excluding the author. Pending badges use the same queue scope. Delete permissions remain limited to the existing event-owner/admin scope and are exposed separately from review permissions.
+
+
+Legacy excuse attachments can be restored from backend/uploads into GridFS with `node scripts/migrate-legacy-excuse-attachments.js --apply` (omit --apply for a dry run). The migration imports only referenced public legacy excuse filenames, retains the original URL and bytes, leaves disk files intact, and skips private face photos and existing GridFS files. The eight legacy PNG attachments in the local database were migrated and verified through both the API and frontend proxy.
+
+The API client retries a GET at most twice when the dev proxy explicitly reports BACKEND_UNAVAILABLE. Mutation requests are never retried. Cancellation and switching portal contexts cancel the recovery path; ordinary server errors are not masked by this handling.
+
+
+Event creation waits for the event save and persisted in-app notices, then returns while notification email delivery continues in the background. Notification storage errors cannot turn an already-saved event into a failed create response; the response carries a warning instead. SMTP deferral is enabled only for the new-event announcement, retaining existing notification behavior elsewhere. Both admin and organizer immediately render the saved POST response, with validation and duplicate-create safeguards retained.

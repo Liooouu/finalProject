@@ -1,0 +1,9 @@
+const {test,beforeEach}=require('node:test');const assert=require('node:assert/strict');const Module=require('node:module');const original=Module._load;
+let saved,emails,completed,release,mailGate,saveError;
+Module._load=function(name,parent,...rest){const mocks={'../models/User':{},'../models/Notification':{insertMany:async docs=>{if(saveError)throw Error('Notification storage unavailable');saved=docs;}},'./mailer':{isMailEnabled:async()=>true,sendMail:async()=>{emails++;await mailGate;completed++;}},'./emailTemplate':{renderNotificationEmail:async()=>({subject:'Event',html:'Event',text:'Event'})}};return mocks[name]||original.call(this,name,parent,...rest)};
+const {notifyUsers}=require('../services/notify');Module._load=original;
+const recipients=[{_id:'student',name:'Student',email:'student@example.test'}];const notice={type:'info',title:'New event',message:'Scheduled',relatedEvent:'event'};const tick=()=>new Promise(setImmediate);
+beforeEach(()=>{saved=[];emails=0;completed=0;saveError=false;mailGate=new Promise(resolve=>release=resolve)});
+test('event notification saves bell notices and returns before SMTP completes',{timeout:2000},async()=>{await notifyUsers(recipients,{...notice,deferEmail:true});assert.equal(saved.length,1);assert.equal(saved[0].relatedEvent,'event');assert.equal(completed,0);await tick();assert.equal(emails,1);assert.equal(completed,0);release();await tick();assert.equal(completed,1);});
+test('default callers still wait for email delivery',async()=>{let returned=false;const pending=notifyUsers(recipients,notice).then(()=>returned=true);await tick();assert.equal(returned,false);release();await pending;assert.equal(returned,true);assert.equal(completed,1);});
+test('notification storage failure is reported before scheduling mail',async()=>{saveError=true;await assert.rejects(notifyUsers(recipients,{...notice,deferEmail:true}),/storage unavailable/);await tick();assert.equal(emails,0);release();});

@@ -57,7 +57,7 @@ export default function OrganizerHome() {
   const currentEventPage = Math.min(eventPage, Math.max(1, Math.ceil(active.length / eventPageSize)));
   const visibleEvents = active.slice((currentEventPage - 1) * eventPageSize, currentEventPage * eventPageSize);
   const faceEvent = active.find(event => event._id === faceEventId) || next;
-  const pending = letters.filter(letter => letter.status === "pending");
+  const pending = letters.filter(letter => letter.status === "pending" && letter.canReview !== false);
   const cardClass = "flex min-w-0 flex-col overflow-hidden [&>.fd-rail]:shrink-0";
   const bodyClass = "flex min-h-0 flex-1 flex-col gap-2";
   return <div className="space-y-3">

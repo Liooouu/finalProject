@@ -14,7 +14,7 @@ const { notifyAdmins } = require("../services/notifyAdmins");
 const { notifyUsers } = require("../services/notify");
 const { isValidObjectId } = require("mongoose");
 const { excuseWindow } = require("../services/excuseWindow");
-const { submissionRevisionFilter, resubmissionIssue } = require("../services/excuseReview");
+const { submissionRevisionFilter, resubmissionIssue, excuseReviewerFilter } = require("../services/excuseReview");
 const { calendarView, promotionPlan } = require("../services/academicCalendar");
 const { syncStudentAcademicYear } = require("../services/academicProgression");
 
@@ -182,12 +182,10 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
 
     await excuse.save();
 
-    // Notify the event organizer and admins that a letter awaits their review
+    // Notify eligible officers and admins, excluding the student who submitted it.
     let notificationWarning;
     try {
-    const reviewers = await User.find({
-      $or: [{ _id: event.organizer }, { role: "admin" }],
-    }).select("_id name email");
+    const reviewers = await User.find(excuseReviewerFilter(req.user._id)).select("_id name email");
     if (reviewers.length > 0) {
       await notifyUsers(reviewers, {
         type: "excuse",
@@ -252,7 +250,7 @@ router.patch("/excuses/:id", protect, upload.array("attachments", 5), async (req
     committed = true;
     let notificationWarning;
     try {
-      const reviewers = await User.find({ $or: [{ _id: letter.event.organizer }, { role: "admin" }] }).select("_id name email");
+      const reviewers = await User.find(excuseReviewerFilter(req.user._id)).select("_id name email");
       await notifyUsers(reviewers, { type: "excuse", title: "Excuse Letter Resubmitted", message: `${req.user.name} resubmitted the absence letter for "${letter.event.title}". Please review the latest version.`, relatedEvent: eventId, event: letter.event });
     } catch { notificationWarning = "The letter was saved, but the reviewers could not be notified."; }
     res.json({ ...revised.toObject(), canResubmit: true, resubmissionIssue: "", ...(notificationWarning ? { notificationWarning } : {}) });
