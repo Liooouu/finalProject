@@ -3,7 +3,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
-import { classLabelOf } from "../../utils/classGroups";
 import { FaCalendarAlt, FaEdit, FaMapMarkerAlt, FaPlus, FaUsers } from "react-icons/fa";
 import EmptyState from "../shared/EmptyState";
 import { usePageMeta } from "../../context/PageMetaContext";
@@ -507,15 +506,10 @@ const ManageEvents = () => {
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-on">
-                          {attendee.student?.name || "Deleted account"}
+                          {attendee.student?.name}
                         </p>
-                        {attendee.student?.email && (
-                          <p className="truncate text-xs text-on-dim">
-                            {attendee.student.email}
-                          </p>
-                        )}
-                        <p className="mt-0.5 text-xs text-on-muted">
-                          {classLabelOf(attendee.student)}
+                        <p className="truncate text-xs text-on-dim">
+                          {attendee.student?.email}
                         </p>
                       </div>
                       <StatusChip status={attendee.status} />

@@ -1,16 +1,15 @@
 // utils/classGroups.js
 //
-// Class identity for the attendance screens (admin event review, attendee
-// drawer). One definition so a class is spelled the same everywhere.
+// Class identity for the admin event attendance view.
 //
-// A student belongs to a class only when all three academic fields are present.
-// Anything incomplete (legacy accounts, dangling student references) is grouped
-// as "unassigned" so those records stay visible instead of silently vanishing
-// from every class filter — which is exactly what the old inline comparison did.
+// The class an admin picks and the class stored on a student have to be
+// compared the same way: trimmed, upper-cased, and with the year level read as
+// a number (it is a Number on the schema but a form input hands back a string).
+// Keeping that in one place means the picker and the filter can never drift.
 
-export const UNASSIGNED_CLASS = "unassigned";
+const UNASSIGNED = "unassigned";
 
-export const classParts = (student) => {
+const classParts = (student) => {
   const program = String(student?.program || "").trim().toUpperCase();
   const rawYear = student?.yearLevel;
   const yearLevel =
@@ -26,18 +25,14 @@ export const classParts = (student) => {
 /** "BSIT-1A" for a complete class, "unassigned" otherwise. */
 export const classKeyOf = (student) => {
   const parts = classParts(student);
-  return parts ? `${parts.program}-${parts.yearLevel}${parts.section}` : UNASSIGNED_CLASS;
+  return parts ? `${parts.program}-${parts.yearLevel}${parts.section}` : UNASSIGNED;
 };
 
-/** Human label for a single record. */
-export const classLabelOf = (student) =>
-  classKeyOf(student) === UNASSIGNED_CLASS ? "No class on record" : classKeyOf(student);
-
 /**
- * Class options for a set of attendance records, ordered by class with the
- * "Unassigned" bucket last. Options are derived from the records themselves, so
- * every choice has students behind it and no fixed program/year/section list can
- * hide a class the school still stores.
+ * Classes present in a set of attendance records, with counts, "Unassigned"
+ * last. Only used to explain an empty result: the filter used to say "no
+ * attendees" for a class the event simply has no records for, which is
+ * indistinguishable from registered students going missing.
  */
 export const groupAttendeesByClass = (attendees = []) => {
   const groups = new Map();
@@ -46,7 +41,7 @@ export const groupAttendeesByClass = (attendees = []) => {
     const key = classKeyOf(attendance?.student);
     const group = groups.get(key) || {
       key,
-      label: key === UNASSIGNED_CLASS ? "Unassigned" : key,
+      label: key === UNASSIGNED ? "Unassigned" : key,
       count: 0,
     };
     group.count += 1;
@@ -54,8 +49,8 @@ export const groupAttendeesByClass = (attendees = []) => {
   }
 
   return [...groups.values()].sort((a, b) => {
-    if (a.key === UNASSIGNED_CLASS) return 1;
-    if (b.key === UNASSIGNED_CLASS) return -1;
+    if (a.key === UNASSIGNED) return 1;
+    if (b.key === UNASSIGNED) return -1;
     return a.key.localeCompare(b.key, undefined, { numeric: true });
   });
 };
