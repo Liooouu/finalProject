@@ -38,6 +38,8 @@ const STATUS_FILTERS = [
   { key: "closed", label: "Closed" },
 ];
 
+const EVENT_PAGE_SIZE = 2;
+
 const EMPTY_FORM = {
   title: "",
   description: "",
@@ -196,8 +198,8 @@ const OrgManageEvents = () => {
       return aDone ? new Date(b.date) - new Date(a.date) : new Date(a.date) - new Date(b.date);
     });
   }, [periodEvents, statusFilter, eventRange]);
-  const currentPage = Math.min(page, Math.max(1, Math.ceil(visibleEvents.length / 6)));
-  const pageEvents = visibleEvents.slice((currentPage - 1) * 6, currentPage * 6);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(visibleEvents.length / EVENT_PAGE_SIZE)));
+  const pageEvents = visibleEvents.slice((currentPage - 1) * EVENT_PAGE_SIZE, currentPage * EVENT_PAGE_SIZE);
 
   const attendeeTotal = visibleEvents.reduce((sum, e) => sum + (e.attendeeCount || 0), 0);
 
@@ -222,7 +224,11 @@ const OrgManageEvents = () => {
       <details className="portal-card rounded-xl border border-line bg-card-alt/20 p-3">
         <summary className="cursor-pointer text-sm font-medium text-on">Filters{viewMode !== "all" || statusFilter !== "all" || period ? " · Applied" : ""}</summary>
         <div className="mt-3 space-y-3">
-          <AcademicPeriodFilter selection={periodSelection} />
+          <AcademicPeriodFilter selection={{
+            ...periodSelection,
+            setSchoolYear: value => { periodSelection.setSchoolYear(value); setPage(1); },
+            setSemester: value => { periodSelection.setSemester(value); setPage(1); },
+          }} />
       <div className="event-filter-row">
         <SegmentedControl
           ariaLabel="Event ownership"
@@ -475,7 +481,7 @@ const OrgManageEvents = () => {
         }}
         onCancel={() => setDeleteTarget(null)}
       />
-      {!showForm && <Pagination page={currentPage} pageSize={6} total={visibleEvents.length} onChange={setPage} label="Organizer event pages" />}
+      {!showForm && <Pagination page={currentPage} pageSize={EVENT_PAGE_SIZE} total={visibleEvents.length} onChange={setPage} label="Organizer event pages" />}
     </div>
   );
 };

@@ -21,10 +21,13 @@ import {
   TableSkeleton,
 } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import Pagination from "../ui/Pagination";
 import { MdClose } from "react-icons/md";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 
 const CACHE_KEY = "admin:events";
+
+const EVENT_PAGE_SIZE = 2;
 
 const EMPTY_FORM = {
   title: "",
@@ -56,6 +59,7 @@ const ManageEvents = () => {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
   const [showCreate, setShowCreate] = useState(false);
+  const [eventsPage, setEventsPage] = useState(1);
   const [createMsg, setCreateMsg] = useState("");
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_FORM);
@@ -129,6 +133,7 @@ const ManageEvents = () => {
       setSearchTerm("");
       setEventRange("all");
       setStatusFilter("all");
+      setEventsPage(1);
       setCreateForm(EMPTY_FORM);
       setShowCreate(false);
       setCreateMsg("");
@@ -168,6 +173,14 @@ const ManageEvents = () => {
         : new Date(a.date) - new Date(b.date);
     });
 
+  // Keep the final page valid after deletion or a background refresh.
+  const eventPageCount = Math.max(1, Math.ceil(filteredEvents.length / EVENT_PAGE_SIZE));
+  const visibleEventPage = Math.min(eventsPage, eventPageCount);
+  const pagedEvents = filteredEvents.slice(
+    (visibleEventPage - 1) * EVENT_PAGE_SIZE,
+    visibleEventPage * EVENT_PAGE_SIZE
+  );
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -189,7 +202,7 @@ const ManageEvents = () => {
 
       {!showCreate && (
         <div className="event-view-toolbar">
-          <SegmentedControl ariaLabel="Event timeline" value={eventRange} onChange={value => { setEventRange(value); setStatusFilter("all"); }} options={[{ value: "all", label: "All events", shortLabel: "All" }, { value: "active", label: "Active events", shortLabel: "Active" }, { value: "past", label: "Past events", shortLabel: "Past" }]} />
+          <SegmentedControl ariaLabel="Event timeline" value={eventRange} onChange={value => { setEventRange(value); setStatusFilter("all"); setEventsPage(1); }} options={[{ value: "all", label: "All events", shortLabel: "All" }, { value: "active", label: "Active events", shortLabel: "Active" }, { value: "past", label: "Past events", shortLabel: "Past" }]} />
           <Button onClick={() => setShowCreate(true)} size="sm"><FaPlus className="text-xs" /> Create event</Button>
         </div>
       )}
@@ -199,13 +212,13 @@ const ManageEvents = () => {
             type="text"
             placeholder="Search events or organizers..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setEventsPage(1); }}
             className="field sm:max-w-xs"
             aria-label="Search events"
           />
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => { setStatusFilter(e.target.value); setEventsPage(1); }}
             className="field-select"
             aria-label="Filter by status"
           >
@@ -391,8 +404,9 @@ const ManageEvents = () => {
           description="Events created by organizers will appear here."
         />
       ) : (
+        <>
         <div className="space-y-3">
-          {filteredEvents.map((event) => (
+          {pagedEvents.map((event) => (
             <Card key={event._id} as="article">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0 flex-1">
@@ -457,6 +471,14 @@ const ManageEvents = () => {
             </Card>
           ))}
         </div>
+        <Pagination
+          page={visibleEventPage}
+          pageSize={EVENT_PAGE_SIZE}
+          total={filteredEvents.length}
+          onChange={setEventsPage}
+          label="Admin event pages"
+        />
+        </>
       ))}
 
       {showModal && selectedEvent && (
