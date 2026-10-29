@@ -19,10 +19,15 @@ import { useAutoRefresh } from "../utils/useAutoRefresh";
 import { Button, Card, StatusChip } from "./ui";
 import EmptyState from "./shared/EmptyState";
 import ConfirmDialog from "./ui/ConfirmDialog";
+import Pagination from "./ui/Pagination";
 import {
   classKeyOf,
   groupAttendeesByClass,
 } from "../utils/classGroups";
+
+// One class roster page holds three students; a full class is rare enough that
+// a long card was the exception, not the rule.
+const CLASS_PAGE_SIZE = 3;
 
 // Window boundaries arrive as absolute instants, so the message carries the
 // calendar day too: "opens Fri, Oct 30, 8:00 AM" cannot be misread as today.
@@ -70,6 +75,7 @@ const EventDetails = () => {
   const [program, setProgram] = useState("");
   const [yearLevel, setYearLevel] = useState("");
   const [section, setSection] = useState("");
+  const [attendancePage, setAttendancePage] = useState(1);
 
   usePageMeta(event?.title || "Event", event?.date
     ? formatDate(event.date, { weekday: "long", month: "long", day: "numeric", year: "numeric" })
@@ -240,6 +246,20 @@ const EventDetails = () => {
         return classKeyOf(a.student) === selectedGroup;
       })
     : attendees;
+
+  // A new class starts at the first page. The clamp below covers the other
+  // case: the live refresh can shrink the roster under the current page, and
+  // clamping during render is cheaper than another effect that would flicker.
+  useEffect(() => {
+    setAttendancePage(1);
+  }, [selectedGroup]);
+
+  const classPageCount = Math.max(1, Math.ceil(filteredAttendees.length / CLASS_PAGE_SIZE));
+  const visibleAttendancePage = Math.min(attendancePage, classPageCount);
+  const pagedAttendees = filteredAttendees.slice(
+    (visibleAttendancePage - 1) * CLASS_PAGE_SIZE,
+    visibleAttendancePage * CLASS_PAGE_SIZE
+  );
 
   const handleEditChange = (e) => {
     setEditForm({ ...editForm, [e.target.name]: e.target.value });
@@ -891,31 +911,40 @@ const EventDetails = () => {
                 }
               />
             ) : (
-              <div className="space-y-2.5">
-                {filteredAttendees.map((attendance) => (
-                  <div
-                    key={attendance._id}
-                    className="flex flex-col gap-4 rounded-xl border border-line bg-card-alt/40 p-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium text-on">{attendance.student?.name}</p>
-                      <p className="truncate text-sm text-on-dim">
-                        {attendance.student?.email}
-                      </p>
-                      <p className="mt-1 text-xs text-on-muted">
-                        Recorded: {formatDateTime(attendance.attendedAt)}
-                      </p>
-                      {attendance.communityServiceHours > 0 && (
-                        <p className="mt-1 flex items-center gap-1 text-xs font-medium text-warn">
-                          <FaExclamationTriangle /> Community service:{" "}
-                          {attendance.communityServiceHours} hours
+              <>
+                <div className="space-y-2.5">
+                  {pagedAttendees.map((attendance) => (
+                    <div
+                      key={attendance._id}
+                      className="flex flex-col gap-4 rounded-xl border border-line bg-card-alt/40 p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium text-on">{attendance.student?.name}</p>
+                        <p className="truncate text-sm text-on-dim">
+                          {attendance.student?.email}
                         </p>
-                      )}
+                        <p className="mt-1 text-xs text-on-muted">
+                          Recorded: {formatDateTime(attendance.attendedAt)}
+                        </p>
+                        {attendance.communityServiceHours > 0 && (
+                          <p className="mt-1 flex items-center gap-1 text-xs font-medium text-warn">
+                            <FaExclamationTriangle /> Community service:{" "}
+                            {attendance.communityServiceHours} hours
+                          </p>
+                        )}
+                      </div>
+                      <StatusChip status={attendance.status} />
                     </div>
-                    <StatusChip status={attendance.status} />
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+                <Pagination
+                  page={visibleAttendancePage}
+                  pageSize={CLASS_PAGE_SIZE}
+                  total={filteredAttendees.length}
+                  onChange={setAttendancePage}
+                  label="Class attendance pages"
+                />
+              </>
             )}
           </Card>
           )}
