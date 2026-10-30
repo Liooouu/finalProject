@@ -28,11 +28,13 @@ const chunks = {
   "/organizer/dashboard/events": () => import("../components/organizer/OrgManageEvents"),
   "/organizer/dashboard/excuses": () => import("../components/organizer/ManageExcuses"),
   "/organizer/dashboard/manual-attendance": () => import("../components/organizer/ManualAttendance"),
+  "/organizer/dashboard/manual-reviews": () => import("../components/shared/ManualAttendanceReviews"),
   "/organizer/dashboard/profile": () => import("../components/settings/ProfileSettings"),
 
   // Admin portal
   [ROLE_PATHS.admin]: () => import("../components/admin/DashboardHome"),
   "/admin/dashboard/events": () => import("../components/admin/ManageEvents"),
+  "/admin/dashboard/manual-reviews": () => import("../components/shared/ManualAttendanceReviews"),
   "/admin/dashboard/excuses": () => import("../components/organizer/ManageExcuses"),
   "/admin/dashboard/users": () => import("../components/admin/ManageUsers"),
   "/admin/dashboard/promote-student": () => import("../components/admin/PromoteStudentPage"),

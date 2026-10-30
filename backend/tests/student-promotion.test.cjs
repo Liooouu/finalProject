@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 process.env.JWT_SECRET = 'promotion-test-secret-not-used-outside-tests';
 const adminId='111111111111111111111111', studentId='222222222222222222222222', otherId='333333333333333333333333';
-let users, notifications, failNotification, createdAccounts, closedStations, attendanceRecords;
+let users, notifications, failNotification, createdAccounts, closedStations, attendanceRecords, removedReviewerAssignments, pendingManualBlock;
 const passwordHash=bcrypt.hashSync('StrongPass123!',4);
 function document(value) {
  const result={...value};
@@ -35,6 +35,8 @@ const originalLoad=Module._load;
 Module._load=function(name,parent,...rest){
  const mocks={
   '../models/User':userMock,
+  '../models/Event':{updateMany:async(filter,update)=>{removedReviewerAssignments.push({filter,update});}},
+  '../models/ManualAttendanceRequest':{exists:async()=>pendingManualBlock},
   '../models/CheckInSession':{updateMany:async(filter,update)=>{closedStations.push({filter,update});}},'../models/Attendance':{find:filter=>({sort:async()=>attendanceRecords.filter(record=>record.student===String(filter.student)).sort((a,b)=>a.attendedAt-b.attendedAt)})},'../models/Excuse':{},'../models/Notification':{},'../models/FaceAppeal':{find:filter=>query([{_id:'own-appeal',student:String(filter.student),status:'pending',note:'My face verification request'}])},
   '../services/notify':{notifyUsers:async(recipients,notice)=>{if(failNotification)throw new Error('Mail unavailable');notifications.push(notice);}},
   '../services/mailer':{isMailEnabled:async()=>false,sendMail:async()=>true,resetTransporter:()=>{}},
@@ -57,7 +59,7 @@ let server,origin;
 before(async()=>{server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));origin=`http://127.0.0.1:${server.address().port}`;});
 after(async()=>{await new Promise(resolve=>server.close(resolve));});
 beforeEach(()=>{
- notifications=[];failNotification=false;createdAccounts=0;closedStations=[];attendanceRecords=[];
+ notifications=[];failNotification=false;createdAccounts=0;closedStations=[];attendanceRecords=[];removedReviewerAssignments=[];pendingManualBlock=false;
  users=new Map([
   [adminId,{_id:adminId,name:'Admin',email:'admin@example.test',role:'admin',password:passwordHash}],
   [studentId,{_id:studentId,name:'Student Officer',email:'officer@example.test',role:'student',organizerAccess:false,password:passwordHash,emailVerified:true,program:'BSIT',yearLevel:3,section:'A',enrollmentStatus:'active',academicYearStart:2026,academicHistory:[{schoolYearStart:2025,yearLevel:2}],facePhoto:'/uploads/enrolled.jpg',faceEnrolledAt:new Date(),faceConsentAt:new Date(),faceDescriptor:Array(128).fill(0),faceEnrollmentVersion:2}],
@@ -67,6 +69,18 @@ beforeEach(()=>{
 const token=(id,role)=>jwt.sign({id,role},process.env.JWT_SECRET,{expiresIn:'1h'});
 async function request(path,{method='GET',body,auth}={}){const response=await fetch(origin+path,{method,headers:{...(body?{'content-type':'application/json'}:{}),...(auth?{authorization:`Bearer ${auth}`}:{})},...(body?{body:JSON.stringify(body)}:{})});return {status:response.status,data:await response.json()};}
 const promote=(id=studentId,auth=token(adminId,'admin'))=>request(`/admin/users/${id}/promote-organizer`,{method:'POST',auth});
+
+test('accounts with pending manual requests cannot be deleted and leave orphaned attendance claims',async()=>{
+ pendingManualBlock=true;
+ const result=await request(`/admin/users/${studentId}`,{method:'DELETE',auth:token(adminId,'admin')});
+ assert.equal(result.status,409);assert.match(result.data.message,/pending manual attendance/);assert.ok(users.has(studentId));
+});
+test('demotion removes event reviewer assignments so a later promotion does not restore old review authority',async()=>{
+ await promote();
+ const result=await request(`/admin/users/${studentId}/demote-organizer`,{method:'POST',auth:token(adminId,'admin')});
+ assert.equal(result.status,200);assert.equal(removedReviewerAssignments.length,1);
+ assert.equal(String(removedReviewerAssignments[0].update.$pull.manualAttendanceReviewers),studentId);
+});
 test('admin promotion preserves student identity, credentials, face and academic history',async()=>{
  const before={...users.get(studentId)};const response=await promote();assert.equal(response.status,200);const after=users.get(studentId);
  for(const field of ['_id','name','email','password','role','facePhoto','faceDescriptor','faceEnrollmentVersion','academicYearStart','academicHistory','program','yearLevel','section'])assert.deepEqual(after[field],before[field],field);

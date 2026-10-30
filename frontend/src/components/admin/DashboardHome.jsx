@@ -5,26 +5,28 @@ import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import { formatDate, formatDateTime, formatTime12Hour, splitEventsByLifecycle } from "../../utils/helpers";
 import { Card, Button, StatusChip } from "../ui";
 import Pagination from "../ui/Pagination";
+import StablePage from "../ui/StablePage";
 import Loading from "../shared/Loading";
 import EmptyState from "../shared/EmptyState";
 import { FaClipboardList, FaEnvelope, FaShieldAlt } from "react-icons/fa";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 
-const CACHE_KEY = "admin:home";
+const CACHE_KEY = "admin:home:manual-reviews";
 
 const sources = [
   { key: "events", label: "Events", path: "/reports/events" },
   { key: "attendance", label: "Attendance", path: "/reports/attendance?limit=30" },
   { key: "appeals", label: "Face appeals", path: "/admin/security/face-appeals?status=pending" },
   { key: "excuses", label: "Excuse letters", path: "/organizer/excuses" },
+  { key: "manual", label: "Manual attendance requests", path: "/manual-attendance/summary" },
 ];
 
 export default function DashboardHome() {
   const seed = readScreen(CACHE_KEY);
   const [state, setState] = useState(
     seed
-      ? { loading: false, events: null, attendance: null, appeals: null, excuses: null, failures: [], ...seed }
-      : { loading: true, events: null, attendance: null, appeals: null, excuses: null, failures: [] }
+      ? { loading: false, events: null, attendance: null, appeals: null, excuses: null, manual: null, failures: [], ...seed }
+      : { loading: true, events: null, attendance: null, appeals: null, excuses: null, manual: null, failures: [] }
   );
   const [page, setPage] = useState(1);
   const [eventPage, setEventPage] = useState(1);
@@ -45,6 +47,7 @@ export default function DashboardHome() {
     []
   );
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { window.addEventListener("tracked:manual-attendance-changed", load); return () => window.removeEventListener("tracked:manual-attendance-changed", load); }, [load]);
   useAutoRefresh(load, { interval: 30000 });
   if (state.loading) return <Loading label="Loading admin dashboard..." />;
   const records = [...(state.attendance?.records || [])].sort((a, b) => new Date(b.attendedAt || b.createdAt || 0) - new Date(a.attendedAt || a.createdAt || 0));
@@ -58,6 +61,7 @@ export default function DashboardHome() {
   const currentEventPage = Math.min(eventPage, Math.max(1, Math.ceil(active.length / eventPageSize)));
   const currentPage = Math.min(page, Math.max(1, Math.ceil(records.length / 6)));
   const reviews = [
+    { label: "Manual attendance", description: "Verify check-ins and attendance corrections", count: state.manual?.pendingReview ?? null, path: "/admin/dashboard/manual-reviews", icon: <FaClipboardList /> },
     { label: "Face appeals", description: "Review student identity requests", count: state.appeals?.filter(item => item.status === "pending").length ?? null, path: "/admin/dashboard/users?tab=appeals", icon: <FaShieldAlt /> },
     { label: "Excuse letters", description: "Review pending absence letters", count: state.excuses?.filter(item => item.status === "pending").length ?? null, path: "/admin/dashboard/excuses", icon: <FaEnvelope /> },
   ];
@@ -78,18 +82,18 @@ export default function DashboardHome() {
       </Card>
       <Card as="section" className="admin-home-events">
         <div className="admin-section-heading"><h2>Live &amp; upcoming events</h2><Link to="/admin/dashboard/events" className="admin-text-link">View events →</Link></div>
-        {!state.events ? <EmptyState compact title="Events unavailable" description="Try loading the event list again." /> : !active.length ? <EmptyState compact title="No active events" description="New events will appear here when scheduled." /> : <><ul className="admin-next-list">{active.slice((currentEventPage - 1) * eventPageSize, currentEventPage * eventPageSize).map(event=><li key={event._id}><Link to={`/admin/dashboard/events/${event._id}`}><div><p>{event.title}</p><span>{formatDate(event.date)}{event.time ? ` · ${formatTime12Hour(event.time)}` : ""}</span></div><StatusChip status={event.status} /></Link></li>)}</ul><Pagination page={currentEventPage} pageSize={eventPageSize} total={active.length} onChange={setEventPage} label="Admin upcoming event pages" /></>}
+        {!state.events ? <EmptyState compact title="Events unavailable" description="Try loading the event list again." /> : !active.length ? <EmptyState compact title="No active events" description="New events will appear here when scheduled." /> : <StablePage fill pageKey={`admin-upcoming:${active.length}`} footer={<Pagination page={currentEventPage} pageSize={eventPageSize} total={active.length} onChange={setEventPage} label="Admin upcoming event pages" />}><ul className="admin-next-list stretch-page-list gap-1" style={{ minHeight: "234px" }}>{active.slice((currentEventPage - 1) * eventPageSize, currentEventPage * eventPageSize).map(event=><li key={event._id} className="min-h-[74px]"><Link to={`/admin/dashboard/events/${event._id}`} className="h-full"><div><p className="line-clamp-2" title={event.title}>{event.title}</p><span>{formatDate(event.date)}{event.time ? ` · ${formatTime12Hour(event.time)}` : ""}</span></div><StatusChip status={event.status} /></Link></li>)}</ul></StablePage>}
       </Card>
     </div>
     <Card as="section" padding="none" className="admin-home-attendance">
       <div className="admin-section-heading admin-table-heading"><div><h2>Recent attendance</h2><p>Latest attendance records across all events.</p></div><Link to="/admin/dashboard/reports" className="admin-text-link">All records →</Link></div>
-      {!state.attendance ? <EmptyState compact title="Attendance unavailable" description="Try loading your records again." /> : !records.length ? <EmptyState compact title="No attendance records yet" description="Attendance will appear once it is recorded." /> : <>
-        <div className="overflow-x-auto"><table className="data-table admin-home-table"><colgroup><col style={{width:"27%"}} /><col style={{width:"27%"}} /><col style={{width:"16%"}} /><col style={{width:"30%"}} /></colgroup><thead><tr><th>Student</th><th>Event</th><th>Status</th><th>Recorded</th></tr></thead><tbody>{records.slice((currentPage-1)*6,currentPage*6).map((record,index)=><tr key={record._id || index}>
+      {!state.attendance ? <EmptyState compact title="Attendance unavailable" description="Try loading your records again." /> : !records.length ? <EmptyState compact title="No attendance records yet" description="Attendance will appear once it is recorded." /> : <StablePage pageKey={`admin-recent:${records.length}`} footer={<div className="admin-table-pager"><Pagination page={currentPage} pageSize={6} total={records.length} onChange={setPage} label="Admin attendance pages" /></div>}>
+        <ul className="space-y-3 px-4 pb-2 md:hidden" aria-label="Recent attendance records">{records.slice((currentPage-1)*6,currentPage*6).map((record,index)=><li key={record._id || index} className="rounded-xl bg-card-alt/40 p-3"><div className="flex items-start justify-between gap-3"><p className="min-w-0 text-sm font-medium text-on [overflow-wrap:anywhere]">{record.student?.name || "Student"}</p><StatusChip status={record.status} /></div><p className="mt-2 text-sm text-on-dim [overflow-wrap:anywhere]">{record.event?.title || record.eventTitle || "Event unavailable"}</p><p className="mt-2 text-xs text-on-muted">{record.attendedAt ? formatDateTime(record.attendedAt) : "Date unavailable"}{record.method ? ` · ${record.method === "face" ? "Face check-in" : record.method === "manual" ? "Manual attendance" : "Recorded attendance"}` : ""}</p></li>)}</ul>
+        <div className="hidden overflow-x-auto md:block"><table className="data-table admin-home-table"><colgroup><col style={{width:"27%"}} /><col style={{width:"27%"}} /><col style={{width:"16%"}} /><col style={{width:"30%"}} /></colgroup><thead><tr><th>Student</th><th>Event</th><th>Status</th><th>Recorded</th></tr></thead><tbody>{records.slice((currentPage-1)*6,currentPage*6).map((record,index)=><tr key={record._id || index}>
           <td><div className="admin-person-cell"><span className="admin-person-avatar" aria-hidden="true">{(record.student?.name || "?").split(/\s+/).filter(Boolean).slice(0,2).map(word=>word[0]).join("").toUpperCase()}</span><span>{record.student?.name || "Student"}</span></div></td>
           <td>{record.event?.title || record.eventTitle || "Event unavailable"}</td><td><StatusChip status={record.status} /></td><td className="whitespace-nowrap">{record.attendedAt ? formatDateTime(record.attendedAt) : "Date unavailable"}</td>
         </tr>)}</tbody></table></div>
-        <div className="admin-table-pager"><Pagination page={currentPage} pageSize={6} total={records.length} onChange={setPage} label="Admin attendance pages" /></div>
-      </>}
+      </StablePage>}
     </Card>
   </div>;
 }

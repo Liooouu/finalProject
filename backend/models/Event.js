@@ -35,6 +35,8 @@ const eventSchema = new mongoose.Schema({
   lastEditedByName: { type: String, default: "" },
   lastEditedAt: { type: Date, default: null },
   organizer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  // Admin-assigned, event-scoped review access; this is not an admin role grant.
+  manualAttendanceReviewers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 }, { timestamps: true });
 
 // The background job and every event list filter/sort on status + date.

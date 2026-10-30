@@ -9,13 +9,14 @@ import { splitEventsByLifecycle, formatDate } from "../../utils/helpers";
 import { BaseCard, Button, FlightPanel, StatusPill } from "../ui";
 import Loading from "../shared/Loading";
 import Pagination from "../ui/Pagination";
+import StablePage from "../ui/StablePage";
 import EmptyState from "../shared/EmptyState";
 import StudentEventCard from "./StudentEventCard";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 
 // Payload of the last successful load, so coming back to this tab renders the
 // previous dashboard instantly and refreshes it silently behind the scenes.
-const CACHE_KEY = "student:home";
+const CACHE_KEY = "student:home:manual-review";
 
 const DashboardHome = () => {
   const navigate = useNavigate();
@@ -53,6 +54,8 @@ const DashboardHome = () => {
         const nextStats = {
           totalHours: data.totalHours || 0,
           totalAttended: data.totalAttended || 0,
+          pendingManualAttendance: data.pendingManualAttendance || 0,
+          provisionalHours: data.provisionalHours || 0,
           breakdown,
         };
         const nextActivity = [...breakdown].sort(
@@ -108,7 +111,7 @@ const DashboardHome = () => {
   const records = stats?.breakdown || [];
   const rangeLabel = penaltyRange === "day" ? "the last 24 hours" : penaltyRange === "week" ? "the last 7 days" : "the last 365 days";
   const cutoff = Date.now() - ({ day: 1, week: 7, year: 365 }[penaltyRange] * 24 * 60 * 60 * 1000);
-  const sumLog = (action, status) => records.filter((record) => !status || record.status === status).reduce((sum, record) => sum + (record.communityServiceLog || []).filter((log) => {
+  const sumLog = (action, status) => records.filter((record) => !record.manualReviewProvisional && (!status || record.status === status)).reduce((sum, record) => sum + (record.communityServiceLog || []).filter((log) => {
     const timestamp = new Date(log.at).getTime();
     return log.action === action && (Number.isFinite(timestamp) ? timestamp : Date.now()) >= cutoff;
   }).reduce((total, log) => total + (log.hours || 0), 0), 0);
@@ -169,26 +172,29 @@ const DashboardHome = () => {
               </label>
             </div>
             <p className="mt-2 text-xs text-on-muted">Changes cover {rangeLabel}. Approved excuses and staff adjustments are included in the full ledger.</p>
+            {stats.pendingManualAttendance > 0 && <div className="student-pending-attendance mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-info/10 p-3 text-sm" role="status">
+              <p className="min-w-0 flex-1 text-on-dim"><strong className="text-on">{stats.pendingManualAttendance} manual attendance request{stats.pendingManualAttendance === 1 ? "" : "s"} awaiting review.</strong> Check-in time is kept even when reviewed later.{stats.provisionalHours > 0 ? ` ${stats.provisionalHours} provisional absence hours are excluded from your current balance.` : ""}</p>
+              <Button variant="secondary" size="sm" onClick={() => navigate("/student/dashboard/community-service#manual-requests")}>View requests</Button>
+            </div>}
           </>
         )}
       </FlightPanel>
 
       <div className="grid gap-5 lg:grid-cols-2" data-testid="dashboard-panels">
-        <BaseCard title={eventsError && !upcomingEvents.length ? "Upcoming events" : `Upcoming events (${upcoming})`} description="Event details and your attendance at a glance." icon={<FaCalendarAlt />} className="student-dashboard-card min-w-0 overflow-hidden" menu={<Button variant="ghost" size="sm" onClick={() => navigate("/student/dashboard/events")}>View all <FaArrowRight className="text-[10px]" /></Button>}>
+        <BaseCard title={eventsError && !upcomingEvents.length ? "Upcoming events" : `Upcoming events (${upcoming})`} description="Event details and your attendance at a glance." icon={<FaCalendarAlt />} className="student-dashboard-card paged-dashboard-card min-w-0 overflow-hidden" menu={<Button variant="ghost" size="sm" onClick={() => navigate("/student/dashboard/events")}>View all <FaArrowRight className="text-[10px]" /></Button>}>
           {eventsError && <div role="alert" className="alert alert-danger mb-4"><p>{eventsError}</p>{retry}</div>}
-          {!upcomingEvents.length ? <EmptyState compact title={eventsError ? "Events unavailable" : "No upcoming events"} description={eventsError ? "Try loading the event list again." : "New events will appear here when they are published."} /> : <>
+          {!upcomingEvents.length ? <EmptyState compact title={eventsError ? "Events unavailable" : "No upcoming events"} description={eventsError ? "Try loading the event list again." : "New events will appear here when they are published."} /> : <StablePage fill pageKey="student-upcoming" footer={<Pagination page={currentEventPage} pageSize={1} total={upcomingEvents.length} onChange={setEventPage} label="Upcoming event pages" />} contentClassName="[&>article]:flex-1">
             {visibleEvents.map((event) => <StudentEventCard key={event._id} event={event} attendance={attendance.find((record) => (record.event?._id || record.event) === event._id)} attendanceError={attendanceError} />)}
-            <Pagination page={currentEventPage} pageSize={1} total={upcomingEvents.length} onChange={setEventPage} label="Upcoming event pages" />
-          </>}
+          </StablePage>}
         </BaseCard>
 
-        <BaseCard title="Recent activity" description="Your latest attendance updates." icon={<MdLocalActivity />} className="student-dashboard-card min-w-0 overflow-hidden">
-          {!stats ? <EmptyState compact title="Activity unavailable" description="Activity will appear when your service records can be loaded." /> : !activity.length ? <EmptyState compact title="No activity yet" description="Check in at your next event to start your record." /> : <><ul className="divide-y divide-line">
+        <BaseCard title="Recent activity" description="Your latest attendance updates." icon={<MdLocalActivity />} className="student-dashboard-card paged-dashboard-card min-w-0 overflow-hidden">
+          {!stats ? <EmptyState compact title="Activity unavailable" description="Activity will appear when your service records can be loaded." /> : !activity.length ? <EmptyState compact title="No activity yet" description="Check in at your next event to start your record." /> : <StablePage fill pageKey="student-activity" footer={<Pagination page={currentActivityPage} pageSize={6} total={activity.length} onChange={setActivityPage} label="Recent attendance pages" />}><ul className="stretch-page-list divide-y divide-line">
             {visibleActivity.map((record, index) => <li key={record._id || index} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${record.status === "absent" ? "bg-danger/10 text-danger ring-danger/20" : record.status === "late" ? "bg-warn/10 text-warn ring-warn/20" : "bg-card-alt text-on-dim ring-line"}`}>{record.status === "present" ? <FaUserCheck /> : <FaClock />}</span>
               <div className="min-w-0 flex-1"><p className="break-words text-sm font-medium text-on">{record.event?.title || record.eventTitle || "Unknown event"}</p><p className="mt-1 text-xs text-on-muted">{record.event?.date || record.eventDate ? formatDate(record.event?.date || record.eventDate) : "Date unavailable"}</p></div><StatusPill status={record.status} />
             </li>)}
-          </ul><Pagination page={currentActivityPage} pageSize={6} total={activity.length} onChange={setActivityPage} label="Recent attendance pages" /></>}
+          </ul></StablePage>}
         </BaseCard>
       </div>
     </div>

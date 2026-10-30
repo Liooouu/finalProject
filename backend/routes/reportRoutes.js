@@ -6,6 +6,17 @@ const Event = require("../models/Event");
 const User = require("../models/User");
 const { protect, authorize } = require("../middleware/authMiddleware");
 const { manilaDayRange } = require("../services/eventLifecycle");
+const ManualAttendanceRequest = require("../models/ManualAttendanceRequest");
+const { projectManualAttendance, manualPendingStatusStages } = require("../services/manualAttendanceView");
+
+async function reviewedRecords(records) {
+  if (!records.length) return records;
+  const pending = await ManualAttendanceRequest.find({ status: "pending",
+    event: { $in: records.map(record => record.event?._id || record.event) },
+    student: { $in: records.map(record => record.student?._id || record.student) },
+  }).select("event student status proposedStatus proposedHours effectiveAt submittedAt requestedBy").lean();
+  return projectManualAttendance(records, pending, { includeUnrecorded: false });
+}
 
 router.use(protect, authorize("admin"));
 
@@ -227,10 +238,12 @@ router.get("/attendance", async (req, res) => {
         Attendance.countDocuments(match),
         Attendance.aggregate([
           { $match: match },
+          ...manualPendingStatusStages(),
           { $group: { _id: "$status", count: { $sum: 1 } } },
         ]),
         Attendance.aggregate([
           { $match: match },
+          ...manualPendingStatusStages(),
           {
             $group: {
               _id: "$event",
@@ -294,7 +307,7 @@ router.get("/attendance", async (req, res) => {
     });
 
     res.json({
-      records: attendance,
+      records: await reviewedRecords(attendance),
       pagination: { page: requestedPage, pageSize: limit, total: totalRecords, totalPages: Math.max(1, Math.ceil(totalRecords / limit)) },
       stats: {
         total: totalRecords,
@@ -331,9 +344,9 @@ router.get("/attendance/export", async (req, res) => {
 
     match.student = { $in: students.map((student) => student._id) };
 
-    const attendance = await Attendance.find(match)
+    const attendance = await reviewedRecords(await Attendance.find(match)
       .populate("event", "title date time")
-      .lean();
+      .lean());
 
     const byStudent = new Map();
     for (const record of attendance) {
@@ -415,6 +428,7 @@ router.get("/attendance/export", async (req, res) => {
 // in the list, which is what made this report slow once the term filled up.
 async function attendanceCountsByEvent() {
   const rows = await Attendance.aggregate([
+    ...manualPendingStatusStages(),
     {
       $group: {
         _id: "$event",

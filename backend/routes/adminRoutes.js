@@ -7,6 +7,8 @@ const Excuse = require("../models/Excuse");
 const Notification = require("../models/Notification");
 const FaceAppeal = require("../models/FaceAppeal");
 const CheckInSession = require("../models/CheckInSession");
+const Event = require("../models/Event");
+const ManualAttendanceRequest = require("../models/ManualAttendanceRequest");
 const { protect, authorize } = require("../middleware/authMiddleware");
 const { availableRoles } = require("../services/accountRoles");
 const { getRawEmailSetting, saveEmailSetting } = require("../services/appSettings");
@@ -55,6 +57,8 @@ router.post("/users/:id/demote-organizer", protect, authorize("admin"), async (r
     let notificationWarning;
     try { await CheckInSession.updateMany({ openedBy: student._id, closedAt: null }, { $set: { closedAt: now } }); }
     catch { notificationWarning = "Access was removed. Station access is revoked, but station closure records could not be updated."; }
+    try { await Event.updateMany({ manualAttendanceReviewers: student._id }, { $pull: { manualAttendanceReviewers: student._id } }); }
+    catch { notificationWarning = [notificationWarning, "Review access is revoked. Old event assignments could not be cleared; check them before granting access again."].filter(Boolean).join(" "); }
     try { await notifyUsers([student], { type: "system", title: "Organizer access removed", message: "An administrator removed your organizer access. Your student account, attendance and community service ledger remain available." }); }
     catch { notificationWarning = [notificationWarning, "The notification could not be delivered."].filter(Boolean).join(" "); }
     res.json({ message: "Organizer access removed. Student access and records are retained.", student: { ...student.toObject(), availableRoles: availableRoles(student) }, ...(notificationWarning ? { notificationWarning } : {}) });
@@ -232,6 +236,9 @@ router.delete(
 
       if (user.role === "admin") {
         return res.status(403).json({ message: "Cannot delete admin accounts" });
+      }
+      if (await ManualAttendanceRequest.exists({ status: "pending", $or: [{ student: user._id }, { requestedBy: user._id }] })) {
+        return res.status(409).json({ message: "Resolve this account's pending manual attendance requests before deleting it." });
       }
 
       // Cascade: removing the account must not leave orphaned attendance,

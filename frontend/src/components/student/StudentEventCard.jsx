@@ -9,6 +9,7 @@ const results = {
   late: { title: "Attendance marked · Late", tone: "border-warn/40 bg-warn/10 text-warn", detail: "Your attendance has been recorded as late." },
   absent: { title: "Marked absent", tone: "border-danger/40 bg-danger/10 text-danger", detail: "Your attendance record shows an absence." },
   excused: { title: "Absence excused", tone: "border-info/40 bg-info/10 text-info", detail: "Your absence has been excused." },
+  pending: { title: "Manual check-in · Awaiting review", tone: "border-info/40 bg-info/10 text-info", detail: "An organizer submitted your check-in for independent review. It is not confirmed attendance yet." },
 };
 
 export default function StudentEventCard({ event, attendance, attendanceError = false }) {
@@ -39,6 +40,7 @@ export default function StudentEventCard({ event, attendance, attendanceError = 
               <p className="text-sm font-bold">{title}</p>
               <p className="mt-1 text-xs leading-relaxed">{result?.detail || (unavailable ? "Unable to load your record. Please try refreshing." : "An organizer records your attendance at the face verification station.")}</p>
               {recorded && timestamp && <p className="mt-1 text-xs">{attendance.method === "face" ? "Face verified" : "Recorded"}: {formatDateTime(timestamp)}</p>}
+              {attendance?.manualReviewPending && <p className="mt-1 text-xs">{attendance.manualAttendanceRequest?.effectiveAt ? `Check-in recorded: ${formatDateTime(attendance.manualAttendanceRequest.effectiveAt)}. ` : ""}{recorded ? "An attendance correction is awaiting review." : "Review time will not determine whether you arrived late."}</p>}
               {attendanceError && result && <p className="mt-1 text-xs">Could not refresh. Showing your last loaded result.</p>}
             </div>
           </div>

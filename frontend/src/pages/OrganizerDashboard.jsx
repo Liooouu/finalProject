@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect } from "react";
 import "../styles/portal-workspace.css";
 import "../styles/portal-neumorphism.css";
+import "../styles/responsive-workspace.css";
 import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
@@ -19,6 +20,7 @@ const NotificationsPage = lazy(() => import("../components/organizer/Notificatio
 const ProfileSettings = lazy(() => import("../components/settings/ProfileSettings"));
 const EventDetails = lazy(() => import("../components/EventDetails"));
 const ManualAttendance = lazy(() => import("../components/organizer/ManualAttendance"));
+const ManualAttendanceReviews = lazy(() => import("../components/shared/ManualAttendanceReviews"));
 const LegacyAttendanceRedirect = () => {
   const { id } = useParams();
   return <Navigate to={`/organizer/dashboard/manual-attendance/${id}`} replace />;
@@ -49,6 +51,7 @@ const OrganizerDashboard = () => {
                   <Route path="events/:id/attendees" element={<LegacyAttendanceRedirect />} />
                   <Route path="manual-attendance" element={<ManualAttendance />} />
                   <Route path="manual-attendance/:id" element={<ManualAttendance />} />
+                  <Route path="manual-reviews" element={<ManualAttendanceReviews />} />
                   <Route path="excuses" element={<ManageExcuses />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="profile" element={<ProfileSettings />} />

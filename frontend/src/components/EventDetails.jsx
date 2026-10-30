@@ -20,6 +20,7 @@ import { Button, Card, StatusChip } from "./ui";
 import EmptyState from "./shared/EmptyState";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import Pagination from "./ui/Pagination";
+import EventReviewers from "./admin/EventReviewers";
 import {
   classKeyOf,
   groupAttendeesByClass,
@@ -123,7 +124,6 @@ const EventDetails = () => {
   useEffect(() => {
     const fetchData = async () => {
       const currentRole = getUserRole();
-      const currentUser = getUserFromToken();
       let eventData;
 
       try {
@@ -150,9 +150,8 @@ const EventDetails = () => {
         return;
       }
 
-      const ownerId = eventData.organizer?._id || eventData.organizer;
       const mayManage = currentRole === "admin" || currentRole === "organizer";
-      const mayViewAttendance = currentRole === "admin" || (currentRole === "organizer" && ((currentUser?.id && ownerId && String(ownerId) === String(currentUser.id)) || eventData.organizer?.role === "admin"));
+      const mayViewAttendance = currentRole === "admin" || currentRole === "organizer";
       setCanManage(Boolean(mayManage));
       setCanViewAttendance(Boolean(mayViewAttendance));
 
@@ -434,15 +433,6 @@ const EventDetails = () => {
         >
           <span aria-hidden="true">{messageType === "error" ? "!" : "✓"}</span>
           <p>{message}</p>
-        </div>
-      )}
-
-      {role === "organizer" && !canViewAttendance && (
-        <div className="alert alert-info" role="status">
-          <span aria-hidden="true">i</span>
-          <p>
-            You can edit this event's details. Attendance is handled by {event.organizer?.name || "the original organizer"}.
-          </p>
         </div>
       )}
 
@@ -816,6 +806,8 @@ const EventDetails = () => {
             )}
           </Card>
           )}
+
+          {role === "admin" && <EventReviewers key={id} eventId={id} />}
 
           {/* Attendees Card */}
           {role === "admin" && canViewAttendance && (

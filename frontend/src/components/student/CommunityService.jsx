@@ -8,12 +8,14 @@ import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
 import Pagination from "../ui/Pagination";
+import StablePage from "../ui/StablePage";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { formatDate, formatDateTime } from "../../utils/helpers";
 import { BaseCard, Card, FlightPanel, PageHeader, StatusChip } from "../ui";
 import { readScreen, writeScreen } from "../../utils/queryCache";
+import ManualAttendanceHistory from "./ManualAttendanceHistory";
 
-const CACHE_KEY = "student:community-service";
+const CACHE_KEY = "student:community-service:manual-review";
 
 const ServiceSummaryTile = ({ label, value, icon, hint, tone }) => (
   <Card padding="none" className="service-summary-card">
@@ -167,9 +169,14 @@ const CommunityService = () => {
             description={period ? "No attendance records match this school year and semester." : "Your attendance and community service records will appear here."}
           />
         ) : (
-          <div>
-          <div className="student-history-pagination px-4 pt-4"><Pagination page={currentPage} pageSize={10} total={records.length} onChange={changeRecordPage} label="Attendance history pages" /></div>
-          <div ref={historyViewportRef} className="student-history-viewport overflow-x-auto" role="region" aria-label="Attendance breakdown table" tabIndex={0}>
+          <StablePage pageKey={`${schoolYear}:${semester}:${records.length}`} footer={<div className="px-4 pb-4"><Pagination page={currentPage} pageSize={10} total={records.length} onChange={changeRecordPage} label="Attendance history pages" /></div>}>
+          <ul className="space-y-3 px-4 py-4 md:hidden" aria-label="Attendance breakdown records">{visibleRecords.map((record, index) => <li key={record._id || index} className="portal-inset p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="min-w-0 flex-1 text-sm font-medium text-on [overflow-wrap:anywhere]">{record.event?.title || record.eventTitle || "Event unavailable"}</h3><StatusBadge status={record.status} /></div>
+            <p className="mt-2 text-xs text-on-muted">{formatDate(record.event?.date || record.eventDate) || "Date unavailable"}</p>
+            <dl className="mt-3 grid gap-3 text-sm"><div><dt className="text-xs text-on-muted">Service hours</dt><dd className={`mt-1 font-medium ${record.communityServiceHours > 0 ? "text-warn" : "text-on-dim"}`}>{record.communityServiceHours || 0} hours{record.provisionalHours > 0 && <span className="mt-1 block text-xs font-normal text-on-muted">{record.provisionalHours} provisional hours on hold</span>}</dd></div><div><dt className="text-xs text-on-muted">{record.manualReviewPending ? "Recorded check-in" : "Checked in"}</dt><dd className="mt-1 text-on-dim">{formatDateTime(record.manualAttendanceRequest?.effectiveAt || record.attendedAt) || "—"}</dd></div></dl>
+            {record.manualReviewPending && <p className="mt-3 text-xs text-info">{record.status === "pending" ? "Awaiting independent review" : "Attendance correction awaiting review"}</p>}
+          </li>)}</ul>
+          <div ref={historyViewportRef} className="student-history-viewport hidden overflow-x-auto md:block" role="region" aria-label="Attendance breakdown table" tabIndex={0}>
             <table className="data-table student-history-table">
               <colgroup>
                 <col style={{ width: "35%" }} />
@@ -202,6 +209,7 @@ const CommunityService = () => {
                     </td>
                     <td>
                       <StatusBadge status={record.status} />
+                      {record.manualReviewPending && <p className="mt-1 text-xs text-info">{record.status === "pending" ? "Under review" : "Correction pending"}</p>}
                     </td>
                     <td>
                       <span
@@ -211,6 +219,7 @@ const CommunityService = () => {
                       >
                         {record.communityServiceHours || 0} hours
                       </span>
+                      {record.provisionalHours > 0 && <p className="mt-1 text-xs text-on-muted">{record.provisionalHours} provisional hours on hold</p>}
                     </td>
                     <td className="text-xs">
                       {record.attendedAt ? formatDateTime(record.attendedAt) : "—"}
@@ -220,9 +229,11 @@ const CommunityService = () => {
               </tbody>
             </table>
           </div>
-          </div>
+          </StablePage>
         )}
       </FlightPanel>
+
+      <ManualAttendanceHistory />
 
       <BaseCard
         title="Penalty guide"

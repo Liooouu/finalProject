@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
@@ -24,6 +24,7 @@ import { useOrganizerPeriod } from "../../utils/useOrganizerPeriod";
 import { recordsForAcademicPeriod } from "../../utils/academicPeriods";
 import AcademicPeriodFilter from "./AcademicPeriodFilter";
 import Pagination from "../ui/Pagination";
+import StablePage from "../ui/StablePage";
 import Loading from "../shared/Loading";
 import EmptyState from "../shared/EmptyState";
 import ConfirmDialog from "../ui/ConfirmDialog";
@@ -73,6 +74,7 @@ const OrgManageEvents = () => {
   const [loadingGroups, setLoadingGroups] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const eventRequest = useRef(0);
 
   usePageMeta("Manage Events", "Create and edit shared events, or review past events.");
 
@@ -83,25 +85,25 @@ const OrgManageEvents = () => {
   };
 
   const fetchEvents = useCallback(() => {
+    const request = ++eventRequest.current;
     const endpoint = viewMode === "my" ? "/events/my-events" : "/events/all";
     return api
       .get(endpoint)
       .then((res) => {
+        if (request !== eventRequest.current) return;
         setEvents(res.data);
         setLoadError(false);
         setLoading(false);
         writeScreen(`organizer:events:${viewMode}`, { events: res.data });
       })
-      .catch(() => { setLoadError(true); setLoading(false); });
+      .catch(() => { if (request === eventRequest.current) { setLoadError(true); setLoading(false); } });
   }, [viewMode]);
 
   // Switching between "All events" and "My events" is instant on a revisit.
   useEffect(() => {
     const seeded = readScreen(`organizer:events:${viewMode}`);
-    if (seeded) {
-      setEvents(seeded.events ?? []);
-      setLoading(false);
-    }
+    setEvents(seeded?.events ?? []);
+    setLoading(seeded === undefined);
   }, [viewMode]);
 
   const toggleGroups = async (eventId) => {
@@ -126,6 +128,7 @@ const OrgManageEvents = () => {
 
   useEffect(() => {
     fetchEvents();
+    return () => { eventRequest.current += 1; };
   }, [fetchEvents]);
 
   useAutoRefresh(fetchEvents, { interval: 30000 });
@@ -201,14 +204,12 @@ const OrgManageEvents = () => {
 
   const attendeeTotal = visibleEvents.reduce((sum, e) => sum + (e.attendeeCount || 0), 0);
 
-  if (loading) return <Loading label="Loading your events..." />;
-
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="Organizer events"
         title={showForm ? "Create event" : eventRange === "past" ? "Past events" : eventRange === "active" ? "Active events" : viewMode === "my" ? "My events" : "All events"}
-        subtitle={showForm ? "Enter the event details and attendance schedule." : `${visibleEvents.length} ${visibleEvents.length === 1 ? "event" : "events"} · ${attendeeTotal} total ${
+        subtitle={showForm ? "Enter the event details and attendance schedule." : loading ? "Loading events…" : `${visibleEvents.length} ${visibleEvents.length === 1 ? "event" : "events"} · ${attendeeTotal} total ${
           attendeeTotal === 1 ? "attendee" : "attendees"
         }`}
         actions={showForm ? <Button onClick={() => setShowForm(false)} variant="secondary" size="sm"><MdClose /> Cancel</Button> : undefined}
@@ -253,7 +254,7 @@ const OrgManageEvents = () => {
         </div>
       </details>
       </>}
-      {loadError && <div role="alert" className="alert alert-danger">Events could not be refreshed. Please reload to try again.</div>}
+      {loadError && <div role="alert" className="alert alert-danger"><p>Events could not be loaded.</p><Button size="sm" variant="secondary" onClick={fetchEvents}>Retry loading events</Button></div>}
 
       {message && (
         <div
@@ -416,7 +417,9 @@ const OrgManageEvents = () => {
         </Card>
       )}
 
-      {!showForm && (visibleEvents.length === 0 ? (
+      {!showForm && (loading ? <Loading label="Loading your events..." /> : loadError && events.length === 0 ? (
+        <EmptyState icon={<FaCalendarAlt />} title="Events unavailable" description="Retry loading events to see the current list." />
+      ) : visibleEvents.length === 0 ? (
         <EmptyState
           icon={<FaCalendarAlt />}
           title={events.length ? "No matching events" : viewMode === "my" ? "No events yet" : "No events found"}
@@ -434,7 +437,8 @@ const OrgManageEvents = () => {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <StablePage pageKey={`organizer-events:${viewMode}:${eventRange}:${statusFilter}:${period?.startYear || "all"}:${semester}:${visibleEvents.length}`} footer={<Pagination page={currentPage} pageSize={EVENT_PAGE_SIZE} total={visibleEvents.length} onChange={setPage} label="Organizer event pages" />}>
+        <div className="stretch-page-grid grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           {pageEvents.map((event) => {
             const ownedByMe = isOwnEvent(event);
             return <Card key={event._id} as="article" className="flex min-w-0 flex-col">
@@ -462,6 +466,7 @@ const OrgManageEvents = () => {
             </Card>;
           })}
         </div>
+        </StablePage>
       ))}
 
       <ConfirmDialog
@@ -478,7 +483,6 @@ const OrgManageEvents = () => {
         }}
         onCancel={() => setDeleteTarget(null)}
       />
-      {!showForm && <Pagination page={currentPage} pageSize={EVENT_PAGE_SIZE} total={visibleEvents.length} onChange={setPage} label="Organizer event pages" />}
     </div>
   );
 };

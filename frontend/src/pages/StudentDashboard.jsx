@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useState, useEffect } from "react";
 import "../styles/portal-workspace.css";
 import "../styles/portal-neumorphism.css";
+import "../styles/responsive-workspace.css";
 import { Routes, Route, Navigate, useLocation, useNavigate, Link } from "react-router-dom";
 import { FaCheck, FaCamera } from "react-icons/fa";
 import Sidebar from "../components/Sidebar";
@@ -88,7 +89,7 @@ const StudentDashboard = () => {
                     <p className="font-medium text-on">Enroll your face before your first event</p>
                     <p className="mt-0.5 text-sm">
                       Attendance is recorded by face at the organizer&apos;s check-in station. Until
-                      you enroll, an organizer has to mark you manually.{" "}
+                      you enroll, ask an organizer for a manual attendance request, which needs independent review.{" "}
                       <Link
                         to="/student/dashboard/profile?section=security"
                         className="font-semibold underline underline-offset-2"

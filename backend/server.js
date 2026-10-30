@@ -15,6 +15,7 @@ const { syncAllStudentAcademicYears } = require("./services/academicProgression"
 const User = require("./models/User");
 const Attendance = require("./models/Attendance");
 const CheckInSession = require("./models/CheckInSession");
+const ManualAttendanceRequest = require("./models/ManualAttendanceRequest");
 const { notifyUsers, eventRecipients } = require("./services/notify");
 const { isMailEnabled } = require("./services/mailer");
 const fileStore = require("./services/fileStore");
@@ -43,6 +44,7 @@ const studentRoutes = require("./routes/studentRoutes");
 const organizerRoutes = require("./routes/organizerRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const checkinRoutes = require("./routes/checkinRoutes");
+const manualAttendanceRoutes = require("./routes/manualAttendanceRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -90,6 +92,7 @@ app.use("/api/student", studentRoutes);
 app.use("/api/organizer", organizerRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/checkin", checkinRoutes);
+app.use("/api/manual-attendance", manualAttendanceRoutes);
 
 // ✅ HEALTH CHECK — used by the container HEALTHCHECK and by Coolify's health
 // probe. Reports database state without failing on it: the process only starts
@@ -152,6 +155,8 @@ connectDB()
     // heals the database without a manual migration step. Runs before accounts
     // are created so a first-run admin is never the only account that can exist.
     await repairUserIndexes();
+    // Establish the duplicate-request guard before accepting attendance work.
+    await ManualAttendanceRequest.init();
     await syncAllStudentAcademicYears();
     setInterval(() => syncAllStudentAcademicYears().catch(err => console.error("Academic progression:", err.message)), 60 * 60 * 1000);
 
@@ -261,6 +266,9 @@ connectDB()
           try {
             // Get all students
             const students = await User.find({ role: "student" });
+            const pendingManualStudents = new Set((await ManualAttendanceRequest.find({
+              event: event._id, status: "pending",
+            }).distinct("student")).map(String));
 
             for (const student of students) {
               try {
@@ -286,7 +294,9 @@ connectDB()
                   await attendance.save();
 
                   // Notify the student (in-app + email)
-                  await notifyUsers([student], {
+                  // Pending manual check-ins have a provisional absence, not a
+                  // final penalty notice. Review resolves this event's balance.
+                  if (!pendingManualStudents.has(String(student._id))) await notifyUsers([student], {
                     type: "penalty",
                     title: "Attendance Marked Absent",
                     message: `You were marked as absent for the event "${event.title}". 8 community service hours have been added to your total.`,
@@ -354,6 +364,8 @@ connectDB()
                 await Attendance.find({ event: event._id }).select("student")
               ).map((a) => a.student.toString())
             );
+            const pendingStudents = await ManualAttendanceRequest.find({ event: event._id, status: "pending" }).distinct("student");
+            pendingStudents.forEach(id => attendeeIds.add(String(id)));
             const missing = allStudents.filter(
               (s) => !attendeeIds.has(s._id.toString())
             );

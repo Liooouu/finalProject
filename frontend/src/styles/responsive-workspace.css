@@ -1,0 +1,48 @@
+/* Preserve the portal hierarchy while giving forms enough room on phones. */
+.stable-page { display:flex; flex-direction:column; min-width:0; }
+.manual-desk-tabs { width:100%; }
+.manual-desk-tabs>button { flex:1; justify-content:center; }
+@media(max-width:639px) { .manual-desk-tabs>button { padding-left:8px; padding-right:8px; } }
+.stable-page-fill { flex:1; }
+.stable-page-content { display:flex; flex-direction:column; flex:1; min-width:0; min-height:var(--stable-page-content-height,0px); }
+.stable-page-footer { display:flow-root; flex-shrink:0; margin-top:auto; position:relative; }
+.stable-page-content>.stretch-page-list { display:grid; flex:1; grid-auto-rows:minmax(min-content,1fr); }
+.stable-page-content>.stretch-page-grid { flex:1; align-content:stretch; }
+.portal-refined main .paged-dashboard-card { display:flex; flex-direction:column; }
+.portal-refined main .paged-dashboard-card>.fd-body { display:flex; flex-direction:column; flex:1; }
+.portal-refined main .paged-dashboard-card .stretch-page-list>li { display:flex; align-items:flex-start; }
+.portal-refined main :is(input, select, textarea) { max-width:100%; }
+.portal-refined main :is(article, section, [role="group"]) { min-width:0; }
+.portal-refined main nav[aria-label$="pages"] { font-variant-numeric:tabular-nums; }
+.portal-refined main nav[aria-label$="pages"]>div { flex-wrap:wrap; }
+.portal-refined main nav[aria-label$="pages"]>div>span { min-width:6.8rem; text-align:center; }
+.portal-refined .manual-review-details { overflow-wrap:anywhere; }
+.portal-refined .admin-review-list { grid-template-columns:repeat(auto-fit,minmax(105px,1fr)); }
+.portal-refined .admin-review-box { min-height:150px; }
+@media(max-width:767px) {
+  .portal-refined aside nav button { min-height:44px; }
+  .portal-refined .flight-page { padding:16px 16px calc(24px + env(safe-area-inset-bottom)); }
+  .portal-refined main :is(.field,.field-select,.field-input,.field-textarea) { min-height:44px; font-size:16px; }
+  .portal-refined main button:not([role="tab"]) { min-height:40px; }
+  .portal-refined main :is(.fd-rail,.admin-section-heading) { flex-wrap:wrap; gap:10px; }
+  .portal-refined main :is(.fd-title,.panel-heading) { line-height:1.4; }
+  .portal-refined main nav[aria-label$="pages"] { gap:10px; }
+  .portal-refined main nav[aria-label$="pages"]>div { justify-content:space-between; gap:6px; }
+  .portal-refined main nav[aria-label$="pages"]>div>span { min-width:6.1rem; }
+  .portal-refined.organizer-refined .organizer-home-grid { grid-template-columns:minmax(0,1fr); }
+  .portal-refined.organizer-refined .organizer-home-grid>.fd-surface { grid-column:1/-1; }
+  .portal-refined.organizer-refined main .organizer-attendance-card>.fd-rail { padding:14px 16px 0; }
+  .portal-refined.organizer-refined main .organizer-attendance-card .fd-body { padding:12px 16px 16px; }
+  .portal-refined.organizer-refined .organizer-home-grid .organizer-attendance-card .text-sm { font-size:14px; }
+  .portal-refined.organizer-refined .organizer-home-grid .organizer-attendance-card .field-select { font-size:16px; padding-left:12px; }
+  .portal-refined.organizer-refined .organizer-home-grid .organizer-station-actions button { min-height:44px; padding:10px 14px; font-size:14px; }
+  .portal-refined.organizer-refined .organizer-home-grid .organizer-manual-card .organizer-review-box>.text-xs { display:block; }
+  .portal-refined .admin-home-reviews .admin-review-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .portal-refined .admin-home-reviews .admin-review-list>li:last-child:nth-child(odd) { grid-column:1/-1; }
+  .portal-refined .admin-review-box { min-height:112px; padding:12px; gap:6px; }
+  .portal-refined .student-pending-attendance>p { flex-basis:100%; }
+  .portal-refined .student-pending-attendance>button { width:100%; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .portal-refined main { scroll-behavior:auto; }
+}

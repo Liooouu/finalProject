@@ -17,6 +17,8 @@ const { excuseWindow } = require("../services/excuseWindow");
 const { submissionRevisionFilter, resubmissionIssue, excuseReviewerFilter } = require("../services/excuseReview");
 const { calendarView, promotionPlan } = require("../services/academicCalendar");
 const { syncStudentAcademicYear } = require("../services/academicProgression");
+const { pendingManualEventsForStudent } = require("../services/manualAttendance");
+const { projectManualAttendance } = require("../services/manualAttendanceView");
 
 router.get("/academic-status", protect, async (req, res) => {
   try {
@@ -70,9 +72,11 @@ router.get("/community-service", protect, async (req, res) => {
       return res.status(403).json({ error: "Only students can access this" });
     }
 
-    const attendances = await Attendance.find({ student: req.user._id })
+    const storedAttendances = await Attendance.find({ student: req.user._id })
       .populate("event", "title date time")
       .sort({ attendedAt: -1 });
+    const pendingRequests = await pendingManualEventsForStudent(req.user._id);
+    const attendances = projectManualAttendance(storedAttendances, pendingRequests, { studentId: req.user._id });
 
     const totalHours = attendances.reduce((sum, a) => sum + (a.communityServiceHours || 0), 0);
     // Only real attendance counts; pending (never marked) and excused do not.
@@ -89,6 +93,8 @@ router.get("/community-service", protect, async (req, res) => {
       completedHours,
       totalAttended,
       breakdown: attendances,
+      pendingManualAttendance: pendingRequests.length,
+      provisionalHours: attendances.reduce((sum, record) => sum + (record.provisionalHours || 0), 0),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -26,6 +26,7 @@ import { useOrganizerPeriod } from "../../utils/useOrganizerPeriod";
 import { recordsForAcademicPeriod } from "../../utils/academicPeriods";
 import AcademicPeriodFilter from "./AcademicPeriodFilter";
 import Pagination from "../ui/Pagination";
+import StablePage from "../ui/StablePage";
 import { formatDate, formatDateTime } from "../../utils/helpers";
 import { getUserRole, getUserFromToken } from "../../utils/auth";
 import { readScreen, writeScreen } from "../../utils/queryCache";
@@ -238,6 +239,7 @@ const ManageExcuses = () => {
         </div>
       </div>
 
+      <StablePage pageKey={`${filter}:${searchQuery}:${filteredExcuses.length}`} footer={<Pagination page={currentPage} pageSize={PAGE_SIZE} total={filteredExcuses.length} onChange={setPage} label="Excuse letter pages" />}>
       {filteredExcuses.length === 0 ? (
         <Card>
           <EmptyState
@@ -383,7 +385,7 @@ const ManageExcuses = () => {
         </div>
       )}
 
-      <Pagination page={currentPage} pageSize={PAGE_SIZE} total={filteredExcuses.length} onChange={setPage} label="Excuse letter pages" />
+      </StablePage>
       {pendingDelete && (
         <ConfirmDialog
           open

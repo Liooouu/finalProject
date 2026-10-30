@@ -2,7 +2,7 @@ const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('node:module');
 const owner = '111111111111111111111111', eventId = '222222222222222222222222', studentId = '333333333333333333333333';
-let event, attendanceWrites, eventWrites, stationWrites, stored, creatorRole, notificationOptions, failEventNotification, stationData, sharedEvents;
+let event, attendanceWrites, eventWrites, stationWrites, stored, creatorRole, notificationOptions, failEventNotification, stationData, sharedEvents, pendingManual;
 const query = value => ({ populate() { return this; }, select() { return this; }, sort() { return this; }, lean: async () => value, then(ok, bad) { return Promise.resolve(value).then(ok, bad); } });
 class FakeEvent { constructor(data) { Object.assign(this, data, { _id: eventId }); } async save() { eventWrites++; } }
 FakeEvent.findById = async () => event;
@@ -20,6 +20,7 @@ Module._load = function(name, parent, ...rest) {
   '../models/Event': FakeEvent, '../models/Attendance': FakeAttendance,
   '../models/User': { findById: id => query(id === studentId ? { _id: studentId, role: 'student' } : { role: creatorRole }) },
   '../models/Excuse': {}, '../models/Notification': {},
+  '../models/ManualAttendanceRequest': { find: () => query([]), exists: async () => pendingManual },
   '../models/CheckInSession': { create: async data => { stationWrites++; stationData=data; return { ...data, _id: 'session' }; } },
   '../services/notify': { notifyUsers: async (recipients,options) => {notificationOptions=options;if(failEventNotification)throw Error('Storage unavailable');}, eventRecipients: async () => [] },
   '../services/fileStore': {}, '../services/faceIdentify': {},
@@ -31,7 +32,7 @@ const access = require('../services/eventAccess');
 const events = require('../routes/eventRoutes');
 const checkin = require('../routes/checkinRoutes');
 Module._load = originalLoad;
-beforeEach(() => { attendanceWrites = 0; eventWrites = 0; stationWrites = 0; stationData=null;sharedEvents=[];stored = null; notificationOptions=null;failEventNotification=false; creatorRole = 'admin'; event = { _id: eventId, organizer: owner, title: 'Original title', date: '2027-01-01', time: '09:00', endDate: '2027-01-01', endTime: '12:00', attendanceStartTime: '08:00', attendanceEndTime: '09:30', status: 'upcoming' };Object.defineProperty(event,'toObject',{value(){return {...this}}}); });
+beforeEach(() => { attendanceWrites = 0; eventWrites = 0; stationWrites = 0; stationData=null;sharedEvents=[];stored = null; notificationOptions=null;failEventNotification=false;pendingManual=false; creatorRole = 'admin'; event = { _id: eventId, organizer: owner, title: 'Original title', date: '2027-01-01', time: '09:00', endDate: '2027-01-01', endTime: '12:00', attendanceStartTime:'08:00', attendanceEndTime:'09:30', status:'upcoming' };Object.defineProperty(event,'toObject',{value(){return {...this}}}); });
 async function call(router, path, method, role, body = {}, id = owner) {
  const handler = router.stack.find(layer => layer.route?.path === path && layer.route.methods[method]).route.stack.at(-1).handle;
  const result = { status: 200 }; const res = { status(code) { result.status = code; return this; }, json(data) { result.body = data; return this; } };
@@ -42,7 +43,7 @@ test('admin cannot create a face station even for an event they created', async 
 test('admin retains read-only attendance monitoring', async () => { const result = await call(events,'/:id/attendees','get','admin');assert.equal(result.status,200);assert.equal(result.body[0].status,'present');assert.equal(attendanceWrites,0); });
 test('admin can create an event for organizers to operate', async () => { const result = await call(events,'/','post','admin',{title:'New event',date:'2027-01-01',time:'09:00',endTime:'12:00',attendanceStartTime:'08:00',attendanceEndTime:'09:30',location:'Auditorium'});assert.equal(result.status,201);assert.equal(eventWrites,1);assert.equal(attendanceWrites,0); });
 test('admin can correct information on another organizer event', async () => { event.organizer='444444444444444444444444';const result=await call(events,'/:id','put','admin',{title:'Corrected title',location:'Corrected venue'});assert.equal(result.status,200);assert.equal(result.body.title,'Corrected title');assert.equal(result.body.location,'Corrected venue');assert.equal(attendanceWrites,0); });
-test('organizer can still manually record attendance on their own event', async () => { const result=await call(events,'/:id/attendees/manual','post','organizer',{studentId,status:'late'});assert.equal(result.status,201);assert.equal(stored.status,'late');assert.equal(stored.communityServiceHours,4);assert.equal(attendanceWrites,1); });
+test('legacy direct manual endpoint requires independent review and makes no attendance write', async () => { const result=await call(events,'/:id/attendees/manual','post','organizer',{studentId,status:'late'});assert.equal(result.status,409);assert.match(result.body.requestPath,/manual-attendance/);assert.equal(attendanceWrites,0); });
 test('organizers can take attendance on administrator-created events', async () => { assert.equal(await access.canRecordAttendance(event,{role:'organizer',_id:'555555555555555555555555'}),true);assert.equal(await access.canRecordAttendance(event,{role:'admin',_id:owner}),false); });
 test('organizers can take attendance on another organizers event', async () => { creatorRole='organizer';assert.equal(await access.canRecordAttendance(event,{role:'organizer',_id:'555555555555555555555555'}),true); });
 test('organizer can open their event face station', async () => { const result=await call(checkin,'/sessions','post','organizer',{eventId});assert.equal(result.status,201);assert.equal(stationWrites,1); });
@@ -91,10 +92,21 @@ test('a helper organizer opens another organizers station with their own attribu
  assert.equal(result.status,201);assert.equal(stationWrites,1);assert.equal(stationData.openedBy,helper);assert.equal(stationData.stationLabel,'Side entrance');assert.equal(stationData.event,eventId);assert.equal(event.organizer,owner);
 });
 
-test('a helper organizer can manually record attendance on a shared event',async()=>{
+test('a helper organizer cannot bypass manual review through the legacy endpoint',async()=>{
  creatorRole='organizer';const helper='555555555555555555555555';
  const result=await call(events,'/:id/attendees/manual','post','organizer',{studentId,status:'late'},helper);
- assert.equal(result.status,201);assert.equal(stored.status,'late');assert.equal(stored.communityServiceHours,4);assert.equal(event.organizer,owner);
+ assert.equal(result.status,409);assert.equal(attendanceWrites,0);assert.equal(event.organizer,owner);
+});
+
+test('all direct status and organizer hours routes are blocked, including manual excuses and own attendance',async()=>{
+ for(const status of ['present','late','absent','excused'])assert.equal((await call(events,'/:id/attendees/:studentId','patch','organizer',{status})).status,409);
+ for(const route of ['/:id/attendees/:studentId/community-service','/:id/attendees/:studentId/community-service/remove'])assert.equal((await call(events,route,'patch','organizer',{hours:0})).status,409);
+ assert.equal((await call(events,'/:id/attendees/manual','post','organizer',{studentId:owner,status:'present'})).status,403);
+ assert.equal(attendanceWrites,0);
+});
+
+test('an event with pending manual requests cannot be deleted',async()=>{
+ pendingManual=true;assert.equal((await call(events,'/:id','delete','organizer')).status,409);assert.equal(eventWrites,0);
 });
 
 test('shared access does not permit opening a finished event or deleting another organizers event',async()=>{

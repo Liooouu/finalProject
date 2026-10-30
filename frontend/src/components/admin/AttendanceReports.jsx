@@ -14,6 +14,7 @@ import {
 } from "../ui";
 import { formatDate, formatTime12Hour } from "../../utils/helpers";
 import Pagination from "../ui/Pagination";
+import StablePage from "../ui/StablePage";
 
 import {
   Chart as ChartJS,
@@ -500,6 +501,7 @@ const AttendanceReports = () => {
                 subtitle={`${attendanceData.stats.total} matching records · ${attendancePageSize} per page`}
 
               >
+                <StablePage loading={attendanceLoading} pageKey={`${JSON.stringify(filters)}:${attendanceData.stats.total}`} footer={<div className="admin-table-pager"><Pagination page={attendancePage} pageSize={attendancePageSize} total={attendanceData.stats.total} disabled={attendanceLoading} onChange={setAttendancePage} label="Attendance report pages" /></div>}>
                 <div className="overflow-x-auto">
                   <table className="data-table admin-records-table min-w-[960px]" aria-busy={attendanceLoading}>
                     <colgroup><col style={{width:"24%"}} /><col style={{width:"24%"}} /><col style={{width:"22%"}} /><col style={{width:"13%"}} /><col style={{width:"17%"}} /></colgroup>
@@ -559,7 +561,7 @@ const AttendanceReports = () => {
                     </tbody>
                   </table>
                 </div>
-                <div className="admin-table-pager"><Pagination page={attendancePage} pageSize={attendancePageSize} total={attendanceData.stats.total} disabled={attendanceLoading} onChange={setAttendancePage} label="Attendance report pages" /></div>
+                </StablePage>
               </FlightPanel>
             </>
           )}

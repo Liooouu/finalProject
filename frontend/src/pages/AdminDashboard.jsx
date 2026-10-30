@@ -9,6 +9,7 @@ import { useScrollRestoration } from "../utils/useScrollRestoration";
 import { prefetchIdle } from "../utils/prefetchRoutes";
 import "../styles/admin-workspace.css";
 import "../styles/portal-neumorphism.css";
+import "../styles/responsive-workspace.css";
 
 // Per-page chunks: the dashboard, event details and the
 // reports table are only fetched when that page is actually opened.
@@ -21,6 +22,7 @@ const AttendanceReport = lazy(() => import("../components/admin/AttendanceReport
 const NotificationsPage = lazy(() => import("../components/organizer/NotificationsPage"));
 const ProfileSettings = lazy(() => import("../components/settings/ProfileSettings"));
 const EventDetails = lazy(() => import("../components/EventDetails"));
+const ManualAttendanceReviews = lazy(() => import("../components/shared/ManualAttendanceReviews"));
 
 const AdminDashboard = () => {
   const scrollRef = useScrollRestoration();
@@ -50,6 +52,7 @@ const AdminDashboard = () => {
                   <Route path="excuses" element={<ManageExcuses />} />
                   <Route path="users" element={<ManageUsers />} />
                   <Route path="reports" element={<AttendanceReport />} />
+                  <Route path="manual-reviews" element={<ManualAttendanceReviews />} />
                   <Route path="settings/email" element={<Navigate to="/admin/dashboard/profile?section=email" replace />} />
                   <Route path="notifications" element={<NotificationsPage role="admin" />} />
                   <Route path="profile" element={<ProfileSettings />} />

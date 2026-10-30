@@ -1,5 +1,5 @@
 import EventLastEdit from "../shared/EventLastEdit";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
@@ -22,12 +22,13 @@ import {
 } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Pagination from "../ui/Pagination";
+import StablePage from "../ui/StablePage";
 import { MdClose } from "react-icons/md";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 
 const CACHE_KEY = "admin:events";
 
-const EVENT_PAGE_SIZE = 2;
+const EVENT_PAGE_SIZE = 3;
 
 const EMPTY_FORM = {
   title: "",
@@ -46,6 +47,7 @@ const ManageEvents = () => {
   const seed = readScreen(CACHE_KEY);
   const [events, setEvents] = useState(seed?.events ?? []);
   const [loading, setLoading] = useState(seed === undefined);
+  const [loadError, setLoadError] = useState("");
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [attendeeSearch, setAttendeeSearch] = useState("");
@@ -63,37 +65,46 @@ const ManageEvents = () => {
   const [createMsg, setCreateMsg] = useState("");
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_FORM);
+  const eventListRef = useRef(null);
+  const eventRequest = useRef(0);
+  const attendeeRequest = useRef(0);
+  const [eventListMinHeight, setEventListMinHeight] = useState(0);
 
   usePageMeta("Manage Events", "Monitor events and correct their information.");
 
   const fetchEvents = useCallback(async ({ silent = false } = {}) => {
+    const request = ++eventRequest.current;
     const previous = readScreen(CACHE_KEY);
     if (!silent && previous === undefined) setLoading(true);
     try {
       const res = await api.get("/events/all");
+      if (request !== eventRequest.current) return;
       setEvents(res.data);
+      setLoadError("");
       writeScreen(CACHE_KEY, { events: res.data });
     } catch (err) {
-      console.error(err);
+      if (request === eventRequest.current) setLoadError(err.response?.data?.error || "Events could not be loaded. Try again.");
     } finally {
-      if (!silent) setLoading(false);
+      if (request === eventRequest.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     fetchEvents();
+    return () => { eventRequest.current += 1; attendeeRequest.current += 1; };
   }, [fetchEvents]);
 
   useAutoRefresh(fetchEvents, { interval: 30000 });
 
   const fetchAttendees = async (eventId) => {
+    const request = ++attendeeRequest.current;
     setAttendees([]); setAttendeesLoading(true); setAttendeesError(false);
     try {
       const res = await api.get(`/events/${eventId}/attendees`);
-      setAttendees(res.data);
+      if (request === attendeeRequest.current) setAttendees(res.data);
     } catch {
-      setAttendeesError(true);
-    } finally { setAttendeesLoading(false); }
+      if (request === attendeeRequest.current) setAttendeesError(true);
+    } finally { if (request === attendeeRequest.current) setAttendeesLoading(false); }
   };
 
   const openEventDetails = async (event) => {
@@ -106,13 +117,19 @@ const ManageEvents = () => {
   const deleteEvent = async (eventId) => {
     try {
       await api.delete(`/events/${eventId}`);
-      setEvents(events.filter((e) => e._id !== eventId));
+      eventRequest.current += 1;
+      setLoading(false);
+      setEvents(previous => {
+        const updated = previous.filter(event => event._id !== eventId);
+        writeScreen(CACHE_KEY, { events: updated });
+        return updated;
+      });
       setShowModal(false);
       setMessage("Event deleted successfully");
       setMessageType("success");
     } catch (err) {
       console.error(err);
-      setMessage("Failed to delete event");
+      setMessage(err.response?.data?.error || "Failed to delete event");
       setMessageType("error");
     }
   };
@@ -129,7 +146,14 @@ const ManageEvents = () => {
     setCreating(true);
     try {
       const res = await api.post("/events", createForm);
-      setEvents((prev) => [res.data, ...prev.filter(event => event._id !== res.data._id)]);
+      eventRequest.current += 1;
+      setLoading(false);
+      setLoadError("");
+      setEvents(previous => {
+        const updated = [res.data, ...previous.filter(event => event._id !== res.data._id)];
+        writeScreen(CACHE_KEY, { events: updated });
+        return updated;
+      });
       setSearchTerm("");
       setEventRange("all");
       setStatusFilter("all");
@@ -181,6 +205,23 @@ const ManageEvents = () => {
     visibleEventPage * EVENT_PAGE_SIZE
   );
 
+  // Let event cards fill the available area, then place the controls after
+  // their actions. The footer stays in normal flow so it never covers a card.
+  useLayoutEffect(() => {
+    const list = eventListRef.current;
+    const main = list?.closest("main");
+    if (!list || !main) return;
+    const measure = () => {
+      const contentOffset = list.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
+      const bottomPadding = parseFloat(getComputedStyle(main).paddingBottom) || 0;
+      setEventListMinHeight(Math.max(0, Math.floor(main.clientHeight - contentOffset - bottomPadding)));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(main);
+    return () => observer.disconnect();
+  }, [loading, showCreate, filteredEvents.length, message]);
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -199,6 +240,8 @@ const ManageEvents = () => {
           <p>{message}</p>
         </div>
       )}
+
+      {loadError && <div className="alert alert-danger" role="alert"><p>{loadError}</p><Button variant="secondary" size="sm" onClick={() => fetchEvents()}>Retry loading events</Button></div>}
 
       {!showCreate && (
         <div className="event-view-toolbar">
@@ -397,6 +440,8 @@ const ManageEvents = () => {
         <Card>
           <TableSkeleton rows={5} />
         </Card>
+      ) : loadError && events.length === 0 ? (
+        <EmptyState icon={<FaCalendarAlt />} title="Events unavailable" description="Retry loading events to see the current list." />
       ) : filteredEvents.length === 0 ? (
         <EmptyState
           icon={<FaCalendarAlt />}
@@ -404,65 +449,46 @@ const ManageEvents = () => {
           description="Events created by organizers will appear here."
         />
       ) : (
-        <>
-        <div className="space-y-3">
+        <div ref={eventListRef} className="flex min-w-0 flex-col gap-4" style={{ minHeight: eventListMinHeight || undefined }}>
+        <StablePage fill className="gap-4" pageKey={`admin-events:${searchTerm}:${eventRange}:${statusFilter}:${filteredEvents.length}`} footer={<div className="admin-event-page-footer shrink-0 pb-2 pt-1 [&>nav]:mt-0"><Pagination page={visibleEventPage} pageSize={EVENT_PAGE_SIZE} total={filteredEvents.length} onChange={setEventsPage} label="Admin event pages" /></div>}>
+        <div className="admin-event-page-grid stretch-page-grid grid min-w-0 flex-1 grid-cols-1 items-stretch gap-4 xl:grid-cols-3" data-testid="admin-event-page">
           {pagedEvents.map((event) => (
-            <Card key={event._id} as="article">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <h3 className="font-display text-[17px] font-semibold tracking-tight text-on">
+            <Card key={event._id} as="article" className="admin-event-card flex min-h-[340px] min-w-0 flex-col">
+              <div className="flex flex-1 flex-col gap-4">
+                <div className="flex flex-1 flex-col">
+                  <div className="flex items-start justify-between gap-2.5">
+                    <h3 className="min-w-0 flex-1 font-display text-[17px] font-semibold leading-[22px] tracking-tight text-on [overflow-wrap:anywhere]">
                       {event.title}
                     </h3>
                     <StatusChip status={event.status} />
                   </div>
+                  {event.description && <p className="mt-3 text-sm leading-relaxed text-on-dim [overflow-wrap:anywhere]">{event.description}</p>}
+                  <dl className="mt-4 grid grid-cols-2 gap-4 text-sm text-on-dim [overflow-wrap:anywhere]"><div><dt className="text-xs text-on-muted">Starts</dt><dd className="mt-1">{formatDate(event.date)}<br />{formatTime12Hour(event.time)}</dd></div><div><dt className="text-xs text-on-muted">Ends</dt><dd className="mt-1">{formatDate(event.endDate || event.date)}<br />{formatTime12Hour(event.endTime || "23:59")}</dd></div><div className="col-span-2"><dt className="flex items-center gap-1.5 text-xs text-on-muted"><FaMapMarkerAlt aria-hidden="true" /> Venue</dt><dd className="mt-1">{event.location || "Venue unavailable"}</dd></div><div className="col-span-2"><dt className="text-xs text-on-muted">Attendance window</dt><dd className="mt-1">{formatTime12Hour(event.attendanceStartTime) || "TBA"} – {formatTime12Hour(event.attendanceEndTime) || "TBA"}</dd></div></dl>
+                  <p className="mt-4 flex min-w-0 items-start gap-1.5 text-xs text-on-muted"><FaUsers aria-hidden="true" className="mt-0.5 shrink-0" /><span className="[overflow-wrap:anywhere]">{event.organizer?.name || "Unknown organizer"}</span></p>
                   <EventLastEdit event={event} className="mt-2" />
-                  {describeEventLifecycle(event) && (
-                    <p className="mt-1 text-xs text-on-muted">
-                      {describeEventLifecycle(event)}
-                    </p>
-                  )}
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-on-dim">
-                    <span className="flex items-center gap-1.5">
-                      <FaCalendarAlt className="text-on-muted" />
-                      {formatDate(event.date)} at {formatTime12Hour(event.time)}
-                    </span>
-                    {event.location && (
-                      <span className="flex items-center gap-1.5">
-                        <FaMapMarkerAlt className="text-on-muted" />
-                        {event.location}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1.5">
-                      <FaUsers className="text-on-muted" />
-                      {event.organizer?.name || "Unknown organizer"}
-                    </span>
-                    <span className="text-on-muted">
-                      Ends {formatDate(event.endDate || event.date)} at{" "}
-                      {formatTime12Hour(event.endTime || "23:59")}
-                    </span>
-                  </div>
+                  <span className="sr-only">{describeEventLifecycle(event)}</span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="mt-auto grid grid-cols-2 items-center gap-2">
 
                   <Button
                     onClick={() => navigate(`/admin/dashboard/events/${event._id}`)}
                     variant="secondary"
                     size="sm"
                   >
-                    <FaEdit className="text-xs" /> Review / edit event
+                    <FaEdit className="text-xs" /> Edit event
                   </Button>
                   <Button
                     onClick={() => openEventDetails(event)}
                     variant="secondary"
                     size="sm"
                   >
-                    View attendance
+                    Attendance
                   </Button>
                   <Button
                     onClick={() => setDeleteTarget(event._id)}
                     variant="danger"
                     size="sm"
+                    className="col-span-2"
                   >
                     Delete
                   </Button>
@@ -471,14 +497,8 @@ const ManageEvents = () => {
             </Card>
           ))}
         </div>
-        <Pagination
-          page={visibleEventPage}
-          pageSize={EVENT_PAGE_SIZE}
-          total={filteredEvents.length}
-          onChange={setEventsPage}
-          label="Admin event pages"
-        />
-        </>
+        </StablePage>
+        </div>
       ))}
 
       {showModal && selectedEvent && (
@@ -498,7 +518,7 @@ const ManageEvents = () => {
                 </p>
               </div>
               <Button
-                onClick={() => setShowModal(false)}
+                onClick={() => { attendeeRequest.current += 1; setShowModal(false); }}
                 variant="ghost"
                 size="icon"
                 aria-label="Close event details"

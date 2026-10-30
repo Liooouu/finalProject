@@ -36,18 +36,21 @@ const load = async () => {
 
   try {
     if (role === "organizer") {
-      const [stats] = await Promise.allSettled([
+      const [stats, manual] = await Promise.allSettled([
         api.get("/organizer/stats"),
+        api.get("/manual-attendance/summary"),
       ]);
       if (stats.status === "fulfilled") {
         next.excuses = stats.value.data?.pendingExcuses || 0;
       }
+      if (manual.status === "fulfilled") next.manual = manual.value.data?.pendingReview || 0;
     }
 
     if (role === "admin") {
-      const [stats, appeals] = await Promise.allSettled([
+      const [stats, appeals, manual] = await Promise.allSettled([
         api.get("/organizer/stats"),
         api.get("/admin/security/face-appeals", { params: { status: "pending" } }),
+        api.get("/manual-attendance/summary"),
       ]);
       if (stats.status === "fulfilled") {
         next.excuses = stats.value.data?.pendingExcuses || 0;
@@ -55,6 +58,7 @@ const load = async () => {
       if (appeals.status === "fulfilled") {
         next.appeals = appeals.value.data?.length || 0;
       }
+      if (manual.status === "fulfilled") next.manual = manual.value.data?.pendingReview || 0;
     }
   } finally {
     shared.running = false;
