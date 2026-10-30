@@ -1,314 +1,94 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  FaUsers,
-  FaChartBar,
-  FaCamera,
-  FaKey,
-  FaShieldAlt,
-  FaArrowRight,
-  FaChevronDown,
-} from "react-icons/fa";
+import { Link } from "react-router-dom";
+import { FaArrowDown, FaArrowRight, FaCamera, FaChartBar, FaCheck, FaKey, FaMoon, FaShieldAlt, FaSun, FaUsers } from "react-icons/fa";
 import AppBackground from "../components/shared/AppBackground";
-import BrandMark from "../components/shared/BrandMark";
 import TrackMark from "../components/shared/TrackMark";
 import Reveal from "../components/landing/Reveal";
+import useLandingScroll from "../components/landing/useLandingScroll";
 import features from "../data/features";
 import { useTheme } from "../context/ThemeContext";
-import techDark from "../assets/images/tech-bg-dark.jpg";
-import techLight from "../assets/images/tech-bg-light.jpg";
+import campus from "../assets/images/landing/campus.webp";
+import community from "../assets/images/landing/community-service.webp";
+import eventTeam from "../assets/images/landing/event-team.webp";
+import academicStaff from "../assets/images/landing/academic-staff.webp";
+import "../styles/landing.css";
 
-const steps = [
-  {
-    n: "01",
-    icon: <FaCamera />,
-    title: "Students check in",
-    desc: "Enroll your face once, then look at the organizer's kiosk camera to check in. Your community-service hours update automatically, and you can file an excuse when life gets in the way.",
-  },
-  {
-    n: "02",
-    icon: <FaUsers />,
-    title: "Organizers run the event",
-    desc: "Create an event, watch attendance land live, approve excuses as they come in, and export the list the moment it wraps.",
-  },
-  {
-    n: "03",
-    icon: <FaChartBar />,
-    title: "Admins see everything",
-    desc: "Spin up organizer accounts, review reports and exports, and keep every event, user, and hour accounted for.",
-  },
+const roles = [
+  { n: "01", icon: <FaCamera />, role: "For students", title: "Check in. Follow your records.", description: "Enroll your face, check in at an organizer’s face station, and view your attendance and required service hours. For a recorded absence, submit an excuse with supporting attachments within seven days after the event ends.", image: campus, alt: "Three students walking together outside a campus building", position: "45% 50%" },
+  { n: "02", icon: <FaUsers />, role: "For organizers", title: "Manage events, together.", description: "Create and edit shared events, operate face stations, and review other students’ excuse letters. Submit documented manual attendance requests for independent review when students need assistance.", image: eventTeam, alt: "A team planning together with a laptop and notebooks", position: "50% 45%" },
+  { n: "03", icon: <FaChartBar />, role: "For administrators", title: "Monitor, review, and manage.", description: "Monitor attendance, create or correct events, review manual requests and face appeals, and export CSV reports. Manage student accounts and grant or remove organizer access while preserving their student records.", image: academicStaff, alt: "A member of academic staff working with a laptop in a lecture hall", position: "50% 43%" },
 ];
-
 const securityPoints = [
-  { icon: <FaCamera />, title: "Face attendance", desc: "Enroll your face once, then check in at the organizer-operated camera station." },
-  { icon: <FaKey />, title: "Password recovery", desc: "Forgot your password? Request a one-time code by email and choose a new password." },
-  { icon: <FaShieldAlt />, title: "Role-based access", desc: "Students, organizers, and administrators have access to the tools for their role." },
+  { icon: <FaCamera />, title: "Face attendance", description: "Students enroll their face before checking in at an organizer-operated station." },
+  { icon: <FaUsers />, title: "Independent review", description: "Manual requests need an admin or an organizer assigned to review that event. Requesters and students cannot approve their own attendance." },
+  { icon: <FaKey />, title: "Account recovery", description: "Recover your password with a one-time email code and get back to your account." },
+  { icon: <FaShieldAlt />, title: "Access with a purpose", description: "Students, organizers, and admins get the tools and permissions their role needs." },
 ];
 
-const eyebrow =
-  "text-[10px] font-semibold uppercase tracking-[0.2em] text-brand";
-
-/**
- * LandingPage — the pre-login front page at "/". Free scrolling with soft
- * section snapping; every section's text and cards animate in on entry and
- * back out on exit (components/landing/Reveal). A floating "Get Started"
- * pill follows the scroll and steps aside once the final CTA is on screen.
- * Logged-in users never see this — App.jsx redirects them to their dashboard.
- */
-const LandingPage = () => {
-  const navigate = useNavigate();
-  const { isDark } = useTheme();
-  const ctaRef = useRef(null);
-  const [ctaInCtaSection, setCtaInCtaSection] = useState(false);
-
+export default function LandingPage() {
+  const { isDark, toggleTheme } = useTheme();
+  const scrollRef = useRef(null), contentRef = useRef(null), ctaRef = useRef(null);
+  const [hideFloatingCta, setHideFloatingCta] = useState(true);
+  const scrollTo = useLandingScroll(scrollRef, contentRef);
   useEffect(() => {
-    const el = ctaRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setCtaInCtaSection(entry.isIntersecting),
-      { threshold: 0.35 }
-    );
-    observer.observe(el);
+    const target = ctaRef.current;
+    if (!target) return;
+    const visible = new Set();
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => { if (entry.isIntersecting) visible.add(entry.target); else visible.delete(entry.target); });
+      setHideFloatingCta(visible.size > 0);
+    }, { root: scrollRef.current, threshold: 0.12 });
+    observer.observe(target);
+    const hero = contentRef.current?.querySelector("#home");
+    if (hero) observer.observe(hero);
     return () => observer.disconnect();
   }, []);
 
-  const goAuth = () => navigate("/auth");
-  const goSignup = () => navigate("/auth/signup");
-
-  return (
-    <AppBackground>
-      {/* Top bar — brand + sign in, stays put while the page scrolls under it */}
-      <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-between px-5 py-4 sm:px-8">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-            <TrackMark className="h-5 w-5" />
-          </span>
-          <span className="font-display text-lg font-bold tracking-tight text-on">
-            Track<span className="text-brand">ED</span>
-          </span>
-        </div>
-        <button
-          onClick={goAuth}
-          className="rounded-full border border-line bg-card/70 px-4 py-2 text-sm font-medium text-on backdrop-blur transition-colors hover:border-brand/30 hover:text-brand"
-        >
-          Sign in
-        </button>
-      </header>
-
-      <main className="relative h-[100svh] w-full overflow-x-hidden overflow-y-auto snap-y snap-proximity">
-        {/* ── Hero ─────────────────────────────────────────────── */}
-        <section className="relative flex min-h-full w-full snap-start flex-col items-center justify-center overflow-hidden px-6 pb-28 pt-24 text-center">
-          <img
-            src={isDark ? techDark : techLight}
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover opacity-[0.25] dark:opacity-[0.38]"
-          />
-          <div
-            aria-hidden="true"
-            className="absolute inset-0"
-            style={{
-              mixBlendMode: "color",
-              background: "var(--brand)",
-              opacity: isDark ? 0.35 : 0.28,
-            }}
-          />
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 bg-gradient-to-b from-white/70 via-white/55 to-[var(--app-base)] dark:from-[#070a12]/70 dark:via-[#070a12]/55 dark:to-[#070a12]"
-          />
-
-          <div className="relative z-10 flex flex-col items-center">
-            <Reveal variant="scale">
-              <BrandMark />
-            </Reveal>
-
-            <Reveal delay={90}>
-              <h1 className="mt-8 max-w-3xl font-display text-4xl font-extrabold leading-[1.08] tracking-tight text-on sm:text-5xl lg:text-6xl">
-                Track every{" "}
-                <span className="text-brand">event</span> and community
-                hour.
-              </h1>
-            </Reveal>
-
-            <Reveal delay={180}>
-              <p className="mt-5 max-w-2xl text-base text-on-dim sm:text-lg">
-                TrackED keeps event attendance in clear focus for students,
-                organizers, and admins.
-              </p>
-            </Reveal>
-
-            <Reveal delay={270}>
-              <button
-                onClick={goAuth}
-                className="mt-8 inline-flex items-center gap-2 rounded-full border border-line bg-card/80 px-6 py-3 text-sm font-semibold text-on backdrop-blur transition-colors hover:border-brand/30 hover:text-brand"
-              >
-                I already have an account
-                <FaArrowRight className="text-xs" />
-              </button>
-            </Reveal>
+  return <AppBackground className="tracked-landing">
+    <a className="landing-skip" href="#features" onClick={event => scrollTo(event, "features")}>Skip to features</a>
+    <header className="landing-header">
+      <a href="#home" className="landing-brand" aria-label="TrackED home" onClick={event => scrollTo(event, "home")}><span className="landing-brand-icon"><TrackMark className="h-6 w-6" /></span><span>Track<span className="text-brand">ED</span></span></a>
+      <nav className="landing-nav" aria-label="Landing page sections"><a href="#features" onClick={event => scrollTo(event, "features")}>Features</a><a href="#how-it-works" onClick={event => scrollTo(event, "how-it-works")}>How it works</a><a href="#security" onClick={event => scrollTo(event, "security")}>Security</a></nav>
+      <div className="landing-header-actions"><button className="landing-theme" onClick={toggleTheme} aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}>{isDark ? <FaSun /> : <FaMoon />}</button><Link className="landing-button landing-button-quiet" to="/auth">Sign in <FaArrowRight aria-hidden="true" /></Link></div>
+    </header>
+    <main ref={scrollRef} className="landing-scroll" aria-label="About TrackED" tabIndex={-1}>
+      <div ref={contentRef} className="landing-content">
+        <section id="home" className="landing-hero landing-container" aria-labelledby="landing-title" tabIndex={-1}>
+          <div className="landing-hero-copy">
+            <Reveal><p className="landing-eyebrow"><span /> CCIT departmental event attendance</p></Reveal>
+            <Reveal delay={70}><h1 id="landing-title">Track every event.<br />Keep your <span>records clear.</span></h1></Reveal>
+            <Reveal delay={140}><p className="landing-lead">Monitor departmental event attendance, review excuse letters, and track required community service hours—all in TrackED.</p></Reveal>
+            <Reveal delay={210} className="landing-hero-actions"><Link to="/auth/signup" className="landing-button landing-button-primary">Get started <FaArrowRight aria-hidden="true" /></Link><a href="#how-it-works" className="landing-text-link" onClick={event => scrollTo(event, "how-it-works")}>See how it works <FaArrowDown aria-hidden="true" /></a></Reveal>
+            <Reveal delay={250}><div className="landing-audience"><span><FaCheck aria-hidden="true" /> Students</span><span><FaCheck aria-hidden="true" /> Organizers</span><span><FaCheck aria-hidden="true" /> Administrators</span></div></Reveal>
           </div>
-
-          <Reveal
-            delay={420}
-            className="absolute inset-x-0 bottom-7 z-10 flex flex-col items-center gap-2 text-on-muted"
-          >
-            <span className="text-[11px] font-medium uppercase tracking-[0.22em]">
-              Scroll to explore
-            </span>
-            <FaChevronDown className="animate-bounce text-sm" />
+          <Reveal variant="scale" delay={120} className="landing-hero-visual">
+            <figure className="landing-hero-frame"><img src={campus} width={1400} height={933} fetchPriority="high" alt="Three students walking together with books outside a campus building" /><span className="landing-photo-label">Made for campus life</span><figcaption><span className="landing-caption-line" />Every event.<br />A chance to belong.</figcaption></figure>
+            <div className="landing-visual-note"><span className="landing-note-icon"><FaCamera aria-hidden="true" /></span><div><strong>A familiar face. A simpler check-in.</strong><p>Face verification at the event station.</p></div><FaArrowRight aria-hidden="true" /></div>
           </Reveal>
+          <a href="#features" className="landing-explore" onClick={event => scrollTo(event, "features")}><span>Explore TrackED</span><FaArrowDown aria-hidden="true" /></a>
         </section>
-
-        {/* ── Features ─────────────────────────────────────────── */}
-        <section className="flex min-h-full w-full snap-start items-center px-6 py-24 sm:px-10">
-          <div className="mx-auto w-full max-w-6xl">
-            <Reveal>
-              <p className={eyebrow}>Features</p>
-              <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-on sm:text-4xl">
-                Everything attendance, in one place
-              </h2>
-              <p className="mt-4 max-w-2xl text-on-dim">
-                Four jobs TrackED does so nobody has to chase a paper list
-                again.
-              </p>
-            </Reveal>
-
-            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {features.map((f, i) => (
-                <Reveal
-                  key={f.title}
-                  variant="scale"
-                  delay={i * 90}
-                  className="panel-surface panel-glass rounded-[var(--panel-radius)] p-5"
-                >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-                    {f.icon}
-                  </span>
-                  <p className="mt-4 font-semibold text-on">{f.title}</p>
-                  <p className="mt-1 text-sm text-on-muted">{f.desc}</p>
-                </Reveal>
-              ))}
-            </div>
-          </div>
+        <section id="features" className="landing-section landing-container" aria-labelledby="features-title" tabIndex={-1}>
+          <Reveal className="landing-section-heading"><div><p className="landing-eyebrow">Attendance monitoring and reporting</p><h2 id="features-title">Attendance and records,<br />in one place.</h2></div><p>Keep event attendance, required service hours, and review decisions connected and easy to find.</p></Reveal>
+          <div className="landing-features">{features.map((feature, index) => <Reveal key={feature.title} delay={index * 65} as="article" className="landing-feature"><span className="landing-feature-index">0{index + 1}</span><span className="landing-feature-icon">{feature.icon}</span><h3>{feature.title}</h3><p>{feature.desc}</p></Reveal>)}</div>
         </section>
-
-        {/* ── How it works ─────────────────────────────────────── */}
-        <section className="flex min-h-full w-full snap-start items-center px-6 py-24 sm:px-10">
-          <div className="mx-auto w-full max-w-6xl">
-            <Reveal>
-              <p className={eyebrow}>How it works</p>
-              <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-on sm:text-4xl">
-                One system, three vantage points
-              </h2>
-            </Reveal>
-
-            <div className="mt-10 grid gap-4 md:grid-cols-3">
-              {steps.map((s, i) => (
-                <Reveal
-                  key={s.n}
-                  variant={i % 2 === 0 ? "left" : "right"}
-                  delay={i * 110}
-                  className="panel-surface panel-glass relative overflow-hidden rounded-[var(--panel-radius)] p-6"
-                >
-                  <span className="absolute right-5 top-4 font-display text-5xl font-extrabold text-brand/10">
-                    {s.n}
-                  </span>
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--brand-solid)] text-white shadow-[var(--elev-2)]">
-                    {s.icon}
-                  </span>
-                  <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand">
-                    Step {s.n}
-                  </p>
-                  <p className="mt-1.5 font-semibold text-on">{s.title}</p>
-                  <p className="mt-2 text-sm text-on-muted">{s.desc}</p>
-                </Reveal>
-              ))}
-            </div>
-          </div>
+        <section className="landing-section landing-container landing-community" aria-labelledby="community-title">
+          <Reveal className="landing-community-photo"><img src={community} width={1200} height={800} loading="lazy" decoding="async" alt="Volunteers working together to collect litter from a green field" /><span>Participation that makes a difference.</span></Reveal>
+          <Reveal className="landing-community-copy"><p className="landing-eyebrow">Community service ledger</p><h2 id="community-title">Know your balance.<br />See where the hours came from.</h2><p>Absences and late marks add required community service hours. Your ledger shows the related events, penalties, and hours removed through approved excuses or administrator adjustments.</p><ul><li><FaCheck aria-hidden="true" /> Required service hours remaining</li><li><FaCheck aria-hidden="true" /> Event-by-event attendance history</li><li><FaCheck aria-hidden="true" /> Penalty and adjustment breakdowns</li></ul><a href="#how-it-works" className="landing-text-link" onClick={event => scrollTo(event, "how-it-works")}>Tools for each role <FaArrowRight aria-hidden="true" /></a></Reveal>
         </section>
-
-        {/* ── Security ─────────────────────────────────────────── */}
-        <section className="flex min-h-full w-full snap-start items-center px-6 py-24 sm:px-10">
-          <div className="mx-auto w-full max-w-6xl">
-            <Reveal>
-              <p className={eyebrow}>Security</p>
-              <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-on sm:text-4xl">
-                Locked down — and never a dead end
-              </h2>
-              <p className="mt-4 max-w-2xl text-on-dim">
-                Strong where it matters, human where it has to be: if a student
-                can't use face unlock, staff can verify them in person instead
-                of leaving them stranded.
-              </p>
-            </Reveal>
-
-            <div className="mt-10 grid gap-4 md:grid-cols-3">
-              {securityPoints.map((p, i) => (
-                <Reveal
-                  key={p.title}
-                  variant={i % 2 === 0 ? "right" : "left"}
-                  delay={i * 110}
-                  className="panel-surface panel-glass rounded-[var(--panel-radius)] p-6"
-                >
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-                    {p.icon}
-                  </span>
-                  <p className="mt-4 font-semibold text-on">{p.title}</p>
-                  <p className="mt-2 text-sm text-on-muted">{p.desc}</p>
-                </Reveal>
-              ))}
-            </div>
-          </div>
+        <section id="how-it-works" className="landing-section landing-container" aria-labelledby="roles-title" tabIndex={-1}>
+          <Reveal className="landing-section-heading"><div><p className="landing-eyebrow">How it works</p><h2 id="roles-title">Three roles.<br />One connected department.</h2></div><p>Everyone has a clear place to start, with the right tools for the work they do.</p></Reveal>
+          <div className="landing-roles">{roles.map((role, index) => <Reveal as="article" key={role.n} delay={index * 80} className="landing-role"><div className="landing-role-photo"><img src={role.image} alt={role.alt} width={1000} height={667} style={{ objectPosition: role.position }} loading="lazy" decoding="async" /><span>{role.n}</span></div><div className="landing-role-copy"><p className="landing-eyebrow">{role.icon} {role.role}</p><h3>{role.title}</h3><p>{role.description}</p></div></Reveal>)}</div>
         </section>
-
-        {/* ── Final CTA ────────────────────────────────────────── */}
-        <section
-          ref={ctaRef}
-          className="flex min-h-full w-full snap-start flex-col items-center justify-center px-6 py-24 text-center"
-        >
-          <Reveal variant="scale">
-            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
-              <TrackMark className="h-9 w-9" />
-            </span>
-            <h2 className="mt-7 font-display text-3xl font-extrabold tracking-tight text-on sm:text-5xl">
-              Ready to get started?
-            </h2>
-            <p className="mx-auto mt-4 max-w-xl text-on-dim">
-              Create your account in about a minute — then your next event is
-              one glance away.
-            </p>
-            <button
-              onClick={goSignup}
-              className="mt-8 inline-flex items-center gap-2.5 rounded-full bg-gradient-to-r from-[var(--brand)] to-[var(--brand-2)] px-8 py-4 text-base font-semibold text-white shadow-[var(--elev-3)] transition-all hover:brightness-110"
-            >
-              Get Started
-              <FaArrowRight />
-            </button>
-            <p className="mt-5 text-xs text-on-muted">
-              Students register with their school email. Organizers and admins
-              are set up by an admin.
-            </p>
-          </Reveal>
+        <section id="security" className="landing-section landing-container landing-security" aria-labelledby="security-title" tabIndex={-1}>
+          <Reveal className="landing-security-intro"><span className="landing-security-symbol"><FaShieldAlt aria-hidden="true" /></span><p className="landing-eyebrow">Attendance verification and review</p><h2 id="security-title">Face check-in.<br />Reviewed manual requests.</h2><p>Organizers operate face stations and submit documented manual requests when needed. Approved manual attendance uses the verified check-in time to determine attendance status.</p></Reveal>
+          <div className="landing-security-grid">{securityPoints.map((point, index) => <Reveal as="article" key={point.title} delay={index * 50} className="landing-security-item"><span className="landing-feature-icon">{point.icon}</span><h3>{point.title}</h3><p>{point.description}</p></Reveal>)}</div>
         </section>
-      </main>
-
-      {/* Floating CTA — follows the scroll, steps aside over the final CTA */}
-      <button
-        onClick={goSignup}
-        aria-hidden={ctaInCtaSection}
-        tabIndex={ctaInCtaSection ? -1 : 0}
-        className={`fixed bottom-6 left-1/2 z-40 flex items-center gap-2 rounded-full bg-gradient-to-r from-[var(--brand)] to-[var(--brand-2)] px-6 py-3.5 text-sm font-semibold text-white shadow-[var(--elev-3)] transition-all duration-300 hover:brightness-110 ${
-          ctaInCtaSection
-            ? "pointer-events-none -translate-x-1/2 translate-y-5 opacity-0"
-            : "-translate-x-1/2 opacity-100"
-        }`}
-      >
-        Get Started
-        <FaArrowRight className="text-xs" />
-      </button>
-    </AppBackground>
-  );
-};
-
-export default LandingPage;
+        <section ref={ctaRef} className="landing-final landing-container" aria-labelledby="get-started-title">
+          <Reveal className="landing-final-inner"><span className="landing-brand-icon"><TrackMark className="h-7 w-7" /></span><p className="landing-eyebrow">Your next event starts here</p><h2 id="get-started-title">Show up.<br /><span>We’ll help you keep track.</span></h2><p>Create your student account, enroll your face, and get ready for your next departmental event.</p><Link to="/auth/signup" className="landing-button landing-button-primary">Get started <FaArrowRight aria-hidden="true" /></Link><p className="landing-final-note">Already registered? <Link to="/auth">Sign in to your account</Link>.<br />Organizer access is granted to students by an administrator.</p></Reveal>
+        </section>
+        <footer className="landing-footer landing-container"><span>© {new Date().getFullYear()} TrackED</span><span>CCIT departmental event attendance &amp; reporting</span><a href="https://www.pexels.com/" target="_blank" rel="noreferrer">Photography: Pexels <FaArrowRight aria-hidden="true" /></a></footer>
+      </div>
+    </main>
+    <Link to="/auth/signup" aria-hidden={hideFloatingCta} tabIndex={hideFloatingCta ? -1 : 0} className={`landing-floating-cta landing-button landing-button-primary ${hideFloatingCta ? "is-hidden" : ""}`}>Get started <FaArrowRight aria-hidden="true" /></Link>
+  </AppBackground>;
+}

@@ -7,22 +7,22 @@ const features = [
   {
     icon: <FaCamera />,
     title: "Face check-in",
-    desc: "Look at the organizer's kiosk camera — no login, no QR code.",
+    desc: "Enroll your face, then check in at an organizer-operated face station.",
   },
   {
     icon: <FaClock />,
-    title: "Community service hours",
-    desc: "Earn and track every required hour.",
+    title: "Community service ledger",
+    desc: "Track required service hours from attendance penalties and approved adjustments.",
   },
   {
     icon: <FaBell />,
-    title: "Real-time notifications",
-    desc: "Instant updates on events, excuses, and statuses.",
+    title: "Event and attendance updates",
+    desc: "Receive notifications about events, excuse decisions, and attendance changes.",
   },
   {
     icon: <FaChartBar />,
-    title: "Live attendance reports",
-    desc: "Organizers and admins see everything at a glance.",
+    title: "Attendance reports",
+    desc: "Admins review attendance summaries and export filtered CSV reports.",
   },
 ];
 
