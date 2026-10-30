@@ -12,7 +12,7 @@ import { FaCamera, FaClipboardList, FaCalendarAlt, FaEnvelopeOpenText } from "re
 import OpenFaceStationButton from "./OpenFaceStationButton";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 
-const CACHE_KEY = "organizer:home";
+const CACHE_KEY = "organizer:home:shared-events";
 
 export default function OrganizerHome() {
   const seed = readScreen(CACHE_KEY);
@@ -24,7 +24,7 @@ export default function OrganizerHome() {
   const [eventsError, setEventsError] = useState(seed?.eventsError ?? false);
   const [lettersError, setLettersError] = useState(seed?.lettersError ?? false);
   usePageMeta("Dashboard", "Live and upcoming events and requests needing review.");
-  const refresh = useCallback(() => Promise.allSettled([api.get("/events/my-events"), api.get("/organizer/excuses")]).then(([eventResult, letterResult]) => {
+  const refresh = useCallback(() => Promise.allSettled([api.get("/events/all"), api.get("/organizer/excuses")]).then(([eventResult, letterResult]) => {
     const previous = readScreen(CACHE_KEY) || {};
     const next = { ...previous };
     if (eventResult.status === "fulfilled") {

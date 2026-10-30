@@ -1,10 +1,8 @@
 // services/eventAccess.js
-// Who may manage an event. Kept in one place so the event routes, the face
-// check-in station and anything added later cannot drift apart on ownership.
-const User = require("../models/User");
+// Shared event work and creator-only deletion have separate permissions.
 
 // Strict ownership: only the creator or an admin. Destructive actions (delete)
-// stay here; normal event operations use canManageEventOrAdminCreated below.
+// stay here; viewing and attendance operations use the shared rules below.
 function canManageEvent(event, user) {
   if (!event || !user) return false;
   if (user.role === "admin") return true;
@@ -12,26 +10,19 @@ function canManageEvent(event, user) {
   return String(event.organizer?._id || event.organizer) === String(user._id);
 }
 
-// Attendance operations remain limited to the owner and admin-created events.
-async function canManageEventOrAdminCreated(event, user) {
-  if (!event || !user) return false;
-  if (user.role === "admin") return true;
-  if (user.role !== "organizer") return false;
-
-  const ownerId = event.organizer?._id || event.organizer;
-  if (String(ownerId) === String(user._id)) return true;
-
-  const creator = await User.findById(ownerId).select("role").lean();
-  return creator?.role === "admin";
+// Organizers collaborate across events; administrators retain monitoring access.
+// Authentication validates the current organizer grant before these checks.
+function canViewEventAttendance(event, user) {
+  return Boolean(event && user && ["organizer", "admin"].includes(user.role));
 }
 
 // Recording attendance is an organizer responsibility. Admin access above is
 // for event correction and read-only monitoring, not check-in or status entry.
-async function canRecordAttendance(event, user) {
-  return user?.role === "organizer" && await canManageEventOrAdminCreated(event, user);
+function canRecordAttendance(event, user) {
+  return Boolean(event && user?.role === "organizer");
 }
 // Event information is shared work; editing does not transfer ownership.
 function canEditEvent(event, user) {
   return Boolean(event && user && ["organizer", "admin"].includes(user.role));
 }
-module.exports = { canManageEvent, canManageEventOrAdminCreated, canRecordAttendance, canEditEvent };
+module.exports = { canManageEvent, canViewEventAttendance, canRecordAttendance, canEditEvent };

@@ -2,23 +2,25 @@ const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('node:module');
 const owner = '111111111111111111111111', eventId = '222222222222222222222222', studentId = '333333333333333333333333';
-let event, attendanceWrites, eventWrites, stationWrites, stored, creatorRole, notificationOptions, failEventNotification;
+let event, attendanceWrites, eventWrites, stationWrites, stored, creatorRole, notificationOptions, failEventNotification, stationData, sharedEvents;
 const query = value => ({ populate() { return this; }, select() { return this; }, sort() { return this; }, lean: async () => value, then(ok, bad) { return Promise.resolve(value).then(ok, bad); } });
 class FakeEvent { constructor(data) { Object.assign(this, data, { _id: eventId }); } async save() { eventWrites++; } }
 FakeEvent.findById = async () => event;
 FakeEvent.findOne = async () => null;
+FakeEvent.find = filter => query([event,...sharedEvents].filter(value => !filter?.organizer || value.organizer === filter.organizer));
 FakeEvent.findByIdAndUpdate = (id, update) => { eventWrites++; for (const [key,value] of Object.entries(update)) if (value !== undefined) event[key] = value; return query(event); };
 class FakeAttendance { constructor(data) { Object.assign(this, data, { _id: 'record' }); } async save() { attendanceWrites++; stored = this; } }
 FakeAttendance.findOne = async () => stored;
 FakeAttendance.findById = () => query(stored);
 FakeAttendance.find = () => query([{ _id: 'existing', status: 'present', student: { name: 'Student' } }]);
+FakeAttendance.aggregate = async () => [];
 const originalLoad = Module._load;
 Module._load = function(name, parent, ...rest) {
  const mocks = {
   '../models/Event': FakeEvent, '../models/Attendance': FakeAttendance,
   '../models/User': { findById: id => query(id === studentId ? { _id: studentId, role: 'student' } : { role: creatorRole }) },
   '../models/Excuse': {}, '../models/Notification': {},
-  '../models/CheckInSession': { create: async data => { stationWrites++; return { ...data, _id: 'session' }; } },
+  '../models/CheckInSession': { create: async data => { stationWrites++; stationData=data; return { ...data, _id: 'session' }; } },
   '../services/notify': { notifyUsers: async (recipients,options) => {notificationOptions=options;if(failEventNotification)throw Error('Storage unavailable');}, eventRecipients: async () => [] },
   '../services/fileStore': {}, '../services/faceIdentify': {},
   '../middleware/authMiddleware': { protect: (req, res, next) => next() },
@@ -29,7 +31,7 @@ const access = require('../services/eventAccess');
 const events = require('../routes/eventRoutes');
 const checkin = require('../routes/checkinRoutes');
 Module._load = originalLoad;
-beforeEach(() => { attendanceWrites = 0; eventWrites = 0; stationWrites = 0; stored = null; notificationOptions=null;failEventNotification=false; creatorRole = 'admin'; event = { _id: eventId, organizer: owner, title: 'Original title', date: '2027-01-01', time: '09:00', endDate: '2027-01-01', endTime: '12:00', attendanceStartTime: '08:00', attendanceEndTime: '09:30', status: 'upcoming' }; });
+beforeEach(() => { attendanceWrites = 0; eventWrites = 0; stationWrites = 0; stationData=null;sharedEvents=[];stored = null; notificationOptions=null;failEventNotification=false; creatorRole = 'admin'; event = { _id: eventId, organizer: owner, title: 'Original title', date: '2027-01-01', time: '09:00', endDate: '2027-01-01', endTime: '12:00', attendanceStartTime: '08:00', attendanceEndTime: '09:30', status: 'upcoming' };Object.defineProperty(event,'toObject',{value(){return {...this}}}); });
 async function call(router, path, method, role, body = {}, id = owner) {
  const handler = router.stack.find(layer => layer.route?.path === path && layer.route.methods[method]).route.stack.at(-1).handle;
  const result = { status: 200 }; const res = { status(code) { result.status = code; return this; }, json(data) { result.body = data; return this; } };
@@ -42,14 +44,14 @@ test('admin can create an event for organizers to operate', async () => { const 
 test('admin can correct information on another organizer event', async () => { event.organizer='444444444444444444444444';const result=await call(events,'/:id','put','admin',{title:'Corrected title',location:'Corrected venue'});assert.equal(result.status,200);assert.equal(result.body.title,'Corrected title');assert.equal(result.body.location,'Corrected venue');assert.equal(attendanceWrites,0); });
 test('organizer can still manually record attendance on their own event', async () => { const result=await call(events,'/:id/attendees/manual','post','organizer',{studentId,status:'late'});assert.equal(result.status,201);assert.equal(stored.status,'late');assert.equal(stored.communityServiceHours,4);assert.equal(attendanceWrites,1); });
 test('organizers can take attendance on administrator-created events', async () => { assert.equal(await access.canRecordAttendance(event,{role:'organizer',_id:'555555555555555555555555'}),true);assert.equal(await access.canRecordAttendance(event,{role:'admin',_id:owner}),false); });
-test('organizers cannot take attendance on unrelated organizer events', async () => { creatorRole='organizer';assert.equal(await access.canRecordAttendance(event,{role:'organizer',_id:'555555555555555555555555'}),false); });
+test('organizers can take attendance on another organizers event', async () => { creatorRole='organizer';assert.equal(await access.canRecordAttendance(event,{role:'organizer',_id:'555555555555555555555555'}),true); });
 test('organizer can open their event face station', async () => { const result=await call(checkin,'/sessions','post','organizer',{eventId});assert.equal(result.status,201);assert.equal(stationWrites,1); });
 
 test('organizer can edit another organizer event and the server records the actual editor',async()=>{
  creatorRole='organizer';const another='555555555555555555555555';
  const result=await call(events,'/:id','put','organizer',{title:'Shared correction',location:'Updated room',lastEditedBy:owner,lastEditedByName:'Spoofed name',lastEditedAt:'2000-01-01',organizer:another},another);
  assert.equal(result.status,200);assert.equal(event.title,'Shared correction');assert.equal(event.organizer,owner);assert.equal(event.lastEditedBy,another);assert.equal(event.lastEditedByName,'Review Organizer');assert.ok(event.lastEditedAt instanceof Date);assert.equal(attendanceWrites,0);
- assert.equal(await access.canRecordAttendance(event,{role:'organizer',_id:another}),false);
+ assert.equal(await access.canRecordAttendance(event,{role:'organizer',_id:another}),true);
  assert.equal(access.canManageEvent(event,{role:'organizer',_id:another}),false);
 });
 test('latest editor changes when a different staff member corrects an event',async()=>{
@@ -72,3 +74,39 @@ test('past events remain available to organizers including other organizers even
 
 test('event creation defers SMTP for both organizer and admin',async()=>{for(const role of ['organizer','admin']){const r=await call(events,'/','post',role,{title:'Fast '+role,date:'2027-01-01',time:'09:00',endTime:'12:00',attendanceStartTime:'08:00',attendanceEndTime:'09:30',location:'Hall'});assert.equal(r.status,201);assert.equal(notificationOptions.deferEmail,true);}});
 test('saved event still returns success with a warning if notification storage fails',async()=>{failEventNotification=true;const r=await call(events,'/','post','organizer',{title:'Saved even if notification fails',date:'2027-01-01',time:'09:00',endTime:'12:00',attendanceStartTime:'08:00',attendanceEndTime:'09:30',location:'Hall'});assert.equal(r.status,201);assert.equal(eventWrites,1);assert.match(r.body.notificationWarning,/Event saved/);});
+
+test('all events includes shared creators while My events remains creator-only',async()=>{
+ const helper='555555555555555555555555';
+ const own={...event,_id:'666666666666666666666666',organizer:helper};Object.defineProperty(own,'toObject',{value(){return {...this}}});sharedEvents.push(own);
+ const all=await call(events,'/all','get','organizer',{},helper);
+ assert.equal(all.status,200);assert.deepEqual(all.body.map(value=>value._id),[eventId,own._id]);
+ const mine=await call(events,'/my-events','get','organizer',{},helper);
+ assert.deepEqual(mine.body.map(value=>value._id),[own._id]);
+ assert.equal((await call(events,'/all','get','student')).status,403);
+});
+
+test('a helper organizer opens another organizers station with their own attribution',async()=>{
+ creatorRole='organizer';const helper='555555555555555555555555';
+ const result=await call(checkin,'/sessions','post','organizer',{eventId,stationLabel:'Side entrance'},helper);
+ assert.equal(result.status,201);assert.equal(stationWrites,1);assert.equal(stationData.openedBy,helper);assert.equal(stationData.stationLabel,'Side entrance');assert.equal(stationData.event,eventId);assert.equal(event.organizer,owner);
+});
+
+test('a helper organizer can manually record attendance on a shared event',async()=>{
+ creatorRole='organizer';const helper='555555555555555555555555';
+ const result=await call(events,'/:id/attendees/manual','post','organizer',{studentId,status:'late'},helper);
+ assert.equal(result.status,201);assert.equal(stored.status,'late');assert.equal(stored.communityServiceHours,4);assert.equal(event.organizer,owner);
+});
+
+test('shared access does not permit opening a finished event or deleting another organizers event',async()=>{
+ const helper='555555555555555555555555';event.status='finished';
+ assert.equal((await call(checkin,'/sessions','post','organizer',{eventId},helper)).status,400);assert.equal(stationWrites,0);
+ assert.equal((await call(events,'/:id','delete','organizer',{},helper)).status,403);assert.equal(eventWrites,0);
+});
+
+test('promoted organizers can collaborate but student context and administrators cannot record attendance',()=>{
+ assert.equal(access.canRecordAttendance(event,{role:'organizer',accountRole:'student',organizerAccess:true}),true);
+ for(const user of [{role:'student',organizerAccess:true},{role:'student'},{role:'admin'},null])assert.equal(access.canRecordAttendance(event,user),false);
+ assert.equal(access.canRecordAttendance(null,{role:'organizer'}),false);
+ assert.equal(access.canViewEventAttendance(event,{role:'admin'}),true);
+ assert.equal(access.canViewEventAttendance(event,{role:'student',organizerAccess:true}),false);
+});

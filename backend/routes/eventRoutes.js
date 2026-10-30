@@ -25,7 +25,7 @@ const {
 
 // Event ownership lives in one service so the face kiosk and the event routes
 // cannot disagree about who may manage an event.
-const { canManageEvent, canManageEventOrAdminCreated, canRecordAttendance, canEditEvent } = require("../services/eventAccess");
+const { canManageEvent, canViewEventAttendance, canRecordAttendance, canEditEvent } = require("../services/eventAccess");
 const { takeExcuseRestore } = require("../services/attendanceMarking");
 
 // Only explicit human edits stamp the editor; scheduled jobs do not impersonate one.
@@ -375,7 +375,7 @@ router.get("/:id/attendees", protect, async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+    if (!canViewEventAttendance(event, req.user)) {
       return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 
@@ -398,7 +398,7 @@ router.get("/:id/attendees/groups", protect, async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+    if (!canViewEventAttendance(event, req.user)) {
       return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 

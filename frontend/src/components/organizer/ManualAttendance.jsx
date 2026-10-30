@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../api/axios";
-import { getUserFromToken } from "../../utils/auth";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { Card, PageHeader } from "../ui";
 import Loading from "../shared/Loading";
@@ -20,8 +19,7 @@ export default function ManualAttendance() {
     let active = true;
     api.get("/events/all").then(({ data }) => {
       if (!active) return;
-      const userId = getUserFromToken()?.id;
-      setEvents(data.filter(event => String(event.organizer?._id || event.organizer) === String(userId) || event.organizer?.role === "admin").sort((a, b) => new Date(b.date) - new Date(a.date)));
+      setEvents([...data].sort((a, b) => new Date(b.date) - new Date(a.date)));
       setLoading(false);
     }).catch(() => { if (active) { setError(true); setLoading(false); } });
     return () => { active = false; };
@@ -30,7 +28,7 @@ export default function ManualAttendance() {
   const selected = events.find(event => event._id === id);
   return <div className="space-y-4">
     <PageHeader title="Manual attendance" subtitle="Choose an event, then add or correct student records." />
-    {error ? <div role="alert" className="alert alert-danger">Events could not be loaded. Reload to try again.</div> : !events.length ? <EmptyState title="No events available" description="Your events and shared administrator events will appear here." /> : <>
+    {error ? <div role="alert" className="alert alert-danger">Events could not be loaded. Reload to try again.</div> : !events.length ? <EmptyState title="No events available" description="Events from all organizers and administrators will appear here." /> : <>
       <Card padding="sm"><label htmlFor="manual-event" className="field-label">Event</label><select id="manual-event" aria-label="Manual attendance event" className="field-select" value={selected?._id || ""} onChange={e => navigate(`/organizer/dashboard/manual-attendance/${e.target.value}`)}><option value="" disabled>Choose an event</option>{events.map(event => <option key={event._id} value={event._id}>{event.title} · {formatDate(event.date)}</option>)}</select></Card>
       {selected ? <OrgManageAttendees key={selected._id} embedded /> : id ? <div role="alert" className="alert alert-danger">This event is unavailable or you do not have permission to manage it.</div> : <EmptyState compact title="Choose an event to begin" description="Both current and past event records can be managed here." />}
     </>}

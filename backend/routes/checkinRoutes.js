@@ -15,7 +15,7 @@ const User = require("../models/User");
 const Attendance = require("../models/Attendance");
 const CheckInSession = require("../models/CheckInSession");
 const { protect } = require("../middleware/authMiddleware");
-const { canManageEventOrAdminCreated, canRecordAttendance } = require("../services/eventAccess");
+const { canViewEventAttendance, canRecordAttendance } = require("../services/eventAccess");
 const {
   isTerminal,
   eventWindow,
@@ -151,7 +151,7 @@ router.get("/sessions", protect, async (req, res) => {
       if (!isValidObjectId(eventId)) return res.status(400).json({ error: "A valid eventId is required" });
       const event = await Event.findById(eventId);
       if (!event) return res.status(404).json({ error: "Event not found" });
-      if (!(await canManageEventOrAdminCreated(event, req.user))) {
+      if (!canViewEventAttendance(event, req.user)) {
         return res.status(403).json({ error: "You are not allowed to manage this event" });
       }
       events = [event];
@@ -159,9 +159,8 @@ router.get("/sessions", protect, async (req, res) => {
       if (!["organizer", "admin"].includes(req.user.role)) {
         return res.status(403).json({ error: "Organizer access is required" });
       }
-      // Match the same owner/admin-created scope used by station open/close.
-      const adminIds = req.user.role === "organizer" ? await User.find({ role: "admin" }).distinct("_id") : [];
-      events = await Event.find(req.user.role === "admin" ? {} : { organizer: { $in: [req.user._id, ...adminIds] } })
+      // All organizers can help operate attendance for every shared event.
+      events = await Event.find({})
         .select("_id title").lean();
     }
     const eventTitles = new Map(events.map(event => [String(event._id), event.title]));
@@ -195,7 +194,7 @@ router.delete("/sessions/:id", protect, async (req, res) => {
 
     const event = await Event.findById(session.event);
     if (!event) return res.status(404).json({ error: "Event not found" });
-    if (!(await canManageEventOrAdminCreated(event, req.user))) {
+    if (!canViewEventAttendance(event, req.user)) {
       return res.status(403).json({ error: "You are not allowed to manage this event" });
     }
 

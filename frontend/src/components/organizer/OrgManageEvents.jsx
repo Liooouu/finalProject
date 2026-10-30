@@ -81,8 +81,6 @@ const OrgManageEvents = () => {
     const ownerId = event.organizer?._id || event.organizer;
     return Boolean(currentUserId && ownerId && String(ownerId) === String(currentUserId));
   };
-  const canTakeAttendance = (event) =>
-    isOwnEvent(event) || event.organizer?.role === "admin";
 
   const fetchEvents = useCallback(() => {
     const endpoint = viewMode === "my" ? "/events/my-events" : "/events/all";
@@ -439,7 +437,6 @@ const OrgManageEvents = () => {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {pageEvents.map((event) => {
             const ownedByMe = isOwnEvent(event);
-            const canManageAttendance = canTakeAttendance(event);
             return <Card key={event._id} as="article" className="flex min-w-0 flex-col">
               <div className="flex items-start justify-between gap-3"><h3 className="min-w-0 flex-1 font-display text-lg font-semibold text-on [overflow-wrap:anywhere]">{event.title}</h3><StatusChip status={event.status} /></div>
               <div className="mt-4 space-y-2 text-sm text-on-dim">
@@ -454,7 +451,7 @@ const OrgManageEvents = () => {
                 <p className="mt-2 whitespace-pre-wrap text-sm text-on-dim [overflow-wrap:anywhere]">{event.description || "No description provided."}</p>
                 <p className="mt-2">{describeEventLifecycle(event)}</p>
                 {viewMode === "all" && <p className="mt-2">Organized by {event.organizer?.name || "Organizer TBA"}</p>}
-                {canManageAttendance && <div className="mt-3"><button type="button" className="font-medium text-brand" onClick={() => toggleGroups(event._id)}>Attendees by group</button>{expandedEvent === event._id && <div className="mt-2 space-y-1">{loadingGroups[event._id] ? "Loading…" : eventGroups[event._id]?.length ? eventGroups[event._id].map(group => <p key={group.key || group.label}>{group.label || "Unassigned"}: {group.attended || 0}</p>) : "No groups found."}</div>}</div>}
+                <div className="mt-3"><button type="button" className="font-medium text-brand" onClick={() => toggleGroups(event._id)}>Attendees by group</button>{expandedEvent === event._id && <div className="mt-2 space-y-1">{loadingGroups[event._id] ? "Loading…" : eventGroups[event._id]?.length ? eventGroups[event._id].map(group => <p key={group.key || group.label}>{group.label || "Unassigned"}: {group.attended || 0}</p>) : "No groups found."}</div>}</div>
               </details>
               <div className="mt-auto pt-4">
                 <div className="flex flex-wrap items-start gap-3 border-t border-line pt-3">
