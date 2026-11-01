@@ -48,12 +48,12 @@ An evolution of the identity already earned by the auth page, not a rebrand.
    AA-safe status colours, motion utilities and shared surface classes. All legacy tokens were
    kept, so the other pages render unchanged.
 2. **Primitives:** `Card`, `StatTile` (sparkline), `ChartCard`, `Timeline`, `ProgressRing`,
-   `SegmentedControl`, `Tabs`, `Breadcrumbs`, `CommandPalette`, plus a refreshed `Button` and
+   `SegmentedControl`, `Tabs`, `Breadcrumbs`, plus a refreshed `Button` and
    `EmptyState`.
 3. **Shell:**
    - Grouped navigation (Overview / Management / Security / Account) with pending-count
      badges, active rail, collapse-to-rail (remembered), and a focus-trapped mobile drawer.
-   - Top bar with breadcrumbs, page context, `Ctrl+K` navigation palette, themed bell/theme
+   - Top bar with desktop breadcrumbs, mobile back navigation, themed bell/theme
      controls and a richer account menu.
 4. **Admin dashboard:** greeting hero, four KPI tiles with real sparklines, a 14-day
    attendance trend, a five-status doughnut, a "Needs attention" queue (face appeals, PIN

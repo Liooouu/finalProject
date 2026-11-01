@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import "../../styles/portal-neumorphism.css";
 import "../../styles/auth-neumorphism.css";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import api from "../../api/axios";
 import {
   setAuth,
@@ -11,7 +11,11 @@ import {
   clearPendingVerificationEmail,
   clearAuth,
 } from "../../utils/auth";
-import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
+import {
+  isStrongPassword,
+  PASSWORD_MESSAGE,
+  PASSWORD_HINT,
+} from "../../utils/password";
 import {
   FaEye,
   FaEyeSlash,
@@ -24,16 +28,22 @@ import AppBackground from "../../components/shared/AppBackground";
 import BrandMark from "../../components/shared/BrandMark";
 import features from "../../data/features";
 import Button from "../../components/ui/Button";
+import ThemeToggle from "../../components/ui/ThemeToggle";
 import FaceCapture from "../../components/auth/FaceCapture";
 import { useTheme } from "../../context/ThemeContext";
 import techDark from "../../assets/images/tech-bg-dark.jpg";
 import techLight from "../../assets/images/tech-bg-light.jpg";
 
 // Original mobile form; the raised treatment is enabled only at desktop widths.
-const panelClasses = "auth-panel animate-fade-up lg:rounded-[var(--panel-radius)] lg:border lg:border-line lg:bg-card lg:p-8 lg:shadow-[var(--panel-shadow)]";
+const panelClasses =
+  "auth-panel animate-fade-up lg:rounded-[var(--panel-radius)] lg:border lg:border-line lg:bg-card lg:p-8 lg:shadow-[var(--panel-shadow)]";
 
 const AuthPage = () => {
-  const [desktopAuth, setDesktopAuth] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
+  const [desktopAuth, setDesktopAuth] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 1024px)").matches,
+  );
   useEffect(() => {
     const query = window.matchMedia("(min-width: 1024px)");
     const update = () => setDesktopAuth(query.matches);
@@ -176,7 +186,9 @@ const AuthPage = () => {
     setVerifyLoading(true);
     setError("");
     try {
-      await api.post("/auth/resend-verification", { email: pendingEmail.trim() });
+      await api.post("/auth/resend-verification", {
+        email: pendingEmail.trim(),
+      });
       setResendIn(60);
     } catch (err) {
       setError(err.response?.data?.message || "Something went wrong.");
@@ -230,13 +242,25 @@ const AuthPage = () => {
         // Email verification is enforced when the server can send mail.
         if (res.data.requiresEmailVerification) {
           startEmailVerification(res.data.email);
-          setFormData({ ...formData, name: "", password: "", confirmPassword: "", email: "" });
+          setFormData({
+            ...formData,
+            name: "",
+            password: "",
+            confirmPassword: "",
+            email: "",
+          });
           setShowConfirmPassword(false);
           return;
         }
 
         continueAuth(res.data);
-        setFormData({ ...formData, name: "", password: "", confirmPassword: "", email: "" });
+        setFormData({
+          ...formData,
+          name: "",
+          password: "",
+          confirmPassword: "",
+          email: "",
+        });
         setShowConfirmPassword(false);
       }
     } catch (err) {
@@ -351,7 +375,11 @@ const AuthPage = () => {
         finishAuth(pendingAuth.token, pendingAuth.role);
       }
     } catch (err) {
-      setError(err.response?.data?.message || err.response?.data?.error || "Failed to save face photo.");
+      setError(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          "Failed to save face photo.",
+      );
     } finally {
       setEnrolling(false);
     }
@@ -361,85 +389,96 @@ const AuthPage = () => {
   const inputClasses = "field auth-field";
 
   return (
-    <AppBackground className={`auth-responsive ${desktopAuth ? "portal-refined portal-neumorphic auth-neumorphic" : ""}`}>
-      <div className="relative flex w-full min-h-screen">
-        {/* Left — photo + branding panel. Sign-in only: sign-up drops the
-            split so the form sits alone on the backdrop at every size. */}
-        {isLogin && (
-        <div className="relative hidden w-1/2 overflow-hidden lg:block">
-          <img
-            src={isDark ? techDark : techLight}
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          {/* Indigo recolor to match brand */}
-          <div
-            aria-hidden="true"
-            className="absolute inset-0"
-            style={{
-              mixBlendMode: "color",
-              background: "var(--brand)",
-              opacity: isDark ? 0.55 : 0.45,
-            }}
-          />
-          {/* Legibility scrim */}
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 bg-gradient-to-br from-indigo-950/90 via-indigo-950/60 to-slate-900/40"
-          />
+    <AppBackground
+      className={`auth-responsive ${!isLogin && flow === "form" ? "auth-signup" : ""} ${desktopAuth ? `portal-refined portal-neumorphic auth-neumorphic auth-reference ${flow === "forgotPassword" ? "auth-is-recovery" : ""}` : ""}`}
+    >
+      <div
+        className="auth-city-backdrop"
+        aria-hidden="true"
+        style={{ backgroundImage: `url(${isDark ? techDark : techLight})` }}
+      />
+      <div className="auth-shell relative flex w-full min-h-screen">
+        <ThemeToggle className="auth-theme-toggle" />
+        {/* Desktop branding panel; password recovery uses a centered form. */}
+        {flow !== "forgotPassword" && (
+          <div className="auth-brand-panel relative hidden w-1/2 overflow-hidden lg:block">
+            <img
+              src={isDark ? techDark : techLight}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            {/* Indigo recolor to match brand */}
+            <div
+              aria-hidden="true"
+              className="absolute inset-0"
+              style={{
+                mixBlendMode: "color",
+                background: "var(--brand)",
+                opacity: isDark ? 0.55 : 0.45,
+              }}
+            />
+            {/* Legibility scrim */}
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-gradient-to-br from-indigo-950/90 via-indigo-950/60 to-slate-900/40"
+            />
 
-          <div className="relative z-10 flex h-full flex-col justify-between p-12 xl:p-16">
-            <BrandMark onLight />
+            <div className="relative z-10 flex h-full flex-col justify-between p-12 xl:p-16">
+              <BrandMark onLight />
 
-            <div key={isLogin ? "panel-login" : "panel-signup"} className="animate-fade-up">
-              <h2 className="max-w-md font-display text-3xl font-bold leading-tight text-white xl:text-4xl">
-                {isLogin
-                  ? "Track every event and community service hour."
-                  : "New here? Create your account in about a minute."}
-              </h2>
-              <p className="mt-3 max-w-md text-white/80">
-                {isLogin
-                  ? "TrackED keeps event attendance in clear focus for students, organizers, and admins."
-                  : "Register with your school email, verify it with a 6-digit code, and your next event is one glance away."}
-              </p>
+              <div
+                key={isLogin ? "panel-login" : "panel-signup"}
+                className="animate-fade-up"
+              >
+                <h2 className="max-w-md font-display text-3xl font-bold leading-tight text-white xl:text-4xl">
+                  {isLogin
+                    ? "Track every event and community service hour."
+                    : "Your student account starts here."}
+                </h2>
+                <p className="mt-3 max-w-md text-white/80">
+                  {isLogin
+                    ? "TrackED keeps event attendance in clear focus for students, organizers, and admins."
+                    : "Register with your school email, verify it with a 6-digit code, and your next event is one glance away."}
+                </p>
 
-              <div className="mt-9 grid gap-3 sm:grid-cols-2">
-                {features.map((f) => (
-                  <div
-                    key={f.title}
-                    className="flex items-start gap-3.5 rounded-2xl border border-white/20 bg-white/15 p-4 backdrop-blur-sm"
-                  >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20 text-white ring-1 ring-inset ring-white/10">
-                      {f.icon}
-                    </span>
-                    <div>
-                      <p className="font-semibold text-white">{f.title}</p>
-                      <p className="mt-0.5 text-sm text-white/75">{f.desc}</p>
-                    </div>
+                {isLogin && (
+                  <div className="mt-9 grid gap-3 sm:grid-cols-2">
+                    {features.map((f) => (
+                      <div
+                        key={f.title}
+                        className="flex items-start gap-3.5 rounded-2xl border border-white/20 bg-white/15 p-4 backdrop-blur-sm"
+                      >
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20 text-white ring-1 ring-inset ring-white/10">
+                          {f.icon}
+                        </span>
+                        <div>
+                          <p className="font-semibold text-white">{f.title}</p>
+                          <p className="mt-0.5 text-sm text-white/75">
+                            {f.desc}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
 
-            <p className="text-xs text-white/60">
-              © {new Date().getFullYear()} TrackED · Events Attendance Management System
-            </p>
+              <p className="text-xs text-white/60">
+                © {new Date().getFullYear()} TrackED · Events Attendance
+                Management System
+              </p>
+            </div>
           </div>
-        </div>
         )}
 
         {/* Right — authentication */}
-        <div className="relative flex min-h-screen w-full flex-1 items-center justify-center p-4 sm:p-8">
-          {/* Phone only: the mockup's soft blue→violet wash with a couple of
-              diagonal indigo bands, over a faded copy of the same photo the
-              desktop panel uses — so the phone keeps the brand's photographic
-              texture without hurting legibility. Hidden at lg and above, where
-              the full-strength photo panel takes over. */}
+        <div className="auth-form-column relative flex min-h-screen w-full flex-1 items-center justify-center p-4 sm:p-8">
+          {/* City backdrop for mobile auth and the centered recovery flow. */}
           <div
             aria-hidden="true"
             className={`pointer-events-none absolute inset-0 -z-10 overflow-hidden bg-gradient-to-b from-[#eef2ff] via-[#f7f5ff] to-[#e9f1ff] dark:from-[#0b1020] dark:via-[#141136] dark:to-[#0a1024] ${
-              isLogin ? "lg:hidden" : ""
+              flow !== "forgotPassword" ? "lg:hidden" : ""
             }`}
           >
             <img
@@ -464,18 +503,18 @@ const AuthPage = () => {
           </div>
 
           <div className="w-full max-w-md">
-          {/* Brand (mobile / tablet, since the photo panel is hidden below lg).
+            {/* Brand (mobile / tablet, since the photo panel is hidden below lg).
               The password-reset screens carry their own circular brand badge
               instead, so this one stands down there. */}
-          {flow !== "forgotPassword" && (
-            <div className={`mb-6 flex justify-center ${isLogin ? "lg:hidden" : ""}`}>
-              <BrandMark />
-            </div>
-          )}
+            {flow !== "forgotPassword" && (
+              <div className="mb-6 flex justify-center lg:hidden">
+                <BrandMark />
+              </div>
+            )}
 
             {flow === "verifyEmail" ? (
               <div className={panelClasses}>
-                <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
+                <div className="mb-6 flex flex-col items-center gap-4 text-center">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
                     <FaShieldAlt />
                   </span>
@@ -485,24 +524,26 @@ const AuthPage = () => {
                     </h1>
                     <p className="mt-1.5 text-sm text-on-dim">
                       We sent a 6-digit code to{" "}
-                      <span className="font-semibold text-on">{pendingEmail}</span>. Enter it below
-                      to finish creating your account.
+                      <span className="font-semibold text-on">
+                        {pendingEmail}
+                      </span>
+                      . Enter it below to finish creating your account.
                     </p>
                   </div>
                 </div>
 
                 {error && (
-                  <div
-                    role="alert"
-                    className="alert alert-danger mb-5"
-                  >
+                  <div role="alert" className="alert alert-danger mb-5">
                     {error}
                   </div>
                 )}
 
                 <form onSubmit={handleVerifyEmail} className="space-y-4">
                   <div className="space-y-1.5">
-                    <label htmlFor="verify-email-code" className="text-sm font-medium text-on">
+                    <label
+                      htmlFor="verify-email-code"
+                      className="text-sm font-medium text-on"
+                    >
                       Verification code
                     </label>
                     <input
@@ -523,7 +564,11 @@ const AuthPage = () => {
                     />
                   </div>
 
-                  <Button type="submit" disabled={verifyLoading} className="w-full py-2.5">
+                  <Button
+                    type="submit"
+                    disabled={verifyLoading}
+                    className="w-full py-2.5"
+                  >
                     {verifyLoading ? "Verifying..." : "Verify email"}
                   </Button>
                 </form>
@@ -535,7 +580,9 @@ const AuthPage = () => {
                     disabled={resendIn > 0 || verifyLoading}
                     className="font-medium text-on-dim hover:text-on disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
+                    {resendIn > 0
+                      ? `Resend code in ${resendIn}s`
+                      : "Resend code"}
                   </button>
                   <button
                     type="button"
@@ -554,7 +601,7 @@ const AuthPage = () => {
               </div>
             ) : flow === "enrollFace" ? (
               <div className={panelClasses}>
-                <div className="mb-6 flex flex-col items-center gap-3 text-center lg:flex-row lg:items-start lg:gap-3.5 lg:text-left">
+                <div className="mb-6 flex flex-col items-center gap-4 text-center">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20">
                     <FaShieldAlt />
                   </span>
@@ -563,9 +610,10 @@ const AuthPage = () => {
                       Enroll your face
                     </h1>
                     <p className="mt-1.5 text-sm text-on-dim">
-                      Attendance is recorded by face at the organizer&apos;s check-in station, so
-                      your face needs to be on file before your first event. One quick photo is
-                      enough — you never scan a QR code or show your phone.
+                      Attendance is recorded by face at the organizer&apos;s
+                      check-in station, so your face needs to be on file before
+                      your first event. One quick photo is enough — you never
+                      scan a QR code or show your phone.
                     </p>
                   </div>
                 </div>
@@ -580,18 +628,22 @@ const AuthPage = () => {
                 {!enrollConsent ? (
                   <div className="space-y-4">
                     <div className="rounded-xl border border-line bg-card-alt/40 p-4 text-sm text-on-dim">
-                      <p className="font-medium text-on">How your face is used</p>
+                      <p className="font-medium text-on">
+                        How your face is used
+                      </p>
                       <ul className="mt-2 list-disc space-y-1.5 pl-5">
                         <li>
-                          Your photo is stored privately and converted into a mathematical
-                          signature used only to mark your attendance.
+                          Your photo is stored privately and converted into a
+                          mathematical signature used only to mark your
+                          attendance.
                         </li>
                         <li>
-                          Organizers see your name and attendance status — never your photo or
-                          signature.
+                          Organizers see your name and attendance status — never
+                          your photo or signature.
                         </li>
                         <li>
-                          You can update your enrolled face later from Profile → Security.
+                          You can update your enrolled face later from Profile →
+                          Security.
                         </li>
                       </ul>
                     </div>
@@ -607,7 +659,8 @@ const AuthPage = () => {
                         className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--brand)]"
                       />
                       <span className="text-on-dim">
-                        I agree to TrackED processing my face image to record my event attendance.
+                        I agree to TrackED processing my face image to record my
+                        event attendance.
                       </span>
                     </label>
 
@@ -651,61 +704,68 @@ const AuthPage = () => {
                       }}
                     />
                     <p className="mt-3 text-center text-xs text-on-muted">
-                      Face enrollment is required for student accounts. If your camera is unavailable,
-                      contact an administrator for enrollment assistance.
+                      Face enrollment is required for student accounts. If your
+                      camera is unavailable, contact an administrator for
+                      enrollment assistance.
                     </p>
                   </>
                 )}
               </div>
             ) : flow === "forgotPassword" ? (
-              <div className={panelClasses}>
-                {/* The mockup's back chevron — steps back to the email screen
-                    from the code stage, all the way out to sign-in otherwise. */}
+              <div className={`${panelClasses} auth-recovery`}>
+                {/* Return to the email step, or leave recovery for sign-in. */}
                 <button
                   type="button"
                   aria-label="Back"
-                  onClick={() => (fpStage === "code" ? setFpStage("form") : backToSignIn())}
+                  onClick={() =>
+                    fpStage === "code" ? setFpStage("form") : backToSignIn()
+                  }
                   className="-ml-1 mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full text-on-dim transition-colors hover:text-on"
                 >
                   <FaArrowLeft />
                 </button>
 
-                {/* The mockup's illustration spot: TrackED's mark in a soft
-                    indigo circle. No stock illustration ships with the app. */}
-                <div className="mb-5 flex justify-center lg:justify-start">
+                {/* Centered recovery branding. */}
+                <div className="mb-5 flex justify-center">
                   <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/80 text-brand shadow-[var(--elev-1)] ring-1 ring-brand/20 dark:bg-card-alt dark:ring-brand/30">
                     <TrackMark className="h-9 w-9" />
                   </span>
                 </div>
 
-                <div className="mb-6 text-center lg:text-left">
-                  <h1 className="font-display text-2xl font-bold tracking-tight text-on">Forgot Password?</h1>
+                <div className="mb-6 text-center">
+                  <h1 className="font-display text-2xl font-bold tracking-tight text-on">
+                    Forgot Password?
+                  </h1>
                   <p className="mt-1.5 text-sm text-on-dim">
                     {fpStage === "form" ? (
-                      "Don't worry — it happens. Please enter the email address linked with your account."
+                      "Enter your account email to request a six-digit recovery code. Then use the code to choose a new password."
                     ) : (
                       <>
                         We sent a 6-digit code to{" "}
-                        <span className="font-semibold text-on">{fpEmail}</span>. Enter it below
-                        with your new password.
+                        <span className="font-semibold text-on">{fpEmail}</span>
+                        . Enter it below with your new password.
                       </>
                     )}
                   </p>
                 </div>
 
                 {error && (
-                  <div
-                    role="alert"
-                    className="alert alert-danger mb-5"
-                  >
+                  <div role="alert" className="alert alert-danger mb-5">
                     {error}
                   </div>
                 )}
 
+
                 {fpStage === "form" ? (
-                  <form onSubmit={handleForgotPasswordSend} className="space-y-4">
+                  <form
+                    onSubmit={handleForgotPasswordSend}
+                    className="space-y-4"
+                  >
                     <div className="space-y-1.5">
-                      <label htmlFor="fp-email" className="text-sm font-medium text-on">
+                      <label
+                        htmlFor="fp-email"
+                        className="text-sm font-medium text-on"
+                      >
                         Email
                       </label>
                       <input
@@ -723,14 +783,24 @@ const AuthPage = () => {
                       />
                     </div>
 
-                    <Button type="submit" disabled={fpLoading} className="w-full py-2.5">
+                    <Button
+                      type="submit"
+                      disabled={fpLoading}
+                      className="w-full py-2.5"
+                    >
                       {fpLoading ? "Sending..." : "Send Code"}
                     </Button>
                   </form>
                 ) : (
-                  <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+                  <form
+                    onSubmit={handleForgotPasswordSubmit}
+                    className="space-y-4"
+                  >
                     <div className="space-y-1.5">
-                      <label htmlFor="fp-code" className="text-sm font-medium text-on">
+                      <label
+                        htmlFor="fp-code"
+                        className="text-sm font-medium text-on"
+                      >
                         Verification code
                       </label>
                       <input
@@ -752,7 +822,10 @@ const AuthPage = () => {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label htmlFor="fp-password" className="text-sm font-medium text-on">
+                      <label
+                        htmlFor="fp-password"
+                        className="text-sm font-medium text-on"
+                      >
                         New password
                       </label>
                       <div className="relative">
@@ -772,7 +845,9 @@ const AuthPage = () => {
                         <button
                           type="button"
                           onClick={() => setFpShowPassword((v) => !v)}
-                          aria-label={fpShowPassword ? "Hide password" : "Show password"}
+                          aria-label={
+                            fpShowPassword ? "Hide password" : "Show password"
+                          }
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-on-muted hover:text-on"
                         >
                           {fpShowPassword ? <FaEyeSlash /> : <FaEye />}
@@ -782,7 +857,10 @@ const AuthPage = () => {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label htmlFor="fp-confirm" className="text-sm font-medium text-on">
+                      <label
+                        htmlFor="fp-confirm"
+                        className="text-sm font-medium text-on"
+                      >
                         Confirm new password
                       </label>
                       <div className="relative">
@@ -802,7 +880,9 @@ const AuthPage = () => {
                         <button
                           type="button"
                           onClick={() => setFpShowConfirm((v) => !v)}
-                          aria-label={fpShowConfirm ? "Hide password" : "Show password"}
+                          aria-label={
+                            fpShowConfirm ? "Hide password" : "Show password"
+                          }
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-on-muted hover:text-on"
                         >
                           {fpShowConfirm ? <FaEyeSlash /> : <FaEye />}
@@ -810,7 +890,11 @@ const AuthPage = () => {
                       </div>
                     </div>
 
-                    <Button type="submit" disabled={fpLoading} className="w-full py-2.5">
+                    <Button
+                      type="submit"
+                      disabled={fpLoading}
+                      className="w-full py-2.5"
+                    >
                       {fpLoading ? "Saving..." : "Reset password"}
                     </Button>
                   </form>
@@ -824,7 +908,9 @@ const AuthPage = () => {
                       disabled={fpResendIn > 0 || fpLoading}
                       className="font-medium text-on-dim hover:text-on disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {fpResendIn > 0 ? `Resend code in ${fpResendIn}s` : "Resend code"}
+                      {fpResendIn > 0
+                        ? `Resend code in ${fpResendIn}s`
+                        : "Resend code"}
                     </button>
                   )}
                   <button
@@ -840,7 +926,9 @@ const AuthPage = () => {
               <div key={isLogin ? "signin" : "signup"} className={panelClasses}>
                 <div className="mb-6 text-center lg:text-left">
                   <h1 className="font-display text-2xl font-bold tracking-tight text-on">
-                    {isLogin ? "Sign in to your account" : "Create your account"}
+                    {isLogin
+                      ? "Sign in to your account"
+                      : "Create your account"}
                   </h1>
                   <p className="mt-1.5 text-sm text-on-dim">
                     {isLogin
@@ -850,19 +938,13 @@ const AuthPage = () => {
                 </div>
 
                 {fpNotice && !error && isLogin && (
-                  <div
-                    role="status"
-                    className="alert alert-ok mb-5"
-                  >
+                  <div role="status" className="alert alert-ok mb-5">
                     {fpNotice}
                   </div>
                 )}
 
                 {error && (
-                  <div
-                    role="alert"
-                    className="alert alert-danger mb-5"
-                  >
+                  <div role="alert" className="alert alert-danger mb-5">
                     {error}
                   </div>
                 )}
@@ -870,7 +952,10 @@ const AuthPage = () => {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {!isLogin && (
                     <div className="space-y-1.5">
-                      <label htmlFor="name" className="text-sm font-medium text-on">
+                      <label
+                        htmlFor="name"
+                        className="text-sm font-medium text-on"
+                      >
                         Full Name
                       </label>
                       <input
@@ -888,7 +973,10 @@ const AuthPage = () => {
                   )}
 
                   <div className="space-y-1.5">
-                    <label htmlFor="email" className="text-sm font-medium text-on">
+                    <label
+                      htmlFor="email"
+                      className="text-sm font-medium text-on"
+                    >
                       Email Address
                     </label>
                     <input
@@ -906,7 +994,10 @@ const AuthPage = () => {
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label htmlFor="password" className="text-sm font-medium text-on">
+                      <label
+                        htmlFor="password"
+                        className="text-sm font-medium text-on"
+                      >
                         Password
                       </label>
                       {isLogin && (
@@ -927,14 +1018,18 @@ const AuthPage = () => {
                         value={formData.password}
                         onChange={handleChange}
                         placeholder="••••••••"
-                        autoComplete={isLogin ? "current-password" : "new-password"}
+                        autoComplete={
+                          isLogin ? "current-password" : "new-password"
+                        }
                         className={`${inputClasses} pr-11`}
                         required
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword((v) => !v)}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-label={
+                          showPassword ? "Hide password" : "Show password"
+                        }
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-on-muted hover:text-on"
                       >
                         {showPassword ? <FaEyeSlash /> : <FaEye />}
@@ -947,7 +1042,10 @@ const AuthPage = () => {
 
                   {!isLogin && (
                     <div className="space-y-1.5">
-                      <label htmlFor="confirmPassword" className="text-sm font-medium text-on">
+                      <label
+                        htmlFor="confirmPassword"
+                        className="text-sm font-medium text-on"
+                      >
                         Confirm Password
                       </label>
                       <div className="relative">
@@ -965,7 +1063,11 @@ const AuthPage = () => {
                         <button
                           type="button"
                           onClick={() => setShowConfirmPassword((v) => !v)}
-                          aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                          aria-label={
+                            showConfirmPassword
+                              ? "Hide password"
+                              : "Show password"
+                          }
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-on-muted hover:text-on"
                         >
                           {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
@@ -974,36 +1076,99 @@ const AuthPage = () => {
                     </div>
                   )}
 
-                                    {!isLogin && (
-                    <>
+                  {!isLogin && (
+                    <div className="auth-academic-fields">
                       <div className="space-y-1.5">
-                        <label htmlFor="program" className="text-sm font-medium text-on">Program</label>
-                        <select id="program" name="program" value={formData.program} onChange={handleChange} className={inputClasses} required>
+                        <label
+                          htmlFor="program"
+                          className="text-sm font-medium text-on"
+                        >
+                          Program
+                        </label>
+                        <select
+                          id="program"
+                          name="program"
+                          value={formData.program}
+                          onChange={handleChange}
+                          className={inputClasses}
+                          required
+                        >
                           <option value="">Select Program</option>
                           <option value="BSIT">BSIT</option>
                           <option value="BSCS">BSCS</option>
                           <option value="BSEMC">BSEMC</option>
                         </select>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <label htmlFor="yearLevel" className="text-sm font-medium text-on">Year Level</label>
-                          <select id="yearLevel" name="yearLevel" value={formData.yearLevel} onChange={handleChange} className={inputClasses} required>
-                            <option value="">Select Year</option>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label htmlFor="section" className="text-sm font-medium text-on">Section</label>
-                          <input id="section" type="text" name="section" value={formData.section} onChange={(e)=>setFormData({...formData,section:e.target.value.toUpperCase().replace(/[^ABC]/g,"")})} placeholder="A" maxLength={1} className={inputClasses} required />
-                        </div>
+
+                      <div className="space-y-1.5">
+                        <label
+                          htmlFor="yearLevel"
+                          className="text-sm font-medium text-on"
+                        >
+                          Year Level
+                        </label>
+                        <select
+                          id="yearLevel"
+                          name="yearLevel"
+                          value={formData.yearLevel}
+                          onChange={handleChange}
+                          className={inputClasses}
+                          required
+                        >
+                          <option value="">Select Year</option>
+                          <option value="1">1</option>
+                          <option value="2">2</option>
+                          <option value="3">3</option>
+                          <option value="4">4</option>
+                        </select>
                       </div>
-                    </>
+                      <div className="space-y-1.5">
+                        <label
+                          htmlFor="section"
+                          className="text-sm font-medium text-on"
+                        >
+                          Section
+                        </label>
+                        <input
+                          id="section"
+                          type="text"
+                          name="section"
+                          value={formData.section}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              section: e.target.value
+                                .toUpperCase()
+                                .replace(/[^ABC]/g, ""),
+                            })
+                          }
+                          placeholder="A"
+                          maxLength={1}
+                          className={inputClasses}
+                          required
+                        />
+                      </div>
+                    </div>
                   )}
-<Button type="submit" disabled={loading} className="w-full py-2.5">
+                  {!isLogin && (
+                    <p className="text-xs leading-relaxed text-on-dim">
+                      Before registering, read the{" "}
+                      <Link
+                        to="/terms"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-brand underline underline-offset-2"
+                      >
+                        Terms &amp; Conditions
+                      </Link>
+                      . Face enrollment has a separate consent step.
+                    </p>
+                  )}
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-2.5"
+                  >
                     {loading ? (
                       <span className="flex items-center gap-2">
                         <span className="skeleton h-4 w-4 rounded-full" />
@@ -1038,10 +1203,10 @@ const AuthPage = () => {
                       Already have an account?{" "}
                       <button
                         type="button"
-                          onClick={() => {
-                            showLogin();
-                            setError("");
-                          }}
+                        onClick={() => {
+                          showLogin();
+                          setError("");
+                        }}
                         className="font-semibold text-brand hover:underline"
                       >
                         Sign in
@@ -1050,11 +1215,34 @@ const AuthPage = () => {
                   )}
                 </p>
 
-                <p className="mt-5 border-t border-line pt-4 text-center text-xs text-on-muted">
-                  For organizer or admin access, contact your department.
-                </p>
+                {isLogin && (
+                  <p className="mt-5 border-t border-line pt-4 text-center text-xs text-on-muted">
+                    For organizer or admin access, contact your department.
+                  </p>
+                )}
               </div>
             )}
+            {isLogin && flow === "form" && (
+              <p className="mt-5 text-center text-xs text-on-muted">
+                <Link
+                  to="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-4 hover:text-brand"
+                >
+                  Terms &amp; Conditions
+                </Link>
+              </p>
+            )}
+            {flow === "form" && <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => navigate("/")}
+                className="inline-flex min-h-10 items-center gap-2 text-xs font-medium text-on-dim hover:text-brand"
+              >
+                <FaArrowLeft aria-hidden="true" /> Back to TrackED home
+              </button>
+            </div>}
           </div>
         </div>
       </div>

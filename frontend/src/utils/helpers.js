@@ -49,8 +49,8 @@ export const isTerminalStatus = (status) =>
 // Where "now" sits inside an event's check-in window. The API sends the
 // resolved window (`event.attendanceWindow`) with the event, so this compares
 // absolute instants with the device clock instead of re-deriving Manila
-// wall-clock math — the QR can only appear while the scan endpoint would
-// accept it, and it disappears on the right side of midnight too.
+// wall-clock math. The station's availability follows the API check-in window,
+// including events that cross midnight.
 export const attendanceCheckInState = (event, now = Date.now()) => {
   if (!event) return "unavailable";
   if (isTerminalStatus(event.status)) return "closed";

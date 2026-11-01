@@ -10,6 +10,7 @@ import TrackMark from "./components/shared/TrackMark";
 // shell and public page now arrives on its first visit.
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const AuthPage = lazy(() => import("./pages/auth/AuthPage"));
+const TermsPage = lazy(() => import("./pages/TermsPage"));
 const StudentDashboard = lazy(() => import("./pages/StudentDashboard"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const OrganizerDashboard = lazy(() => import("./pages/OrganizerDashboard"));
@@ -45,6 +46,7 @@ function App() {
 
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/auth/signup" element={<AuthPage />} />
+            <Route path="/terms" element={<TermsPage />} />
 
             {/* Public face check-in station. The 32-byte token in the URL is the
                 only credential, and it is minted by an organizer for one event. */}
