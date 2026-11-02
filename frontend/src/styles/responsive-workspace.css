@@ -3,11 +3,11 @@
 .manual-desk-tabs { width:100%; }
 .manual-desk-tabs>button { flex:1; justify-content:center; }
 @media(max-width:639px) { .manual-desk-tabs>button { padding-left:8px; padding-right:8px; } }
-.stable-page-fill { flex:1; }
-.stable-page-content { display:flex; flex-direction:column; flex:1; min-width:0; min-height:var(--stable-page-content-height,0px); }
-.stable-page-footer { display:flow-root; flex-shrink:0; margin-top:auto; position:relative; }
-.stable-page-content>.stretch-page-list { display:grid; flex:1; grid-auto-rows:minmax(min-content,1fr); }
-.stable-page-content>.stretch-page-grid { flex:1; align-content:stretch; }
+.stable-page.stable-page-fill { flex:0 0 auto; }
+.stable-page-content { display:flex; flex-direction:column; min-width:0; }
+.stable-page-footer { display:flow-root; flex-shrink:0; position:relative; }
+.stable-page-content>.stretch-page-list { display:grid; grid-auto-rows:auto; align-content:start; }
+.stable-page-content>.stretch-page-grid { flex:0 0 auto; align-content:start; }
 .portal-refined main .paged-dashboard-card { display:flex; flex-direction:column; }
 .portal-refined main .paged-dashboard-card>.fd-body { display:flex; flex-direction:column; flex:1; }
 .portal-refined main .paged-dashboard-card .stretch-page-list>li { display:flex; align-items:flex-start; }

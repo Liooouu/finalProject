@@ -57,7 +57,7 @@ export default function DashboardHome() {
   const rate = total ? Math.round(attended / total * 100) : null;
   const events = state.events?.events || [];
   const active = splitEventsByLifecycle(events).active.sort((a, b) => (a.status === "live" ? 0 : 1) - (b.status === "live" ? 0 : 1) || new Date(a.date) - new Date(b.date));
-  const eventPageSize = 3;
+  const eventPageSize = 2;
   const currentEventPage = Math.min(eventPage, Math.max(1, Math.ceil(active.length / eventPageSize)));
   const currentPage = Math.min(page, Math.max(1, Math.ceil(records.length / 6)));
   const reviews = [
@@ -82,7 +82,7 @@ export default function DashboardHome() {
       </Card>
       <Card as="section" className="admin-home-events">
         <div className="admin-section-heading"><h2>Live &amp; upcoming events</h2><Link to="/admin/dashboard/events" className="admin-text-link">View events →</Link></div>
-        {!state.events ? <EmptyState compact title="Events unavailable" description="Try loading the event list again." /> : !active.length ? <EmptyState compact title="No active events" description="New events will appear here when scheduled." /> : <StablePage fill pageKey={`admin-upcoming:${active.length}`} footer={<Pagination page={currentEventPage} pageSize={eventPageSize} total={active.length} onChange={setEventPage} label="Admin upcoming event pages" />}><ul className="admin-next-list stretch-page-list gap-1" style={{ minHeight: "234px" }}>{active.slice((currentEventPage - 1) * eventPageSize, currentEventPage * eventPageSize).map(event=><li key={event._id} className="min-h-[74px]"><Link to={`/admin/dashboard/events/${event._id}`} className="h-full"><div><p className="line-clamp-2" title={event.title}>{event.title}</p><span>{formatDate(event.date)}{event.time ? ` · ${formatTime12Hour(event.time)}` : ""}</span></div><StatusChip status={event.status} /></Link></li>)}</ul></StablePage>}
+        {!state.events ? <EmptyState compact title="Events unavailable" description="Try loading the event list again." /> : !active.length ? <EmptyState compact title="No active events" description="New events will appear here when scheduled." /> : <StablePage fill pageKey={`admin-upcoming:${active.length}`} footer={<Pagination page={currentEventPage} pageSize={eventPageSize} total={active.length} onChange={setEventPage} label="Admin upcoming event pages" />}><ul className="admin-next-list stretch-page-list gap-1">{active.slice((currentEventPage - 1) * eventPageSize, currentEventPage * eventPageSize).map(event=><li key={event._id} className="min-h-[74px]"><Link to={`/admin/dashboard/events/${event._id}`} className="h-full"><div><p className="line-clamp-2" title={event.title}>{event.title}</p><span>{formatDate(event.date)}{event.time ? ` · ${formatTime12Hour(event.time)}` : ""}</span></div><StatusChip status={event.status} /></Link></li>)}</ul></StablePage>}
       </Card>
     </div>
     <Card as="section" padding="none" className="admin-home-attendance">

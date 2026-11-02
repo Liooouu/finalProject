@@ -65,7 +65,7 @@ export default function OrganizerHome() {
   if (loading) return <Loading label="Loading organizer dashboard..." />;
   const active = events.filter(event => !isTerminalStatus(event.status)).sort((a, b) => (a.status === "live" ? 0 : 1) - (b.status === "live" ? 0 : 1) || new Date(a.date) - new Date(b.date));
   const next = active[0];
-  const eventPageSize = 3;
+  const eventPageSize = 2;
   const currentEventPage = Math.min(eventPage, Math.max(1, Math.ceil(active.length / eventPageSize)));
   const visibleEvents = active.slice((currentEventPage - 1) * eventPageSize, currentEventPage * eventPageSize);
   const faceEvent = active.find(event => event._id === faceEventId) || next;
@@ -98,7 +98,7 @@ export default function OrganizerHome() {
                 <div><dt className="text-xs text-on-muted">Ends</dt><dd className="text-on-dim">{formatDate(event.endDate || event.date)} at {formatTime12Hour(event.endTime || "23:59")}</dd></div>
                 <div className="col-span-2"><dt className="text-xs text-on-muted">Venue</dt><dd className="text-on-dim [overflow-wrap:anywhere]">{event.location || "Venue TBA"}</dd></div>
               </dl>
-              <dl className="mt-auto grid gap-3 border-t border-line pt-3 text-sm sm:grid-cols-2">
+              <dl className="grid gap-3 border-t border-line pt-3 text-sm sm:grid-cols-2">
                 <div><dt className="text-xs text-on-muted">Attendance window</dt><dd className="mt-1 text-on-dim">{formatTime12Hour(event.attendanceStartTime) || "TBA"} – {formatTime12Hour(event.attendanceEndTime) || "TBA"}</dd></div>
                 <div><dt className="text-xs text-on-muted">Organized by</dt><dd className="mt-1 text-on-dim [overflow-wrap:anywhere]">{event.organizer?.name || "Organizer TBA"}</dd></div>
               </dl>

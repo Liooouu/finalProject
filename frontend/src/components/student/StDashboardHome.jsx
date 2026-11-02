@@ -105,8 +105,9 @@ const DashboardHome = () => {
   if (loading) return <Loading label="Loading your dashboard..." />;
 
   const currentActivityPage = Math.min(activityPage, Math.max(1, Math.ceil(activity.length / 6)));
-  const currentEventPage = Math.min(eventPage, Math.max(1, upcomingEvents.length));
-  const visibleEvents = upcomingEvents.slice(currentEventPage - 1, currentEventPage);
+  const eventPageSize = 2;
+  const currentEventPage = Math.min(eventPage, Math.max(1, Math.ceil(upcomingEvents.length / eventPageSize)));
+  const visibleEvents = upcomingEvents.slice((currentEventPage - 1) * eventPageSize, currentEventPage * eventPageSize);
   const visibleActivity = activity.slice((currentActivityPage - 1) * 6, currentActivityPage * 6);
   const records = stats?.breakdown || [];
   const rangeLabel = penaltyRange === "day" ? "the last 24 hours" : penaltyRange === "week" ? "the last 7 days" : "the last 365 days";
@@ -183,7 +184,7 @@ const DashboardHome = () => {
       <div className="grid gap-5 lg:grid-cols-2" data-testid="dashboard-panels">
         <BaseCard title={eventsError && !upcomingEvents.length ? "Upcoming events" : `Upcoming events (${upcoming})`} description="Event details and your attendance at a glance." icon={<FaCalendarAlt />} className="student-dashboard-card paged-dashboard-card min-w-0 overflow-hidden" menu={<Button variant="ghost" size="sm" onClick={() => navigate("/student/dashboard/events")}>View all <FaArrowRight className="text-[10px]" /></Button>}>
           {eventsError && <div role="alert" className="alert alert-danger mb-4"><p>{eventsError}</p>{retry}</div>}
-          {!upcomingEvents.length ? <EmptyState compact title={eventsError ? "Events unavailable" : "No upcoming events"} description={eventsError ? "Try loading the event list again." : "New events will appear here when they are published."} /> : <StablePage fill pageKey="student-upcoming" footer={<Pagination page={currentEventPage} pageSize={1} total={upcomingEvents.length} onChange={setEventPage} label="Upcoming event pages" />} contentClassName="[&>article]:flex-1">
+          {!upcomingEvents.length ? <EmptyState compact title={eventsError ? "Events unavailable" : "No upcoming events"} description={eventsError ? "Try loading the event list again." : "New events will appear here when they are published."} /> : <StablePage fill pageKey="student-upcoming" footer={<Pagination page={currentEventPage} pageSize={eventPageSize} total={upcomingEvents.length} onChange={setEventPage} label="Upcoming event pages" />} contentClassName="gap-3">
             {visibleEvents.map((event) => <StudentEventCard key={event._id} event={event} attendance={attendance.find((record) => (record.event?._id || record.event) === event._id)} attendanceError={attendanceError} />)}
           </StablePage>}
         </BaseCard>

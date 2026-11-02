@@ -1,5 +1,5 @@
 import EventLastEdit from "../shared/EventLastEdit";
-import React, { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
@@ -65,10 +65,8 @@ const ManageEvents = () => {
   const [createMsg, setCreateMsg] = useState("");
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_FORM);
-  const eventListRef = useRef(null);
   const eventRequest = useRef(0);
   const attendeeRequest = useRef(0);
-  const [eventListMinHeight, setEventListMinHeight] = useState(0);
 
   usePageMeta("Manage Events", "Monitor events and correct their information.");
 
@@ -205,22 +203,6 @@ const ManageEvents = () => {
     visibleEventPage * EVENT_PAGE_SIZE
   );
 
-  // Let event cards fill the available area, then place the controls after
-  // their actions. The footer stays in normal flow so it never covers a card.
-  useLayoutEffect(() => {
-    const list = eventListRef.current;
-    const main = list?.closest("main");
-    if (!list || !main) return;
-    const measure = () => {
-      const contentOffset = list.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
-      const bottomPadding = parseFloat(getComputedStyle(main).paddingBottom) || 0;
-      setEventListMinHeight(Math.max(0, Math.floor(main.clientHeight - contentOffset - bottomPadding)));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(main);
-    return () => observer.disconnect();
-  }, [loading, showCreate, filteredEvents.length, message]);
 
   return (
     <div className="space-y-5">
@@ -449,7 +431,7 @@ const ManageEvents = () => {
           description="Events created by organizers will appear here."
         />
       ) : (
-        <div ref={eventListRef} className="flex min-w-0 flex-col gap-4" style={{ minHeight: eventListMinHeight || undefined }}>
+        <div className="flex min-w-0 flex-col gap-4">
         <StablePage fill className="gap-4" pageKey={`admin-events:${searchTerm}:${eventRange}:${statusFilter}:${filteredEvents.length}`} footer={<div className="admin-event-page-footer shrink-0 pb-2 pt-1 [&>nav]:mt-0"><Pagination page={visibleEventPage} pageSize={EVENT_PAGE_SIZE} total={filteredEvents.length} onChange={setEventsPage} label="Admin event pages" /></div>}>
         <div className="admin-event-page-grid stretch-page-grid grid min-w-0 flex-1 grid-cols-1 items-stretch gap-4 xl:grid-cols-3" data-testid="admin-event-page">
           {pagedEvents.map((event) => (
