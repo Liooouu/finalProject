@@ -1,3 +1,4 @@
+import { useTransientState } from "../../utils/useTransientState";
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import {
@@ -13,7 +14,7 @@ import { formatDateTime } from "../../utils/helpers";
 
 const SecuritySettings = ({ embedded = false }) => {
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useTransientState("");
   const [messageType, setMessageType] = useState("success");
   const [facePhoto, setFacePhoto] = useState(null);
   const [faceEnrolledAt, setFaceEnrolledAt] = useState(null);
@@ -52,7 +53,7 @@ const SecuritySettings = ({ embedded = false }) => {
     return () => {
       active = false;
     };
-  }, []);
+  }, [setMessage]);
 
   const submitAppeal = async (blob) => {
     setAppealSubmitting(true);

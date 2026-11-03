@@ -1,3 +1,5 @@
+import { useTransientState } from "../../utils/useTransientState";
+import EventCreateForm from "../shared/EventCreateForm";
 import EventLastEdit from "../shared/EventLastEdit";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -58,11 +60,11 @@ const ManageEvents = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [eventRange, setEventRange] = useState("all");
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useTransientState("");
   const [messageType, setMessageType] = useState("success");
   const [showCreate, setShowCreate] = useState(false);
   const [eventsPage, setEventsPage] = useState(1);
-  const [createMsg, setCreateMsg] = useState("");
+  const [createMsg, setCreateMsg] = useTransientState("");
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_FORM);
   const eventRequest = useRef(0);
@@ -257,166 +259,7 @@ const ManageEvents = () => {
         </div>
       )}
 
-      {showCreate && (
-        <Card as="form" onSubmit={handleCreateSubmit} className="space-y-6">
-          <div>
-            <h2 className="panel-heading">Create new event</h2>
-            <p className="mt-1 text-sm text-on-dim">
-              The event appears for every student once published.
-            </p>
-          </div>
-
-          {createMsg && (
-            <div className="alert alert-danger" role="alert">
-              <span aria-hidden="true">!</span>
-              <p>{createMsg}</p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label htmlFor="admin-event-title" className="field-label">Event title</label>
-              <input
-                id="admin-event-title"
-                type="text"
-                name="title"
-                placeholder="e.g. Founders Day"
-                value={createForm.title}
-                onChange={handleCreateChange}
-                required
-                className="field"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label htmlFor="admin-event-description" className="field-label">Description</label>
-              <textarea
-                id="admin-event-description"
-                name="description"
-                placeholder="What should students expect?"
-                value={createForm.description}
-                onChange={handleCreateChange}
-                rows={3}
-                className="field"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label htmlFor="admin-event-location" className="field-label">Location</label>
-              <input
-                id="admin-event-location"
-                type="text"
-                name="location"
-                placeholder="Venue or address"
-                value={createForm.location}
-                onChange={handleCreateChange}
-                className="field"
-              />
-            </div>
-          </div>
-
-          <div className="border-t border-line pt-5">
-            <h3 className="text-sm font-semibold text-on">Event starts</h3>
-            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="admin-event-date" className="field-label">Start date</label>
-                <input
-                  id="admin-event-date"
-                  type="date"
-                  name="date"
-                  value={createForm.date}
-                  onChange={handleCreateChange}
-                  required
-                  className="field-datetime"
-                />
-              </div>
-              <div>
-                <label htmlFor="admin-event-time" className="field-label">Start time</label>
-                <input
-                  id="admin-event-time"
-                  type="time"
-                  name="time"
-                  value={createForm.time}
-                  onChange={handleCreateChange}
-                  required
-                  className="field-datetime"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-line pt-5">
-            <h3 className="text-sm font-semibold text-on">Event ends</h3>
-            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="admin-event-end-date" className="field-label">End date</label>
-                <input
-                  id="admin-event-end-date"
-                  type="date"
-                  name="endDate"
-                  value={createForm.endDate}
-                  onChange={handleCreateChange}
-                  className="field-datetime"
-                />
-              </div>
-              <div>
-                <label htmlFor="admin-event-end-time" className="field-label">End time</label>
-                <input
-                  id="admin-event-end-time"
-                  type="time"
-                  name="endTime"
-                  value={createForm.endTime}
-                  onChange={handleCreateChange}
-                  className="field-datetime"
-                />
-              </div>
-            </div>
-            <p className="field-hint">
-              This event ends on{" "}
-              <span className="font-medium text-on-dim">
-                {createForm.endDate || createForm.date || "—"} at{" "}
-                {createForm.endTime || "11:59 PM"}
-              </span>
-              . Leave blank to default to the end of the event date.
-            </p>
-          </div>
-
-          <div className="border-t border-line pt-5">
-            <h3 className="text-sm font-semibold text-on">Attendance window</h3>
-            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="admin-attendance-start" className="field-label">Start time</label>
-                <input
-                  id="admin-attendance-start"
-                  type="time"
-                  name="attendanceStartTime"
-                  value={createForm.attendanceStartTime}
-                  onChange={handleCreateChange}
-                  required
-                  className="field-datetime"
-                />
-              </div>
-              <div>
-                <label htmlFor="admin-attendance-end" className="field-label">End time</label>
-                <input
-                  id="admin-attendance-end"
-                  type="time"
-                  name="attendanceEndTime"
-                  value={createForm.attendanceEndTime}
-                  onChange={handleCreateChange}
-                  required
-                  className="field-datetime"
-                />
-              </div>
-            </div>
-            <p className="field-hint">
-              Set the scheduled attendance window. Later check-ins may be marked late.
-            </p>
-          </div>
-
-          <Button type="submit" loading={creating} className="w-full">
-            {creating ? "Creating..." : "Create event"}
-          </Button>
-        </Card>
-      )}
+      {showCreate && <EventCreateForm value={createForm} onChange={handleCreateChange} onSubmit={handleCreateSubmit} busy={creating} error={createMsg} idPrefix="admin-event" />}
 
       {!showCreate && (loading ? (
         <Card>

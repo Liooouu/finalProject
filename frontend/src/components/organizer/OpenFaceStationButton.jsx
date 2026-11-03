@@ -1,3 +1,4 @@
+import { useTransientState } from "../../utils/useTransientState";
 import React, { useState } from "react";
 import { FaCamera } from "react-icons/fa";
 import api from "../../api/axios";
@@ -5,7 +6,7 @@ import { Button } from "../ui";
 
 export default function OpenFaceStationButton({ eventId }) {
   const [opening, setOpening] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useTransientState("");
   const [blockedStationUrl, setBlockedStationUrl] = useState("");
   const open = async () => {
     if (opening) return;

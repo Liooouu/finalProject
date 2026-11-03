@@ -1,3 +1,4 @@
+import { useTransientState } from "../../utils/useTransientState";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -40,7 +41,7 @@ const SubmitExcuse = () => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useTransientState("");
   const [messageType, setMessageType] = useState("success");
 
   usePageMeta("Submit Excuse", "File an excuse for a missed event with supporting documents.");
@@ -72,7 +73,7 @@ const SubmitExcuse = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [setMessage]);
 
   const handleFileChange = (e) => {
     const selected = Array.from(e.target.files || []);

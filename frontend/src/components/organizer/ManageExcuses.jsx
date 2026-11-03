@@ -1,3 +1,4 @@
+import { useTransientState } from "../../utils/useTransientState";
 import React, { useState, useEffect, useCallback } from "react";
 import "../../styles/excuse-workspace.css";
 import api from "../../api/axios";
@@ -54,7 +55,7 @@ const ManageExcuses = () => {
   const [selectedExcuse, setSelectedExcuse] = useState(null);
   const [responseNote, setResponseNote] = useState("");
   const [responseNotes, setResponseNotes] = useState({});
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useTransientState("");
   const [messageType, setMessageType] = useState("success");
   const [reviewingId, setReviewingId] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);

@@ -1,3 +1,4 @@
+import { useTransientState } from "../../utils/useTransientState";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaSearch, FaUserCheck, FaUsers } from "react-icons/fa";
@@ -43,7 +44,7 @@ export default function OrgManageAttendees({ embedded = false, event }) {
   const [details, setDetails] = useState("");
   const [identityChecked, setIdentityChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useTransientState(null);
   const [requests, setRequests] = useState([]);
   const [requestTotal, setRequestTotal] = useState(0);
   const [requestPage, setRequestPage] = useState(1);

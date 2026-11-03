@@ -1,3 +1,4 @@
+import { useTransientState } from "../../utils/useTransientState";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { FaClipboardCheck, FaSearch } from "react-icons/fa";
@@ -36,9 +37,9 @@ export default function ManualAttendanceReviews() {
   const [note, setNote] = useState("");
   const [verified, setVerified] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [actionError, setActionError] = useState("");
-  const [outcomeErrors, setOutcomeErrors] = useState([]);
+  const [message, setMessage] = useTransientState("");
+  const [actionError, setActionError] = useTransientState("");
+  const [outcomeErrors, setOutcomeErrors] = useTransientState([]);
   const requestSequence = useRef(0);
   const mounted = useRef(true);
 

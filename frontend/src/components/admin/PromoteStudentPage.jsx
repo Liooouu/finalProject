@@ -1,3 +1,4 @@
+import { useTransientState } from "../../utils/useTransientState";
 import React, { useCallback, useEffect, useState } from "react";
 import api from "../../api/axios";
 import { Button, Card, PageHeader } from "../ui";
@@ -15,8 +16,8 @@ export default function PromoteStudentPage() {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [message, setMessage] = useTransientState("");
+  const [error, setError] = useTransientState("");
   const load = useCallback(() => api.get("/admin/organizer-candidates").then(({ data }) => { setStudents(data); setLoadError(false); setLoading(false); }).catch(() => { setLoadError(true); setLoading(false); }), []);
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load);

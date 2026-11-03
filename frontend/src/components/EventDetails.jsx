@@ -1,3 +1,5 @@
+import { useTransientState } from "../utils/useTransientState";
+import TimePicker from "./ui/TimePicker";
 import EventLastEdit from "./shared/EventLastEdit";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
@@ -47,7 +49,7 @@ const EventDetails = () => {
   const [event, setEvent] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useTransientState("");
   const [messageType, setMessageType] = useState("success");
   const [myAttendance, setMyAttendance] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -174,7 +176,7 @@ const EventDetails = () => {
     };
 
     fetchData();
-  }, [id]);
+  }, [id, setMessage]);
 
   // Student: while this page is open, watch for an attendance record written by
   // the face kiosk or the organizer. When it appears, return to the dashboard
@@ -639,9 +641,8 @@ const EventDetails = () => {
                       <label htmlFor="ed-time" className="field-label">
                         Start time
                       </label>
-                      <input
+                      <TimePicker
                         id="ed-time"
-                        type="time"
                         name="time"
                         value={editForm.time}
                         onChange={handleEditChange}
@@ -659,9 +660,8 @@ const EventDetails = () => {
                       <label htmlFor="ed-att-start" className="field-label">
                         Opens
                       </label>
-                      <input
+                      <TimePicker
                         id="ed-att-start"
-                        type="time"
                         name="attendanceStartTime"
                         value={editForm.attendanceStartTime}
                         onChange={handleEditChange}
@@ -673,9 +673,8 @@ const EventDetails = () => {
                       <label htmlFor="ed-att-end" className="field-label">
                         Closes
                       </label>
-                      <input
+                      <TimePicker
                         id="ed-att-end"
-                        type="time"
                         name="attendanceEndTime"
                         value={editForm.attendanceEndTime}
                         onChange={handleEditChange}
@@ -706,9 +705,8 @@ const EventDetails = () => {
                       <label htmlFor="ed-end-time" className="field-label">
                         End time
                       </label>
-                      <input
+                      <TimePicker
                         id="ed-end-time"
-                        type="time"
                         name="endTime"
                         value={editForm.endTime || ""}
                         onChange={handleEditChange}

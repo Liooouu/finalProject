@@ -1,3 +1,4 @@
+import { useTransientState } from "../../utils/useTransientState";
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
@@ -56,7 +57,7 @@ const ManageUsers = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [academicDraft, setAcademicDraft] = useState({ program: "", yearLevel: "", section: "" });
   const [savingAcademic, setSavingAcademic] = useState(false);
-  const [detailNotice, setDetailNotice] = useState(null);
+  const [detailNotice, setDetailNotice] = useTransientState(null);
   const [demoteTarget, setDemoteTarget] = useState(null);
   const [demoting, setDemoting] = useState(false);
   const listLoaded = useRef(seed !== undefined);
@@ -116,7 +117,7 @@ const ManageUsers = () => {
       setMessageType("error");
     } finally { setResettingFace(false); }
   };
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useTransientState("");
   const [messageType, setMessageType] = useState("success");
   const [pendingRemoveCS, setPendingRemoveCS] = useState(null);
   const [removingCS, setRemovingCS] = useState(false);

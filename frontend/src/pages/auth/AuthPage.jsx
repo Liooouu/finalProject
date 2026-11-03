@@ -1,3 +1,4 @@
+import { useTransientState } from "../../utils/useTransientState";
 import React, { useEffect, useState } from "react";
 import "../../styles/portal-neumorphism.css";
 import "../../styles/auth-neumorphism.css";
@@ -58,7 +59,7 @@ const AuthPage = () => {
   const isLogin = !location.pathname.startsWith("/auth/signup");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useTransientState("");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -89,7 +90,7 @@ const AuthPage = () => {
   const [fpShowConfirm, setFpShowConfirm] = useState(false);
   const [fpLoading, setFpLoading] = useState(false);
   const [fpResendIn, setFpResendIn] = useState(0);
-  const [fpNotice, setFpNotice] = useState(""); // success banner on sign-in
+  const [fpNotice, setFpNotice] = useTransientState(""); // success banner on sign-in
 
   const navigate = useNavigate();
   const { isDark } = useTheme();
@@ -143,7 +144,7 @@ const AuthPage = () => {
       setFlow("verifyEmail");
     }
     // Mount-only: this restores state lost to a refresh, not a live navigation.
-  }, []);
+  }, [setError]);
 
   // Separate tick for the password-reset resend cooldown, so leaving one flow
   // mid-countdown never leaves the other one stuck.

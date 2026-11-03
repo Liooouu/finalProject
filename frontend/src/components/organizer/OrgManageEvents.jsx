@@ -1,3 +1,5 @@
+import { useTransientState } from "../../utils/useTransientState";
+import EventCreateForm from "../shared/EventCreateForm";
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
@@ -63,7 +65,7 @@ const OrgManageEvents = () => {
   const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(() => readScreen("organizer:events:all") === undefined);
   const [showForm, setShowForm] = useState(searchParams.get("create") === "1");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useTransientState("");
   const [messageType, setMessageType] = useState("success");
   const [viewMode, setViewMode] = useState("all");
   const [eventRange, setEventRange] = useState("all");
@@ -266,156 +268,7 @@ const OrgManageEvents = () => {
         </div>
       )}
 
-      {showForm && (
-        <Card as="form" onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <h2 className="panel-heading">Create new event</h2>
-            <p className="mt-1 text-sm text-on-dim">
-              Publish the schedule, location and attendance window in one pass.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label htmlFor="event-title" className="field-label">Event title</label>
-              <input
-                id="event-title"
-                type="text"
-                name="title"
-                placeholder="e.g. Coastal Clean-Up 2026"
-                value={form.title}
-                onChange={handleChange}
-                required
-                className="field"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label htmlFor="event-description" className="field-label">Description</label>
-              <textarea
-                id="event-description"
-                name="description"
-                placeholder="What should students expect?"
-                value={form.description}
-                onChange={handleChange}
-                rows={3}
-                className="field"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label htmlFor="event-location" className="field-label">Location</label>
-              <input
-                id="event-location"
-                type="text"
-                name="location"
-                placeholder="Venue or address"
-                value={form.location}
-                onChange={handleChange}
-                className="field"
-              />
-            </div>
-          </div>
-
-          <div className="border-t border-line pt-5">
-            <h3 className="text-sm font-semibold text-on">Event starts</h3>
-            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="event-date" className="field-label">Start date</label>
-                <input
-                  id="event-date"
-                  type="date"
-                  name="date"
-                  value={form.date}
-                  onChange={handleChange}
-                  required
-                  className="field-datetime"
-                />
-              </div>
-              <div>
-                <label htmlFor="event-time" className="field-label">Start time</label>
-                <input
-                  id="event-time"
-                  type="time"
-                  name="time"
-                  value={form.time}
-                  onChange={handleChange}
-                  required
-                  className="field-datetime"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-line pt-5">
-            <h3 className="text-sm font-semibold text-on">Event ends</h3>
-            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="event-end-date" className="field-label">End date</label>
-                <input
-                  id="event-end-date"
-                  type="date"
-                  name="endDate"
-                  value={form.endDate}
-                  onChange={handleChange}
-                  className="field-datetime"
-                />
-              </div>
-              <div>
-                <label htmlFor="event-end-time" className="field-label">End time</label>
-                <input
-                  id="event-end-time"
-                  type="time"
-                  name="endTime"
-                  value={form.endTime}
-                  onChange={handleChange}
-                  className="field-datetime"
-                />
-              </div>
-            </div>
-            <p className="field-hint">
-              This event ends on{" "}
-              <span className="font-medium text-on-dim">
-                {form.endDate || form.date || "—"} at {form.endTime || "11:59 PM"}
-              </span>
-              . Leave blank to default to the end of the event date.
-            </p>
-          </div>
-
-          <div className="border-t border-line pt-5">
-            <h3 className="text-sm font-semibold text-on">Attendance window</h3>
-            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="attendance-start" className="field-label">Start time</label>
-                <input
-                  id="attendance-start"
-                  type="time"
-                  name="attendanceStartTime"
-                  value={form.attendanceStartTime}
-                  onChange={handleChange}
-                  required
-                  className="field-datetime"
-                />
-              </div>
-              <div>
-                <label htmlFor="attendance-end" className="field-label">End time</label>
-                <input
-                  id="attendance-end"
-                  type="time"
-                  name="attendanceEndTime"
-                  value={form.attendanceEndTime}
-                  onChange={handleChange}
-                  required
-                  className="field-datetime"
-                />
-              </div>
-            </div>
-            <p className="field-hint">Students can only mark attendance within this window.</p>
-          </div>
-
-          <Button type="submit" loading={submitting} className="w-full">
-            {submitting ? "Creating..." : "Create event"}
-          </Button>
-        </Card>
-      )}
+      {showForm && <EventCreateForm value={form} onChange={handleChange} onSubmit={handleSubmit} busy={submitting} idPrefix="organizer-event" />}
 
       {!showForm && (loading ? <Loading label="Loading your events..." /> : loadError && events.length === 0 ? (
         <EmptyState icon={<FaCalendarAlt />} title="Events unavailable" description="Retry loading events to see the current list." />

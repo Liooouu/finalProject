@@ -1,3 +1,4 @@
+import { useTransientState } from "../../utils/useTransientState";
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import { useSearchParams } from "react-router-dom";
@@ -24,7 +25,7 @@ const ProfileSettings = () => {
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [form, setForm] = useState({ name: "", email: "" });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "" });
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useTransientState("");
   const [messageType, setMessageType] = useState("success");
   const [uploadingPic, setUploadingPic] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);

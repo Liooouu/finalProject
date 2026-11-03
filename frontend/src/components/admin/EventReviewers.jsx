@@ -1,3 +1,4 @@
+import { useTransientState } from "../../utils/useTransientState";
 import React, { useEffect, useRef, useState } from "react";
 import { FaChevronDown, FaUserCheck } from "react-icons/fa";
 import api from "../../api/axios";
@@ -16,8 +17,8 @@ export default function EventReviewers({ eventId }) {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [saveError, setSaveError] = useState("");
-  const [message, setMessage] = useState("");
+  const [saveError, setSaveError] = useTransientState("");
+  const [message, setMessage] = useTransientState("");
   const [saving, setSaving] = useState(false);
   const [reload, setReload] = useState(0);
   const sequence = useRef(0);
