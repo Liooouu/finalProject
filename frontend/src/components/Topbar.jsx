@@ -12,7 +12,6 @@ import {
   FaSignOutAlt,
   FaChevronDown,
   FaArrowLeft,
-  FaHome,
   FaExchangeAlt,
 } from "react-icons/fa";
 import api from "../api/axios";
@@ -284,16 +283,6 @@ const Topbar = () => {
                     className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-on-dim transition-colors hover:bg-card-alt hover:text-on"
                   >
                     <FaIdBadge className="text-xs" /> My Profile
-                  </button>
-                  <button
-                    role="menuitem"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      navigate("/");
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-on-dim hover:bg-card-alt hover:text-on"
-                  >
-                    <FaHome className="text-xs" /> Landing page
                   </button>
                   <button
                     role="menuitem"
