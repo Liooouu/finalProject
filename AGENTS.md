@@ -90,6 +90,7 @@ Registration is **student-only**. Admins grant organizer access through `POST /a
 
 - MongoDB must be running at `127.0.0.1:27017`
 - Backend `.env` contains `MONGO_URI`, `PORT=5000`, `JWT_SECRET`, `JWT_EXPIRES_IN`, plus `SMTP_*` (without them, email verification and "Forgot Password?" emails never leave the machine)
+- SMTP is maintained in the API hosting environment, not an admin profile. Complete environment credentials override the legacy saved transport as one unit; legacy settings are read-only migration fallback. Restart the API after environment changes. Keep production `APP_URL` public and HTTPS. See `docs/EMAIL.md` for the maintainer file map and delivery diagnostics.
 - Run `npm run seed:admin` once to create the first admin account
 
 ## Deployment

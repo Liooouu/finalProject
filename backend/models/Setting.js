@@ -1,9 +1,9 @@
 // backend/models/Setting.js
 // Singleton-style key/value settings document. Currently only one entry
-// (`key: "email"`) holds the admin-editable SMTP configuration and email
-// template texts. Fields left empty fall back to the environment variables in
-// services/appSettings.js, so a deploy that never opens the Settings page
-// behaves exactly like before.
+// (`key: "email"`) retains legacy SMTP configuration and template overrides.
+// SMTP is now maintained through the API environment, not an admin profile.
+// Read-only compatibility in services/appSettings.js prevents an interruption
+// for existing deployments while their maintainer migrates the credentials.
 const mongoose = require("mongoose");
 
 const templateSchema = new mongoose.Schema(

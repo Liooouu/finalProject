@@ -298,8 +298,8 @@ connectDB()
                   // final penalty notice. Review resolves this event's balance.
                   if (!pendingManualStudents.has(String(student._id))) await notifyUsers([student], {
                     type: "penalty",
-                    title: "Attendance Marked Absent",
-                    message: `You were marked as absent for the event "${event.title}". 8 community service hours have been added to your total.`,
+                    title: "Attendance recorded as absent",
+                    message: `No attendance was recorded for "${event.title}" before check-in closed. You were marked absent, and an 8-hour penalty has been added to your required community service balance. Open TrackED to review the record or submit an eligible excuse letter.`,
                     relatedEvent: event._id,
                     event,
                   });
@@ -384,8 +384,8 @@ connectDB()
             if (allStudents.length > 0) {
               await notifyUsers(allStudents, {
                 type: "attendance",
-                title: "Attendance Upcoming",
-                message: `Attendance for "${event.title}" opens at ${event.attendanceStartTime}. Walk to the organizer's check-in station and have your face scanned.`,
+                title: "Attendance opens soon",
+                message: `Check-in for "${event.title}" opens at ${manilaDateTimeLabel(notice.window.start)} (Philippine time). Visit an organizer-operated face station to record your attendance.`,
                 relatedEvent: event._id,
                 event,
               });
@@ -402,8 +402,8 @@ connectDB()
             if (allStudents.length > 0) {
               await notifyUsers(allStudents, {
                 type: "attendance",
-                title: "Attendance Open",
-                message: `Attendance is now open for "${event.title}". Check in at the organizer's station before ${event.attendanceEndTime}.`,
+                title: "Attendance is open",
+                message: `Check-in is now open for "${event.title}". Visit an organizer-operated face station by ${manilaDateTimeLabel(notice.window.end)} (Philippine time) to be marked present.`,
                 relatedEvent: event._id,
                 event,
               });
@@ -419,8 +419,8 @@ connectDB()
           if (!event.closingSoonNotified && notice.closingSoon) {
             if (!openedThisPass) {
               await notifyNonAttendees(
-                "Attendance Closing Soon",
-                `The attendance window for "${event.title}" closes at ${event.attendanceEndTime}. Walk to the check-in station before you're marked late!`,
+                "On-time check-in ends soon",
+                `The on-time check-in deadline for "${event.title}" is ${manilaDateTimeLabel(notice.window.end)} (Philippine time). Visit an organizer-operated face station before the deadline to avoid a late mark.`,
                 "attendance"
               );
             }
@@ -431,8 +431,8 @@ connectDB()
           // Window is past its due time but a late check-in still counts.
           if (!event.closedNotified && notice.late) {
             await notifyNonAttendees(
-              "Late for Attendance",
-              `The attendance window for "${event.title}" closed at ${event.attendanceEndTime}. You can still check in at the organizer's station until ${manilaDateTimeLabel(notice.lastCheckIn)}, but you will be marked late and receive 4 community service hours.`,
+              "On-time check-in has ended",
+              `The on-time check-in deadline for "${event.title}" passed at ${manilaDateTimeLabel(notice.window.end)}. Check-in remains available at an organizer-operated face station until ${manilaDateTimeLabel(notice.lastCheckIn)} (Philippine time). A late check-in adds a 4-hour penalty to your required community service balance.`,
               "attendance"
             );
             event.closedNotified = true;
@@ -464,8 +464,8 @@ connectDB()
             if (students.length > 0) {
               await notifyUsers(students, {
                 type: "info",
-                title: "Upcoming Event Reminder",
-                message: `Don't forget: "${event.title}" is happening on ${new Date(event.date).toLocaleDateString()} at ${event.time}${event.location ? ` (${event.location})` : ""}.`,
+                title: "Upcoming event reminder",
+                message: `"${event.title}" starts at ${manilaDateTimeLabel(startsAt)} (Philippine time)${event.location ? ` at ${event.location}` : ""}. Open the event to check its attendance window before you arrive.`,
                 relatedEvent: event._id,
                 event,
               });

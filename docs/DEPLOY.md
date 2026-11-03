@@ -84,14 +84,19 @@ uploads. If you must use a bind mount, `chown -R 1000:1000` the host directory.
 | `ADMIN_PASSWORD` | a strong, unique password |
 | `ADMIN_NAME` | e.g. `System Admin` |
 
-**Email notifications + signup verification (optional):**
+**Email notifications, signup verification, and password recovery:**
 
 Set these to also email event notifications to the address each user registered
 with, and to make new students **verify their email with a 6-digit code** before
 their account is active. Use a Gmail account with **2-Step Verification on** and
-an **App Password** (Google Account → Security → App passwords). While they are
-unset, notifications stay in-app only, signups skip the verification step, and
-the API logs no mail.
+an **App Password** (Google Account → Security → App passwords). Configure
+these on the **API application's environment variables**, not the frontend.
+Restart or redeploy the API after a change.
+
+Without SMTP, event notices remain in-app and the current registration flow
+skips email verification. Password recovery by email is unavailable in
+production. Configure and test mail before relying on either verified signup
+or password recovery.
 
 | Key | Value |
 |---|---|
@@ -101,14 +106,19 @@ the API logs no mail.
 | `SMTP_USER` | the sending Gmail address |
 | `SMTP_PASS` | its 16-character App Password |
 | `MAIL_FROM` | `TrackED <the sending Gmail address>` |
+| `MAIL_REPLY_TO` | optional monitored support address |
 | `APP_URL` | `https://track-ed.vispo.me` (used in the email's button) |
 
-> **In-app override:** an admin can later edit SMTP settings and the email
-> texts from **Admin Portal → Email Settings** (`/admin/dashboard/settings/email`).
-> Values saved there are stored in the database (password encrypted at rest)
-> and take precedence over these environment variables, which act as the
-> fallback until the page is used. A **Send Test** button on the page verifies
-> the configuration without waiting for a real notification.
+Use the authenticated sending address in `MAIL_FROM`. Set `APP_URL` to the
+public HTTPS website; a `localhost` link cannot open TrackED on a student's
+device. SMTP is maintained through hosting configuration, with no admin
+profile editor or admin test-send API. A complete SMTP environment
+configuration takes precedence over older database SMTP settings. Existing
+installations retain a read fallback for saved settings until migrated.
+
+See [Email configuration and delivery](EMAIL.md) for the source file map,
+message wording, migration details, and SPF/DKIM/DMARC checks. Valid SMTP
+configuration alone cannot guarantee Inbox placement or an Important label.
 
 The API creates the admin account on first boot **only when `ADMIN_EMAIL` and
 `ADMIN_PASSWORD` are both set**, and only if no admin exists yet. Restarts and

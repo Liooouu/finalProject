@@ -132,10 +132,10 @@ async function recordAttendance({
   if (gate.late) {
     await notifyUsers([student], {
       type: "attendance",
-      title: "Marked Late",
+      title: "Attendance recorded as late",
       message:
-        `You were marked late for the event "${event.title}". 4 community service hours ` +
-        `have been added to your total.` +
+        `Your attendance for "${event.title}" was recorded as late. A 4-hour penalty ` +
+        `has been added to your required community service balance.` +
         (replacedExcuse ? " Your approved excuse was replaced since you attended." : ""),
       relatedEvent: event._id,
       event,

@@ -255,8 +255,8 @@ function resolveAutomation({ currentStatus, nextStatus, scheduleTouched }) {
 function eventLiveNotification(event) {
   return {
     type: "info",
-    title: "Event Live Now",
-    message: `"${event.title}" is now live! Attendance closes at ${event.attendanceEndTime}.`,
+    title: "Event is now live",
+    message: `"${event.title}" is now live. Review the event's attendance window in TrackED before visiting an organizer-operated face station.`,
   };
 }
 

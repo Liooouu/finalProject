@@ -8,6 +8,34 @@ const Notification = require("../models/Notification");
 const { sendMail, isMailEnabled } = require("./mailer");
 const { renderNotificationEmail } = require("./emailTemplate");
 
+// A department-wide announcement must not place hundreds of messages in the
+// SMTP pool at once. This limit is shared by overlapping notification batches;
+// verification and password-reset emails can still use the mailer directly.
+const EMAIL_CONCURRENCY = 3;
+const emailQueue = [];
+let activeEmails = 0;
+
+function drainEmailQueue() {
+  while (activeEmails < EMAIL_CONCURRENCY && emailQueue.length) {
+    const { send, resolve } = emailQueue.shift();
+    activeEmails += 1;
+    Promise.resolve()
+      .then(send)
+      .then(result => resolve(result !== false), () => resolve(false))
+      .finally(() => {
+        activeEmails -= 1;
+        drainEmailQueue();
+      });
+  }
+}
+
+function queueEmail(send) {
+  return new Promise(resolve => {
+    emailQueue.push({ send, resolve });
+    drainEmailQueue();
+  });
+}
+
 // Recipients may be full user documents (carrying name/email) or bare ids.
 // Docs are used as-is; ids are fetched in one query.
 async function resolveRecipients(recipients) {
@@ -54,9 +82,21 @@ async function notifyUsers(recipients, { type, title, message, relatedEvent, eve
   );
 
   const deliverEmail = async () => {
-    if (!(await isMailEnabled())) return;
-    const { subject, html, text } = await renderNotificationEmail({ title, message, event });
-    await Promise.all(users.filter(user => user.email).map(user => sendMail({ to: user.email, subject, html, text })));
+    try {
+      if (!(await isMailEnabled())) return;
+      const { subject, html, text } = await renderNotificationEmail({ title, message, event });
+      const results = await Promise.all(users.filter(user => user.email).map(user =>
+        queueEmail(() => sendMail({ to: user.email, subject, html, text }))
+      ));
+      const failed = results.filter(sent => !sent).length;
+      if (failed) {
+        console.error(`[notifications] Email submission failed for ${failed} of ${results.length} recipients. Their in-app notifications remain available.`);
+      }
+    } catch (error) {
+      // SMTP/configuration problems happen after the notice has been saved.
+      // Do not turn a completed attendance or excuse action into an API error.
+      console.error("Notification email delivery failed:", error.message);
+    }
   };
   if (deferEmail) {
     // In-app notices are persisted above. Slow SMTP delivery must not delay
@@ -67,11 +107,11 @@ async function notifyUsers(recipients, { type, title, message, relatedEvent, eve
   await deliverEmail();
 }
 
-// Everyone who should hear about an event: all students, all admins, and the
-// organizer who owns it.
+// Everyone who should hear about a shared event: students (including promoted
+// student organizers), legacy organizer accounts, admins, and its owner.
 async function eventRecipients(event) {
   const organizerId = event?.organizer?._id || event?.organizer;
-  const clauses = [{ role: { $in: ["student", "admin"] } }];
+  const clauses = [{ role: { $in: ["student", "organizer", "admin"] } }];
   if (organizerId) clauses.push({ _id: organizerId });
 
   return User.find({ $or: clauses }).select("_id name email");

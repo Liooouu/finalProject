@@ -53,7 +53,7 @@ const AdminDashboard = () => {
                   <Route path="users" element={<ManageUsers />} />
                   <Route path="reports" element={<AttendanceReport />} />
                   <Route path="manual-reviews" element={<ManualAttendanceReviews />} />
-                  <Route path="settings/email" element={<Navigate to="/admin/dashboard/profile?section=email" replace />} />
+                  <Route path="settings/email" element={<Navigate to="/admin/dashboard/profile" replace />} />
                   <Route path="notifications" element={<NotificationsPage role="admin" />} />
                   <Route path="profile" element={<ProfileSettings />} />
                   <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />

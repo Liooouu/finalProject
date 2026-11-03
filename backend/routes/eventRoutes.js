@@ -18,6 +18,7 @@ const {
   eventEndAt,
   eventWindow,
   eventLastCheckInAt,
+  manilaDateTimeLabel,
   attendanceWindowPayload,
   resolveAutomation,
   eventLiveNotification,
@@ -161,8 +162,8 @@ router.post("/", protect, async (req, res) => {
     try {
       await notifyUsers(await eventRecipients(event), {
         type: "info",
-        title: "New Event Posted",
-        message: `A new event "${event.title}" has been scheduled for ${new Date(event.date).toLocaleDateString()} at ${event.time}.`,
+        title: "New event scheduled",
+        message: `"${event.title}" is scheduled for ${manilaDateTimeLabel(eventStartsAt(event))} (Philippine time). Open the event to review its venue and attendance window.`,
         relatedEvent: event._id,
         event,
         deferEmail: true,

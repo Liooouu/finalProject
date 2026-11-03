@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from "react";
+import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import { useSearchParams } from "react-router-dom";
 import SecuritySettings from "./SecuritySettings";
@@ -11,15 +11,13 @@ import { Button, Card, FlightPanel, PageHeader, SegmentedControl } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Loading from "../shared/Loading";
 
-const EmailSettings = lazy(() => import("../admin/EmailSettings"));
-
 const ProfileSettings = () => {
   const user = getUserFromToken();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSection = searchParams.get("section");
   const [profile, setProfile] = useState(null);
   const hasStudentProfile = (profile?.accountRole || profile?.role || user.role) === "student";
-  const section = user.role === "admin" && requestedSection === "email" ? "email" : hasStudentProfile && ["security", "academic"].includes(requestedSection) ? requestedSection : "profile";
+  const section = hasStudentProfile && ["security", "academic"].includes(requestedSection) ? requestedSection : "profile";
   const profileRole = hasStudentProfile && profile?.organizerAccess ? "Student/Organizer" : profile?.role || user.role;
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -157,11 +155,11 @@ const ProfileSettings = () => {
         </div>
       </Card>
 
-      {(hasStudentProfile || user.role === "admin") && <SegmentedControl ariaLabel="Profile sections" value={section}
+      {hasStudentProfile && <SegmentedControl ariaLabel="Profile sections" value={section}
         onChange={(value) => { setSearchParams(value === "profile" ? {} : { section: value }); setEditing(false); setShowPasswordForm(false); }}
-        options={user.role === "admin" ? [{ value: "profile", label: "Profile" }, { value: "email", label: "Email settings" }] : [{ value: "profile", label: "Profile" }, { value: "academic", label: "Academic record" }, { value: "security", label: "Security" }]} />}
+        options={[{ value: "profile", label: "Profile" }, { value: "academic", label: "Academic record" }, { value: "security", label: "Security" }]} />}
 
-      {section === "email" ? <Suspense fallback={<Loading label="Loading email settings..." />}><EmailSettings embedded /></Suspense> : section === "security" ? <SecuritySettings embedded /> : section === "academic" ? <AcademicStanding /> : <>
+      {section === "security" ? <SecuritySettings embedded /> : section === "academic" ? <AcademicStanding /> : <>
         {message && <div className={`alert ${messageType === "success" ? "alert-ok" : "alert-danger"}`} role="status"><span aria-hidden="true">{messageType === "success" ? "✓" : "!"}</span><p>{message}</p></div>}
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(260px,1fr)]">
           <FlightPanel level="ledger" glass title={editing ? "Edit personal information" : showPasswordForm ? "Update password" : "Personal information"} icon={<FaUser />}>
