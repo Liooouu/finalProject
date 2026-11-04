@@ -270,7 +270,9 @@ connectDB()
               event: event._id, status: "pending",
             }).distinct("student")).map(String));
 
+            const deletedStudents = new Set((await require("./models/DeletedAttendance").find({ event: event._id }).distinct("student")).map(String));
             for (const student of students) {
+              if (deletedStudents.has(String(student._id))) continue;
               try {
                 // Check if student already has attendance (idempotent — no duplicates)
                 const existingAttendance = await Attendance.findOne({

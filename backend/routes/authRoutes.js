@@ -43,7 +43,7 @@ async function issueEmailCode(user) {
     );
   }
 
-  return code;
+  return sent;
 }
 
 // Mint a fresh 6-digit reset code for an EXISTING account, store its hash +
@@ -85,9 +85,14 @@ const signToken = (user, role = user.role) =>
 // -------------------- REGISTER (STUDENT ONLY) --------------------
 // Registration requires email verification when email delivery is enabled.
 router.post("/register", async (req, res) => {
-  const { name, email, password } = req.body;
+  const { email, password } = req.body;
+  const parts = ["firstName", "middleName", "lastName"];
+  const names = Object.fromEntries(parts.map(key => [key, String(req.body[key] || "").trim()]));
+  const structured = parts.some(key => req.body[key] !== undefined);
+  const name = structured ? parts.map(key => names[key]).filter(Boolean).join(" ") : String(req.body.name || "").trim();
 
   try {
+    if (structured && (!names.firstName || !names.lastName)) return res.status(400).json({ message: "Enter your first and last name." });
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Please fill in all fields" });
     }
@@ -95,6 +100,7 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ message: PASSWORD_MESSAGE });
     }
 
+    if (!process.env.JWT_SECRET) return res.status(503).json({ message: "Account service is not configured. Please contact the TrackED administrator." });
     const mailEnabled = await isMailEnabled();
     const existingUser = await User.findOne({ email: User.normalizeEmail(email) });
 
@@ -106,10 +112,12 @@ router.post("/register", async (req, res) => {
       if (existingUser.emailVerified === false && mailEnabled) {
         existingUser.name = String(name).trim();
         existingUser.password = String(password);
+        if (structured) Object.assign(existingUser, names);
         await existingUser.save();
-        await issueEmailCode(existingUser);
+        const sent = await issueEmailCode(existingUser);
         return res.status(200).json({
-          message: "We re-sent your verification code. Check your inbox.",
+          message: sent ? "We re-sent your verification code. Check your inbox." : "Your account is awaiting verification. Email delivery is temporarily unavailable; please request a new code shortly.",
+          codeSent: sent,
           requiresEmailVerification: true,
           email: existingUser.email,
         });
@@ -144,6 +152,7 @@ router.post("/register", async (req, res) => {
 
     const user = new User({
       name,
+      ...names,
       email,
       password, // ✅ plain (model will hash)
       role: "student",
@@ -165,17 +174,20 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    await issueEmailCode(user);
+    const sent = await issueEmailCode(user);
     console.log("Registered student (awaiting email verification):", email);
 
     res.status(201).json({
-      message: "We emailed you a 6-digit code to finish creating your account.",
+      message: sent ? "We emailed you a 6-digit code to finish creating your account." : "Your account was created, but email delivery is temporarily unavailable. Request a new verification code shortly.",
+      codeSent: sent,
       requiresEmailVerification: true,
       email: user.email,
     });
   } catch (err) {
     console.error("REGISTER ERROR:", err);
-    res.status(500).json({ message: err.message });
+    if (err.code === 11000) return res.status(409).json({ message: "This email is already registered. Sign in to continue or use Forgot Password." });
+    if (err.name === "ValidationError") return res.status(400).json({ message: "Check your name, program, year level, and section." });
+    res.status(503).json({ message: "Account creation is temporarily unavailable. Please try again shortly; if you already submitted, sign in to resume verification." });
   }
 });
 
@@ -279,7 +291,8 @@ router.post("/resend-verification", async (req, res) => {
         .json({ message: `Please wait ${wait}s before requesting another code.` });
     }
 
-    await issueEmailCode(user);
+    const sent = await issueEmailCode(user);
+    if (!sent) return res.status(503).json({ message: "Email delivery is temporarily unavailable. Please request another code shortly." });
     res.json({
       message: "We sent a new verification code.",
       requiresEmailVerification: true,

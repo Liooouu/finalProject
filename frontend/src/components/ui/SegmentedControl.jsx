@@ -3,6 +3,11 @@ import React from "react";
 /**
  * SegmentedControl — iOS-style filter switch for small option sets.
  * Options: [{ value, label, count, icon }]
+ *
+ * Sits next to <Tabs> (the underline control used for page sections). Only the
+ * container differs — a raised pill instead of an underline — so the selected
+ * item uses the same brand colour in both, otherwise the same "switch view"
+ * job looked purple on some screens and plain on others.
  */
 const SegmentedControl = ({
   options = [],
@@ -27,7 +32,7 @@ const SegmentedControl = ({
           onClick={() => onChange(option.value)}
           className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 ${
             active
-              ? "bg-card text-on shadow-[var(--elev-1)]"
+              ? "bg-card text-brand shadow-[var(--elev-1)]"
               : "text-on-dim hover:text-on"
           }`}
         >

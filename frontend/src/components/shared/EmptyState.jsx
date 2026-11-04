@@ -4,7 +4,7 @@ import TrackMark from "./TrackMark";
 const EmptyState = ({ icon, title, description, action, compact = false, className = "" }) => {
   return (
     <div
-      className={`flex flex-col items-center justify-center text-center ${
+      className={`workspace-empty-state flex flex-col items-center justify-center text-center ${
         compact ? "px-4 py-8" : "px-6 py-14"
       } ${className}`}
     >

@@ -123,16 +123,18 @@ export const isNavItemActive = (item, pathname) => {
   return pathname === item.path || pathname.startsWith(`${item.path}/`);
 };
 
-const portalShort = { admin: "Admin", organizer: "Organizer", student: "Student" };
-
 /**
- * Parent trail only (portal + the nav section the current route belongs to).
- * The page title is appended by the shell because pages can override it
- * through PageMetaContext.
+ * Parent trail only (the portal dashboard plus the nav section the current
+ * route belongs to). The page title is appended by the shell because pages can
+ * override it through PageMetaContext.
+ *
+ * Every trail is rooted at "Dashboard" so the same crumb appears on all pages —
+ * previously the portal name was used here and the dashboard crumb was skipped,
+ * which made some pages look one level shallower than others.
  */
 export const breadcrumbTrail = (role, pathname) => {
   const base = ROLE_PATHS[role] || "/";
-  const trail = [{ label: portalShort[role] || "Portal", to: base }];
+  const trail = [{ label: "Dashboard", to: base }];
 
   const match = flatNavItems(role)
     .filter(

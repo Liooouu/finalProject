@@ -205,6 +205,11 @@
     gap: 16px;
     padding-top: 4px;
   }
+  .auth-signup.auth-reference .auth-name-fields {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
   .auth-signup.auth-reference .auth-academic-fields > div:first-child {
     grid-column: auto;
   }
@@ -274,3 +279,6 @@
     margin-top: 8px;
   }
 }
+
+.auth-name-fields { display: grid; gap: 14px; min-width: 0; }
+@media(min-width:1024px) { .auth-signup.auth-reference .auth-email-field { grid-column: 1 / -1; } }

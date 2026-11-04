@@ -1,5 +1,5 @@
 import { useTransientState } from "../../utils/useTransientState";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "../../styles/portal-neumorphism.css";
 import "../../styles/auth-neumorphism.css";
 import { Link, useNavigate, useLocation } from "react-router-dom";
@@ -33,7 +33,6 @@ import ThemeToggle from "../../components/ui/ThemeToggle";
 import FaceCapture from "../../components/auth/FaceCapture";
 import { useTheme } from "../../context/ThemeContext";
 import techDark from "../../assets/images/tech-bg-dark.jpg";
-import techLight from "../../assets/images/tech-bg-light.jpg";
 
 // Original mobile form; the raised treatment is enabled only at desktop widths.
 const panelClasses =
@@ -61,7 +60,11 @@ const AuthPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useTransientState("");
   const [formData, setFormData] = useState({
-    name: "",
+    // Names are collected in three parts so records stay searchable, then joined
+    // into the single `name` the account already stores (no schema change).
+    firstName: "",
+    middleName: "",
+    lastName: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -70,6 +73,20 @@ const AuthPage = () => {
     section: "",
   });
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  // A rejected signup keeps the user on the same screen, so the masked fields
+  // have to be cleared explicitly — otherwise the password that just failed
+  // stays in place and gets resubmitted on the next attempt.
+  const passwordRef = useRef(null);
+  const resetPasswordFields = () => {
+    setFormData(current => ({
+      ...current,
+      password: "",
+      confirmPassword: "",
+    }));
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+    passwordRef.current?.focus();
+  };
 
   const [flow, setFlow] = useState("form");
   const [pendingAuth, setPendingAuth] = useState(null);
@@ -219,19 +236,39 @@ const AuthPage = () => {
           .trim()
           .toUpperCase();
         const yearNum = Number(formData.yearLevel);
+        // The account keeps one display name; the three inputs exist so a
+        // student record isn't entered as an unsearchable blob.
+        const displayName = [
+          formData.firstName,
+          formData.middleName,
+          formData.lastName,
+        ]
+          .map((part) => String(part || "").trim())
+          .filter(Boolean)
+          .join(" ");
+
+        if (!formData.firstName.trim() || !formData.lastName.trim()) {
+          setError("Enter your first and last name.");
+          return;
+        }
 
         if (formData.password !== formData.confirmPassword) {
           setError("Passwords do not match");
+          resetPasswordFields();
           return;
         }
 
         if (!isStrongPassword(formData.password.trim())) {
           setError(PASSWORD_MESSAGE);
+          resetPasswordFields();
           return;
         }
 
         const res = await api.post("/auth/register", {
-          name: formData.name.trim(),
+          name: displayName,
+          firstName: formData.firstName.trim(),
+          middleName: formData.middleName.trim(),
+          lastName: formData.lastName.trim(),
           email: formData.email.trim(),
           password: formData.password.trim(),
           role: "student",
@@ -243,9 +280,12 @@ const AuthPage = () => {
         // Email verification is enforced when the server can send mail.
         if (res.data.requiresEmailVerification) {
           startEmailVerification(res.data.email);
+          if (res.data.codeSent === false) setError(res.data.message);
           setFormData({
             ...formData,
-            name: "",
+            firstName: "",
+            middleName: "",
+            lastName: "",
             password: "",
             confirmPassword: "",
             email: "",
@@ -257,7 +297,9 @@ const AuthPage = () => {
         continueAuth(res.data);
         setFormData({
           ...formData,
-          name: "",
+          firstName: "",
+          middleName: "",
+          lastName: "",
           password: "",
           confirmPassword: "",
           email: "",
@@ -271,7 +313,12 @@ const AuthPage = () => {
         startEmailVerification(data.email || formData.email.trim());
         return;
       }
-      setError(data?.message || "Something went wrong.");
+      // Signup failed on the server (duplicate email, weak password, SMTP
+      // trouble). The form stays visible, so clear the rejected password
+      // instead of leaving the user to retype over a masked value. Sign-in is
+      // left alone: there the field holds a password they may simply mistype.
+      if (!isLogin) resetPasswordFields();
+      setError(data?.message || (err.response ? "Account service is temporarily unavailable. Please try again shortly. If you already submitted, try signing in to resume verification." : "Cannot connect to TrackED. Check your connection and try again."));
     } finally {
       setLoading(false);
     }
@@ -396,7 +443,7 @@ const AuthPage = () => {
       <div
         className="auth-city-backdrop"
         aria-hidden="true"
-        style={{ backgroundImage: `url(${isDark ? techDark : techLight})` }}
+        style={{ backgroundImage: `url(${techDark})` }}
       />
       <div className="auth-shell relative flex w-full min-h-screen">
         <ThemeToggle className="auth-theme-toggle" />
@@ -404,7 +451,7 @@ const AuthPage = () => {
         {flow !== "forgotPassword" && (
           <div className="auth-brand-panel relative hidden w-1/2 overflow-hidden lg:block">
             <img
-              src={isDark ? techDark : techLight}
+              src={techDark}
               alt=""
               aria-hidden="true"
               className="absolute inset-0 h-full w-full object-cover"
@@ -483,7 +530,7 @@ const AuthPage = () => {
             }`}
           >
             <img
-              src={isDark ? techDark : techLight}
+              src={techDark}
               alt=""
               className="absolute inset-0 h-full w-full object-cover opacity-[0.28] dark:opacity-[0.4]"
             />
@@ -952,28 +999,70 @@ const AuthPage = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {!isLogin && (
-                    <div className="space-y-1.5">
-                      <label
-                        htmlFor="name"
-                        className="text-sm font-medium text-on"
-                      >
-                        Full Name
-                      </label>
-                      <input
-                        id="name"
-                        type="text"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleChange}
-                        placeholder="John Doe"
-                        autoComplete="name"
-                        className={inputClasses}
-                        required
-                      />
+                    <div className="auth-name-fields">
+                      <div className="space-y-1.5">
+                        <label
+                          htmlFor="firstName"
+                          className="text-sm font-medium text-on"
+                        >
+                          First Name
+                        </label>
+                        <input
+                          id="firstName"
+                          type="text"
+                          name="firstName"
+                          value={formData.firstName}
+                          onChange={handleChange}
+                          placeholder="First name"
+                          autoComplete="given-name"
+                          className={inputClasses}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label
+                          htmlFor="middleName"
+                          className="text-sm font-medium text-on"
+                        >
+                          Middle Name{" "}
+                          <span className="font-normal text-on-muted">
+                            (optional)
+                          </span>
+                        </label>
+                        <input
+                          id="middleName"
+                          type="text"
+                          name="middleName"
+                          value={formData.middleName}
+                          onChange={handleChange}
+                          placeholder="Middle name"
+                          autoComplete="additional-name"
+                          className={inputClasses}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label
+                          htmlFor="lastName"
+                          className="text-sm font-medium text-on"
+                        >
+                          Last Name
+                        </label>
+                        <input
+                          id="lastName"
+                          type="text"
+                          name="lastName"
+                          value={formData.lastName}
+                          onChange={handleChange}
+                          placeholder="Last name"
+                          autoComplete="family-name"
+                          className={inputClasses}
+                          required
+                        />
+                      </div>
                     </div>
                   )}
 
-                  <div className="space-y-1.5">
+                  <div className="auth-email-field space-y-1.5">
                     <label
                       htmlFor="email"
                       className="text-sm font-medium text-on"
@@ -1014,6 +1103,7 @@ const AuthPage = () => {
                     <div className="relative">
                       <input
                         id="password"
+                        ref={passwordRef}
                         type={showPassword ? "text" : "password"}
                         name="password"
                         value={formData.password}

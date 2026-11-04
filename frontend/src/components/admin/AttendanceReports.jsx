@@ -1,3 +1,4 @@
+import AttendanceRecordActions from "./AttendanceRecordActions";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../../api/axios";
 import { useTheme } from "../../context/ThemeContext";
@@ -12,7 +13,7 @@ import {
   TableSkeleton,
   Tabs,
 } from "../ui";
-import { formatDate, formatTime12Hour } from "../../utils/helpers";
+import { formatDate, formatTime, formatTime12Hour } from "../../utils/helpers";
 import Pagination from "../ui/Pagination";
 import StablePage from "../ui/StablePage";
 
@@ -501,34 +502,37 @@ const AttendanceReports = () => {
                 subtitle={`${attendanceData.stats.total} matching records · ${attendancePageSize} per page`}
 
               >
-                <StablePage loading={attendanceLoading} pageKey={`${JSON.stringify(filters)}:${attendanceData.stats.total}`} footer={<div className="admin-table-pager"><Pagination page={attendancePage} pageSize={attendancePageSize} total={attendanceData.stats.total} disabled={attendanceLoading} onChange={setAttendancePage} label="Attendance report pages" /></div>}>
+                <AttendanceRecordActions key={`${JSON.stringify(filters)}:${attendancePage}`} records={attendanceData.records} loading={attendanceLoading} onDeleted={() => Promise.all([fetchAttendance(), fetchEvents()])}>{({ selecting, checkbox, busy }) => <StablePage loading={attendanceLoading || busy} pageKey={`${JSON.stringify(filters)}:${attendanceData.stats.total}`} footer={<div className="admin-table-pager"><Pagination page={attendancePage} pageSize={attendancePageSize} total={attendanceData.stats.total} disabled={attendanceLoading || busy} onChange={setAttendancePage} label="Attendance report pages" /></div>}>
                 <div className="overflow-x-auto">
                   <table className="data-table admin-records-table min-w-[960px]" aria-busy={attendanceLoading}>
-                    <colgroup><col style={{width:"24%"}} /><col style={{width:"24%"}} /><col style={{width:"22%"}} /><col style={{width:"13%"}} /><col style={{width:"17%"}} /></colgroup>
+                    <colgroup>{selecting && <col style={{width:"48px"}} />}<col style={{width:"24%"}} /><col style={{width:"24%"}} /><col style={{width:"22%"}} /><col style={{width:"13%"}} /><col /></colgroup>
                     <thead>
                       <tr>
+                        {selecting && <th className="attendance-action-cell"><span className="sr-only">Select</span></th>}
                         <th>Student</th>
                         <th>Event</th>
                         <th>Program / Year / Section</th>
                         <th>Status</th>
-                        <th>Event schedule</th>
+                        <th>Check-in time</th>
                       </tr>
                     </thead>
                     <tbody>
                       {attendanceData.records.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-10 text-center text-sm text-on-muted">
+                          <td colSpan={selecting ? 6 : 5} className="py-10 text-center text-sm text-on-muted">
                             No attendance records match these filters.
                           </td>
                         </tr>
                       ) : (
                         attendanceData.records.map((r, i) => {
                           const eventDate = r.event?.date || r.eventDate;
+                          const checkedInAt = r.attendedAt || r.createdAt;
                           const program = r.student?.program || "";
                           const year = r.student?.yearLevel;
                           const section = r.student?.section || "";
                           return (
-                            <tr key={i}>
+                            <tr key={r._id || i}>
+                              {selecting && <td className="attendance-action-cell">{checkbox(r)}</td>}
                               <td><div className="admin-person-cell"><span className="admin-person-avatar" aria-hidden="true">{(r.student?.name || "?").split(/\s+/).filter(Boolean).slice(0,2).map(word=>word[0]).join("").toUpperCase()}</span><div><p className="font-medium text-on">{r.student?.name || "N/A"}</p><p className="mt-0.5 text-xs text-on-muted">{r.student?.email || "No email"}</p></div></div></td>
                               <td className="text-on">{r.event?.title || r.eventTitle || "N/A"}</td>
                               <td>
@@ -545,14 +549,32 @@ const AttendanceReports = () => {
                                 <StatusChip status={r.status} />
                               </td>
                               <td className="whitespace-nowrap">
-                                <p className="text-on-dim">
-                                  {eventDate ? formatDate(eventDate) : "Date unavailable"}
-                                </p>
-                                <p className="mt-0.5 text-xs text-on-muted">
-                                  {r.event?.time
-                                    ? formatTime12Hour(r.event.time)
-                                    : "Time unavailable"}
-                                </p>
+                                {checkedInAt ? (
+                                  <>
+                                    <p className="text-on-dim">
+                                      {formatTime(checkedInAt, {
+                                        hour: "numeric",
+                                        minute: "2-digit",
+                                      })}
+                                    </p>
+                                    <p className="mt-0.5 text-xs text-on-muted">
+                                      {formatDate(checkedInAt)}
+                                    </p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="text-on-dim">
+                                      {eventDate
+                                        ? formatDate(eventDate)
+                                        : "Date unavailable"}
+                                    </p>
+                                    <p className="mt-0.5 text-xs text-on-muted">
+                                      {r.event?.time
+                                        ? `Scheduled ${formatTime12Hour(r.event.time)}`
+                                        : "No check-in time recorded"}
+                                    </p>
+                                  </>
+                                )}
                               </td>
                             </tr>
                           );
@@ -561,7 +583,7 @@ const AttendanceReports = () => {
                     </tbody>
                   </table>
                 </div>
-                </StablePage>
+                </StablePage>}</AttendanceRecordActions>
               </FlightPanel>
             </>
           )}
@@ -642,34 +664,45 @@ const AttendanceReports = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {eventsData.events.map((e) => (
-                    <tr key={e._id}>
-                      <td className="text-on">{e.title}</td>
-                      <td className="whitespace-nowrap">{formatDate(e.date)}</td>
-                      <td>{e.location || "N/A"}</td>
-                      <td>
-                        <StatusChip status={e.status} />
-                      </td>
-                      <td className="num">{e.totalAttendees}</td>
-                      <td className="min-w-[120px]">
-                        <p className="num mb-1.5 text-right font-semibold text-on">
-                          {e.attendanceRate}%
-                        </p>
-                        <ProgressBar
-                          current={e.attendanceRate}
-                          target={100}
-                          showLabel={false}
-                          tone={
-                            e.attendanceRate >= 75
-                              ? "ok"
-                              : e.attendanceRate >= 50
-                                ? "warn"
-                                : "danger"
-                          }
-                        />
+                  {eventsData.events.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="py-10 text-center text-sm text-on-muted"
+                      >
+                        No events in this report yet.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    eventsData.events.map((e) => (
+                      <tr key={e._id}>
+                        <td className="text-on">{e.title}</td>
+                        <td className="whitespace-nowrap">{formatDate(e.date)}</td>
+                        <td>{e.location || "N/A"}</td>
+                        <td>
+                          <StatusChip status={e.status} />
+                        </td>
+                        <td className="num">{e.totalAttendees}</td>
+                        <td className="min-w-[120px]">
+                          <p className="num mb-1.5 text-right font-semibold text-on">
+                            {e.attendanceRate}%
+                          </p>
+                          <ProgressBar
+                            current={e.attendanceRate}
+                            target={100}
+                            showLabel={false}
+                            tone={
+                              e.attendanceRate >= 75
+                                ? "ok"
+                                : e.attendanceRate >= 50
+                                  ? "warn"
+                                  : "danger"
+                            }
+                          />
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

@@ -213,6 +213,25 @@ function fail(res, error) {
   });
 }
 
+// Admin-only: router authorization above applies to this mutation too.
+router.delete("/attendance/:id", async (req, res) => {
+ try {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ message: "Invalid attendance record." });
+  const record = await Attendance.findById(req.params.id).lean();
+  if (!record) return res.status(404).json({ message: "This attendance record no longer exists. Refresh the list." });
+  if (await ManualAttendanceRequest.exists({ event: record.event, student: record.student, status: "pending" }))
+   return res.status(409).json({ message: "Review the pending manual attendance request before deleting this record." });
+  const DeletedAttendance = require("../models/DeletedAttendance");
+  // Archive first so a storage failure cannot lose the original record.
+  await DeletedAttendance.updateOne({ attendanceId: record._id }, { $set: {
+   event: record.event, student: record.student, deletedBy: req.user._id || req.user.id, record,
+  } }, { upsert: true });
+  const result = await Attendance.deleteOne({ _id: record._id, updatedAt: record.updatedAt });
+  if (!result.deletedCount) return res.status(409).json({ message: "Attendance changed. Refresh and review it before deleting." });
+  res.json({ message: "Attendance record deleted. Reports and service hours have been updated." });
+ } catch (error) { fail(res, error); }
+});
+
 router.get("/attendance", async (req, res) => {
   try {
     const { match, studentFilter } = await buildAttendanceMatch(req.query);

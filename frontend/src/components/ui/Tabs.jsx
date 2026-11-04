@@ -1,7 +1,11 @@
 import React from "react";
 
 /**
- * Tabs — underline navigation. Tabs: [{ key, label, count }]
+ * Tabs — underline navigation for page sections. Tabs: [{ key, label, count }]
+ *
+ * Rule of thumb: page sections use <Tabs>, filters and small view switches use
+ * <SegmentedControl>. Both mark the selected item with brand text so the same
+ * "switch view" control never looks purple on one screen and plain on another.
  */
 const Tabs = ({ tabs = [], active, onChange, className = "" }) => (
   <div

@@ -47,3 +47,14 @@ test('staff PIN reset endpoints are absent while face reset remains available', 
   assert.ok(paths.includes('/users/:id/face'));
   assert.equal(paths.some(p => /pin-reset|reset-security/.test(p)), false);
 });
+
+
+test('structured signup stores name parts and a compatible display name',async()=>{
+ currentUser=null; mailEnabled=false;
+ const r=await request('/register',{firstName:' Ana ',middleName:'Maria',lastName:'De la Cruz',email:'ana@example.test',password:'ValidPass123!',program:'BSIT',yearLevel:2,section:'A'});
+ assert.equal(r.status,201); assert.equal(currentUser.name,'Ana Maria De la Cruz'); assert.equal(currentUser.lastName,'De la Cruz');
+});
+test('structured signup requires first and last name without saving',async()=>{
+ currentUser=null; const r=await request('/register',{firstName:'Ana',lastName:'',email:'ana@example.test',password:'ValidPass123!'});
+ assert.equal(r.status,400); assert.equal(saved,0);
+});

@@ -1,3 +1,4 @@
+import "../styles/portal-workspace.css";
 import React, { Suspense, lazy, useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
