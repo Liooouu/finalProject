@@ -139,6 +139,7 @@ async function recordAttendance({
         (replacedExcuse ? " Your approved excuse was replaced since you attended." : ""),
       relatedEvent: event._id,
       event,
+      deferEmail: true,
     });
   }
 

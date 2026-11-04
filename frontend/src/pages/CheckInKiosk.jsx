@@ -17,8 +17,9 @@ import TrackMark from "../components/shared/TrackMark";
 // Same face-recognition models used for enrollment, served as static assets so the
 // kiosk works on the venue's LAN without hitting the API for model files.
 const MODEL_URL = `${import.meta.env.BASE_URL}models/face`;
-const SCAN_INTERVAL_MS = 850;
-const RESULT_HOLD_MS = 3400;
+const SCAN_INTERVAL_MS = 400;
+const SCAN_REST_MS = 100;
+const RESULT_HOLD_MS = 2200;
 
 const STATE_LABEL = {
   before: "Not open yet",
@@ -43,12 +44,15 @@ const CheckInKiosk = () => {
   const holdUntilRef = useRef(0);
   const stateRef = useRef("before");
   const detectorRef = useRef(null);
+  const frameRef = useRef(null);
 
   const [boot, setBoot] = useState("loading"); // loading | ready | error
   const [cameraError, setCameraError] = useState("");
   const [error, setError] = useState("");
   const [station, setStation] = useState(null);
   const [result, setResult] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const [cameraNonce, setCameraNonce] = useState(0);
 
   // ── Station status ─────────────────────────────────────────────────────────
@@ -80,7 +84,9 @@ const CheckInKiosk = () => {
     (async () => {
       try {
         try {
-          await faceapi.tf.setBackend("webgl");
+          if (!(await faceapi.tf.setBackend("webgl"))) {
+            await faceapi.tf.setBackend("cpu");
+          }
         } catch {
           await faceapi.tf.setBackend("cpu");
         }
@@ -231,7 +237,7 @@ const CheckInKiosk = () => {
   );
 
   const scanOnce = useCallback(async () => {
-    if (!modelsRef.current || busyRef.current) return;
+    if (!modelsRef.current || busyRef.current || document.hidden) return;
     if (Date.now() < holdUntilRef.current) return;
     if (!["open", "late"].includes(stateRef.current)) return;
 
@@ -240,22 +246,34 @@ const CheckInKiosk = () => {
 
     busyRef.current = true;
     try {
-      const detections = await faceapi
-        .detectAllFaces(video, detectorRef.current)
-        .withFaceLandmarks()
-        .withFaceDescriptors();
+      // Keep detection and face alignment on the same frame as the student moves.
+      const frame = (frameRef.current ??= document.createElement("canvas"));
+      if (frame.width !== video.videoWidth || frame.height !== video.videoHeight) {
+        frame.width = video.videoWidth;
+        frame.height = video.videoHeight;
+      }
+      frame.getContext("2d").drawImage(video, 0, 0);
+      const detections = await faceapi.detectAllFaces(frame, detectorRef.current);
       if (detections.length > 1) {
         holdUntilRef.current = Date.now() + 1500;
         setResult({ kind: "warn", name: "One person at a time",
           meta: "Only the student checking in should be visible to the camera." });
         return;
       }
-      const detection = detections[0];
-      if (detection?.descriptor) {
-        const descriptor = Array.from(detection.descriptor);
-        const { data } = await api.post(`/checkin/${token}`, { descriptor });
-        applyResult(data);
-      }
+      if (!detections.length) return;
+
+      // Reuse the single detected face and run the same full landmark and
+      // recognition models as before. Crowded frames need neither model.
+      setChecking(true);
+      const landmarks = new faceapi.DetectAllFaceLandmarksTask(
+        Promise.resolve([{ detection: detections[0] }]), frame, false
+      );
+      const [match] = await landmarks.withFaceDescriptors();
+      if (!match?.descriptor || !["open", "late"].includes(stateRef.current)) return;
+
+      const descriptor = Array.from(match.descriptor);
+      const { data } = await api.post(`/checkin/${token}`, { descriptor });
+      applyResult(data);
     } catch (err) {
       if (err.response?.status === 429) {
         holdUntilRef.current = Date.now() + 3000;
@@ -272,6 +290,7 @@ const CheckInKiosk = () => {
         console.error("Check-in scan failed:", err);
       }
     } finally {
+      setChecking(false);
       busyRef.current = false;
     }
   }, [applyResult, token]);
@@ -280,8 +299,24 @@ const CheckInKiosk = () => {
     if (boot !== "ready") return undefined;
     if (!["open", "late"].includes(station?.state)) return undefined;
 
-    const timer = setInterval(scanOnce, SCAN_INTERVAL_MS);
-    return () => clearInterval(timer);
+    let stopped = false;
+    let timer;
+    const scan = async () => {
+      const start = performance.now();
+      await scanOnce();
+      if (stopped) return;
+      const delay = Math.max(
+        SCAN_REST_MS,
+        SCAN_INTERVAL_MS - (performance.now() - start),
+        holdUntilRef.current - Date.now(),
+      );
+      timer = setTimeout(scan, delay);
+    };
+    scan();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
   }, [boot, station?.state, scanOnce]);
 
   // Clear a transient result even when no new face appears.
@@ -300,7 +335,11 @@ const CheckInKiosk = () => {
   };
 
   const state = station?.state || "before";
-  const scanning = boot === "ready" && (state === "open" || state === "late");
+  const stationOpen = state === "open" || state === "late";
+  const scanning = boot === "ready" && stationOpen && cameraReady;
+  const starting = !cameraError && boot !== "error" && (
+    boot === "loading" || (!station && !error) || (stationOpen && !cameraReady)
+  );
 
   return (
     <div className="flex min-h-screen flex-col bg-[#070b12] text-white">
@@ -349,13 +388,15 @@ const CheckInKiosk = () => {
             autoPlay
             playsInline
             muted
+            onPlaying={() => setCameraReady(true)}
+            onWaiting={() => setCameraReady(false)}
             className="aspect-[4/3] w-full scale-x-[-1] object-cover"
           />
 
           {/* Corner brackets make the framing obvious on a kiosk screen. */}
           <div className="pointer-events-none absolute inset-6 rounded-2xl border-2 border-dashed border-white/15 sm:inset-10" />
 
-          {state === "before" && (
+          {station?.state === "before" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#070b12]/85 px-6 text-center">
               <FaClock className="text-4xl text-brand" />
               <p className="font-display text-2xl font-semibold">Attendance is not open yet</p>
@@ -367,12 +408,6 @@ const CheckInKiosk = () => {
                     )}.`
                   : "The organizer has not opened the attendance window for this event."}
               </p>
-            </div>
-          )}
-
-          {state === "late" && !result && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-amber-500/90 px-4 py-3 text-center text-sm font-semibold text-amber-950">
-              The window has closed — you can still check in, but you will be marked late.
             </div>
           )}
 
@@ -397,7 +432,10 @@ const CheckInKiosk = () => {
               <p className="max-w-md text-sm text-white/60">{cameraError}</p>
               <button
                 type="button"
-                onClick={() => setCameraNonce((n) => n + 1)}
+                onClick={() => {
+                  setCameraReady(false);
+                  setCameraNonce((n) => n + 1);
+                }}
                 className="mt-2 inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white"
               >
                 <FaRedo /> Try again
@@ -406,12 +444,20 @@ const CheckInKiosk = () => {
           )}
 
           {scanning && !result && !cameraError && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 bg-gradient-to-t from-black/80 to-transparent px-4 pb-4 pt-14 text-sm font-medium text-white/80">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 motion-reduce:animate-none" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
-              </span>
-              {state === "late" ? "Late check-in — look at the camera" : "Look at the camera to check in"}
+            <div
+              role="status"
+              className={`pointer-events-none absolute inset-x-0 bottom-0 px-4 text-center text-sm ${
+                state === "late"
+                  ? "bg-amber-400 px-4 py-3 text-amber-950"
+                  : "bg-gradient-to-t from-black/80 to-transparent pb-4 pt-14 text-white/90"
+              }`}
+            >
+              {state === "late" && <p className="mb-1 font-semibold">You can still check in. Your attendance will be marked late.</p>}
+              <p className="font-medium">
+                {checking
+                  ? "Please wait while we verify your face. Hold still and keep looking at the camera."
+                  : "Look at the camera to check in."}
+              </p>
             </div>
           )}
 
@@ -423,10 +469,11 @@ const CheckInKiosk = () => {
               <button type="button" onClick={() => window.location.reload()} className="rounded-xl bg-brand px-4 py-2">Reload scanner</button>
             </div>
           )}
-          {boot === "loading" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#070b12]/90">
+          {starting && (
+            <div role="status" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#070b12]/90 px-5 text-center">
               <TrackMark className="h-10 w-10 animate-pulse text-brand" />
-              <p className="text-sm text-white/60">Starting the face scanner…</p>
+              <p className="text-base font-semibold">Please wait while the face scanner gets ready.</p>
+              <p className="text-sm text-white/70">This may take a moment.</p>
             </div>
           )}
 

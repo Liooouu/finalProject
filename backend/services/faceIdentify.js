@@ -63,7 +63,7 @@ async function refresh() {
 // Reload when the cache is older than five minutes. Enrollments also call
 // upsert() so a newly registered face is usable immediately.
 async function ensureFresh() {
-  if (index.size > 0 && Date.now() - loadedAt < INDEX_MAX_AGE_MS) return index.size;
+  if (loadedAt && Date.now() - loadedAt < INDEX_MAX_AGE_MS) return index.size;
   if (refreshPromise) return refreshPromise;
   refreshPromise = refresh().finally(() => {
     refreshPromise = null;
