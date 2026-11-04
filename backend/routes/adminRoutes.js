@@ -16,6 +16,19 @@ const { notifyUsers } = require("../services/notify");
 const fileStore = require("../services/fileStore");
 const faceIdentify = require("../services/faceIdentify");
 
+const ADMIN_USER_FIELDS = "name email role profilePicture program yearLevel section emailVerified enrollmentStatus academicYearStart faceAttempts faceLockUntil organizerAccess organizerPromotedAt createdAt updatedAt".split(" ");
+
+function adminUserSummary(user) {
+  const { faceEnrolledAt, faceConsentAt, faceDescriptor } = user;
+  const faceEnrolled = user.role === "student" && Boolean(faceEnrolledAt && faceConsentAt) &&
+    Array.isArray(faceDescriptor) && faceDescriptor.length === 128 && faceDescriptor.every(Number.isFinite);
+  return {
+    _id: user._id,
+    ...Object.fromEntries(ADMIN_USER_FIELDS.map(field => [field, user[field]])),
+    faceEnrolled,
+  };
+}
+
 // Organizer access is granted to an existing student; no duplicate account/password.
 router.post("/create-organizer", protect, authorize("admin"), (req, res) => res.status(410).json({ message: "Promote an existing student using the Promote Student page." }));
 router.get("/organizer-candidates", protect, authorize("admin"), async (req, res) => {
@@ -85,11 +98,11 @@ router.get("/users", protect, authorize("admin", "organizer"), async (req, res) 
     const projection =
       req.user.role === "organizer"
         ? "name email role program yearLevel section enrollmentStatus academicYearStart faceEnrolledAt organizerAccess createdAt updatedAt"
-        : "name email role profilePicture program yearLevel section emailVerified facePhoto faceAttempts faceLockUntil organizerAccess organizerPromotedAt createdAt updatedAt";
+        : `${ADMIN_USER_FIELDS.join(" ")} faceEnrolledAt faceConsentAt faceDescriptor`;
 
     const users = await User.find(query).select(projection).sort({ name: 1 });
 
-    res.json(users);
+    res.json(req.user.role === "admin" ? users.map(adminUserSummary) : users);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -167,15 +180,7 @@ router.patch("/users/:id", protect, authorize("admin"), async (req, res) => {
     }
 
     await user.save();
-    const sanitized = user.toObject();
-    delete sanitized.password;
-    delete sanitized.faceDescriptor;
-    delete sanitized.pinHash;
-    delete sanitized.pinPlain;
-    delete sanitized.emailVerificationCodeHash;
-    delete sanitized.passwordResetCodeHash;
-    delete sanitized.trustedDevices;
-    res.json(sanitized);
+    res.json(adminUserSummary(user));
   } catch (error) {
     if (error.code === 11000) {
       return res.status(400).json({ message: "Email already exists" });

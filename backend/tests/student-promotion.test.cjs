@@ -109,6 +109,28 @@ test('generic role editing cannot replace a student account with an organizer id
 test('switch-role cannot select another promoted account or grant admin access',async()=>{await promote();const denied=await request('/auth/switch-role',{method:'POST',auth:token(otherId,'student'),body:{role:'organizer',userId:studentId}});assert.equal(denied.status,403);const adminDenied=await request('/auth/switch-role',{method:'POST',auth:token(studentId,'student'),body:{role:'admin'}});assert.equal(adminDenied.status,403);});
 
 const demote=(id=studentId,auth=token(adminId,'admin'))=>request(`/admin/users/${id}/demote-organizer`,{method:'POST',auth});
+
+test('admin directory and academic updates return enrollment status without face data', async () => {
+ const student = users.get(studentId);
+ Object.assign(student, {
+  facePhoto: '/uploads/private-faces/example.jpg',
+  faceEnrolledAt: new Date(),
+  faceConsentAt: new Date(),
+  faceDescriptor: Array(128).fill(0.01),
+ });
+ const auth = token(adminId, 'admin');
+ const directory = await request('/admin/users', { auth });
+ const update = await request(`/admin/users/${studentId}`, { method:'PATCH', auth, body:{ program:'BSCS', yearLevel:2, section:'C' } });
+ assert.equal(directory.status, 200);
+ assert.equal(update.status, 200);
+ for (const summary of [directory.data.find(user => user._id === studentId), update.data]) {
+  assert.equal(summary.faceEnrolled, true);
+  for (const key of ['facePhoto', 'faceDescriptor', 'faceConsentAt', 'password']) assert.equal(key in summary, false);
+ }
+ users.get(studentId).faceDescriptor = [];
+ const legacy = await request(`/admin/users/${studentId}`, { method:'PATCH', auth, body:{ section:'B' } });
+ assert.equal(legacy.data.faceEnrolled, false);
+});
 test('demotion preserves student identity and records and closes face stations',async()=>{
  await promote();const before={...users.get(studentId)};const switched=await request('/auth/switch-role',{method:'POST',auth:token(studentId,'student'),body:{role:'organizer'}});
  const response=await demote();assert.equal(response.status,200);assert.deepEqual(response.data.student.availableRoles,['student']);

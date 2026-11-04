@@ -106,7 +106,7 @@ const ManageUsers = () => {
     setResettingFace(true);
     try {
       await api.delete(`/admin/users/${faceResetTarget._id}/face`);
-      const cleared = { ...faceResetTarget, facePhoto: "", faceEnrolledAt: null, faceConsentAt: null };
+      const cleared = { ...faceResetTarget, faceEnrolled: false };
       setUsers((previous) => previous.map((u) => u._id === cleared._id ? { ...u, ...cleared } : u));
       setSelectedUser((previous) => previous?._id === cleared._id ? cleared : previous);
       setFaceResetTarget(null);
@@ -1016,9 +1016,7 @@ const ManageUsers = () => {
                     <div>
                       <p className="font-medium text-on">Face verification</p>
                       <p className="text-sm text-on-dim">
-                        {selectedUser.facePhoto
-                          ? "Face photo enrolled"
-                          : "No face photo enrolled"}
+                        {selectedUser.faceEnrolled ? "Face enrolled" : "Face not enrolled"}
                       </p>
                       {isFaceLocked(selectedUser) ? (
                         <p className="mt-0.5 text-sm font-medium text-danger">
@@ -1029,14 +1027,7 @@ const ManageUsers = () => {
                       )}
                     </div>
                   </div>
-                  {selectedUser.facePhoto && (
-                    <PrivateImage
-                      src={selectedUser.facePhoto}
-                      alt="Enrolled face"
-                      className="h-16 w-16 rounded-xl border border-line object-cover sm:ml-auto"
-                    />
-                  )}
-                  {selectedUser.facePhoto && (
+                  {selectedUser.faceEnrolled && (
                     <Button variant="danger" size="sm" onClick={() => setFaceResetTarget(selectedUser)}>
                       Reset face enrollment
                     </Button>
