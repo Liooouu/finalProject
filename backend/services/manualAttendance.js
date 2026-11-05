@@ -185,7 +185,10 @@ function createService(deps) {
       if (!student || student.role !== "student") fail(409, "The student account changed. This request cannot be applied.");
       const current = await Attendance.findOne({ event: request.event, student: request.student }).lean();
       if (current?.status === "excused" || current?.method === "face") fail(409, "A face check-in or approved excuse already controls this record. Refresh before reviewing.");
-      const expected = request.previousAttendance;
+      // Lean reads of older requests do not apply the schema's null default.
+      // Missing and explicit-null fingerprints both mean no prior record;
+      // neither permits replacing a later human/face/excuse decision.
+      const expected = request.previousAttendance ?? null;
       // An automatic absence may be created while a request is waiting. It
       // must not turn a timely check-in into a late one at review time.
       const logs = current?.communityServiceLog || [];

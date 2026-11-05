@@ -1,4 +1,3 @@
-import { useTransientState } from "../../utils/useTransientState";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { FaClipboardCheck, FaSearch } from "react-icons/fa";
@@ -37,9 +36,10 @@ export default function ManualAttendanceReviews() {
   const [note, setNote] = useState("");
   const [verified, setVerified] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useTransientState("");
-  const [actionError, setActionError] = useTransientState("");
-  const [outcomeErrors, setOutcomeErrors] = useTransientState([]);
+  const [message, setMessage] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [outcomeErrors, setOutcomeErrors] = useState([]);
+  const feedback = useRef(null);
   const requestSequence = useRef(0);
   const mounted = useRef(true);
 
@@ -84,7 +84,12 @@ export default function ManualAttendanceReviews() {
     }
   }, [eventId, page, query, status, view]);
   useEffect(() => { loadRequests(); return () => { requestSequence.current += 1; }; }, [loadRequests]);
-  useAutoRefresh(loadRequests, { interval: 30000 });
+  useAutoRefresh(loadRequests, { interval: 30000, enabled: !busy });
+  useEffect(() => {
+    if (busy || !(message || actionError || outcomeErrors.length)) return;
+    feedback.current?.focus({ preventScroll: true });
+    feedback.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
+  }, [busy, message, actionError, outcomeErrors]);
 
   const resetSelection = () => { setSelected(new Set()); setVerified(false); setNote(""); setOutcomeErrors([]); };
   const clearFilters = () => { setSearch(""); setQuery(""); setEventId(""); setStatus("all"); setPage(1); resetSelection(); };
@@ -97,17 +102,22 @@ export default function ManualAttendanceReviews() {
     if (busy || !selected.size) return;
     if (decision === "approved" && !verified) { setActionError("Confirm that you independently checked the attendance evidence for every selected student."); return; }
     if (decision === "rejected" && note.trim().length < 5) { setActionError("Add a review note of at least 5 characters explaining why these requests are rejected."); return; }
-    setBusy(true); setActionError(""); setMessage(""); setOutcomeErrors([]);
+    setBusy(decision); setActionError(""); setMessage(""); setOutcomeErrors([]);
+    // A refresh started before this decision must not clear its selection or
+    // replace the result. Fetch fresh rows explicitly after the review finishes.
+    requestSequence.current += 1;
+    setRefreshing(false);
     const selectedIds = [...selected];
+    const names = new Map(requests.map(row => [row._id, row.student?.name || row.student?.email || "Student"]));
     try {
       const { data } = await api.post("/manual-attendance/requests/review", { ids: selectedIds, decision, note: note.trim(), verifiedPresence: decision === "approved" && verified });
       if (!mounted.current) return;
-      const results = data.results || [];
+      const results = Array.isArray(data.results) ? data.results : [];
       const completed = results.filter(result => result.status === decision && !result.error);
       const errors = results.filter(result => result.error || result.status !== decision).map(result => ({ id: result.id, message: result.error || "This request was not updated. Refresh and try again." }));
       for (const id of selectedIds) if (!results.some(result => String(result.id) === String(id))) errors.push({ id, message: "No result was returned for this request. Refresh before retrying." });
-      setOutcomeErrors(errors);
-      setMessage(completed.length ? `${completed.length} request${completed.length === 1 ? "" : "s"} ${decision}. Attendance uses the verified check-in time.` : "No requests were updated.");
+      setOutcomeErrors(errors.map(item => ({ ...item, name: names.get(item.id) || "Student" })));
+      setMessage(completed.length ? `${completed.length} request${completed.length === 1 ? "" : "s"} ${decision}.${decision === "approved" ? " Attendance uses the recorded check-in time, even when reviewed after the event." : ""}` : "");
       setSelected(new Set(errors.map(item => item.id))); setVerified(false); setNote("");
       window.dispatchEvent(new Event("tracked:manual-attendance-changed"));
       await loadRequests();
@@ -122,9 +132,7 @@ export default function ManualAttendanceReviews() {
   return <div className="manual-review-page space-y-4">
     <PageHeader eyebrow="Attendance exceptions" title={view === "mine" ? "My attendance requests" : "Manual attendance review"} subtitle="Select a request, check its evidence, then approve or reject. Attendance uses the saved check-in time." actions={<Button variant="secondary" size="sm" onClick={() => { loadRequests(); loadEvents(); }} disabled={refreshing || busy}>Refresh</Button>} />
     {!isAdmin && <SegmentedControl ariaLabel="Manual request views" value={view} onChange={value => { if (!busy) changeFilter(setView, value); }} options={[{ value: "review", label: "Assigned reviews" }, { value: "mine", label: "My requests" }]} />}
-    {message && <div role="status" className="alert alert-ok"><p>{message}</p></div>}
-    {(loadError || actionError) && <div role="alert" className="alert alert-danger"><p>{actionError || loadError}</p>{loadError && <Button variant="secondary" size="sm" onClick={loadRequests} disabled={refreshing}>Try again</Button>}</div>}
-    {!!outcomeErrors.length && <Card className="space-y-2" role="alert"><h3 className="text-sm font-medium text-danger">Some requests need attention</h3><ul className="space-y-1 text-sm text-on-dim">{outcomeErrors.map(item => <li key={item.id}>{requests.find(row => row._id === item.id)?.student?.name || "Request"}: {item.message}</li>)}</ul></Card>}
+    {loadError && <div role="alert" className="alert alert-danger"><p>{loadError}</p><Button variant="secondary" size="sm" onClick={loadRequests} disabled={refreshing || busy}>Try again</Button></div>}
     <Card className="manual-review-filters">
       <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,.65fr)]">
         <div className="min-w-0"><label className="field-label" htmlFor="manual-review-search">Search student</label><div className="relative"><FaSearch aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-on-muted" /><input id="manual-review-search" type="search" className="field field-search min-w-0" placeholder="Student name or email" value={search} onChange={event => setSearch(event.target.value)} disabled={busy} /></div></div>
@@ -160,7 +168,13 @@ export default function ManualAttendanceReviews() {
       <p className="text-xs text-on-dim">{selectedRows.map(row => row.student?.name || row.student?.email || "Student").join(", ")}</p>
       <label className="flex items-start gap-3 rounded-xl bg-card-alt/40 p-3 text-sm text-on-dim"><input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-solid)]" checked={verified} onChange={event => setVerified(event.target.checked)} disabled={busy} /><span>I independently checked attendance and the recorded time for every selected student.</span></label>
       <div><label htmlFor="manual-review-note" className="field-label">Review note <span className="font-normal text-on-muted">(at least 5 characters when rejecting)</span></label><textarea id="manual-review-note" className="field min-h-20 resize-y" maxLength={1000} placeholder="Explain a rejection or add useful verification details." value={note} onChange={event => setNote(event.target.value)} disabled={busy} /></div>
-      <div className="flex flex-col gap-2 sm:flex-row"><Button onClick={() => reviewSelected("approved")} disabled={busy || refreshing || !verified} loading={busy}>Approve selected</Button><Button variant="danger" onClick={() => reviewSelected("rejected")} disabled={busy || refreshing || note.trim().length < 5}>Reject selected</Button></div>
+      <div className="flex flex-col gap-2 sm:flex-row"><Button onClick={() => reviewSelected("approved")} disabled={!!busy || !verified} loading={busy === "approved"}>{busy === "approved" ? "Approving..." : "Approve selected"}</Button><Button variant="danger" onClick={() => reviewSelected("rejected")} disabled={!!busy || note.trim().length < 5} loading={busy === "rejected"}>{busy === "rejected" ? "Rejecting..." : "Reject selected"}</Button></div>
     </Card>}
+    {(message || actionError || outcomeErrors.length > 0) && <section ref={feedback} tabIndex={-1} aria-label="Review result" className="space-y-3 rounded-xl focus-visible:outline-2 focus-visible:outline-brand">
+      {message && <div role="status" className="alert alert-ok"><p>{message}</p></div>}
+      {actionError && <div role="alert" className="alert alert-danger"><p>{actionError}</p></div>}
+      {outcomeErrors.length > 0 && <Card className="space-y-2" role="alert"><h3 className="text-sm font-medium text-danger">{message ? "Some requests need attention" : "Requests were not updated"}</h3><ul className="space-y-2 text-sm text-on-dim">{outcomeErrors.map(item => <li key={item.id}><span className="font-medium text-on">{item.name}: </span>{item.message}</li>)}</ul></Card>}
+      <Button variant="ghost" size="sm" onClick={() => { setMessage(""); setActionError(""); setOutcomeErrors([]); }}>Dismiss result</Button>
+    </section>}
   </div>;
 }

@@ -94,6 +94,49 @@ test('late approval produces four hours regardless of review delay; prior reduct
   await f.api.reviewOne(admin,request._id,'approved','',at('22:00:00'));
   assert.equal(f.data.Attendance[0].status,'late');assert.equal(f.data.Attendance[0].communityServiceHours,2);
 });
+
+test('next-day and next-week reviews preserve saved check-in classification after event closure',async()=>{
+  for(const days of [1,7])for(const status of ['finished','closed'])for(const clock of ['08:20:00','08:45:00']){
+    const f=fixture(),effectiveAt=at(clock);
+    const request=await f.api.submit(requester,payload(),effectiveAt);
+    f.data.Event[0].status=status;
+    // A later schedule edit and the nightly absence job must not change the
+    // immutable time/window captured by the original request.
+    f.data.Event[0].attendanceEndTime='08:00';
+    f.data.Attendance.push({_id:'record',event:ids.event,student:ids.student,status:'absent',method:'auto',communityServiceHours:8,communityServiceLog:[{action:'penalty',hours:8,note:'Marked absent (auto)'}],createdAt:at('12:01:00'),updatedAt:at('12:01:00')});
+    const reviewedAt=new Date(Number(at('22:00:00'))+days*86400000);
+    assert.equal((await f.api.reviewOne(admin,request._id,'approved','',reviewedAt)).status,'approved');
+    // Retrying through the batch route must not apply the penalty twice.
+    const result=await f.api.reviewBatch(admin,{ids:[request._id],decision:'approved',verifiedPresence:true});
+    assert.equal(result.results[0].status,'approved');
+    const record=f.data.Attendance[0],late=clock==='08:45:00';
+    assert.equal(record.status,late?'late':'present');
+    assert.equal(record.communityServiceHours,late?4:0);
+    assert.equal(Number(record.attendedAt),Number(effectiveAt));
+    assert.equal(record.manualAttendanceAudit.length,1);
+  }
+});
+
+test('older requests without an attendance fingerprint can approve missing or new automatic absences only',async()=>{
+  for(const current of ['none','auto','manual','face','excused']){
+    const f=fixture(),request=await f.api.submit(requester,payload(),at('08:20:00'));
+    // Old stored documents can predate the Mixed field's default; lean reads
+    // do not insert schema defaults into those documents.
+    delete f.data.Request[0].previousAttendance;
+    f.data.Event[0].status='finished';
+    if(current!=='none')f.data.Attendance.push({_id:'record',event:ids.event,student:ids.student,status:current==='excused'?'excused':'absent',method:current==='excused'?'manual':current,communityServiceHours:8,communityServiceLog:[{action:'penalty',hours:8,note:'Marked absent (auto)'}],createdAt:at('12:01:00'),updatedAt:at('12:01:00')});
+    const review=()=>f.api.reviewOne(admin,request._id,'approved','',new Date('2026-11-06T12:00:00Z'));
+    if(['none','auto'].includes(current)){
+      assert.equal((await review()).status,'approved');
+      assert.equal(f.data.Attendance[0].status,'present');
+      assert.equal(f.data.Attendance[0].communityServiceHours,0);
+    }else{
+      await assert.rejects(review,/changed|face check-in|approved excuse/);
+      assert.equal(f.writes,0);
+      assert.equal(f.data.Request[0].status,'pending');
+    }
+  }
+});
 test('requester, beneficiary, and unassigned organizer cannot review',async()=>{
   const f=fixture();f.data.Event[0].manualAttendanceReviewers.push(ids.requester,ids.student);
   const request=await f.api.submit(requester,payload(),at('08:20:00'));
