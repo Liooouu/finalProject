@@ -390,7 +390,7 @@ const CheckInKiosk = () => {
             muted
             onPlaying={() => setCameraReady(true)}
             onWaiting={() => setCameraReady(false)}
-            className="aspect-[4/3] w-full scale-x-[-1] object-cover"
+            className="aspect-[4/3] w-full object-cover"
           />
 
           {/* Corner brackets make the framing obvious on a kiosk screen. */}

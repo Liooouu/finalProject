@@ -19,7 +19,17 @@ export const formatDate = (value, options) =>
 
 export const formatDateTime = (value, options) =>
   value
-    ? new Date(value).toLocaleString("en-US", { timeZone: APP_TIME_ZONE, ...options })
+    ? new Date(value).toLocaleString("en-US", {
+        timeZone: APP_TIME_ZONE,
+        ...(options ?? {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        }),
+      })
     : "";
 
 export const formatTime = (value, options) =>
