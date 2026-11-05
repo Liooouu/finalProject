@@ -15,8 +15,7 @@ const { notifyUsers } = require("../services/notify");
 const { isValidObjectId } = require("mongoose");
 const { excuseWindow } = require("../services/excuseWindow");
 const { submissionRevisionFilter, resubmissionIssue, excuseReviewerFilter } = require("../services/excuseReview");
-const { calendarView, promotionPlan } = require("../services/academicCalendar");
-const { syncStudentAcademicYear } = require("../services/academicProgression");
+const { calendarView } = require("../services/academicCalendar");
 const { pendingManualEventsForStudent } = require("../services/manualAttendance");
 const { projectManualAttendance } = require("../services/manualAttendanceView");
 
@@ -25,11 +24,9 @@ router.get("/academic-status", protect, async (req, res) => {
     if (!hasStudentProfile(req.user)) return res.status(403).json({ error: "Only student accounts can access academic standing" });
     const account = req.user.role === "student" ? req.user : await User.findById(req.user._id);
     if (!account) return res.status(404).json({ error: "Student account not found" });
-    const student = await syncStudentAcademicYear(account);
+    const student = account;
     const calendar = calendarView();
-    const basis = student.academicYearStart ?? calendar.current.startYear;
-    const next = promotionPlan({ ...student.toObject?.(), yearLevel: student.yearLevel, academicYearStart: basis, section: student.section, program: student.program, enrollmentStatus: student.enrollmentStatus }, calendar.current.startYear + 1);
-    res.json({ ...calendar, student: { yearLevel: student.yearLevel, section: student.section, program: student.program, enrollmentStatus: student.enrollmentStatus || "active", academicYearStart: student.academicYearStart, history: student.academicHistory || [] }, nextYear: { label: `${calendar.current.startYear + 1}–${calendar.current.startYear + 2}`, yearLevel: next?.yearLevel || student.yearLevel, enrollmentStatus: next?.enrollmentStatus || student.enrollmentStatus || "active" }, promotionEnabled: calendar.confirmed });
+    res.json({ ...calendar, student: { yearLevel: student.yearLevel, section: student.section, program: student.program, enrollmentStatus: student.enrollmentStatus || "active", academicYearStart: student.academicYearStart, history: student.academicHistory || [] }, promotionEnabled: false });
   } catch (err) { res.status(500).json({ error: "Could not load academic standing" }); }
 });
 

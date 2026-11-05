@@ -9,7 +9,6 @@ const bcrypt = require("bcryptjs");
 const faceMatcher = require("../services/faceMatcher");
 const fileStore = require("../services/fileStore");
 const { isMailEnabled } = require("../services/mailer");
-const { syncStudentAcademicYear } = require("../services/academicProgression");
 const { protect } = require("../middleware/authMiddleware");
 const faceIdentify = require("../services/faceIdentify");
 const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
@@ -50,8 +49,7 @@ const ACCOUNT_FIELDS =
 router.get("/", protect, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select(ACCOUNT_FIELDS);
-    await syncStudentAcademicYear(user);
-    res.json(accountView(await User.findById(req.user._id).select(ACCOUNT_FIELDS), req.user.role));
+    res.json(accountView(user, req.user.role));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

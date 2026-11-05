@@ -24,6 +24,8 @@ import {
 } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Pagination from "../ui/Pagination";
+import StablePage from "../ui/StablePage";
+import AcademicAdvancement from "./AcademicAdvancement";
 import { formatDate, formatDateTime } from "../../utils/helpers";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 
@@ -47,6 +49,9 @@ const ManageUsers = () => {
   const [loading, setLoading] = useState(seed === undefined);
   const [selectedUser, setSelectedUser] = useState(null);
   const [search, setSearch] = useState("");
+  const [staffPage, setStaffPage] = useState(1);
+  const [studentPage, setStudentPage] = useState(1);
+  const [appealPage, setAppealPage] = useState(1);
   const [promoteTarget, setPromoteTarget] = useState(null);
   const [promoting, setPromoting] = useState(false);
   const [faceStatusLoading, setFaceStatusLoading] = useState(false);
@@ -138,10 +143,10 @@ const ManageUsers = () => {
   const currentAttendancePage = Math.min(attendancePage, attendancePages);
   const visibleAttendance = userAttendance.slice((currentAttendancePage - 1) * 5, currentAttendancePage * 5);
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") === "appeals" ? "appeals" : "users";
+  const activeTab = ["appeals", "advancement"].includes(searchParams.get("tab")) ? searchParams.get("tab") : "users";
   const setActiveTab = tab => setSearchParams(previous => {
     const next = new URLSearchParams(previous);
-    if (tab === "appeals") next.set("tab", "appeals"); else next.delete("tab");
+    if (tab !== "users") next.set("tab", tab); else next.delete("tab");
     return next;
   }, { replace: true });
   const [appeals, setAppeals] = useState(appealsSeed?.appeals ?? []);
@@ -440,9 +445,14 @@ const ManageUsers = () => {
       subtitle,
       emptyTitle,
       showGroup = false,
+      page,
+      onPageChange,
     }
-  ) => (
-    <Card padding="none" className="flex max-h-[34rem] min-h-0 flex-col overflow-hidden">
+  ) => {
+    const currentPage = Math.min(page, Math.max(1, Math.ceil(list.length / 5)));
+    const visibleUsers = list.slice((currentPage - 1) * 5, currentPage * 5);
+    return (
+    <Card as="section" aria-label={title} padding="none" className="min-w-0 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3.5">
         <div>
           <h2 className="text-sm font-semibold text-on">{title}</h2>
@@ -455,7 +465,8 @@ const ManageUsers = () => {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <StablePage pageKey={`directory:${title}:${term}`} loading={loading} footer={<div className="px-4 pb-4"><Pagination page={currentPage} pageSize={5} total={list.length} onChange={onPageChange} disabled={loading} label={`${title} pages`} /></div>}>
+      <div className="min-w-0">
         {loading ? (
         <div className="p-4">
           <TableSkeleton rows={4} />
@@ -473,7 +484,7 @@ const ManageUsers = () => {
       ) : (
         <>
           <div className="space-y-2.5 p-3 sm:hidden">
-            {list.map((user) => (
+            {visibleUsers.map((user) => (
               <article
                 key={user._id}
                 className="portal-card relative overflow-hidden rounded-xl border border-line/80 bg-card-alt/35 p-3.5"
@@ -551,7 +562,7 @@ const ManageUsers = () => {
               </tr>
             </thead>
             <tbody>
-              {list.map((user) => (
+              {visibleUsers.map((user) => (
                 <tr key={user._id}>
                   <td>
                     <div className="flex items-center gap-2.5">
@@ -596,10 +607,14 @@ const ManageUsers = () => {
         </>
       )}
       </div>
+      </StablePage>
     </Card>
   );
+  };
 
   const pendingCount = appeals.filter((a) => a.status === "pending").length;
+  const currentAppealPage = Math.min(appealPage, Math.max(1, Math.ceil(appeals.length / 5)));
+  const visibleAppeals = appeals.slice((currentAppealPage - 1) * 5, currentAppealPage * 5);
 
   return (
     <div className="space-y-5">
@@ -625,6 +640,7 @@ const ManageUsers = () => {
         tabs={[
           { key: "users", label: "Users", count: users.length },
           { key: "appeals", label: "Face appeals", count: pendingCount || undefined },
+          { key: "advancement", label: "Advance year levels" },
         ]}
       />
 
@@ -647,7 +663,7 @@ const ManageUsers = () => {
 
           <Card padding="sm">
             <label htmlFor="manage-user-search" className="field-label">Search users</label>
-            <input id="manage-user-search" type="search" className="field" placeholder="Search name or email..." value={search} onChange={event => setSearch(event.target.value)} />
+            <input id="manage-user-search" type="search" className="field" placeholder="Search name or email..." value={search} onChange={event => { setSearch(event.target.value); setStaffPage(1); setStudentPage(1); }} />
           </Card>
 
           <div className="grid gap-4 xl:grid-cols-2">
@@ -655,6 +671,7 @@ const ManageUsers = () => {
               title: "Admin & Event Organizers",
               subtitle: "Admins and accounts with organizer access",
               emptyTitle: "No admin or organizer accounts found",
+              page: staffPage, onPageChange: setStaffPage,
             })}
 
             {renderUserTable(studentUsers, {
@@ -662,9 +679,12 @@ const ManageUsers = () => {
               subtitle: "Accounts with student access only",
               emptyTitle: "No students found",
               showGroup: true,
+              page: studentPage, onPageChange: setStudentPage,
             })}
           </div>
         </>
+      ) : activeTab === "advancement" ? (
+        <AcademicAdvancement onApplied={() => fetchUsers({ silent: true })} />
       ) : (
         <div className="space-y-4">
           <p className="text-sm text-on-dim">
@@ -683,8 +703,8 @@ const ManageUsers = () => {
               />
             </Card>
           ) : (
-            <div className="space-y-3">
-              {appeals.map((appeal) => (
+            <StablePage pageKey="face-appeals" footer={<Pagination page={currentAppealPage} pageSize={5} total={appeals.length} onChange={setAppealPage} label="Face appeal pages" />}><div className="space-y-3">
+              {visibleAppeals.map((appeal) => (
                 <Card key={appeal._id} as="article">
                   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -776,7 +796,7 @@ const ManageUsers = () => {
                   )}
                 </Card>
               ))}
-            </div>
+            </div></StablePage>
           )}
         </div>
       )}

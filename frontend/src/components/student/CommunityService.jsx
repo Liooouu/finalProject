@@ -79,8 +79,8 @@ const CommunityService = () => {
 
   const period = calendar?.years.find(item => String(item.startYear) === schoolYear);
   const records = recordsForAcademicPeriod(data?.breakdown || [], period, semester);
-  const currentPage = Math.min(recordPage, Math.max(1, Math.ceil(records.length / 10)));
-  const visibleRecords = records.slice((currentPage - 1) * 10, currentPage * 10);
+  const currentPage = Math.min(recordPage, Math.max(1, Math.ceil(records.length / 5)));
+  const visibleRecords = records.slice((currentPage - 1) * 5, currentPage * 5);
   const changeRecordPage = (page) => {
     setRecordPage(page);
     if (historyViewportRef.current) historyViewportRef.current.scrollTop = 0;
@@ -169,7 +169,7 @@ const CommunityService = () => {
             description={period ? "No attendance records match this school year and semester." : "Your attendance and community service records will appear here."}
           />
         ) : (
-          <StablePage pageKey={`${schoolYear}:${semester}:${records.length}`} footer={<div className="px-4 pb-4"><Pagination page={currentPage} pageSize={10} total={records.length} onChange={changeRecordPage} label="Attendance history pages" /></div>}>
+          <StablePage pageKey={`${schoolYear}:${semester}:${records.length}`} footer={<div className="px-4 pb-4"><Pagination page={currentPage} pageSize={5} total={records.length} onChange={changeRecordPage} label="Attendance history pages" /></div>}>
           <ul className="space-y-3 px-4 py-4 md:hidden" aria-label="Attendance breakdown records">{visibleRecords.map((record, index) => <li key={record._id || index} className="portal-inset p-4">
             <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="min-w-0 flex-1 text-sm font-medium text-on [overflow-wrap:anywhere]">{record.event?.title || record.eventTitle || "Event unavailable"}</h3><StatusBadge status={record.status} /></div>
             <p className="mt-2 text-xs text-on-muted">{formatDate(record.event?.date || record.eventDate) || "Date unavailable"}</p>

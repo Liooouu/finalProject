@@ -630,6 +630,7 @@ const EventDetails = () => {
                       <input
                         id="ed-date"
                         type="date"
+                        min="2026-01-01"
                         name="date"
                         value={editForm.date}
                         onChange={handleEditChange}
@@ -695,6 +696,7 @@ const EventDetails = () => {
                       <input
                         id="ed-end-date"
                         type="date"
+                        min={editForm.date >= "2026-01-01" ? editForm.date : "2026-01-01"}
                         name="endDate"
                         value={editForm.endDate || ""}
                         onChange={handleEditChange}

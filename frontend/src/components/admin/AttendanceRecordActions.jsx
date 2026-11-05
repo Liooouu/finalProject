@@ -56,7 +56,7 @@ export default function AttendanceRecordActions({ records, onDeleted, loading = 
     {!!errors.length && <ul role="alert" className="px-4 pb-3 text-sm text-danger">{errors.map((error, index) => <li key={index}>{error}</li>)}</ul>}
     {children({ selecting, checkbox, busy })}
     <ConfirmDialog open={confirming} title={`Delete ${selected.length} attendance record${selected.length === 1 ? "" : "s"}?`} confirmLabel={busy ? "Deleting..." : "Delete selected"} busy={busy} onCancel={() => setConfirming(false)} onConfirm={remove} message="This removes the selected records and their service-hour contributions from reports and student ledgers.">
-      <ul className="mt-3 max-h-48 space-y-3 overflow-y-auto text-sm text-on-dim">
+      <ul className="mt-3 space-y-3 text-sm text-on-dim">
         {selected.map(record => (
           <li key={record._id} className="break-words [overflow-wrap:anywhere]">
             <p><span className="font-medium text-on">Student:</span> {record.student?.name || "Student"}</p>

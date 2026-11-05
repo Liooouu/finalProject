@@ -11,6 +11,6 @@ export default function AcademicPeriodFilter({ selection }) {
         <select aria-label="Semester" className="field-select" value={semester} disabled={!period} onChange={e => setSemester(e.target.value)}><option value="all">All semesters</option>{period?.semesters.map(term => <option key={term.id} value={term.id}>{term.label}</option>)}</select>
       </label>
     </div>
-    <p className="text-xs text-on-muted">{error ? "Calendar unavailable. Showing all school years." : calendar && !calendar.confirmed ? "Preview calendar: semester dates are not yet confirmed. Automatic year promotion remains off." : "Filters use the event date. Student class labels show their current enrollment."}</p>
+    <p className="text-xs text-on-muted">{error ? "Calendar unavailable. Showing all school years." : calendar && !calendar.confirmed ? "Preview calendar: semester dates are not yet confirmed. Academic updates are managed by an administrator." : "Filters use the event date. Student class labels show their current enrollment."}</p>
   </div>;
 }

@@ -6,7 +6,6 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { protect } = require("../middleware/authMiddleware");
 const { availableRoles } = require("../services/accountRoles");
-const { syncStudentAcademicYear } = require("../services/academicProgression");
 const { sendMail, isMailEnabled } = require("../services/mailer");
 const { renderVerificationEmail, renderPasswordResetEmail } = require("../services/emailTemplate");
 const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
@@ -451,7 +450,6 @@ router.post("/login", async (req, res) => {
       await user.save();
     }
 
-    user = await syncStudentAcademicYear(user);
     return res.json({ token: signToken(user), role: user.role, availableRoles: availableRoles(user),
       requiresFaceEnrollment: user.role === "student" && (!user.faceEnrolledAt || !user.faceConsentAt || user.faceDescriptor?.length !== 128),
     });

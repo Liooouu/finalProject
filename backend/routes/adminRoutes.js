@@ -16,6 +16,8 @@ const { notifyUsers } = require("../services/notify");
 const fileStore = require("../services/fileStore");
 const faceIdentify = require("../services/faceIdentify");
 
+router.use("/academic-advancement", protect, authorize("admin"), require("./academicAdvancementRoutes"));
+
 const ADMIN_USER_FIELDS = "name email role profilePicture program yearLevel section emailVerified enrollmentStatus academicYearStart faceAttempts faceLockUntil organizerAccess organizerPromotedAt createdAt updatedAt".split(" ");
 
 function adminUserSummary(user) {

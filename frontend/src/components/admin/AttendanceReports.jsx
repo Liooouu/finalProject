@@ -68,7 +68,15 @@ const AttendanceReports = () => {
   const [exporting, setExporting] = useState(false);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [attendancePage, setAttendancePage] = useState(1);
-  const attendancePageSize = 10;
+  const attendancePageSize = 5;
+  const [eventLedgerPage, setEventLedgerPage] = useState(1);
+  const [userLedgerPage, setUserLedgerPage] = useState(1);
+  const eventTotal = eventsData?.events?.length || 0;
+  const userTotal = usersData?.users?.length || 0;
+  const currentEventLedgerPage = Math.min(eventLedgerPage, Math.max(1, Math.ceil(eventTotal / 5)));
+  const currentUserLedgerPage = Math.min(userLedgerPage, Math.max(1, Math.ceil(userTotal / 5)));
+  const visibleReportEvents = eventsData?.events?.slice((currentEventLedgerPage - 1) * 5, currentEventLedgerPage * 5) || [];
+  const visibleReportUsers = usersData?.users?.slice((currentUserLedgerPage - 1) * 5, currentUserLedgerPage * 5) || [];
   const [filterOptions, setFilterOptions] = useState({
     programs: [],
     yearLevels: [1, 2, 3, 4],
@@ -651,7 +659,7 @@ const AttendanceReports = () => {
               </Button>
             }
           >
-            <div className="overflow-x-auto">
+            <StablePage pageKey="Event report pages" footer={<div className="px-4 pb-4"><Pagination page={currentEventLedgerPage} pageSize={5} total={eventTotal} onChange={setEventLedgerPage} label="Event report pages" /></div>}><div className="overflow-x-auto">
               <table className="data-table min-w-[760px]">
                 <thead>
                   <tr>
@@ -674,7 +682,7 @@ const AttendanceReports = () => {
                       </td>
                     </tr>
                   ) : (
-                    eventsData.events.map((e) => (
+                    visibleReportEvents.map((e) => (
                       <tr key={e._id}>
                         <td className="text-on">{e.title}</td>
                         <td className="whitespace-nowrap">{formatDate(e.date)}</td>
@@ -706,6 +714,7 @@ const AttendanceReports = () => {
                 </tbody>
               </table>
             </div>
+          </StablePage>
           </FlightPanel>
         </>
       )}
@@ -771,7 +780,7 @@ const AttendanceReports = () => {
               </Button>
             }
           >
-            <div className="overflow-x-auto">
+            <StablePage pageKey="User report pages" footer={<div className="px-4 pb-4"><Pagination page={currentUserLedgerPage} pageSize={5} total={userTotal} onChange={setUserLedgerPage} label="User report pages" /></div>}><div className="overflow-x-auto">
               <table className="data-table min-w-[640px]">
                 <thead>
                   <tr>
@@ -782,7 +791,7 @@ const AttendanceReports = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {usersData.users.map((u) => (
+                  {visibleReportUsers.map((u) => (
                     <tr key={u._id}>
                       <td className="text-on">{u.name}</td>
                       <td>{u.email}</td>
@@ -801,6 +810,7 @@ const AttendanceReports = () => {
                 </tbody>
               </table>
             </div>
+          </StablePage>
           </FlightPanel>
         </>
       )}

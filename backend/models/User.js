@@ -129,6 +129,13 @@ const userSchema = new mongoose.Schema(
     enrollmentStatus: { type: String, enum: ["active", "graduated"], default: "active" },
     academicYearStart: { type: Number, default: null },
     academicHistory: [{ schoolYearStart: Number, yearLevel: Number, section: String, program: String }],
+    academicTransitions: [{
+      batch: { type: mongoose.Schema.Types.ObjectId, ref: "AcademicAdvancement" },
+      by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      at: Date, action: { type: String, enum: ["advanced", "retained", "graduated"] },
+      fromSchoolYear: Number, toSchoolYear: Number, fromYearLevel: Number, toYearLevel: Number,
+      fromStatus: String, toStatus: String, program: String, section: String,
+    }],
     yearLevel: {
       type: Number,
       min: 1,

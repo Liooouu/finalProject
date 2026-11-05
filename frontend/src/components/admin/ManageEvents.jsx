@@ -53,6 +53,7 @@ const ManageEvents = () => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [attendeeSearch, setAttendeeSearch] = useState("");
+  const [attendeePage, setAttendeePage] = useState(1);
   const [attendeesLoading, setAttendeesLoading] = useState(false);
   const [attendeesError, setAttendeesError] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -110,6 +111,7 @@ const ManageEvents = () => {
   const openEventDetails = async (event) => {
     setSelectedEvent(event);
     setAttendeeSearch("");
+    setAttendeePage(1);
     setShowModal(true);
     await fetchAttendees(event._id);
   };
@@ -173,6 +175,8 @@ const ManageEvents = () => {
 
   const attendeeQuery = attendeeSearch.trim().toLowerCase();
   const matchingAttendees = attendees.filter(record => `${record.student?.name || ""} ${record.student?.email || ""}`.toLowerCase().includes(attendeeQuery));
+  const currentAttendeePage = Math.min(attendeePage, Math.max(1, Math.ceil(matchingAttendees.length / 5)));
+  const visibleAttendees = matchingAttendees.slice((currentAttendeePage - 1) * 5, currentAttendeePage * 5);
 
   const filteredEvents = events
     .filter((event) => {
@@ -356,7 +360,7 @@ const ManageEvents = () => {
                 Attendance records ({attendeeQuery ? `${matchingAttendees.length} of ${attendees.length}` : attendees.length})
               </h4>
               <label htmlFor="attendee-search" className="field-label mt-4">Search attendance records</label>
-              <input id="attendee-search" type="search" className="field mb-4" placeholder="Search by student name or email" value={attendeeSearch} onChange={e => setAttendeeSearch(e.target.value)} disabled={attendeesLoading || attendeesError} />
+              <input id="attendee-search" type="search" className="field mb-4" placeholder="Search by student name or email" value={attendeeSearch} onChange={e => { setAttendeeSearch(e.target.value); setAttendeePage(1); }} disabled={attendeesLoading || attendeesError} />
               {attendeesLoading ? <TableSkeleton rows={3} cols={2} /> : attendeesError ? <EmptyState compact title="Attendance unavailable" description="These event records could not be loaded. Try again." action={<Button size="sm" variant="secondary" onClick={() => fetchAttendees(selectedEvent._id)}>Try again</Button>} /> : attendees.length === 0 ? (
                 <EmptyState
                   compact
@@ -365,8 +369,8 @@ const ManageEvents = () => {
                   description="Records will appear here after an organizer takes attendance."
                 />
               ) : !matchingAttendees.length ? <EmptyState compact title="No matching attendance records" description="Try another name or email address." action={<Button variant="ghost" size="sm" onClick={() => setAttendeeSearch("")}>Clear search</Button>} /> : (
-                <div className="mt-4 space-y-2">
-                  {matchingAttendees.map((attendee) => (
+                <StablePage pageKey={`event-attendees:${selectedEvent._id}:${attendeeQuery}`} footer={<Pagination page={currentAttendeePage} pageSize={5} total={matchingAttendees.length} onChange={setAttendeePage} label="Event attendance pages" />}><div className="mt-4 space-y-2">
+                  {visibleAttendees.map((attendee) => (
                     <div
                       key={attendee._id}
                       className="portal-card flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-card-alt/40 p-3.5"
@@ -382,7 +386,7 @@ const ManageEvents = () => {
                       <StatusChip status={attendee.status} />
                     </div>
                   ))}
-                </div>
+                </div></StablePage>
               )}
             </div>
           </div>

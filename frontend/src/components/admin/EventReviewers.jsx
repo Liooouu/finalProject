@@ -5,7 +5,7 @@ import api from "../../api/axios";
 import { Button, Card } from "../ui";
 import Pagination from "../ui/Pagination";
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 5;
 const errorMessage = (error, fallback) => error.response?.data?.error || error.response?.data?.message || fallback;
 
 export default function EventReviewers({ eventId }) {

@@ -104,11 +104,11 @@ const DashboardHome = () => {
 
   if (loading) return <Loading label="Loading your dashboard..." />;
 
-  const currentActivityPage = Math.min(activityPage, Math.max(1, Math.ceil(activity.length / 6)));
+  const currentActivityPage = Math.min(activityPage, Math.max(1, Math.ceil(activity.length / 5)));
   const eventPageSize = 1;
   const currentEventPage = Math.min(eventPage, Math.max(1, Math.ceil(upcomingEvents.length / eventPageSize)));
   const visibleEvents = upcomingEvents.slice((currentEventPage - 1) * eventPageSize, currentEventPage * eventPageSize);
-  const visibleActivity = activity.slice((currentActivityPage - 1) * 6, currentActivityPage * 6);
+  const visibleActivity = activity.slice((currentActivityPage - 1) * 5, currentActivityPage * 5);
   const records = stats?.breakdown || [];
   const rangeLabel = penaltyRange === "day" ? "the last 24 hours" : penaltyRange === "week" ? "the last 7 days" : "the last 365 days";
   const cutoff = Date.now() - ({ day: 1, week: 7, year: 365 }[penaltyRange] * 24 * 60 * 60 * 1000);
@@ -190,7 +190,7 @@ const DashboardHome = () => {
         </BaseCard>
 
         <BaseCard title="Recent activity" description="Your latest attendance updates." icon={<MdLocalActivity />} className="student-dashboard-card paged-dashboard-card min-w-0 overflow-hidden">
-          {!stats ? <EmptyState compact title="Activity unavailable" description="Activity will appear when your service records can be loaded." /> : !activity.length ? <EmptyState compact title="No activity yet" description="Check in at your next event to start your record." /> : <StablePage fill pageKey="student-activity" footer={<Pagination page={currentActivityPage} pageSize={6} total={activity.length} onChange={setActivityPage} label="Recent attendance pages" />}><ul className="stretch-page-list divide-y divide-line">
+          {!stats ? <EmptyState compact title="Activity unavailable" description="Activity will appear when your service records can be loaded." /> : !activity.length ? <EmptyState compact title="No activity yet" description="Check in at your next event to start your record." /> : <StablePage fill pageKey="student-activity" footer={<Pagination page={currentActivityPage} pageSize={5} total={activity.length} onChange={setActivityPage} label="Recent attendance pages" />}><ul className="stretch-page-list divide-y divide-line">
             {visibleActivity.map((record, index) => <li key={record._id || index} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${record.status === "absent" ? "bg-danger/10 text-danger ring-danger/20" : record.status === "late" ? "bg-warn/10 text-warn ring-warn/20" : "bg-card-alt text-on-dim ring-line"}`}>{record.status === "present" ? <FaUserCheck /> : <FaClock />}</span>
               <div className="min-w-0 flex-1"><p className="break-words text-sm font-medium text-on">{record.event?.title || record.eventTitle || "Unknown event"}</p><p className="mt-1 text-xs text-on-muted">{record.event?.date || record.eventDate ? formatDate(record.event?.date || record.eventDate) : "Date unavailable"}</p></div><StatusPill status={record.status} />

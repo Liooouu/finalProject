@@ -92,7 +92,7 @@ export default function OrgManageAttendees({ embedded = false, event }) {
   const currentStudentPage = Math.min(studentPage, Math.max(1, Math.ceil(matchingStudents.length / PAGE_SIZE)));
   const visibleStudents = matchingStudents.slice((currentStudentPage - 1) * PAGE_SIZE, currentStudentPage * PAGE_SIZE);
   const matchingAttendees = attendees.filter(record => matches(record.student));
-  const currentRecordPage = Math.min(recordPage, Math.max(1, Math.ceil(matchingAttendees.length / 10)));
+  const currentRecordPage = Math.min(recordPage, Math.max(1, Math.ceil(matchingAttendees.length / PAGE_SIZE)));
   const pendingIds = new Set([
     ...requests.filter(request => request.status === "pending").map(studentIdOf),
     ...attendees.filter(record => record.manualReviewPending || record.pendingManualRequest).map(studentIdOf),
@@ -209,8 +209,8 @@ export default function OrgManageAttendees({ embedded = false, event }) {
     {panel === "records" && <Card className="min-w-0">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="panel-heading">Attendance records ({matchingAttendees.length})</h2><p className="mt-1 text-sm text-on-muted">Confirmed records stay unchanged until a correction is approved.</p></div></div>
       <label className="field-label mt-4" htmlFor="record-search">Find an attendance record</label><input id="record-search" type="search" className="field w-full" placeholder="Student name or email" value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setRecordPage(1); }} />
-      <StablePage pageKey={`manual-records:${eventId}:${query}:${matchingAttendees.length}`} footer={<Pagination page={currentRecordPage} pageSize={10} total={matchingAttendees.length} onChange={setRecordPage} label="Attendance record pages" />}>
-      {matchingAttendees.length ? <ul className="mt-4 space-y-2">{matchingAttendees.slice((currentRecordPage - 1) * 10, currentRecordPage * 10).map(record => {
+      <StablePage pageKey={`manual-records:${eventId}:${query}:${matchingAttendees.length}`} footer={<Pagination page={currentRecordPage} pageSize={PAGE_SIZE} total={matchingAttendees.length} onChange={setRecordPage} label="Attendance record pages" />}>
+      {matchingAttendees.length ? <ul className="mt-4 space-y-2">{matchingAttendees.slice((currentRecordPage - 1) * PAGE_SIZE, currentRecordPage * PAGE_SIZE).map(record => {
         const student = record.student;
         const self = studentIdOf(record) === currentUserId;
         const pending = pendingIds.has(studentIdOf(record));

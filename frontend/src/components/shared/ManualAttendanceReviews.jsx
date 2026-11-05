@@ -13,7 +13,7 @@ import StablePage from "../ui/StablePage";
 import EmptyState from "./EmptyState";
 import Loading from "./Loading";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 const errorMessage = (error, fallback) => error.response?.data?.error || error.response?.data?.message || fallback;
 const displayTime = value => value ? formatDateTime(value) : "—";
 
@@ -47,9 +47,10 @@ export default function ManualAttendanceReviews() {
 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; requestSequence.current += 1; }; }, []);
   useEffect(() => {
+    if (search.trim() === query) return undefined;
     const timer = setTimeout(() => { setQuery(search.trim()); setPage(1); setSelected(new Set()); setVerified(false); }, 250);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, query]);
 
   const loadEvents = useCallback(async () => {
     try {

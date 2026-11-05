@@ -22,6 +22,8 @@ import {
   SegmentedControl,
 } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import Pagination from "../ui/Pagination";
+import StablePage from "../ui/StablePage";
 import { formatDate, notifyNotificationsChanged } from "../../utils/helpers";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
 
@@ -116,6 +118,7 @@ const NotificationCenter = ({ actions = [], role = "student" }) => {
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
   const [filter, setFilter] = useState("all");
+  const [page, setPage] = useState(1);
 
   usePageMeta("Notifications", "Stay updated with your events.");
 
@@ -194,6 +197,8 @@ const NotificationCenter = ({ actions = [], role = "student" }) => {
     () => (filter === "unread" ? notifications.filter((n) => !n.isRead) : notifications),
     [notifications, filter]
   );
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(visible.length / 5)));
+  const pageNotifications = visible.slice((currentPage - 1) * 5, currentPage * 5);
 
   if (loading) {
     return <Loading label="Loading notifications..." />;
@@ -215,7 +220,7 @@ const NotificationCenter = ({ actions = [], role = "student" }) => {
               <SegmentedControl
                 ariaLabel="Filter notifications"
                 value={filter}
-                onChange={setFilter}
+                  onChange={value => { setFilter(value); setPage(1); }}
                 options={[
                   { value: "all", label: "All", count: notifications.length },
                   { value: "unread", label: "Unread", count: unreadCount },
@@ -255,15 +260,15 @@ const NotificationCenter = ({ actions = [], role = "student" }) => {
             title="No unread notifications"
             description="Everything here has been read."
             action={
-              <Button variant="secondary" size="sm" onClick={() => setFilter("all")}>
+              <Button variant="secondary" size="sm" onClick={() => { setFilter("all"); setPage(1); }}>
                 View all
               </Button>
             }
           />
         </Card>
       ) : (
-        <ul className="space-y-3">
-          {visible.map((notif) => {
+        <StablePage pageKey={`notifications:${role}:${filter}`} footer={<Pagination page={currentPage} pageSize={5} total={visible.length} onChange={setPage} label="Notification pages" />}><ul className="space-y-3">
+          {pageNotifications.map((notif) => {
             const config = TYPE_CONFIG[notif.type] || TYPE_CONFIG.info;
             return (
               <li key={notif._id}>
@@ -335,7 +340,7 @@ const NotificationCenter = ({ actions = [], role = "student" }) => {
               </li>
             );
           })}
-        </ul>
+        </ul></StablePage>
       )}
 
       {actions.length > 0 && (

@@ -11,6 +11,8 @@ import {
 } from "../ui";
 import Loading from "../shared/Loading";
 import EmptyState from "../shared/EmptyState";
+import Pagination from "../ui/Pagination";
+import StablePage from "../ui/StablePage";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 
 const CACHE_KEY = "student:events";
@@ -28,6 +30,7 @@ const AttendEvents = () => {
   const [eventsError, setEventsError] = useState(seed?.eventsError ?? false);
   const [loading, setLoading] = useState(seed === undefined);
   const [tab, setTab] = useState("active");
+  const [page, setPage] = useState(1);
 
   usePageMeta("Events", "Browse and attend events.");
 
@@ -69,6 +72,8 @@ const AttendEvents = () => {
 
   const { active, past } = useMemo(() => splitEventsByLifecycle(events), [events]);
   const visible = tab === "active" ? active : past;
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(visible.length / 5)));
+  const pageEvents = visible.slice((currentPage - 1) * 5, currentPage * 5);
 
   if (loading) {
     return <Loading label="Loading events..." />;
@@ -84,7 +89,7 @@ const AttendEvents = () => {
           <SegmentedControl
             ariaLabel="Event timeframe"
             value={tab}
-            onChange={setTab}
+            onChange={value => { setTab(value); setPage(1); }}
             options={TABS.map((item) => ({
               value: item.key,
               label: item.label,
@@ -106,9 +111,9 @@ const AttendEvents = () => {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {visible.map((event) => <StudentEventCard key={event._id} event={event} attendance={attendance.find((record) => (record.event?._id || record.event) === event._id)} attendanceError={attendanceError} />)}
-        </div>
+        <StablePage pageKey={`student-events:${tab}`} footer={<Pagination page={currentPage} pageSize={5} total={visible.length} onChange={setPage} label="Student event pages" />}><div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {pageEvents.map((event) => <StudentEventCard key={event._id} event={event} attendance={attendance.find((record) => (record.event?._id || record.event) === event._id)} attendanceError={attendanceError} />)}
+        </div></StablePage>
       )}
     </div>
   );

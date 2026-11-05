@@ -13,7 +13,6 @@ const {
   STATUS,
   EVENT_STATUSES,
   isTerminal,
-  parseClock,
   eventStartsAt,
   eventEndAt,
   eventWindow,
@@ -30,6 +29,7 @@ const { canManageEvent, canViewEventAttendance, canEditEvent } = require("../ser
 const manualAttendance = require("../services/manualAttendance");
 const ManualAttendanceRequest = require("../models/ManualAttendanceRequest");
 const { projectManualAttendance } = require("../services/manualAttendanceView");
+const { validateSchedule } = require("../services/eventSchedule");
 
 // Only explicit human edits stamp the editor; scheduled jobs do not impersonate one.
 const editorStamp = user => ({ lastEditedBy: user._id, lastEditedByName: user.name || "Staff member", lastEditedAt: new Date() });
@@ -40,37 +40,6 @@ const inFlightCreates = new Map();
 function createKey(userId, title, date, time) {
   const day = date instanceof Date ? date.toISOString() : String(date || "");
   return [userId, String(title || "").trim().toLowerCase(), day, String(time || "").trim()].join("|");
-}
-
-// Rejects a schedule the system could never make sense of: unparseable dates,
-// an attendance window that runs backwards, or an event that ends before it
-// starts. Only the fields present in the payload are checked, so a partial
-// update is still validated against the stored values.
-function validateSchedule(schedule) {
-  const startsAt = eventStartsAt(schedule);
-  if (!startsAt) {
-    return "A valid event date is required";
-  }
-
-  const { attendanceStartTime, attendanceEndTime } = schedule;
-  // `parseClock` rejects out-of-range values ("24:00", "99:99", "9:5") that the
-  // old split-on-colon check let through and that later broke the date math.
-  if (attendanceStartTime && !parseClock(attendanceStartTime)) {
-    return "Attendance window start must be in HH:mm format";
-  }
-  if (attendanceEndTime && !parseClock(attendanceEndTime)) {
-    return "Attendance window end must be in HH:mm format";
-  }
-  // An end clock earlier than the start clock is allowed: it means the window
-  // crosses midnight (e.g. 23:00–01:00), which the attendance checks resolve by
-  // rolling the end onto the next Manila day.
-
-  const endsAt = eventEndAt(schedule);
-  if (endsAt && endsAt <= startsAt) {
-    return "The event must end after it starts";
-  }
-
-  return null;
 }
 
 // CREATE EVENT (organizer/admin only)

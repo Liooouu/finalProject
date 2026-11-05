@@ -115,7 +115,7 @@
 
 /* Natural card sizes: only long content overflows. Fixed columns keep table
    text aligned between pages without reserving a tall empty page slot. */
-.student-history-viewport { overflow-anchor:none; max-height:46rem; }
+.student-history-viewport { overflow-anchor:none; }
 .student-history-table { table-layout:fixed; min-width:900px; }
 .student-history-table tbody td { overflow-wrap:anywhere; }
 .student-history-table tbody td:nth-child(2) { white-space:nowrap; }

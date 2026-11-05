@@ -24,13 +24,4 @@ function calendarView(now = new Date(), calendar = config) {
   return { confirmed: calendar.confirmed === true, current, currentSemester: current.semesters.find(term => now >= term.start && now <= term.end) || null,
     years: Array.from({ length: 6 }, (_, i) => periodFor(current.startYear - 4 + i, calendar)) };
 }
-function promotionPlan(student, targetYear) {
-  if (student.enrollmentStatus === "graduated") return null;
-  const anchor = student.academicYearStart;
-  if (!Number.isInteger(anchor)) return { yearLevel: student.yearLevel, academicYearStart: targetYear, history: [], baseline: true };
-  if (targetYear <= anchor) return null;
-  const history = [];
-  for (let year = anchor; year < Math.min(targetYear, anchor + 5 - student.yearLevel); year++) history.push({ schoolYearStart: year, yearLevel: Math.min(4, student.yearLevel + year - anchor), section: student.section, program: student.program });
-  return { yearLevel: Math.min(4, student.yearLevel + targetYear - anchor), enrollmentStatus: student.yearLevel + targetYear - anchor > 4 ? "graduated" : "active", academicYearStart: targetYear, history, baseline: false };
-}
-module.exports = { config, schoolYearStart, periodFor, calendarView, promotionPlan };
+module.exports = { config, schoolYearStart, periodFor, calendarView };

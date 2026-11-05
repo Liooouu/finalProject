@@ -40,7 +40,6 @@ Module._load=function(name,parent,...rest){
   '../models/CheckInSession':{updateMany:async(filter,update)=>{closedStations.push({filter,update});}},'../models/Attendance':{find:filter=>({sort:async()=>attendanceRecords.filter(record=>record.student===String(filter.student)).sort((a,b)=>a.attendedAt-b.attendedAt)})},'../models/Excuse':{},'../models/Notification':{},'../models/FaceAppeal':{find:filter=>query([{_id:'own-appeal',student:String(filter.student),status:'pending',note:'My face verification request'}])},
   '../services/notify':{notifyUsers:async(recipients,notice)=>{if(failNotification)throw new Error('Mail unavailable');notifications.push(notice);}},
   '../services/mailer':{isMailEnabled:async()=>false,sendMail:async()=>true,resetTransporter:()=>{}},
-  '../services/academicProgression':{syncStudentAcademicYear:async user=>user},
   '../services/fileStore':{},'../services/faceMatcher':{},'../services/faceIdentify':{remove:()=>{}},
  };
  return mocks[name]||originalLoad.call(this,name,parent,...rest);
@@ -109,6 +108,24 @@ test('generic role editing cannot replace a student account with an organizer id
 test('switch-role cannot select another promoted account or grant admin access',async()=>{await promote();const denied=await request('/auth/switch-role',{method:'POST',auth:token(otherId,'student'),body:{role:'organizer',userId:studentId}});assert.equal(denied.status,403);const adminDenied=await request('/auth/switch-role',{method:'POST',auth:token(studentId,'student'),body:{role:'admin'}});assert.equal(adminDenied.status,403);});
 
 const demote=(id=studentId,auth=token(adminId,'admin'))=>request(`/admin/users/${id}/demote-organizer`,{method:'POST',auth});
+
+test('academic advancement endpoints are restricted to administrator context', async () => {
+ for (const role of ['student', 'organizer']) {
+  if (role === 'organizer') await promote();
+  let auth = token(studentId, 'student');
+  if (role === 'organizer') auth = (await request('/auth/switch-role',{method:'POST',auth,body:{role:'organizer'}})).data.token;
+  for (const path of ['/admin/academic-advancement', '/admin/academic-advancement/preview', '/admin/academic-advancement/aaaaaaaaaaaaaaaaaaaaaaaa/confirm']) {
+   const isGet = path.endsWith('advancement');
+   assert.equal((await request(path, { auth, method:isGet?'GET':'POST', ...(isGet?{}:{body:{sourceYear:2026,confirmed:true}}) })).status,403);
+  }
+ }
+ const options = await request('/admin/academic-advancement',{auth:token(adminId,'admin')});
+ assert.equal(options.status,200); assert.ok(options.data.sourceYears.includes(2026));
+ const before = {...users.get(studentId)};
+ await request('/account',{auth:token(studentId,'student')});
+ assert.equal(users.get(studentId).yearLevel,before.yearLevel);
+ assert.deepEqual(users.get(studentId).academicHistory,before.academicHistory);
+});
 
 test('admin directory and academic updates return enrollment status without face data', async () => {
  const student = users.get(studentId);

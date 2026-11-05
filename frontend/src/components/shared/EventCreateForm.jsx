@@ -9,6 +9,7 @@ export default function EventCreateForm({ value, onChange, onSubmit, busy, error
       <label className="field-label" htmlFor={`${idPrefix}-${name}`}>{label}</label>
       {type === "time" ? <TimePicker id={`${idPrefix}-${name}`} name={name} value={value[name]} onChange={onChange} required={required} disabled={busy} /> : <input id={`${idPrefix}-${name}`} name={name} type={type} value={value[name]}
         onChange={onChange} required={required} placeholder={placeholder}
+        min={type === "date" ? name === "endDate" && value.date >= "2026-01-01" ? value.date : "2026-01-01" : undefined}
         className={type === "date" ? "field-datetime" : "field"} />}
     </div>
   );
@@ -54,7 +55,7 @@ export default function EventCreateForm({ value, onChange, onSubmit, busy, error
         </fieldset>
       </div>
       <div className="event-create-footer">
-        <p className="text-xs text-on-muted">All dates and times use Philippine time.</p>
+        <p className="text-xs text-on-muted">Events must be dated 2026 onward. All times use Philippine time.</p>
         <Button type="submit" loading={busy}>{busy ? "Creating..." : "Create event"}</Button>
       </div>
     </Card>

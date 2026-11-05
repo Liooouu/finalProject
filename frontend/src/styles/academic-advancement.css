@@ -1,0 +1,77 @@
+.academic-update { min-width: 0; }
+.academic-year-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 1rem;
+  align-items: end;
+  margin-top: 1.25rem;
+}
+.academic-year-field { min-width: 0; display: grid; gap: .4rem; }
+.academic-year-field > span { font-size: .75rem; font-weight: 500; color: var(--on-dim); }
+.academic-year-field .field-select,
+.academic-year-destination { width: 100%; min-height: 2.75rem; margin: 0; font-size: .875rem; }
+.academic-year-destination {
+  display: flex;
+  align-items: center;
+  padding: .625rem .875rem;
+  border: 1px solid var(--line-color);
+  border-radius: .75rem;
+  background: color-mix(in srgb, var(--brand) 7%, var(--card-bg));
+  color: var(--brand);
+  font-weight: 600;
+}
+.academic-year-arrow { align-self: end; height: 2.75rem; font-size: .8rem; color: var(--on-muted); }
+.academic-year-source { background: var(--card-bg); color: var(--on); }
+.academic-year-note { margin-top: .875rem; font-size: .75rem; line-height: 1.6; color: var(--on-muted); }
+.academic-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.125rem 1.25rem; }
+.academic-list-count { display: inline-flex; margin-left: .375rem; padding: .125rem .5rem; border-radius: 999px; background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); font-size: .75rem; font-weight: 600; vertical-align: middle; }
+.academic-search { position: relative; width: min(100%, 19rem); flex-shrink: 0; }
+.academic-search > svg { position: absolute; top: 50%; left: .875rem; transform: translateY(-50%); font-size: .8rem; color: var(--on-muted); pointer-events: none; z-index: 1; }
+.academic-search .field { width: 100%; min-height: 2.75rem; padding-left: 2.5rem; font-size: .8125rem; }
+.academic-roster-head, .academic-roster-row { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(5.5rem, .8fr) minmax(6rem, .9fr) minmax(8.25rem, 1fr); gap: 1rem; align-items: center; padding: .75rem 1.25rem; }
+.academic-roster-head { background: color-mix(in srgb, var(--on) 3%, transparent); color: var(--on-muted); text-transform: uppercase; font-size: .625rem; letter-spacing: .09em; font-weight: 600; }
+.academic-roster-row { min-height: 4.1rem; border-bottom: 1px solid color-mix(in srgb, var(--line-color) 60%, transparent); }
+.academic-roster-row:last-child { border-bottom: 0; }
+.academic-roster-row.is-selected { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.academic-student { min-width: 0; overflow-wrap: anywhere; }
+.academic-student > p:first-child { font-size: .8125rem; line-height: 1.5; }
+.academic-student > p + p { margin-top: .125rem; }
+.academic-current { display: grid; gap: .125rem; }
+.academic-current small { font-size: .6875rem; color: var(--on-muted); }
+.academic-year-badge { display: inline-flex; align-items: center; width: fit-content; padding: .25rem .625rem; border-radius: .5rem; background: color-mix(in srgb, var(--brand) 10%, transparent); color: var(--brand); font-size: .75rem; font-weight: 600; }
+.academic-year-badge.is-retained { color: var(--on-dim); background: color-mix(in srgb, var(--on) 5%, transparent); }
+.academic-exception label { display: flex; align-items: center; gap: .625rem; min-height: 2.75rem; font-size: .75rem; color: var(--on-dim); cursor: pointer; }
+.academic-exception input { width: 1rem; height: 1rem; margin: 0; flex-shrink: 0; accent-color: var(--brand); cursor: pointer; }
+.academic-exception input:disabled, .academic-exception label:has(input:disabled) { cursor: default; }
+.academic-list-bottom { padding: .875rem 1.25rem 1rem; }
+.academic-list-bottom nav { margin-top: .875rem; padding-top: .875rem; }
+.academic-review-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; border-top: 1px solid var(--line-color); background: color-mix(in srgb, var(--brand) 4%, transparent); border-radius: 0 0 var(--panel-radius) var(--panel-radius); }
+.academic-summary { display: flex; flex-wrap: wrap; gap: .375rem 1rem; color: var(--on-dim); font-size: .8125rem; }
+.academic-summary strong { color: var(--on); font-weight: 600; }
+.academic-mobile-caption { display: none; }
+@media (max-width: 900px) {
+  .academic-list-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .875rem; }
+  .academic-search { grid-column: 1 / -1; width: 100%; }
+}
+@media (max-width: 640px) {
+  .academic-year-controls { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: .625rem; margin-top: 1rem; }
+  .academic-roster-head { display: none; }
+  .academic-roster-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: .75rem .5rem; padding: .875rem 1rem; }
+  .academic-student { grid-column: 1 / -1; }
+  .academic-current, .academic-next { display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; }
+  .academic-current > small { display: none; }
+  .academic-mobile-caption { display: block; font-size: .625rem; color: var(--on-muted); }
+  .academic-exception { align-self: end; }
+  .academic-exception label { min-height: 2.75rem; gap: .5rem; font-size: .6875rem; }
+  .academic-year-badge { padding: .1875rem .5rem; }
+  .academic-list-heading, .academic-list-bottom { padding: 1rem; }
+  .academic-review-bar { flex-direction: column; align-items: stretch; gap: .875rem; padding: 1rem; }
+  .academic-review-bar > button { width: 100%; min-height: 2.75rem; }
+  .academic-search .field { font-size: 1rem; }
+}
+@media (max-width: 360px) {
+  .academic-year-controls { grid-template-columns: minmax(0, 1fr); }
+  .academic-year-arrow { display: none; }
+  .academic-year-field .field-select { padding-left: .5rem; padding-right: 1.5rem; font-size: .75rem; background-position: right .375rem center; background-size: .625rem; }
+  .academic-year-destination { padding-left: .5rem; padding-right: .5rem; font-size: .75rem; }
+}
