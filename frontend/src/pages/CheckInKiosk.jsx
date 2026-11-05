@@ -9,10 +9,12 @@ import {
   FaRedo,
   FaUserCheck,
   FaClock,
+  FaExchangeAlt,
 } from "react-icons/fa";
 import api from "../api/axios";
 import { formatDateTime } from "../utils/helpers";
 import TrackMark from "../components/shared/TrackMark";
+import useCameraPreview from "../utils/useCameraPreview";
 
 // Same face-recognition models used for enrollment, served as static assets so the
 // kiosk works on the venue's LAN without hitting the API for model files.
@@ -36,6 +38,7 @@ function statusWord(status) {
 
 const CheckInKiosk = () => {
   const { token } = useParams();
+  const { flipPreview, previewStyle } = useCameraPreview();
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -356,6 +359,14 @@ const CheckInKiosk = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={flipPreview}
+            title="Reverse the camera preview horizontally"
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2.5 text-xs font-medium text-white/80 hover:bg-white/10"
+          >
+            <FaExchangeAlt aria-hidden="true" /> Flip preview
+          </button>
           <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/70">
             {STATE_LABEL[state] || "Starting"}
           </span>
@@ -390,7 +401,8 @@ const CheckInKiosk = () => {
             muted
             onPlaying={() => setCameraReady(true)}
             onWaiting={() => setCameraReady(false)}
-            className="aspect-[4/3] w-full scale-x-[-1] object-cover"
+            style={previewStyle}
+            className="aspect-[4/3] w-full object-cover"
           />
 
           {/* Corner brackets make the framing obvious on a kiosk screen. */}

@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { FaCamera, FaRedo, FaExclamationTriangle } from "react-icons/fa";
+import { FaCamera, FaRedo, FaExclamationTriangle, FaExchangeAlt } from "react-icons/fa";
 import Button from "../ui/Button";
 import { dataUrlToBlob } from "../../utils/image";
 import { describeCameraError } from "../../utils/camera";
+import useCameraPreview from "../../utils/useCameraPreview";
 
 const releaseStream = (stream) => {
   stream?.getTracks().forEach((t) => t.stop());
@@ -20,6 +21,7 @@ const FaceCapture = ({
   loadingLabel = "Checking...",
   error: attemptError = "",
 }) => {
+  const { flipPreview, previewStyle } = useCameraPreview();
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const requestIdRef = useRef(0);
@@ -116,11 +118,16 @@ const FaceCapture = ({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-on-dim">
-        {preview
-          ? "Take another photo or use this one."
-          : "Position your face inside the frame and look directly at the camera."}
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="min-w-0 flex-1 text-sm text-on-dim">
+          {preview
+            ? "Take another photo or use this one."
+            : "Position your face inside the frame and look directly at the camera."}
+        </p>
+        <Button type="button" size="sm" variant="secondary" onClick={flipPreview} disabled={loading} title="Reverse the camera preview horizontally">
+          <FaExchangeAlt aria-hidden="true" /> Flip preview
+        </Button>
+      </div>
 
       {error && (
         <div role="alert" className="alert alert-danger alert-sm">
@@ -131,7 +138,7 @@ const FaceCapture = ({
 
       {preview ? (
         <div className="overflow-hidden rounded-xl border border-line">
-          <img src={preview} alt="Captured face preview" className="w-full scale-x-[-1] object-cover" />
+          <img src={preview} alt="Captured face preview" style={previewStyle} className="w-full object-cover" />
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-line bg-black">
@@ -145,7 +152,8 @@ const FaceCapture = ({
               autoPlay
               playsInline
               muted
-              className="aspect-[4/3] w-full scale-x-[-1] object-cover"
+              style={previewStyle}
+              className="aspect-[4/3] w-full object-cover"
             />
           )}
         </div>
