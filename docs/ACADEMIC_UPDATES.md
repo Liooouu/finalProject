@@ -42,6 +42,28 @@ is partly saved, **Retry same batch** resumes the original selections without
 advancing completed students again. Skipped records are named for review;
 failed records can be retried. Do not treat a partial result as a completed batch.
 
+## Undo an accidental update
+
+Use **Undo this update** on the result, or find it in **Recent bulk updates**
+in the same tab. The saved list remains available after a refresh and shows
+five batches per page. Any administrator can undo a completed or partly saved
+batch after confirming which update to restore. Drafts and running updates
+cannot be undone.
+
+Undo restores the saved school year, year level, and enrollment/graduation
+status for students actually updated by that batch. It leaves attendance,
+service hours, organizer access, program, and section alone. A newer active
+academic batch must be undone first. Changed academic details are skipped and
+listed for manual review; an edit racing with the undo is also protected.
+**Retry undo** resumes interrupted or partial restores without changing a
+student twice. An undone batch cannot be confirmed again; a fresh, reviewed
+preview is required to advance restored students.
+
+Transitions are retained permanently with `revertedAt` and `revertedBy` for an
+audit. New academic-history snapshots are tagged with their batch and removed
+only when that batch is undone. Older untagged history is preserved. The batch
+also keeps the undo administrator, time, per-student outcomes, and any conflicts.
+
 ## Event dates
 
 Both portal creation forms and the shared event editor enforce a minimum date of

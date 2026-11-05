@@ -17,6 +17,21 @@ router.post("/preview", async (req, res) => {
     res.status(error.status || 503).json({ message: error.status ? error.message : "Could not prepare the student masterlist. Please try again." });
   }
 });
+router.get("/history", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    res.json(await advancement.history(req.query));
+  } catch { res.status(503).json({ message: "Could not load previous academic updates. Please try again." }); }
+});
+router.post("/:id/undo", async (req, res) => {
+  try {
+    if (!isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid batch ID" });
+    if (req.body.confirmed !== true) return res.status(400).json({ message: "Confirm which academic update to undo first." });
+    res.json(await advancement.undo(req.user._id, req.params.id));
+  } catch (error) {
+    res.status(error.status || 503).json({ message: error.status ? error.message : "Undo could not be confirmed. Retry undo; restored students will not change again." });
+  }
+});
 router.post("/:id/confirm", async (req, res) => {
   try {
     if (!isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid batch ID" });

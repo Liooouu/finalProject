@@ -6,6 +6,7 @@ const copy = value => structuredClone(value);
 const query = read => ({ select() { return this; }, sort() { return this; }, lean() { return Promise.resolve(read()); }, then(ok, bad) { return Promise.resolve().then(read).then(ok, bad); } });
 const userModel = {
   find: () => query(() => [...users.values()].map(copy)),
+  findById: id => query(() => users.has(String(id)) ? copy(users.get(String(id))) : null),
   exists: async filter => users.get(String(filter._id))?.academicTransitions?.some(record => String(record.batch) === String(filter["academicTransitions.batch"])) || null,
   findOneAndUpdate: (filter, update) => query(() => {
     const student = users.get(String(filter._id));
@@ -13,9 +14,16 @@ const userModel = {
     if (!student || !["role", "yearLevel", "program", "section"].every(field => student[field] === filter[field]) ||
         (student.academicYearStart ?? null) !== filter.academicYearStart ||
         (typeof filter.enrollmentStatus === "string" ? student.enrollmentStatus !== filter.enrollmentStatus : student.enrollmentStatus && student.enrollmentStatus !== "active") ||
-        student.academicTransitions?.some(record => record.toSchoolYear === filter["academicTransitions.toSchoolYear"].$ne)) return null;
-    Object.assign(student, copy(update.$set));
-    for (const [key, entry] of Object.entries(update.$push)) (student[key] ||= []).push(copy(entry));
+        (filter.academicTransitions?.$not && student.academicTransitions?.some(record => record.toSchoolYear === filter.academicTransitions.$not.$elemMatch.toSchoolYear && !record.revertedAt)) ||
+        (filter.academicTransitions?.$elemMatch && !student.academicTransitions?.some(record => String(record.batch) === String(filter.academicTransitions.$elemMatch.batch) && !record.revertedAt))) return null;
+    const matchingTransitions=(student.academicTransitions||[]).filter(record=>String(record.batch)===String(filter.academicTransitions?.$elemMatch?.batch)&&!record.revertedAt);
+    for(const [key,value] of Object.entries(update.$set || {})){
+      if(key.startsWith('academicTransitions.$[transition].')){
+        for(const transition of matchingTransitions)transition[key.split('.').at(-1)]=copy(value);
+      }else student[key]=copy(value);
+    }
+    for (const [key, entry] of Object.entries(update.$push || {})) (student[key] ||= []).push(copy(entry));
+    if(update.$pull?.academicHistory)student.academicHistory=student.academicHistory.filter(item=>String(item.batch)!==String(update.$pull.academicHistory.batch));
     return copy(student);
   }),
 };
@@ -27,7 +35,7 @@ const batchModel = {
   findById: async id => copy(batches.get(String(id))),
   findOneAndUpdate: async (filter, update) => {
     const batch = batches.get(String(filter._id));
-    if (!batch || batch.status !== filter.status) return null;
+    if (!batch || (typeof filter.status==='string' ? batch.status !== filter.status : !filter.status.$in.includes(batch.status))) return null;
     Object.assign(batch, copy(update.$set)); return copy(batch);
   },
   findByIdAndUpdate: async (id, update) => { const batch = batches.get(String(id)); Object.assign(batch, copy(update.$set)); return copy(batch); },
@@ -38,7 +46,7 @@ Module._load = function (name, parent, ...rest) {
   if (name === "../models/AcademicAdvancement") return batchModel;
   return originalLoad.call(this, name, parent, ...rest);
 };
-const { preview, commit, sourceYearIssue, isEligible } = require("../services/academicAdvancement");
+const { preview, commit, undo, sourceYearIssue, isEligible } = require("../services/academicAdvancement");
 Module._load = originalLoad;
 
 beforeEach(() => {
@@ -131,4 +139,64 @@ test("legacy students without a school-year anchor retain their prior standing i
   delete users.get("student-0").academicYearStart; delete users.get("student-0").enrollmentStatus;
   const batch = await preview("admin", 2026); await commit("admin", batch.batchId);
   assert.equal(users.get("student-0").yearLevel, 2); assert.equal(users.get("student-0").academicHistory[0].yearLevel, 1);
+});
+
+test("undo restores advanced, retained, graduated and unanchored students without changing private data or access", async()=>{
+  delete users.get('student-0').academicYearStart;
+  const batch=await preview('admin',2026);
+  await commit('admin',batch.batchId,['student-1'],['student-13']);
+  const result=await undo('another-admin',batch.batchId);
+  assert.equal(result.status,'undone');assert.equal(result.undo.counts.restored,14);
+  for(const student of users.values()){
+    assert.equal(student.yearLevel,student._id==='student-13'?4:1);
+    assert.equal(student.enrollmentStatus,'active');
+    assert.equal(student.academicYearStart,student._id==='student-0'?null:2026);
+    assert.equal(student.academicHistory.length,0);
+    assert.equal(student.academicTransitions.length,1);
+    assert.equal(student.academicTransitions[0].revertedBy,'another-admin');
+    assert.ok(student.academicTransitions[0].revertedAt);
+    assert.deepEqual(student.faceDescriptor,[0.123]);assert.equal(student.serviceBalance,24);
+  }
+  assert.equal(users.get('student-3').organizerAccess,true);
+  assert.equal((await undo('admin',batch.batchId)).undo.counts.restored,14);
+  await assert.rejects(commit('admin',batch.batchId,['student-1'],['student-13']),{status:409});
+  const fresh=await preview('admin',2026);
+  assert.equal(fresh.students.length,14);
+  assert.equal((await commit('admin',fresh.batchId)).counts.advanced,13);
+  assert.equal(users.get('student-0').yearLevel,2);
+});
+
+test("undo skips later academic edits and newer transitions while reporting each conflict",async()=>{
+  const batch=await preview('admin',2026);await commit('admin',batch.batchId);
+  users.get('student-0').program='BSCS';users.get('student-1').section='B';users.get('student-2').yearLevel=3;
+  users.get('student-3').academicTransitions.push({batch:'newer',toSchoolYear:2028});
+  const result=await undo('admin',batch.batchId);
+  assert.equal(result.status,'undo_partial');assert.equal(result.undo.counts.skipped,4);assert.equal(result.undo.counts.restored,10);
+  assert.equal(users.get('student-0').program,'BSCS');assert.equal(users.get('student-1').section,'B');assert.equal(users.get('student-2').yearLevel,3);
+  assert.match(result.undo.issues.find(item=>item.studentId==='student-3').message,/newer academic update/i);
+});
+
+test("partial undo can retry failures and never reapplies a batch or changes restored students twice",async()=>{
+  const batch=await preview('admin',2026);await commit('admin',batch.batchId);failStudent='student-5';
+  const result=await undo('admin',batch.batchId);
+  assert.equal(result.status,'undo_partial');assert.equal(result.undo.counts.failed,1);assert.equal(result.undo.counts.restored,13);
+  const revertedAt=users.get('student-0').academicTransitions[0].revertedAt;
+  failStudent='';const retried=await undo('admin',batch.batchId);
+  assert.equal(retried.status,'undone');assert.equal(retried.undo.counts.restored,14);
+  assert.deepEqual(users.get('student-0').academicTransitions[0].revertedAt,revertedAt);
+});
+
+test("undo handles partial advancement without touching students never updated by the batch",async()=>{
+  const batch=await preview('admin',2026);failStudent='student-5';
+  assert.equal((await commit('admin',batch.batchId)).status,'partial');failStudent='';
+  const result=await undo('admin',batch.batchId);
+  assert.equal(result.status,'undone');assert.equal(result.undo.counts.restored,13);assert.equal(result.undo.counts.unaffected,1);
+  assert.equal(users.get('student-5').academicTransitions.length,0);
+});
+
+test("draft or running updates cannot be undone",async()=>{
+  const batch=await preview('admin',2026);
+  await assert.rejects(undo('admin',batch.batchId),{status:409});
+  batches.get(batch.batchId).status='running';
+  await assert.rejects(undo('admin',batch.batchId),{status:409});
 });

@@ -4,7 +4,8 @@ import { Button, Card } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Pagination from "../ui/Pagination";
 import PaginatedList from "../ui/PaginatedList";
-import { FaArrowRight, FaSearch, FaSyncAlt, FaCheckCircle } from "react-icons/fa";
+import { FaArrowRight, FaSearch, FaSyncAlt, FaCheckCircle, FaUndo } from "react-icons/fa";
+import { formatDateTime } from "../../utils/helpers";
 import "../../styles/academic-advancement.css";
 
 const yearLabel = year => `S.Y. ${year}–${year + 1}`;
@@ -24,7 +25,38 @@ export default function AcademicAdvancement({ onApplied }) {
   const [started, setStarted] = useState(false);
   const [result, setResult] = useState(null);
   const [showYearPicker, setShowYearPicker] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [undoBatch, setUndoBatch] = useState(null);
+  const [undoResult, setUndoResult] = useState(null);
+  const undoFeedback = useRef(null);
+  const errorFeedback = useRef(null);
+  const historySequence = useRef(0);
   const requestSequence = useRef(0);
+
+  const loadHistory = useCallback(async () => {
+    const sequence = ++historySequence.current;
+    setHistoryLoading(true);
+    try {
+      const { data } = await api.get("/admin/academic-advancement/history", { params: { page: historyPage } });
+      if (sequence !== historySequence.current) return;
+      setHistory(Array.isArray(data.batches) ? data.batches : []);
+      setHistoryTotal(data.total || 0); setHistoryError("");
+      if (data.page && data.page !== historyPage) setHistoryPage(data.page);
+    } catch (err) {
+      if (sequence === historySequence.current) setHistoryError(err.response?.data?.message || "Could not load recent updates. Try again.");
+    } finally { if (sequence === historySequence.current) setHistoryLoading(false); }
+  }, [historyPage]);
+  useEffect(() => { loadHistory(); return () => { historySequence.current += 1; }; }, [loadHistory]);
+  useEffect(() => {
+    if (busy) return;
+    const target = error ? errorFeedback.current : undoResult ? undoFeedback.current : null;
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ block: "nearest", behavior: "instant" });
+  }, [busy, error, undoResult]);
 
   const prepare = useCallback(async (year, signal) => {
     const request = ++requestSequence.current;
@@ -64,8 +96,26 @@ export default function AcademicAdvancement({ onApplied }) {
       }, { timeout: 120000 });
       setResult(data);
       onApplied?.();
+      await loadHistory();
     } catch (err) { setError(err.response?.data?.message || "The result could not be confirmed. Retry this same batch; saved students will not advance twice."); }
     finally { setBusy(false); setReview(false); }
+  };
+  const undoUpdate = async () => {
+    if (busy || !undoBatch) return;
+    setBusy(true); setError(""); setUndoResult(null);
+    try {
+      const { data } = await api.post(`/admin/academic-advancement/${undoBatch.batchId}/undo`, { confirmed: true }, { timeout: 120000 });
+      setUndoResult(data);
+      onApplied?.();
+      await loadHistory();
+      // Undo restores eligibility. Reload a fresh preview; never reuse the old
+      // confirmed roster or automatically advance the restored students again.
+      setRetained([]); setGraduates([]);
+      await prepare(sourceYear);
+    } catch (err) {
+      setError(err.response?.data?.message || "Undo could not be confirmed. Retry undo from recent updates; restored students will not change again.");
+      await loadHistory();
+    } finally { setBusy(false); setUndoBatch(null); }
   };
   const toggle = (setter, id) => setter(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
   const students = batch?.students || [];
@@ -97,11 +147,17 @@ export default function AcademicAdvancement({ onApplied }) {
       <p className="academic-year-note">Nothing changes until you confirm. Program, section, and past records stay the same.</p>
     </Card>
 
-    {error && <div className="alert alert-danger" role="alert">{error}{!busy && !started && options.length > 0 && <Button className="ml-3" size="sm" variant="secondary" onClick={() => prepare(sourceYear)}>Retry</Button>}</div>}
+    {error && <div ref={errorFeedback} tabIndex={-1} className="alert alert-danger" role="alert">{error}{!busy && !started && options.length > 0 && <Button className="ml-3" size="sm" variant="secondary" onClick={() => prepare(sourceYear)}>Retry</Button>}</div>}
     {busy && !batch && <p className="px-1 text-sm text-on-muted" role="status">Loading student masterlist...</p>}
+    {undoResult && <Card ref={undoFeedback} tabIndex={-1} role="status" className="space-y-2">
+      <h3 className="font-semibold text-on">{undoResult.status === "undone" ? "Academic update undone" : "Undo needs attention"}</h3>
+      <p className="text-sm text-on-dim">{undoResult.undo.counts.restored} students restored to their previous academic standing.{undoResult.undo.counts.skipped > 0 && ` ${undoResult.undo.counts.skipped} changed records were left untouched.`}{undoResult.undo.counts.failed > 0 && ` ${undoResult.undo.counts.failed} could not be restored; retry undo.`}</p>
+      <PaginatedList key={undoResult.batchId} items={undoResult.undo.issues} label="Undo issue pages" className="space-y-2 text-sm text-on-dim" renderItem={issue => <li key={issue.studentId}><strong>{issue.name}:</strong> {issue.message}</li>} />
+    </Card>}
     {result && <Card>
       <h3 className="flex items-center gap-2 font-semibold text-on" role="status">{done && <FaCheckCircle className="text-ok" aria-hidden="true" />}{done ? "Academic update completed" : "Some records need another attempt"}</h3>
       <p className="mt-2 text-sm text-on-dim">{result.counts.advanced} advanced · {result.counts.retained} kept their year · {result.counts.graduated} graduated{result.counts.skipped > 0 && ` · ${result.counts.skipped} skipped`}{result.counts.failed > 0 && ` · ${result.counts.failed} failed`}</p>
+      {["completed", "partial"].includes(result.status) && <Button className="mt-3" size="sm" variant="secondary" disabled={busy} onClick={() => setUndoBatch(result)}><FaUndo aria-hidden="true" />Undo this update</Button>}
       {!!result.issues.length && <PaginatedList key={result.batchId} items={result.issues} label="Academic update issue pages" className="mt-3 space-y-2 text-sm text-on-dim" renderItem={issue => <li key={issue.studentId}><strong>{issue.name}:</strong> {issue.message}</li>} />}
     </Card>}
 
@@ -144,9 +200,25 @@ export default function AcademicAdvancement({ onApplied }) {
         <Button disabled={busy} loading={busy} onClick={() => started ? apply() : setReview(true)}>{busy ? "Saving batch..." : started ? "Retry same batch" : "Review changes"}{!busy && !started && <FaArrowRight aria-hidden="true" />}</Button>
       </div>
     </Card>}
+    <Card as="section" aria-label="Recent bulk updates" className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-on">Recent bulk updates</h3><Button size="sm" variant="ghost" disabled={busy || historyLoading} onClick={loadHistory}><FaSyncAlt aria-hidden="true" />Refresh history</Button></div>
+      <p className="text-xs text-on-dim">Accidental update? Undo restores the previous academic standing. Students edited afterward are skipped for review.</p>
+      {historyError && <p role="alert" className="text-sm text-danger">{historyError}</p>}
+      {historyLoading && !history.length ? <p role="status" className="text-sm text-on-muted">Loading recent updates...</p> : !history.length ? <p className="text-sm text-on-muted">Your confirmed updates will appear here, including after a page refresh.</p> : <ul className="space-y-3">{history.map(item => {
+        const canUndo = ["completed", "partial", "reverting", "undo_partial"].includes(item.status);
+        const statusLabel = { completed: "Completed", partial: "Partly completed", running: "Update in progress", reverting: "Undo interrupted · retry available", undo_partial: "Undo needs attention", undone: "Undone" }[item.status] || item.status;
+        return <li key={item.batchId} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl bg-card-alt/40 p-3">
+          <div className="min-w-0 flex-1"><p className="text-sm font-medium text-on">{yearLabel(item.sourceYear)} → {yearLabel(item.targetYear)}</p><p className="mt-1 text-xs text-on-dim">{statusLabel} · {item.createdAt ? formatDateTime(item.createdAt) : "Saved update"}</p><p className="mt-1 text-xs text-on-muted">{item.counts.advanced} advanced · {item.counts.retained} kept year · {item.counts.graduated} graduated{item.undoneAt && ` · ${item.undo.counts.restored} restored`}</p></div>
+          {canUndo && <Button size="sm" variant="secondary" disabled={busy || historyLoading} onClick={() => setUndoBatch(item)} aria-label={`Undo update from ${item.sourceYear} to ${item.targetYear}`}><FaUndo aria-hidden="true" />{["undo_partial", "reverting"].includes(item.status) ? "Retry undo" : "Undo update"}</Button>}
+        </li>;
+      })}</ul>}
+      <Pagination page={historyPage} pageSize={PAGE_SIZE} total={historyTotal} onChange={setHistoryPage} disabled={busy || historyLoading} label="Bulk update history pages" />
+    </Card>
     <ConfirmDialog open={review} title="Confirm academic advancement?" variant="primary" confirmLabel="Confirm advancement" busy={busy} onConfirm={apply} onCancel={() => setReview(false)}
       message={`${yearLabel(batch?.sourceYear || sourceYear)} → ${yearLabel(batch?.targetYear || sourceYear + 1)}. ${counts.Advance} advance, ${counts.Retain} keep their year level, and ${counts.Graduate} are marked graduated.`}>
       <PaginatedList key={batch?.batchId} items={students.filter(student => action(student) !== "Advance")} label="Academic exception review pages" disabled={busy} className="space-y-2 text-sm text-on-dim" renderItem={student => <li key={student._id}>{student.name} — {action(student) === "Graduate" ? "Mark graduated" : `Keep Year ${student.yearLevel}`}</li>} />
     </ConfirmDialog>
+    <ConfirmDialog open={!!undoBatch} title="Undo this academic update?" confirmLabel="Undo update" busy={busy} onConfirm={undoUpdate} onCancel={() => setUndoBatch(null)}
+      message={`Restore students from ${yearLabel(undoBatch?.targetYear || sourceYear + 1)} to their saved standing before this update. Later academic edits are skipped. Attendance, service hours, and organizer access stay unchanged.`} />
   </div>;
 }
