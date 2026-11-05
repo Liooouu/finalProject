@@ -587,6 +587,11 @@ const AuthPage = () => {
                 )}
 
                 <form onSubmit={handleVerifyEmail} className="space-y-4">
+                  <p className="text-sm leading-relaxed text-on-dim">
+                    Can&apos;t find the code? Check Spam or Junk for the TrackED
+                    verification email. If it&apos;s there, mark it as &quot;Not
+                    spam&quot;, then enter the latest code here.
+                  </p>
                   <div className="space-y-1.5">
                     <label
                       htmlFor="verify-email-code"
@@ -844,6 +849,11 @@ const AuthPage = () => {
                     onSubmit={handleForgotPasswordSubmit}
                     className="space-y-4"
                   >
+                    <p className="text-sm leading-relaxed text-on-dim">
+                      Check Spam or Junk if the TrackED recovery email is missing.
+                      Mark the legitimate message as &quot;Not spam&quot; and use
+                      the latest code you requested.
+                    </p>
                     <div className="space-y-1.5">
                       <label
                         htmlFor="fp-code"

@@ -52,8 +52,6 @@ const ManageExcuses = () => {
   const [loading, setLoading] = useState(seed === undefined);
   const [filter, setFilter] = useState("pending");
   const [search, setSearch] = useState("");
-  const [selectedExcuse, setSelectedExcuse] = useState(null);
-  const [responseNote, setResponseNote] = useState("");
   const [responseNotes, setResponseNotes] = useState({});
   const [message, setMessage] = useTransientState("");
   const [messageType, setMessageType] = useState("success");
@@ -109,17 +107,16 @@ const ManageExcuses = () => {
     try {
       const res = await api.patch(`/organizer/excuses/${id}`, {
         status: "approved",
-        expectedVersion: (selectedExcuse?._id === id ? selectedExcuse : excuses.find(letter => letter._id === id))?.submissionVersion || 1,
-        responseNote: isAdmin ? responseNote : responseNotes[id] || "",
+        expectedVersion: excuses.find(letter => letter._id === id)?.submissionVersion || 1,
+        responseNote: responseNotes[id] || "",
         removal: "complete",
       });
       setExcuses((prev) => prev.map((e) => (e._id === id ? res.data : e)));
       showMessage(res.data.notificationWarning ? `Excuse approved. ${res.data.notificationWarning}` : "Excuse approved!", "success");
-      setSelectedExcuse(null);
-      setResponseNote("");
+      setResponseNotes(notes => ({ ...notes, [id]: "" }));
     } catch (err) {
       showMessage(err.response?.data?.error || "Failed to approve excuse", "error");
-      if (err.response?.status === 409) { setSelectedExcuse(null); await fetchExcuses({ silent: true }); }
+      if (err.response?.status === 409) { await fetchExcuses({ silent: true }); }
     } finally {
       setReviewingId(null);
     }
@@ -132,16 +129,15 @@ const ManageExcuses = () => {
     try {
       const res = await api.patch(`/organizer/excuses/${id}`, {
         status: "rejected",
-        expectedVersion: (selectedExcuse?._id === id ? selectedExcuse : excuses.find(letter => letter._id === id))?.submissionVersion || 1,
-        responseNote: isAdmin ? responseNote : responseNotes[id] || "",
+        expectedVersion: excuses.find(letter => letter._id === id)?.submissionVersion || 1,
+        responseNote: responseNotes[id] || "",
       });
       setExcuses((prev) => prev.map((e) => (e._id === id ? res.data : e)));
       showMessage(res.data.notificationWarning ? `Excuse rejected. ${res.data.notificationWarning}` : "Excuse rejected!", "success");
-      setSelectedExcuse(null);
-      setResponseNote("");
+      setResponseNotes(notes => ({ ...notes, [id]: "" }));
     } catch (err) {
       showMessage(err.response?.data?.error || "Failed to reject excuse", "error");
-      if (err.response?.status === 409) { setSelectedExcuse(null); await fetchExcuses({ silent: true }); }
+      if (err.response?.status === 409) { await fetchExcuses({ silent: true }); }
     } finally {
       setReviewingId(null);
     }
@@ -327,20 +323,9 @@ const ManageExcuses = () => {
 
               {filter === "pending" && (isAdmin || !isOwnLetter(excuse)) && excuse.canReview !== false && (
                 <div className="excuse-review-controls">
-                  {isAdmin && <Button
-                    onClick={() =>
-                      { setSelectedExcuse(selectedExcuse === excuse._id ? null : excuse._id); setResponseNote(""); }
-                    }
-                    variant={selectedExcuse === excuse._id ? "ghost" : "secondary"}
-                    size="sm"
-                  >
-                    {selectedExcuse === excuse._id ? "Cancel review" : "Review excuse"}
-                  </Button>}
-
-                  {(!isAdmin || selectedExcuse === excuse._id) && (
                     <div className="excuse-review-fields">
                       <details><summary className="cursor-pointer text-xs text-on-muted">Add a response note (optional)</summary>
-                        <textarea aria-label={`Response note for ${excuse.student?.name || "student"}`} value={isAdmin ? responseNote : responseNotes[excuse._id] || ""} onChange={e => isAdmin ? setResponseNote(e.target.value) : setResponseNotes(notes => ({ ...notes, [excuse._id]: e.target.value }))} rows={2} className="field mt-2" />
+                        <textarea aria-label={`Response note for ${excuse.student?.name || "student"}`} value={responseNotes[excuse._id] || ""} onChange={e => setResponseNotes(notes => ({ ...notes, [excuse._id]: e.target.value }))} rows={2} className="field mt-2" />
                       </details>
                       {excuse.type === "absence" && (
                         <p className="rounded-lg border border-line bg-card-alt/50 px-3.5 py-2 text-xs text-on-muted">
@@ -351,7 +336,7 @@ const ManageExcuses = () => {
                         <Button
                           onClick={() => handleApprove(excuse._id)}
                           className="flex-1"
-                          disabled={reviewingId === excuse._id || !!excuse.approvalIssue || excuse.type === "advance" || !(excuse.attachments?.length || excuse.attachmentUrl)}
+                          disabled={!!reviewingId || !!excuse.approvalIssue || excuse.type === "advance" || !(excuse.attachments?.length || excuse.attachmentUrl)}
                         >
                           <FaCheck /> {reviewingId === excuse._id ? "Approving…" : "Approve"}
                         </Button>
@@ -359,13 +344,12 @@ const ManageExcuses = () => {
                           onClick={() => handleReject(excuse._id)}
                           variant="danger"
                           className="flex-1"
-                          disabled={reviewingId === excuse._id}
+                          disabled={!!reviewingId}
                         >
                           <FaTimes /> Reject
                         </Button>
                       </div>
                     </div>
-                  )}
                 </div>
               )}
 

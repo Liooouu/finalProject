@@ -6,13 +6,10 @@ import {
   FaCheck,
   FaTimes,
   FaEye,
-  FaFilter,
   FaShieldAlt,
   FaTrash,
   FaUnlock,
   FaUsers,
-  FaUserGraduate,
-  FaUserTie,
 } from "react-icons/fa";
 import PrivateImage from "../shared/PrivateImage";
 import EmptyState from "../shared/EmptyState";
@@ -21,7 +18,6 @@ import {
   Button,
   Card,
   PageHeader,
-  StatTile,
   StatusChip,
   TableSkeleton,
   Tabs,
@@ -31,7 +27,7 @@ import Pagination from "../ui/Pagination";
 import { formatDate, formatDateTime } from "../../utils/helpers";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 
-const CACHE_KEY = "admin:users";
+const CACHE_KEY = "admin:users:enrollment-status";
 const APPEALS_CACHE_KEY = "admin:face-appeals";
 
 const roleStyles = {
@@ -49,12 +45,13 @@ const ManageUsers = () => {
   const appealsSeed = readScreen(APPEALS_CACHE_KEY);
   const [users, setUsers] = useState(seed?.users ?? []);
   const [loading, setLoading] = useState(seed === undefined);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [programFilter, setProgramFilter] = useState("all");
-  const [yearFilter, setYearFilter] = useState("all");
-  const [sectionFilter, setSectionFilter] = useState("all");
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [search, setSearch] = useState("");
+  const [promoteTarget, setPromoteTarget] = useState(null);
+  const [promoting, setPromoting] = useState(false);
+  const [faceStatusLoading, setFaceStatusLoading] = useState(false);
+  const [faceStatusError, setFaceStatusError] = useState(false);
+  const faceStatusRequest = useRef(0);
   const [academicDraft, setAcademicDraft] = useState({ program: "", yearLevel: "", section: "" });
   const [savingAcademic, setSavingAcademic] = useState(false);
   const [detailNotice, setDetailNotice] = useTransientState(null);
@@ -78,6 +75,21 @@ const ManageUsers = () => {
     } catch (error) {
       setDetailNotice({ type: "error", text: error.response?.data?.message || "Could not update academic details. Please try again." });
     } finally { setSavingAcademic(false); }
+  };
+  const promoteStudent = async () => {
+    if (!promoteTarget || promoting) return;
+    setPromoting(true);
+    setDetailNotice(null);
+    try {
+      const { data } = await api.post(`/admin/users/${promoteTarget._id}/promote-organizer`);
+      mergeStudent(data.student);
+      setDetailNotice({ type: "success", text: [data.message, data.notificationWarning].filter(Boolean).join(" ") });
+    } catch (error) {
+      setDetailNotice({ type: "error", text: error.response?.data?.message || "Could not grant organizer access. Please try again." });
+    } finally {
+      setPromoting(false);
+      setPromoteTarget(null);
+    }
   };
   const demoteStudent = async () => {
     if (!demoteTarget || demoting) return;
@@ -144,9 +156,9 @@ const ManageUsers = () => {
   const fetchUsers = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const res = await api.get("/reports/users");
-      setUsers(res.data.users);
-      writeScreen(CACHE_KEY, { users: res.data.users });
+      const res = await api.get("/admin/users");
+      setUsers(res.data);
+      writeScreen(CACHE_KEY, { users: res.data });
       listLoaded.current = true;
     } catch (err) {
       console.error(err);
@@ -272,6 +284,16 @@ const ManageUsers = () => {
 
   const openUserDetails = async (user) => {
     setSelectedUser(user);
+    const requestId = ++faceStatusRequest.current;
+    setFaceStatusLoading(true);
+    setFaceStatusError(false);
+    api.get(`/admin/users/${user._id}`).then(({ data }) => {
+      if (requestId === faceStatusRequest.current) mergeStudent(data);
+    }).catch(() => {
+      if (requestId === faceStatusRequest.current) setFaceStatusError(true);
+    }).finally(() => {
+      if (requestId === faceStatusRequest.current) setFaceStatusLoading(false);
+    });
     setAcademicDraft({ program: user.program || "", yearLevel: String(user.yearLevel || ""), section: user.section || "" });
     setDetailNotice(null);
     setUserAttendance([]);
@@ -306,45 +328,15 @@ const ManageUsers = () => {
     } finally { setRemovingCS(false); setPendingRemoveCS(null); }
   };
 
-  const hasActiveFilters =
-    searchTerm ||
-    programFilter !== "all" ||
-    yearFilter !== "all" ||
-    sectionFilter !== "all";
-
-  const activeFilterCount =
-    (searchTerm ? 1 : 0) +
-    (programFilter !== "all" ? 1 : 0) +
-    (yearFilter !== "all" ? 1 : 0) +
-    (sectionFilter !== "all" ? 1 : 0);
-
-  const resetFilters = () => {
-    setSearchTerm("");
-    setProgramFilter("all");
-    setYearFilter("all");
-    setSectionFilter("all");
-  };
-
-  const staffUsers = users.filter(
+  const term = search.trim().toLowerCase();
+  const matchingUsers = users.filter(user => !term ||
+    [user.name, user.email].some(value => String(value || "").toLowerCase().includes(term)));
+  const staffUsers = matchingUsers.filter(
     (user) => user.role === "admin" || user.role === "organizer" || user.organizerAccess === true
   );
-  const studentUsers = users.filter((user) => {
-    if (user.role !== "student" || user.organizerAccess === true) return false;
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      user.name.toLowerCase().includes(term) ||
-      user.email.toLowerCase().includes(term);
-    const matchesProgram =
-      programFilter === "all" ||
-      String(user.program || "").toUpperCase() === programFilter;
-    const matchesYear =
-      yearFilter === "all" ||
-      String(user.yearLevel) === String(yearFilter);
-    const matchesSection =
-      sectionFilter === "all" ||
-      String(user.section || "").toUpperCase() === sectionFilter;
-    return matchesSearch && matchesProgram && matchesYear && matchesSection;
-  });
+  const studentUsers = matchingUsers.filter(
+    user => user.role === "student" && user.organizerAccess !== true
+  );
 
   const getRoleBadge = (role, organizerAccess = false) => (
     <span
@@ -448,11 +440,6 @@ const ManageUsers = () => {
       subtitle,
       emptyTitle,
       showGroup = false,
-      filters = null,
-      filtersId,
-      filtersOpen = false,
-      onToggleFilters,
-      activeFilterCount = 0,
     }
   ) => (
     <Card padding="none" className="flex max-h-[34rem] min-h-0 flex-col overflow-hidden">
@@ -462,37 +449,11 @@ const ManageUsers = () => {
           <p className="text-xs text-on-muted">{subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
-          {onToggleFilters && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={onToggleFilters}
-              aria-expanded={filtersOpen}
-              aria-controls={filtersId}
-            >
-              <FaFilter aria-hidden="true" />
-              {filtersOpen ? "Hide filters" : "Filters"}
-              {activeFilterCount > 0 && (
-                <span className="rounded-full bg-brand/10 px-1.5 text-[10px] font-semibold text-brand">
-                  {activeFilterCount}
-                </span>
-              )}
-            </Button>
-          )}
           <span className="rounded-full border border-line bg-card-alt px-2.5 py-0.5 text-xs font-medium text-on-dim">
             {list.length}
           </span>
         </div>
       </div>
-
-      {filters && filtersOpen && (
-        <div
-          id={filtersId}
-          className="border-b border-line bg-card-alt/40 px-4 py-3"
-        >
-          {filters}
-        </div>
-      )}
 
       <div className="min-h-0 flex-1 overflow-auto">
         {loading ? (
@@ -504,8 +465,8 @@ const ManageUsers = () => {
           icon={<FaUsers />}
           title={emptyTitle}
           description={
-            showGroup
-              ? "Try a different search term or filter."
+            term ? "Try another name or email." : showGroup
+              ? "Student accounts will appear here once registered."
               : "Staff accounts will appear here once created."
           }
         />
@@ -638,108 +599,14 @@ const ManageUsers = () => {
     </Card>
   );
 
-  const stats = {
-    total: users.length,
-    admin: users.filter((u) => u.role === "admin").length,
-    organizer: users.filter((u) => u.role === "organizer" || (u.role === "student" && u.organizerAccess === true)).length,
-    student: users.filter((u) => u.role === "student" && u.organizerAccess !== true).length,
-  };
-
   const pendingCount = appeals.filter((a) => a.status === "pending").length;
-
-  const studentFilters = (
-    <div className="grid grid-cols-2 gap-2.5">
-      <div className="col-span-2">
-        <label htmlFor="user-search" className="field-label">
-          Search students
-        </label>
-        <input
-          id="user-search"
-          type="text"
-          placeholder="Search by name or email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="field"
-        />
-      </div>
-
-      <div className="min-w-0">
-        <label htmlFor="user-program-filter" className="field-label">
-          Program
-        </label>
-        <select
-          id="user-program-filter"
-          value={programFilter}
-          onChange={(e) => setProgramFilter(e.target.value)}
-          className="field-select"
-        >
-          <option value="all">All programs</option>
-          {PROGRAM_OPTIONS.map((program) => (
-            <option key={program} value={program}>
-              {program}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="min-w-0">
-        <label htmlFor="user-year-filter" className="field-label">
-          Year level
-        </label>
-        <select
-          id="user-year-filter"
-          value={yearFilter}
-          onChange={(e) => setYearFilter(e.target.value)}
-          className="field-select"
-        >
-          <option value="all">All years</option>
-          {YEAR_OPTIONS.map((year) => (
-            <option key={year} value={year}>
-              Year {year}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="min-w-0">
-        <label htmlFor="user-section-filter" className="field-label">
-          Section
-        </label>
-        <select
-          id="user-section-filter"
-          value={sectionFilter}
-          onChange={(e) => setSectionFilter(e.target.value)}
-          className="field-select"
-        >
-          <option value="all">All sections</option>
-          {SECTION_OPTIONS.map((section) => (
-            <option key={section} value={section}>
-              Section {section}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex min-w-0 items-end">
-        <Button
-          variant="secondary"
-          size="lg"
-          onClick={resetFilters}
-          disabled={!hasActiveFilters}
-          className="w-full"
-        >
-          Reset filters
-        </Button>
-      </div>
-    </div>
-  );
 
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="People & access"
         title="Manage users"
-        subtitle={`${stats.total} accounts`}
+        subtitle={`${matchingUsers.length} of ${users.length} accounts`}
       />
 
       {message && (
@@ -778,27 +645,10 @@ const ManageUsers = () => {
 
           </div>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatTile label="Total accounts" value={stats.total} icon={<FaUsers />} />
-            <StatTile
-              label="Admins"
-              value={stats.admin}
-              icon={<FaShieldAlt />}
-              tone="ok"
-            />
-            <StatTile
-              label="Organizers"
-              value={stats.organizer}
-              icon={<FaUserTie />}
-              tone="warn"
-            />
-            <StatTile
-              label="Students"
-              value={stats.student}
-              icon={<FaUserGraduate />}
-              tone="info"
-            />
-          </div>
+          <Card padding="sm">
+            <label htmlFor="manage-user-search" className="field-label">Search users</label>
+            <input id="manage-user-search" type="search" className="field" placeholder="Search name or email..." value={search} onChange={event => setSearch(event.target.value)} />
+          </Card>
 
           <div className="grid gap-4 xl:grid-cols-2">
             {renderUserTable(staffUsers, {
@@ -812,11 +662,6 @@ const ManageUsers = () => {
               subtitle: "Accounts with student access only",
               emptyTitle: "No students found",
               showGroup: true,
-              filters: studentFilters,
-              filtersId: "student-user-filters",
-              filtersOpen,
-              onToggleFilters: () => setFiltersOpen((open) => !open),
-              activeFilterCount,
             })}
           </div>
         </>
@@ -999,12 +844,12 @@ const ManageUsers = () => {
                     </div>
                     <Button type="submit" size="sm" disabled={savingAcademic || demoting}>{savingAcademic ? "Saving…" : "Save student details"}</Button>
                   </form>
-                  {selectedUser.organizerAccess && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-                      <div><h4 className="font-medium text-on">Organizer access</h4><p className="text-sm text-on-dim">This student also has access to the organizer portal.</p></div>
-                      <Button variant="danger" size="sm" disabled={savingAcademic || demoting} onClick={() => setDemoteTarget(selectedUser)}>Remove organizer access</Button>
-                    </div>
-                  )}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+                    <div><h4 className="font-medium text-on">Organizer access</h4><p className="text-sm text-on-dim">{selectedUser.organizerAccess ? "This student also has access to the organizer portal." : "Grant this student access to manage departmental events."}</p></div>
+                    {selectedUser.organizerAccess
+                      ? <Button variant="danger" size="sm" disabled={savingAcademic || demoting || promoting} onClick={() => setDemoteTarget(selectedUser)}>Remove organizer access</Button>
+                      : <Button variant="secondary" size="sm" disabled={savingAcademic || demoting || promoting} onClick={() => setPromoteTarget(selectedUser)}>Promote student</Button>}
+                  </div>
                 </section>
               )}
               {selectedUser.role === "student" && (
@@ -1016,7 +861,7 @@ const ManageUsers = () => {
                     <div>
                       <p className="font-medium text-on">Face verification</p>
                       <p className="text-sm text-on-dim">
-                        {selectedUser.faceEnrolled ? "Face enrolled" : "Face not enrolled"}
+                        {faceStatusLoading ? "Checking enrollment..." : faceStatusError || typeof selectedUser.faceEnrolled !== "boolean" ? "Enrollment status unavailable" : selectedUser.faceEnrolled ? "Face enrolled" : "Face not enrolled"}
                       </p>
                       {isFaceLocked(selectedUser) ? (
                         <p className="mt-0.5 text-sm font-medium text-danger">
@@ -1027,7 +872,7 @@ const ManageUsers = () => {
                       )}
                     </div>
                   </div>
-                  {selectedUser.faceEnrolled && (
+                  {!faceStatusLoading && !faceStatusError && selectedUser.faceEnrolled && (
                     <Button variant="danger" size="sm" onClick={() => setFaceResetTarget(selectedUser)}>
                       Reset face enrollment
                     </Button>
@@ -1101,6 +946,7 @@ const ManageUsers = () => {
         message={`Confirm the identity of ${faceResetTarget?.name || "this student"} before resetting. Their saved face will be removed and attendance will require manual check-in until they enroll again.`}
         confirmLabel="Reset face" variant="danger" busy={resettingFace}
         onConfirm={resetFace} onCancel={() => setFaceResetTarget(null)} />
+      <ConfirmDialog open={!!promoteTarget} title="Grant organizer access?" message={`${promoteTarget?.name || "This student"} will gain access to manage events, operate face stations, and review other students' excuse letters. Their student portal and records will stay available.`} confirmLabel="Promote student" busy={promoting} onConfirm={promoteStudent} onCancel={() => setPromoteTarget(null)} />
       <ConfirmDialog open={!!demoteTarget} title="Remove organizer access?" message={`${demoteTarget?.name || "This student"} will lose organizer access and their face stations will close. Their student account, face enrollment, attendance and community service ledger will remain available.`} confirmLabel="Remove organizer access" busy={demoting} onConfirm={demoteStudent} onCancel={() => setDemoteTarget(null)} />
       <ConfirmDialog
         open={!!deleteTarget}

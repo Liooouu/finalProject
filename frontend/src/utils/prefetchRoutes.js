@@ -37,7 +37,6 @@ const chunks = {
   "/admin/dashboard/manual-reviews": () => import("../components/shared/ManualAttendanceReviews"),
   "/admin/dashboard/excuses": () => import("../components/organizer/ManageExcuses"),
   "/admin/dashboard/users": () => import("../components/admin/ManageUsers"),
-  "/admin/dashboard/promote-student": () => import("../components/admin/PromoteStudentPage"),
   "/admin/dashboard/reports": () => import("../components/admin/AttendanceReports"),
   "/admin/dashboard/profile": () => import("../components/settings/ProfileSettings"),
 };
@@ -63,7 +62,6 @@ const IDLE_ROUTES = {
     "/admin/dashboard/events",
     "/admin/dashboard/excuses",
     "/admin/dashboard/users",
-    "/admin/dashboard/promote-student",
   ],
 };
 

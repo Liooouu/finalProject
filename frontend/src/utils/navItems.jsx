@@ -3,7 +3,6 @@ import {
   FaHome,
   FaCalendarAlt,
   FaUsers,
-  FaUserPlus,
   FaChartBar,
   FaEdit,
   FaClock,
@@ -31,11 +30,6 @@ const sectionsByRole = {
           badge: "excuses",
         },
         { name: "Manage Users", path: "/admin/dashboard/users", icon: <FaUsers /> },
-        {
-          name: "Promote Student",
-          path: "/admin/dashboard/promote-student",
-          icon: <FaUserPlus />,
-        },
       ],
     },
     {

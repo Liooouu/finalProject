@@ -109,6 +109,19 @@ router.get("/users", protect, authorize("admin", "organizer"), async (req, res) 
 });
 
 // PATCH USER (admin only) - allow editing basic details + program/year/section
+router.get("/users/:id", protect, authorize("admin"), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid user ID" });
+    const user = await User.findById(req.params.id)
+      .select(`${ADMIN_USER_FIELDS.join(" ")} faceEnrolledAt faceConsentAt faceDescriptor`);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.set("Cache-Control", "no-store");
+    res.json(adminUserSummary(user));
+  } catch {
+    res.status(500).json({ message: "Could not refresh user details" });
+  }
+});
+
 router.patch("/users/:id", protect, authorize("admin"), async (req, res) => {
   try {
     const { name, email, program, yearLevel, section, role } = req.body;

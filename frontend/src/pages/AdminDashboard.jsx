@@ -15,7 +15,6 @@ import "../styles/responsive-workspace.css";
 // Per-page chunks: the dashboard, event details and the
 // reports table are only fetched when that page is actually opened.
 const DashboardHome = lazy(() => import("../components/admin/DashboardHome"));
-const PromoteStudentPage = lazy(() => import("../components/admin/PromoteStudentPage"));
 const ManageEvents = lazy(() => import("../components/admin/ManageEvents"));
 const ManageExcuses = lazy(() => import("../components/organizer/ManageExcuses"));
 const ManageUsers = lazy(() => import("../components/admin/ManageUsers"));
@@ -45,8 +44,8 @@ const AdminDashboard = () => {
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   <Route index element={<DashboardHome />} />
-                  <Route path="promote-student" element={<PromoteStudentPage />} />
-                  <Route path="create-organizer" element={<Navigate to="/admin/dashboard/promote-student" replace />} />
+                  <Route path="promote-student" element={<Navigate to="/admin/dashboard/users" replace />} />
+                  <Route path="create-organizer" element={<Navigate to="/admin/dashboard/users" replace />} />
                   <Route path="events" element={<ManageEvents />} />
                   <Route path="events/:id" element={<EventDetails />} />
                   <Route path="events/:id/attendees" element={<EventDetails />} />

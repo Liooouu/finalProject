@@ -105,7 +105,7 @@ const DashboardHome = () => {
   if (loading) return <Loading label="Loading your dashboard..." />;
 
   const currentActivityPage = Math.min(activityPage, Math.max(1, Math.ceil(activity.length / 6)));
-  const eventPageSize = 2;
+  const eventPageSize = 1;
   const currentEventPage = Math.min(eventPage, Math.max(1, Math.ceil(upcomingEvents.length / eventPageSize)));
   const visibleEvents = upcomingEvents.slice((currentEventPage - 1) * eventPageSize, currentEventPage * eventPageSize);
   const visibleActivity = activity.slice((currentActivityPage - 1) * 6, currentActivityPage * 6);

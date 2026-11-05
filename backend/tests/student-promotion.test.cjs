@@ -121,15 +121,20 @@ test('admin directory and academic updates return enrollment status without face
  const auth = token(adminId, 'admin');
  const directory = await request('/admin/users', { auth });
  const update = await request(`/admin/users/${studentId}`, { method:'PATCH', auth, body:{ program:'BSCS', yearLevel:2, section:'C' } });
+ const detail = await request(`/admin/users/${studentId}`, { auth });
  assert.equal(directory.status, 200);
  assert.equal(update.status, 200);
- for (const summary of [directory.data.find(user => user._id === studentId), update.data]) {
+ assert.equal(detail.status, 200);
+ for (const summary of [directory.data.find(user => user._id === studentId), update.data, detail.data]) {
   assert.equal(summary.faceEnrolled, true);
   for (const key of ['facePhoto', 'faceDescriptor', 'faceConsentAt', 'password']) assert.equal(key in summary, false);
  }
  users.get(studentId).faceDescriptor = [];
  const legacy = await request(`/admin/users/${studentId}`, { method:'PATCH', auth, body:{ section:'B' } });
  assert.equal(legacy.data.faceEnrolled, false);
+ const refreshed = await request(`/admin/users/${studentId}`, { auth });
+ assert.equal(refreshed.data.faceEnrolled, false);
+ assert.equal((await request(`/admin/users/${studentId}`, { auth:token(studentId,'student') })).status, 403);
 });
 test('demotion preserves student identity and records and closes face stations',async()=>{
  await promote();const before={...users.get(studentId)};const switched=await request('/auth/switch-role',{method:'POST',auth:token(studentId,'student'),body:{role:'organizer'}});

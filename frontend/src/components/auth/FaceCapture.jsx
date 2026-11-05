@@ -131,7 +131,7 @@ const FaceCapture = ({
 
       {preview ? (
         <div className="overflow-hidden rounded-xl border border-line">
-          <img src={preview} alt="Captured face preview" className="w-full object-cover" />
+          <img src={preview} alt="Captured face preview" className="w-full scale-x-[-1] object-cover" />
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-line bg-black">
@@ -145,7 +145,7 @@ const FaceCapture = ({
               autoPlay
               playsInline
               muted
-              className="aspect-[4/3] w-full object-cover"
+              className="aspect-[4/3] w-full scale-x-[-1] object-cover"
             />
           )}
         </div>
