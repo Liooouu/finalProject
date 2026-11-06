@@ -6,7 +6,7 @@ import SecuritySettings from "./SecuritySettings";
 import AcademicStanding from "../student/AcademicStanding";
 import { getUserFromToken, logout, setPendingVerificationEmail } from "../../utils/auth";
 import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
-import { FaUser, FaLock, FaCheck, FaTimes, FaDoorOpen, FaCamera } from "react-icons/fa";
+import { FaUser, FaLock, FaCheck, FaTimes, FaDoorOpen, FaCamera, FaTrashAlt } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { Button, Card, FlightPanel, PageHeader, SegmentedControl } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
@@ -28,6 +28,8 @@ const ProfileSettings = () => {
   const [message, setMessage] = useTransientState("");
   const [messageType, setMessageType] = useState("success");
   const [uploadingPic, setUploadingPic] = useState(false);
+  const [removingPic, setRemovingPic] = useState(false);
+  const pictureBusy = uploadingPic || removingPic;
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -99,7 +101,8 @@ const ProfileSettings = () => {
 
   const handlePictureUpload = async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    e.target.value = "";
+    if (!file || pictureBusy) return;
 
     if (file.size > 5 * 1024 * 1024) {
       showMessage("File size must be less than 5MB", "error");
@@ -124,6 +127,18 @@ const ProfileSettings = () => {
     }
   };
 
+  const handlePictureRemove = async () => {
+    if (pictureBusy || !profile?.profilePicture) return;
+    setRemovingPic(true);
+    try {
+      const { data } = await api.delete("/account/picture");
+      setProfile(data.user);
+      showMessage("Profile photo removed.");
+    } catch (error) {
+      showMessage(error.response?.data?.error || "Could not remove profile photo. Please try again.", "error");
+    } finally { setRemovingPic(false); }
+  };
+
   const handleLogout = () => {
     setConfirmLogout(true);
   };
@@ -135,15 +150,16 @@ const ProfileSettings = () => {
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <PageHeader eyebrow="Account" title="Profile settings" subtitle="Your personal details, academic record, and account security." />
+      {message && <div className={`alert ${messageType === "success" ? "alert-ok" : "alert-danger"}`} role="status"><span aria-hidden="true">{messageType === "success" ? "✓" : "!"}</span><p>{message}</p></div>}
 
       <Card className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-4 sm:gap-5">
           <div className="relative shrink-0">
             {profile?.profilePicture ? <img src={profile.profilePicture} alt="Profile" className="h-16 w-16 rounded-2xl object-cover ring-1 ring-line sm:h-20 sm:w-20" /> :
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-brand ring-1 ring-inset ring-brand/20 sm:h-20 sm:w-20"><FaUser className="text-2xl" /></div>}
-            <label title="Change profile picture" className={`absolute -bottom-1 -right-1 cursor-pointer rounded-lg border border-line bg-card p-2 text-brand shadow-sm hover:bg-card-alt ${uploadingPic ? "pointer-events-none opacity-60" : ""}`}>
+            <label title="Change profile picture" className={`absolute -bottom-1 -right-1 cursor-pointer rounded-lg border border-line bg-card p-2 text-brand shadow-sm hover:bg-card-alt ${pictureBusy ? "pointer-events-none opacity-60" : ""}`}>
               <FaCamera className="text-xs" aria-hidden="true" /><span className="sr-only">Upload profile picture</span>
-              <input type="file" accept="image/*" onChange={handlePictureUpload} className="hidden" disabled={uploadingPic} aria-label="Upload profile picture" />
+              <input type="file" accept="image/*" onChange={handlePictureUpload} className="hidden" disabled={pictureBusy} aria-label="Upload profile picture" />
             </label>
           </div>
           <div className="min-w-0 flex-1">
@@ -152,8 +168,9 @@ const ProfileSettings = () => {
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
               <span className="rounded-full border border-brand/20 bg-brand/10 px-2.5 py-1 font-medium capitalize text-brand">{profileRole}</span>
               {profile?.program && <span className="text-on-muted">{profile.program}</span>}
-              {uploadingPic && <span role="status" className="text-on-muted">Updating photo…</span>}
+              {pictureBusy && <span role="status" className="text-on-muted">Updating photo…</span>}
             </div>
+            {profile?.profilePicture && <Button type="button" variant="danger" size="sm" className="mt-3" loading={removingPic} disabled={pictureBusy} onClick={handlePictureRemove}><FaTrashAlt aria-hidden="true" />{removingPic ? "Removing…" : "Remove Photo"}</Button>}
           </div>
         </div>
       </Card>
@@ -163,7 +180,6 @@ const ProfileSettings = () => {
         options={[{ value: "profile", label: "Profile" }, { value: "academic", label: "Academic record" }, { value: "security", label: "Security" }]} />}
 
       {section === "security" ? <SecuritySettings embedded /> : section === "academic" ? <AcademicStanding /> : <>
-        {message && <div className={`alert ${messageType === "success" ? "alert-ok" : "alert-danger"}`} role="status"><span aria-hidden="true">{messageType === "success" ? "✓" : "!"}</span><p>{message}</p></div>}
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(260px,1fr)]">
           <FlightPanel level="ledger" glass title={editing ? "Edit personal information" : showPasswordForm ? "Update password" : "Personal information"} icon={<FaUser />}>
             {editing ? (

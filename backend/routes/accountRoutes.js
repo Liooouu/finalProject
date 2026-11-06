@@ -157,6 +157,30 @@ router.patch("/password", protect, async (req, res) => {
 });
 
 // =======================
+// REMOVE PROFILE PICTURE (account owner only; face enrollment is separate)
+// =======================
+router.delete("/picture", protect, async (req, res) => {
+  try {
+    const previous = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: { profilePicture: "" } },
+      { new: false }
+    ).select(ACCOUNT_FIELDS);
+    if (!previous) return res.status(404).json({ error: "User not found" });
+
+    // A legacy account may reference its face photo as its avatar. Never
+    // remove the biometric file when clearing that profile-picture reference.
+    if (previous.profilePicture && previous.profilePicture !== previous.facePhoto) {
+      await fileStore.deleteByUrl(previous.profilePicture).catch(() => {});
+    }
+    const user = { ...accountView(previous, req.user.role), profilePicture: "" };
+    res.json({ profilePicture: "", user });
+  } catch {
+    res.status(500).json({ error: "Could not remove profile photo. Please try again." });
+  }
+});
+
+// =======================
 // UPLOAD PROFILE PICTURE
 // =======================
 router.post("/picture", protect, upload.single("picture"), async (req, res) => {
