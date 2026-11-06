@@ -46,7 +46,7 @@ Module._load = function (name, parent, ...rest) {
   if (name === "../models/AcademicAdvancement") return batchModel;
   return originalLoad.call(this, name, parent, ...rest);
 };
-const { preview, commit, undo, sourceYearIssue, isEligible } = require("../services/academicAdvancement");
+const { preview, commit, undo, details, listClasses, sourceYearIssue, isEligible } = require("../services/academicAdvancement");
 Module._load = originalLoad;
 
 beforeEach(() => {
@@ -199,4 +199,80 @@ test("draft or running updates cannot be undone",async()=>{
   await assert.rejects(undo('admin',batch.batchId),{status:409});
   batches.get(batch.batchId).status='running';
   await assert.rejects(undo('admin',batch.batchId),{status:409});
+});
+
+test("class choices distinguish program, year and section and never advance students",async()=>{
+ users.get('student-1').section='B';users.get('student-2').program='BSCS';
+ users.set('graduated',{...copy(users.get('student-0')),_id:'graduated',enrollmentStatus:'graduated'});
+ users.set('other-year',{...copy(users.get('student-0')),_id:'other-year',academicYearStart:2027});
+ const before=copy([...users.values()]);
+ const classes=await listClasses(2026);
+ assert.deepEqual(classes.map(c=>[c.key,c.count]),[['BSCS:1:A',1],['BSIT:1:A',11],['BSIT:1:B',1],['BSIT:4:A',1]]);
+ assert.deepEqual([...users.values()],before);assert.equal(batches.size,0);
+});
+
+test("a class batch advances every page only in that class and undo leaves other classes alone",async()=>{
+ users.get('student-1').section='B';users.get('student-2').program='BSCS';
+ const scope={program:'BSIT',yearLevel:1,section:'A'};
+ const batch=await preview('admin',2026,scope);
+ assert.deepEqual(batch.classScope,scope);assert.equal(batch.students.length,11);
+ assert.equal(batch.students.some(s=>s._id==='student-3'),true);
+ const foreign=copy([users.get('student-1'),users.get('student-2'),users.get('student-13')]);
+ await assert.rejects(commit('admin',batch.batchId,['student-1'],[]),{status:400});
+ const result=await commit('admin',batch.batchId,['student-11']);
+ assert.deepEqual(result.classScope,scope);assert.equal(result.counts.advanced,10);assert.equal(result.counts.retained,1);
+ assert.deepEqual([users.get('student-1'),users.get('student-2'),users.get('student-13')],foreign);
+ const second=await preview('admin',2026,{program:'BSIT',yearLevel:1,section:'B'});await commit('admin',second.batchId);
+ const otherClassAfter=copy(users.get('student-1'));
+ const undone=await undo('admin',batch.batchId);assert.equal(undone.undo.counts.restored,11);
+ assert.equal(users.get('student-0').yearLevel,1);assert.deepEqual(users.get('student-1'),otherClassAfter);
+});
+
+test("malformed class choices cannot create a broad batch; stale class changes are skipped",async()=>{
+ for(const scope of [{},{program:'BSIT'},{program:'OTHER',yearLevel:1,section:'A'},{program:'BSIT',yearLevel:1.5,section:'A'},{program:'BSIT',yearLevel:1,section:'D'},[]]) {
+  await assert.rejects(preview('admin',2026,scope),{status:400});assert.equal(batches.size,0);
+ }
+ const batch=await preview('admin',2026,{program:'BSIT',yearLevel:1,section:'A'});
+ users.get('student-5').section='B';
+ const result=await commit('admin',batch.batchId);assert.equal(result.counts.skipped,1);
+ assert.equal(users.get('student-5').yearLevel,1);assert.equal(users.get('student-5').section,'B');
+ assert.equal(users.get('student-5').academicTransitions.length,0);
+});
+
+test("a fourth-year class retains everyone unless graduation is explicitly chosen",async()=>{
+ const batch=await preview('admin',2026,{program:'BSIT',yearLevel:4,section:'A'});
+ assert.equal(batch.students.length,1);
+ const result=await commit('admin',batch.batchId,[],[]);assert.equal(result.counts.retained,1);assert.equal(result.counts.graduated,0);
+ assert.equal(users.get('student-13').enrollmentStatus,'active');assert.equal(users.get('student-0').academicYearStart,2026);
+});
+
+test("saved student results survive advancement, later edits and missing live accounts",async()=>{
+ const batch=await preview('admin',2026,{program:'BSIT',yearLevel:1,section:'A'});
+ await assert.rejects(details(batch.batchId),{status:404});
+ await commit('admin',batch.batchId,['student-11']);
+ users.get('student-1').name='Changed later';users.get('student-1').yearLevel=4;users.delete('student-0');
+ const first=await details(batch.batchId);
+ assert.equal(first.students.length,5);assert.equal(first.total,13);assert.equal(first.batchSize,13);
+ assert.equal(first.students[0].name,'Student 0');assert.equal(first.students[0].previousYearLevel,1);assert.equal(first.students[0].updatedYearLevel,2);
+ assert.equal(first.students[1].name,'Student 1');assert.equal(first.students[1].updatedYearLevel,2);
+ const retained=await details(batch.batchId,{search:'STUDENT11@EXAMPLE.TEST'});
+ assert.equal(retained.total,1);assert.equal(retained.students[0].outcome,'retained');assert.equal(retained.students[0].updatedYearLevel,1);
+ const last=await details(batch.batchId,{page:99});assert.equal(last.page,3);assert.equal(last.students.length,3);
+ assert.equal((await details(batch.batchId,{search:'not found'})).total,0);
+ await assert.rejects(details('missing'),{status:404});
+});
+
+test("failed/skipped results do not claim a new year and undo leaves the original update visible",async()=>{
+ const batch=await preview('admin',2026,{program:'BSIT',yearLevel:1,section:'A'});
+ users.get('student-6').section='B';failStudent='student-5';
+ await commit('admin',batch.batchId);
+ for(const id of ['5','6']){
+  const report=await details(batch.batchId,{search:`student${id}@example.test`});
+  assert.equal(report.students[0].updatedYearLevel,null);assert.equal(report.students[0].outcome,id==='5'?'failed':'skipped');
+ }
+ failStudent='';await undo('admin',batch.batchId);
+ const restored=await details(batch.batchId,{search:'student0@example.test'});
+ assert.equal(restored.students[0].updatedYearLevel,2);assert.equal(restored.students[0].previousYearLevel,1);
+ assert.equal(restored.students[0].undoOutcome,'restored');assert.equal(restored.batch.status,'undone');
+ assert.equal(users.get('student-0').yearLevel,1);
 });

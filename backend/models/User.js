@@ -31,6 +31,7 @@ const userSchema = new mongoose.Schema(
     // Student officers keep their student identity and gain organizer access.
     organizerAccess: { type: Boolean, default: false },
     organizerAccessVersion: { type: Number, default: 0 },
+    sessionVersion: { type: Number, default: 0 },
     organizerDemotedAt: { type: Date, default: null },
     organizerDemotedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     organizerPromotedAt: { type: Date, default: null },

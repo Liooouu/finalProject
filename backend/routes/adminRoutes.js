@@ -15,6 +15,7 @@ const { isMailEnabled } = require("../services/mailer");
 const { notifyUsers } = require("../services/notify");
 const fileStore = require("../services/fileStore");
 const faceIdentify = require("../services/faceIdentify");
+const { deleteAccount } = require("../services/deleteAccount");
 
 router.use("/academic-advancement", protect, authorize("admin"), require("./academicAdvancementRoutes"));
 
@@ -246,48 +247,10 @@ router.delete(
   authorize("admin"),
   async (req, res) => {
     try {
-      const user = await User.findById(req.params.id);
-
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      if (user.role === "admin") {
-        return res.status(403).json({ message: "Cannot delete admin accounts" });
-      }
-      if (await ManualAttendanceRequest.exists({ status: "pending", $or: [{ student: user._id }, { requestedBy: user._id }] })) {
-        return res.status(409).json({ message: "Resolve this account's pending manual attendance requests before deleting it." });
-      }
-
-      // Cascade: removing the account must not leave orphaned attendance,
-      // excuse, notification, appeal or reset records (or their files).
-      const [excuses, appeals] = await Promise.all([
-        Excuse.find({ student: user._id }).select("attachments attachmentUrl submissionHistory"),
-        FaceAppeal.find({ student: user._id }).select("photoUrl"),
-      ]);
-      const files = new Set(
-        [
-          user.facePhoto,
-          user.profilePicture,
-          ...excuses.flatMap((e) => [...(e.attachments || []), e.attachmentUrl, ...(e.submissionHistory || []).flatMap(revision => revision.attachments || [])]),
-          ...appeals.map((a) => a.photoUrl),
-        ].filter(Boolean)
-      );
-      await fileStore.deleteByUrls([...files]);
-
-      await Promise.all([
-        User.findByIdAndDelete(user._id),
-        Attendance.deleteMany({ student: user._id }),
-        Excuse.deleteMany({ student: user._id }),
-        Notification.deleteMany({ user: user._id }),
-        FaceAppeal.deleteMany({ student: user._id }),
-      ]);
-      faceIdentify.remove(user._id);
-
-      res.json({ message: "User deleted successfully" });
+      res.json(await deleteAccount(req.params.id));
     } catch (err) {
       console.error(err);
-      res.status(500).json({ message: "Server error" });
+      res.status(err.status || 500).json({ message: err.status ? err.message : "Could not delete the account. Please refresh and retry." });
     }
   }
 );
@@ -363,12 +326,17 @@ router.post(
       if (!["approved", "rejected"].includes(action)) {
         return res.status(400).json({ message: "action must be 'approved' or 'rejected'" });
       }
+      const pendingAppeal = await FaceAppeal.findById(req.params.id);
+      if (pendingAppeal?.replacement && action === "approved" && req.body.identityChecked !== true) {
+        return res.status(400).json({ message: "Confirm that you checked the student's school ID and proof photo before approving a replacement." });
+      }
 
       const appeal = await FaceAppeal.findOneAndUpdate(
         { _id: req.params.id, status: "pending" },
         {
           status: action,
           reviewedBy: req.user._id,
+          reviewedAt: new Date(),
           responseNote: (note || "").trim(),
         },
         { new: true }
@@ -395,7 +363,7 @@ router.post(
             : "Face verification appeal rejected",
         message:
           action === "approved"
-            ? "An admin verified your appeal. You can try face verification again now."
+            ? appeal.replacement ? "Your identity review was approved. Retake the approved face in Profile > Security within seven days to finish the replacement." : "An admin verified your appeal. You can try face verification again now."
             : `Your face verification appeal was rejected.${appeal.responseNote ? ` Reason: ${appeal.responseNote}` : ""} Ask an admin if you need help.`,
       });
 

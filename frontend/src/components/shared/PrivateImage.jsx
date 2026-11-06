@@ -2,14 +2,13 @@ import React, { useEffect, useState } from "react";
 import api from "../../api/axios";
 
 const API_BASE = api.defaults.baseURL.replace(/\/api$/, "");
-const PRIVATE_PREFIX = "/uploads/private-faces/";
 const EMPTY = { src: null, url: null, failed: false };
 
 // Renders an image from /uploads. Face photos live in a private directory that
 // the server refuses to serve statically, so those are fetched with the auth
 // token and shown from a blob URL instead of being exposed as a plain <img src>.
 export default function PrivateImage({ src, alt, ...imgProps }) {
-  const isPrivate = typeof src === "string" && src.startsWith(PRIVATE_PREFIX);
+  const isPrivate = typeof src === "string" && src.startsWith("/uploads/");
   const [loaded, setLoaded] = useState(EMPTY);
 
   useEffect(() => {
@@ -19,7 +18,7 @@ export default function PrivateImage({ src, alt, ...imgProps }) {
     let url = null;
 
     api
-      .get(`/account/face/${src.slice(PRIVATE_PREFIX.length)}`, { responseType: "blob" })
+      .get(`/account/face/${src.split("/").at(-1)}`, { responseType: "blob" })
       .then((res) => {
         if (!active) return;
         url = URL.createObjectURL(res.data);

@@ -48,7 +48,7 @@ const StudentDashboard = () => {
     api
       .get("/account")
       .then(({ data }) => {
-        if (!cancelled) setFaceMissing(!data?.faceEnrolledAt);
+        if (!cancelled) setFaceMissing(data?.enrollmentStatus !== "graduated" && !data?.faceEnrolledAt);
       })
       .catch(() => {
         // A failed profile fetch must not break the dashboard.

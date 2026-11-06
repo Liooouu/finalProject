@@ -18,6 +18,7 @@ const { submissionRevisionFilter, resubmissionIssue, excuseReviewerFilter } = re
 const { calendarView } = require("../services/academicCalendar");
 const { pendingManualEventsForStudent } = require("../services/manualAttendance");
 const { projectManualAttendance } = require("../services/manualAttendanceView");
+const faceMatcher = require("../services/faceMatcher");
 
 router.get("/academic-status", protect, async (req, res) => {
   try {
@@ -305,6 +306,8 @@ router.post("/security/face-appeals", protect, appealUpload.single("photo"), asy
     }
 
     const note = (req.body.note || "").trim();
+    const replacement = req.body.replacement === "true";
+    if (replacement && req.body.consent !== "true") return res.status(400).json({ error: "Consent is required for a face replacement request." });
     if (!req.file) {
       return res.status(400).json({ error: "A proof photo is required" });
     }
@@ -317,6 +320,13 @@ router.post("/security/face-appeals", protect, appealUpload.single("photo"), asy
       return res.status(400).json({ error: "You already have a pending appeal awaiting review" });
     }
 
+    const identity = replacement ? await User.findById(req.user._id).select("faceEnrollmentVersion") : null;
+    let proof = null;
+    if (replacement) {
+      try { proof = await faceMatcher.detectFaceDescriptorFromBuffer(req.file.buffer); }
+      catch { return res.status(400).json({ error: "Capture one clear face for the replacement review." }); }
+    }
+
     saved = await fileStore.saveBuffer(req.file.buffer, {
       private: true,
       originalName: req.file.originalname,
@@ -327,6 +337,8 @@ router.post("/security/face-appeals", protect, appealUpload.single("photo"), asy
       student: req.user._id,
       note,
       photoUrl: saved.url,
+      ...(replacement ? { replacement: true, enrollmentVersion: identity.faceEnrollmentVersion || 0,
+        replacementDescriptor: proof.descriptor, consentAt: new Date() } : {}),
     });
     await appeal.save();
 
@@ -337,7 +349,8 @@ router.post("/security/face-appeals", protect, appealUpload.single("photo"), asy
       `${req.user.name} (${req.user.email}) submitted a face verification appeal. Review their proof photo in Manage Users.`
     ).catch((e) => console.error("APPEAL NOTIFY ERROR:", e.message));
 
-    res.status(201).json(appeal);
+    const response = appeal.toObject(); delete response.replacementDescriptor;
+    res.status(201).json(response);
   } catch (err) {
     if (saved) await fileStore.deleteByUrl(saved.url).catch(() => {});
     res.status(500).json({ error: err.message });

@@ -111,7 +111,7 @@ async function notifyUsers(recipients, { type, title, message, relatedEvent, eve
 // student organizers), legacy organizer accounts, admins, and its owner.
 async function eventRecipients(event) {
   const organizerId = event?.organizer?._id || event?.organizer;
-  const clauses = [{ role: { $in: ["student", "organizer", "admin"] } }];
+  const clauses = [{ role: { $in: ["organizer", "admin"] } }, require("./studentEligibility").activeStudentFilter()];
   if (organizerId) clauses.push({ _id: organizerId });
 
   return User.find({ $or: clauses }).select("_id name email");

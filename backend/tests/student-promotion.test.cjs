@@ -92,6 +92,16 @@ test('invalid, missing and non-student accounts cannot be promoted',async()=>{as
 test('old create-organizer endpoint cannot create accounts',async()=>{const response=await request('/admin/create-organizer',{method:'POST',auth:token(adminId,'admin'),body:{name:'New',email:'new@example.test',password:'StrongPass123!'}});assert.equal(response.status,410);assert.equal(createdAccounts,0);});
 test('same password logs in with student identity and organizer access after promotion',async()=>{await promote();const response=await request('/auth/login',{method:'POST',body:{email:'officer@example.test',password:'StrongPass123!'}});assert.equal(response.status,200);assert.equal(response.data.role,'student');assert.deepEqual(response.data.availableRoles,['student','organizer']);assert.equal(response.data.requiresFaceEnrollment,false);assert.equal(jwt.verify(response.data.token,process.env.JWT_SECRET).id,studentId);});
 test('existing student session keeps personal ledger access after promotion',async()=>{const auth=token(studentId,'student');await promote();const response=await request('/student-ledger',{auth});assert.equal(response.status,200);assert.equal(response.data.balance,12);assert.equal(response.data.student,studentId);});
+
+test('revoked sessions cannot use old student or organizer tokens',async()=>{
+ await promote();const oldStudent=token(studentId,'student');
+ const oldOrganizer=(await request('/auth/switch-role',{method:'POST',auth:oldStudent,body:{role:'organizer'}})).data.token;
+ users.get(studentId).sessionVersion=1;
+ for(const auth of [oldStudent,oldOrganizer])assert.equal((await request('/account',{auth})).status,401);
+ const fresh=(await request('/auth/login',{method:'POST',body:{email:'officer@example.test',password:'StrongPass123!'}})).data.token;
+ assert.equal((await request('/account',{auth:fresh})).status,200);
+ assert.equal(jwt.verify(fresh,process.env.JWT_SECRET).sessionVersion,1);
+});
 test('promoted student can switch to organizer and back without changing database role',async()=>{
  await promote();const original=token(studentId,'student');const switched=await request('/auth/switch-role',{method:'POST',auth:original,body:{role:'organizer'}});assert.equal(switched.status,200);const claim=jwt.verify(switched.data.token,process.env.JWT_SECRET);assert.equal(claim.role,'organizer');assert.equal(claim.id,studentId);assert.equal((await request('/organizer-desk',{auth:switched.data.token})).status,200);
  assert.equal((await request('/student-ledger',{auth:switched.data.token})).status,403);

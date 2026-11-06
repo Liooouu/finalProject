@@ -18,6 +18,7 @@ const sections = [
     title: "2. Accounts and access",
     paragraphs: [
       "Provide accurate account and academic information. Keep your password and email recovery codes private, use your own account, and report suspected unauthorized access to your department administrator.",
+      "Verify email ownership before signing in and provide accurate academic details. TrackED does not check registration against an official registrar or departmental masterlist. Email verification confirms access to the email address; it does not establish current enrollment or CCIT membership. Administrators maintain student academic details and access permissions.",
       "Public registration is for students. An administrator may grant organizer access to a student, who retains their student account and records. Organizer access may be removed by an administrator. Administrators manage accounts and events, monitor records, and review requests; event organizers operate attendance stations.",
     ],
   },
@@ -28,6 +29,7 @@ const sections = [
       "Enroll your own face before using face attendance. Attend in person and follow the organizer’s station instructions. Do not impersonate another student, share access to submit attendance for someone else, use photographs or recordings to attempt a false check-in, or alter attendance evidence.",
       "Attendance follows the event’s configured attendance schedule. Late and absent marks can add required community service hours under the department’s rules. The ledger shows hours remaining, penalties, and approved adjustments; it does not automatically certify that service work has been completed.",
       "Face matching and network availability can fail. If a record appears incorrect, notify an organizer or administrator. Organizers can submit documented manual attendance requests and corrections. An administrator or an organizer assigned as an event reviewer must independently review them. A requester or the student concerned cannot approve their own manual request. Approved present/late requests use the verified attendance time rather than the time of approval.",
+      "Face stations require organizer supervision. Face matching does not eliminate photo or video spoofing risk. Initial enrollment should be checked against the student’s school ID. A check-in records attendance at that time and does not verify continuous presence until the event ends. Replacing an enrolled face with a different identity requires an administrative identity review.",
     ],
   },
   {

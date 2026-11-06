@@ -4,7 +4,7 @@ import api from "../../api/axios";
 import { useSearchParams } from "react-router-dom";
 import SecuritySettings from "./SecuritySettings";
 import AcademicStanding from "../student/AcademicStanding";
-import { getUserFromToken, logout } from "../../utils/auth";
+import { getUserFromToken, logout, setPendingVerificationEmail } from "../../utils/auth";
 import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
 import { FaUser, FaLock, FaCheck, FaTimes, FaDoorOpen, FaCamera } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
@@ -65,6 +65,7 @@ const ProfileSettings = () => {
     setSavingProfile(true);
     try {
       const res = await api.patch("/account", form);
+      if (res.data.emailVerificationRequired) { setPendingVerificationEmail(form.email); logout(); return; }
       setProfile(res.data);
       setEditing(false);
       showMessage("Profile updated successfully!");
@@ -85,6 +86,7 @@ const ProfileSettings = () => {
     setSavingPassword(true);
     try {
       await api.patch("/account/password", passwordForm);
+      logout();
       setPasswordForm({ currentPassword: "", newPassword: "" });
       setShowPasswordForm(false);
       showMessage("Password changed successfully!");

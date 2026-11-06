@@ -4,15 +4,20 @@ const advancement = require("../services/academicAdvancement");
 const { schoolYearStart } = require("../services/academicCalendar");
 
 // Mounted behind protect + authorize("admin") in adminRoutes.
-router.get("/", (req, res) => {
-  const currentSchoolYear = Math.max(2026, schoolYearStart());
-  res.set("Cache-Control", "no-store");
-  res.json({ currentSchoolYear, sourceYears: Array.from({ length: currentSchoolYear - 2026 + 1 }, (_, index) => currentSchoolYear - index) });
+router.get("/", async (req, res) => {
+  try {
+    const currentSchoolYear = Math.max(2026, schoolYearStart());
+    const selectedSourceYear = req.query.sourceYear === undefined ? currentSchoolYear : Number(req.query.sourceYear);
+    const classes = await advancement.listClasses(selectedSourceYear);
+    res.set("Cache-Control", "no-store");
+    res.json({ currentSchoolYear, selectedSourceYear, classes, sourceYears: Array.from({ length: currentSchoolYear - 2026 + 1 }, (_, index) => currentSchoolYear - index) });
+  } catch (error) { res.status(error.status || 503).json({ message: error.status ? error.message : "Could not load classes. Please try again." }); }
 });
 router.post("/preview", async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
-    res.json(await advancement.preview(req.user._id, req.body.sourceYear));
+    if (!req.body.classScope) return res.status(400).json({ message: "Choose a class before preparing an academic update." });
+    res.json(await advancement.preview(req.user._id, req.body.sourceYear, req.body.classScope));
   } catch (error) {
     res.status(error.status || 503).json({ message: error.status ? error.message : "Could not prepare the student masterlist. Please try again." });
   }
@@ -22,6 +27,13 @@ router.get("/history", async (req, res) => {
     res.set("Cache-Control", "no-store");
     res.json(await advancement.history(req.query));
   } catch { res.status(503).json({ message: "Could not load previous academic updates. Please try again." }); }
+});
+router.get("/:id/results", async (req, res) => {
+  try {
+    if (!isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid batch ID" });
+    res.set("Cache-Control", "no-store");
+    res.json(await advancement.details(req.params.id, req.query));
+  } catch (error) { res.status(error.status || 503).json({ message: error.status ? error.message : "Could not load saved results. Please try again." }); }
 });
 router.post("/:id/undo", async (req, res) => {
   try {

@@ -12,12 +12,12 @@ const { ensureAdmin } = require("./seedAdmin");
 const { repairUserIndexes } = require("./services/repairUserIndexes");
 const Event = require("./models/Event");
 const User = require("./models/User");
+const { activeStudentFilter } = require("./services/studentEligibility");
 const Attendance = require("./models/Attendance");
 const CheckInSession = require("./models/CheckInSession");
 const ManualAttendanceRequest = require("./models/ManualAttendanceRequest");
 const { notifyUsers, eventRecipients } = require("./services/notify");
 const { isMailEnabled } = require("./services/mailer");
-const fileStore = require("./services/fileStore");
 const faceIdentify = require("./services/faceIdentify");
 const {
   STATUS,
@@ -63,23 +63,7 @@ app.use("/uploads/private-faces", (req, res) => {
   res.status(404).end();
 });
 
-app.get("/uploads/:filename", async (req, res) => {
-  const { filename } = req.params;
-  if (!/^[A-Za-z0-9._-]+$/.test(filename)) {
-    return res.status(404).end();
-  }
-
-  try {
-    await fileStore.sendFile(res, `/uploads/${filename}`, {
-      cacheControl: "public, max-age=3600",
-    });
-  } catch (err) {
-    if (err.code === "FILE_NOT_FOUND") return res.status(404).end();
-    console.error("UPLOAD READ ERROR:", err.message);
-    if (res.headersSent) return res.destroy(err);
-    res.status(500).end();
-  }
-});
+app.use("/uploads", require("./routes/uploadRoutes"));
 
 // ✅ ROUTES
 app.use("/api/auth", authRoutes);
@@ -92,6 +76,7 @@ app.use("/api/organizer", organizerRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/checkin", checkinRoutes);
 app.use("/api/manual-attendance", manualAttendanceRoutes);
+app.use("/api/files", require("./routes/fileRoutes"));
 
 // ✅ HEALTH CHECK — used by the container HEALTHCHECK and by Coolify's health
 // probe. Reports database state without failing on it: the process only starts
@@ -262,7 +247,7 @@ connectDB()
 
           try {
             // Get all students
-            const students = await User.find({ role: "student" });
+            const students = await User.find(activeStudentFilter());
             const pendingManualStudents = new Set((await ManualAttendanceRequest.find({
               event: event._id, status: "pending",
             }).distinct("student")).map(String));
@@ -355,7 +340,7 @@ connectDB()
             continue;
           }
 
-          const allStudents = await User.find({ role: "student" }).select("_id name email");
+          const allStudents = await User.find(activeStudentFilter()).select("_id name email");
 
           const notifyNonAttendees = async (title, message, type) => {
             const attendeeIds = new Set(
@@ -459,7 +444,7 @@ connectDB()
             const startsAt = eventStartsAt(event);
             if (!startsAt || startsAt < now || startsAt > in24h) continue;
 
-            const students = await User.find({ role: "student" }).select("_id name email");
+            const students = await User.find(activeStudentFilter()).select("_id name email");
             if (students.length > 0) {
               await notifyUsers(students, {
                 type: "info",

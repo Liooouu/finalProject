@@ -21,6 +21,7 @@ const ConfirmDialog = ({
   icon,
   children,
   busy = false,
+  confirmDisabled = false,
 }) => {
   const confirmRef = useRef(null);
   const dialogRef = useRef(null);
@@ -144,7 +145,7 @@ const ConfirmDialog = ({
             ref={confirmRef}
             type="button"
             onClick={onConfirm}
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             className={`inline-flex flex-1 items-center justify-center rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${confirmClasses} disabled:cursor-not-allowed disabled:opacity-60`}
           >
             {confirmLabel}

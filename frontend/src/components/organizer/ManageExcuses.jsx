@@ -6,7 +6,6 @@ import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import {
   FaCheck,
   FaEdit,
-  FaFileAlt,
   FaSearch,
   FaTimes,
   FaTrash,
@@ -15,6 +14,7 @@ import {
 import StatusBadge from "../shared/StatusBadge";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
+import PrivateAttachment from "../shared/PrivateAttachment";
 import { usePageMeta } from "../../context/PageMetaContext";
 import {
   Button,
@@ -36,7 +36,6 @@ const formatSubmissionTime = value => formatDateTime(value, { month: "short", da
 
 const PAGE_SIZE = 3;
 
-const API_BASE = api.defaults.baseURL.replace(/\/api$/, "");
 
 const ManageExcuses = () => {
   const role = getUserRole();
@@ -147,7 +146,6 @@ const ManageExcuses = () => {
 
   // Uploaded files are stored as "/uploads/..." and must be resolved against
   // the API origin (the SPA dev server does not proxy that path).
-  const fileUrl = (url) => (/^https?:\/\//i.test(url) ? url : `${API_BASE}${url}`);
 
   const confirmDeleteOne = (id) => setPendingDelete({ type: "one", id });
   const confirmDeleteAll = () => setPendingDelete({ type: "all" });
@@ -306,7 +304,7 @@ const ManageExcuses = () => {
               {(excuse.attachments?.length || excuse.attachmentUrl) ? <div className="excuse-attachments">
                 <p className="text-xs text-on-muted">Attachments</p>
                 <div className="flex flex-wrap gap-2">
-                  {(excuse.attachments?.length ? excuse.attachments : [excuse.attachmentUrl]).map((url, idx) => <a key={`${url}-${idx}`} href={fileUrl(url)} target="_blank" rel="noopener noreferrer" className="excuse-file-link"><FaFileAlt aria-hidden="true" />Attachment {idx + 1}</a>)}
+                  {(excuse.attachments?.length ? excuse.attachments : [excuse.attachmentUrl]).map((url, idx) => <PrivateAttachment key={`${url}-${idx}`} src={url}>Attachment {idx + 1}</PrivateAttachment>)}
                 </div>
               </div> : <p className="excuse-attachments text-xs text-on-muted">No attachment on record</p>}
 

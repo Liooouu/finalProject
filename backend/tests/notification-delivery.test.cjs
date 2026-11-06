@@ -8,7 +8,7 @@ Module._load = function (name, parent, ...rest) {
   const mocks = {
     "../models/User": {
       find: filter => ({ select: async () => directory.filter(user => filter.$or.some(clause =>
-        clause._id === user._id || clause.role?.$in?.includes(user.role)
+        clause._id === user._id || clause.role?.$in?.includes(user.role) || (clause.role === user.role && user.enrollmentStatus !== "graduated" && user.emailVerified !== false)
       )) }),
     },
     "../models/Notification": { insertMany: async rows => { stored.push(...rows); } },

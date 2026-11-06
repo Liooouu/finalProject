@@ -21,6 +21,9 @@ const protect = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ message: "Not authorized, user no longer exists" });
     }
+    if ((decoded.sessionVersion || 0) !== (user.sessionVersion || 0) || user.emailVerified === false) {
+      return res.status(401).json({ message: "Your session has expired. Please sign in again and verify your email." });
+    }
     const activeRole = decoded.role || user.role;
     if (!availableRoles(user).includes(activeRole) || (activeRole === "organizer" && user.role === "student" && (decoded.organizerVersion || 0) !== (user.organizerAccessVersion || 0))) {
       return res.status(401).json({ message: "Your account access has changed. Please sign in again." });

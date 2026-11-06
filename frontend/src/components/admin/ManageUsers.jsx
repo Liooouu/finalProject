@@ -153,6 +153,7 @@ const ManageUsers = () => {
   const [appealsLoading, setAppealsLoading] = useState(false);
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewNote, setReviewNote] = useState("");
+  const [reviewIdentityChecked, setReviewIdentityChecked] = useState(false);
   const [reviewingAppeal, setReviewingAppeal] = useState(false);
   const [unlockTarget, setUnlockTarget] = useState(null);
 
@@ -234,11 +235,13 @@ const ManageUsers = () => {
 
   const handleReview = async (appeal, action) => {
     if (reviewingAppeal) return;
+    if (appeal.replacement && action === "approved" && !reviewIdentityChecked) return;
     setReviewingAppeal(true);
     try {
       const res = await api.post(`/admin/security/face-appeals/${appeal._id}/review`, {
         action,
         note: action === "rejected" ? reviewNote : "",
+        identityChecked: reviewIdentityChecked,
       });
       setAppeals((prev) => prev.map((a) => (a._id === appeal._id ? res.data.appeal : a)));
       setReviewTarget(null);
@@ -712,6 +715,7 @@ const ManageUsers = () => {
                         {appeal.student?.name || "Unknown student"}
                       </p>
                       <p className="truncate text-sm text-on-dim">{appeal.student?.email}</p>
+                      {appeal.replacement && <p className="mt-1 text-xs text-brand">Face replacement · school ID check required</p>}
                     </div>
                     <div className="flex items-center gap-2">
                       {isFaceLocked(appeal.student) && (
@@ -769,6 +773,7 @@ const ManageUsers = () => {
                         size="sm"
                         onClick={() => {
                           setReviewNote("");
+                          setReviewIdentityChecked(false);
                           setReviewTarget({ appeal, action: "approved" });
                         }}
                       >
@@ -1008,13 +1013,14 @@ const ManageUsers = () => {
         }
         message={
           reviewTarget?.action === "approved"
-            ? "Approving unlocks the student's face verification so they can retry immediately."
+            ? reviewTarget?.appeal.replacement ? "Check the student's school ID and proof photo. Approval permits replacing the enrolled face with this same verified identity within seven days." : "Approving unlocks the student's face verification so they can retry immediately."
             : "Rejecting notifies the student that their appeal was declined. Add a reason below."
         }
         confirmLabel={reviewTarget?.action === "approved" ? "Approve" : "Reject"}
         cancelLabel="Cancel"
         variant={reviewTarget?.action === "approved" ? "default" : "danger"}
         busy={reviewingAppeal}
+        confirmDisabled={reviewTarget?.action === "approved" && reviewTarget?.appeal.replacement && !reviewIdentityChecked}
         onConfirm={() =>
           reviewTarget && handleReview(reviewTarget.appeal, reviewTarget.action)
         }
@@ -1023,6 +1029,7 @@ const ManageUsers = () => {
           setReviewNote("");
         }}
       >
+        {reviewTarget?.action === "approved" && reviewTarget?.appeal.replacement && <label className="mt-3 flex items-start gap-2 text-sm text-on-dim"><input type="checkbox" checked={reviewIdentityChecked} onChange={e=>setReviewIdentityChecked(e.target.checked)} /><span>I checked the school ID and confirmed that the proof photo belongs to this student.</span></label>}
         {reviewTarget?.action === "rejected" && (
           <textarea
             value={reviewNote}

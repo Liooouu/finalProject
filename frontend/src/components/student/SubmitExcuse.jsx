@@ -11,6 +11,7 @@ import {
 } from "react-icons/fa";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import Loading from "../shared/Loading";
+import PrivateAttachment from "../shared/PrivateAttachment";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { formatDate, formatDateTime } from "../../utils/helpers";
 import { BaseCard, Button, FlightPanel, PageHeader, SegmentedControl, StatusChip } from "../ui";
@@ -208,7 +209,7 @@ const SubmitExcuse = () => {
               <div className="space-y-1 text-xs text-on-muted"><p>First submitted:<br /><span className="text-on-dim">{formatSubmissionTime(letter.createdAt)}</span></p>{(letter.submissionVersion || 1) > 1 && <p>Last resubmitted:<br /><span className="text-on-dim">{formatSubmissionTime(letter.lastSubmittedAt || letter.updatedAt)} · Version {letter.submissionVersion}</span></p>}</div>
               <p className="mt-3 line-clamp-3 break-words text-sm leading-relaxed text-on-dim">{letter.excuseText}</p>
               {letter.responseNote && <p className="mt-2 line-clamp-2 text-xs text-on-dim">Reviewer note: {letter.responseNote}</p>}
-              <details className="mt-3 text-xs text-on-muted"><summary className="cursor-pointer font-medium text-brand">Read full letter</summary><p className="mt-2 whitespace-pre-wrap break-words text-sm text-on-dim">{letter.excuseText}</p>{letter.responseNote && <p className="mt-2 whitespace-pre-wrap break-words text-sm text-on-dim">Reviewer note: {letter.responseNote}</p>}</details>
+              <details className="mt-3 text-xs text-on-muted"><summary className="cursor-pointer font-medium text-brand">Read full letter</summary><p className="mt-2 whitespace-pre-wrap break-words text-sm text-on-dim">{letter.excuseText}</p>{letter.responseNote && <p className="mt-2 whitespace-pre-wrap break-words text-sm text-on-dim">Reviewer note: {letter.responseNote}</p>}<div className="mt-2 flex flex-wrap gap-2">{(letter.attachments?.length ? letter.attachments : letter.attachmentUrl ? [letter.attachmentUrl] : []).map((url,index)=><PrivateAttachment key={url} src={url}>Attachment {index+1}</PrivateAttachment>)}</div></details>
               <div className="mt-auto border-t border-line pt-3">
                 {letter.canResubmit && letter.status !== "approved" ? <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => editLetter(letter)}>Edit and resubmit</Button> : <p className="text-xs text-on-muted">{letter.status === "approved" ? "Approved letters are final." : letter.resubmissionIssue || "This letter cannot be resubmitted."}</p>}
               </div>

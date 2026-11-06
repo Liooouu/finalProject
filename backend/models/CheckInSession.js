@@ -24,6 +24,8 @@ const checkInSessionSchema = new mongoose.Schema(
       index: true,
     },
     organizerAccessVersion: { type: Number, default: 0 },
+    authSessionVersion: { type: Number, default: 0 },
+    browserSecretHash: { type: String },
     stationLabel: { type: String, default: "", trim: true },
     expiresAt: { type: Date, required: true },
     closedAt: { type: Date, default: null },

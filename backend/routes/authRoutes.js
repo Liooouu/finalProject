@@ -9,6 +9,8 @@ const { availableRoles } = require("../services/accountRoles");
 const { sendMail, isMailEnabled } = require("../services/mailer");
 const { renderVerificationEmail, renderPasswordResetEmail } = require("../services/emailTemplate");
 const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
+const { loginThrottle } = require("../middleware/loginThrottle");
+const { isActiveStudent } = require("../services/studentEligibility");
 
 // Email-verification policy.
 const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
@@ -77,12 +79,13 @@ async function issuePasswordResetCode(user) {
 }
 
 const signToken = (user, role = user.role) =>
-  jwt.sign({ id: user._id, role, ...(role === "organizer" && user.role === "student" ? { organizerVersion: user.organizerAccessVersion || 0 } : {}) }, process.env.JWT_SECRET, {
+  jwt.sign({ id: user._id, role, sessionVersion: user.sessionVersion || 0, ...(role === "organizer" && user.role === "student" ? { organizerVersion: user.organizerAccessVersion || 0 } : {}) }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "1d",
   });
 
 // -------------------- REGISTER (STUDENT ONLY) --------------------
-// Registration requires email verification when email delivery is enabled.
+// Production requires working
+// email verification; mail-off instant signup is for local development only.
 router.post("/register", async (req, res) => {
   const { email, password } = req.body;
   const parts = ["firstName", "middleName", "lastName"];
@@ -124,6 +127,7 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ message: "Email already exists" });
     }
 
+    if (!mailEnabled && process.env.NODE_ENV === "production") return res.status(503).json({ message: "Email verification is temporarily unavailable. Please try signing up later." });
     let program = req.body.program;
     let yearLevel = req.body.yearLevel;
     let section = req.body.section;
@@ -142,7 +146,7 @@ router.post("/register", async (req, res) => {
     if (!allowedPrograms.includes(program)) {
       return res.status(400).json({ message: "Invalid program" });
     }
-    if (!Number.isFinite(yearLevel) || yearLevel < 1 || yearLevel > 4) {
+    if (!Number.isInteger(yearLevel) || yearLevel < 1 || yearLevel > 4) {
       return res.status(400).json({ message: "Year level must be between 1 and 4" });
     }
     if (!/^[ABC]$/.test(section)) {
@@ -162,7 +166,7 @@ router.post("/register", async (req, res) => {
     });
     await user.save();
 
-    // No mail configured → keep the original instant-signup behaviour.
+    // Local development only; production was refused above when mail is off.
     if (!mailEnabled) {
       console.log("Registered student:", email, "| email verification off");
       return res.status(201).json({
@@ -253,7 +257,7 @@ router.post("/verify-email", async (req, res) => {
       message: "Email verified successfully",
       token: signToken(user),
       role: user.role,
-      requiresFaceEnrollment: !user.faceEnrolledAt || !user.faceConsentAt,
+      requiresFaceEnrollment: isActiveStudent(user) && (!user.faceEnrolledAt || !user.faceConsentAt),
     });
   } catch (err) {
     console.error("VERIFY EMAIL ERROR:", err);
@@ -404,6 +408,7 @@ router.post("/forgot-password/verify", async (req, res) => {
     // Success — assigning the plain password marks it modified, so the pre-save
     // hook hashes it exactly like registration does.
     user.password = String(password);
+    user.sessionVersion = (user.sessionVersion || 0) + 1;
     user.passwordResetCodeHash = "";
     user.passwordResetExpires = null;
     user.passwordResetAttempts = 0;
@@ -419,7 +424,7 @@ router.post("/forgot-password/verify", async (req, res) => {
 });
 
 // -------------------- LOGIN (ALL ROLES) --------------------
-router.post("/login", async (req, res) => {
+router.post("/login", loginThrottle, async (req, res) => {
   const { email, password } = req.body;
 
   try {
@@ -439,19 +444,16 @@ router.post("/login", async (req, res) => {
     // frontend route to the code screen; if mail is off, auto-verify so nobody
     // gets stranded (this only happens when SMTP was disabled after signup).
     if (user.emailVerified === false) {
-      if (await isMailEnabled()) {
-        return res.status(403).json({
+      return res.status(403).json({
           message: "Please verify your email to continue. We can send you a new code.",
           requiresEmailVerification: true,
           email: user.email,
-        });
-      }
-      user.emailVerified = true;
-      await user.save();
+      });
     }
 
+    req.clearLoginAttempts?.();
     return res.json({ token: signToken(user), role: user.role, availableRoles: availableRoles(user),
-      requiresFaceEnrollment: user.role === "student" && (!user.faceEnrolledAt || !user.faceConsentAt || user.faceDescriptor?.length !== 128),
+      requiresFaceEnrollment: isActiveStudent(user) && (!user.faceEnrolledAt || !user.faceConsentAt || user.faceDescriptor?.length !== 128),
     });
   } catch (err) {
     console.error("LOGIN ERROR:", err);
@@ -468,7 +470,7 @@ router.post("/switch-role", protect, async (req, res) => {
     if (!user) return res.status(401).json({ message: "Account not found" });
     const role = req.body?.role;
     if (!availableRoles(user).includes(role)) return res.status(403).json({ message: "This account does not have access to that portal" });
-    res.json({ token: signToken(user, role), role, availableRoles: availableRoles(user), requiresFaceEnrollment: role === "student" && (!user.faceEnrolledAt || !user.faceConsentAt || user.faceDescriptor?.length !== 128) });
+    res.json({ token: signToken(user, role), role, availableRoles: availableRoles(user), requiresFaceEnrollment: role === "student" && isActiveStudent(user) && (!user.faceEnrolledAt || !user.faceConsentAt || user.faceDescriptor?.length !== 128) });
   } catch { res.status(500).json({ message: "Could not switch portals" }); }
 });
 module.exports = router;

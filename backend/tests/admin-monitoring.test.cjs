@@ -35,7 +35,7 @@ Module._load = originalLoad;
 beforeEach(() => { attendanceWrites = 0; eventWrites = 0; stationWrites = 0; stationData=null;sharedEvents=[];stored = null; notificationOptions=null;failEventNotification=false;pendingManual=false; creatorRole = 'admin'; event = { _id: eventId, organizer: owner, title: 'Original title', date: '2027-01-01', time: '09:00', endDate: '2027-01-01', endTime: '12:00', attendanceStartTime:'08:00', attendanceEndTime:'09:30', status:'upcoming' };Object.defineProperty(event,'toObject',{value(){return {...this}}}); });
 async function call(router, path, method, role, body = {}, id = owner) {
  const handler = router.stack.find(layer => layer.route?.path === path && layer.route.methods[method]).route.stack.at(-1).handle;
- const result = { status: 200 }; const res = { status(code) { result.status = code; return this; }, json(data) { result.body = data; return this; } };
+ const result = { status: 200 }; const res = { cookie(){return this;},status(code) { result.status = code; return this; }, json(data) { result.body = data; return this; } };
  await handler({ user: { _id: id, role, name: role === "admin" ? "Review Admin" : "Review Organizer" }, params: { id: eventId, studentId }, body, query: {} }, res); return result;
 }
 for (const [path,method] of [['/:id/attendees/manual','post'],['/:id/attendees/:studentId','patch'],['/:id/attendees/:studentId/community-service','patch'],['/:id/attendees/:studentId/community-service/remove','patch']]) test(`admin cannot write attendance through ${method} ${path}`, async () => { const result = await call(events,path,method,'admin',{studentId,status:'present',hours:0});assert.equal(result.status,403);assert.equal(attendanceWrites,0); });

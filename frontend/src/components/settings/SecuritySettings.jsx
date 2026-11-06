@@ -25,6 +25,7 @@ const SecuritySettings = ({ embedded = false }) => {
   const [showAppealForm, setShowAppealForm] = useState(false);
   const [appealNote, setAppealNote] = useState("");
   const [appealSubmitting, setAppealSubmitting] = useState(false);
+  const [replacementReview, setReplacementReview] = useState(false);
 
   usePageMeta("Security", "Manage your attendance face enrollment.");
 
@@ -61,6 +62,7 @@ const SecuritySettings = ({ embedded = false }) => {
       const fd = new FormData();
       fd.append("photo", blob, "proof.jpg");
       fd.append("note", appealNote.trim());
+      if (replacementReview) { fd.append("replacement", "true"); fd.append("consent", "true"); }
       const res = await api.post("/student/security/face-appeals", fd);
       setAppeals([res.data, ...appeals]);
       setShowAppealForm(false);
@@ -96,6 +98,7 @@ const SecuritySettings = ({ embedded = false }) => {
       setEnrollingFace(false);
       showMessage(facePhoto ? "Enrolled face updated. Your next check-in will use the new face photo." : "Face enrolled. You can now check in at an organizer-operated attendance station.");
     } catch (err) {
+      if (err.response?.data?.code === "FACE_IDENTITY_REVIEW_REQUIRED") { setReplacementReview(true); setShowAppealForm(true); setEnrollingFace(false); }
       console.error(err);
       showMessage(
         err.response?.data?.error || err.response?.data?.message || "Failed to save face photo",
@@ -132,7 +135,7 @@ const SecuritySettings = ({ embedded = false }) => {
         title="Face verification"
         subtitle={
           faceEnrolledAt
-            ? "Your face is enrolled for event attendance. You can replace it with a new camera capture."
+            ? "Update your own face with a new capture. A different identity needs an admin review."
             : facePhoto
               ? "Update your face photo to enable it for event attendance."
               : "Enroll your face to check in at event stations."
@@ -217,6 +220,8 @@ const SecuritySettings = ({ embedded = false }) => {
 
         {showAppealForm ? (
           <div className="student-card mt-4 rounded-xl border border-line bg-card-alt/40 p-4">
+            <label className="mb-3 flex items-start gap-2 text-sm text-on-dim"><input type="checkbox" checked={replacementReview} onChange={e=>setReplacementReview(e.target.checked)} disabled={appealSubmitting} /><span>I request a face replacement and consent to this proof photo being used for identity review. The admin will check my school ID first.</span></label>
+            {replacementReview && <p className="mb-3 text-xs text-on-muted">After approval, retake the approved face within seven days. Your current enrollment stays active until then.</p>}
             <FaceCapture
               title="Take proof photo"
               onCapture={submitAppeal}

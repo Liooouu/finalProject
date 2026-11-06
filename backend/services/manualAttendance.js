@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const { isValidObjectId } = require("mongoose");
 const { eventWindow, eventLastCheckInAt, isTerminal } = require("./eventLifecycle");
+const { isActiveStudent } = require("./studentEligibility");
 
 const idOf = value => String(value?._id || value || "");
 const plain = value => value?.toObject ? value.toObject() : value;
@@ -67,11 +68,12 @@ function createService(deps) {
     if (!isValidObjectId(payload.eventId) || !isValidObjectId(payload.studentId)) fail(400, "A valid event and student are required");
     if (idOf(user) === idOf(payload.studentId)) fail(403, "Another organizer must handle your own attendance");
     const [event, student, previous] = await Promise.all([
-      Event.findById(payload.eventId), User.findById(payload.studentId).select("role"),
+      Event.findById(payload.eventId), User.findById(payload.studentId).select("role enrollmentStatus emailVerified"),
       Attendance.findOne({ event: payload.eventId, student: payload.studentId }).lean(),
     ]);
     if (!event) fail(404, "Event not found");
     if (!student || student.role !== "student") fail(400, "Choose a student account");
+    if ((payload.mode || "checkin") === "checkin" && !isActiveStudent(student)) fail(400, "Only active, verified students may check in. Historical corrections remain available for existing records.");
     if (previous?.status === "excused" || previous?.method === "face") fail(409, "This student already has face-verified attendance or an approved excuse. Review that record separately.");
     const proposal = buildProposal(event, payload, now);
     if (proposal.mode === "checkin" && previous && previous.status !== "absent" && previous.status !== "pending") fail(409, "Attendance is already recorded. Use a documented correction if needed.");

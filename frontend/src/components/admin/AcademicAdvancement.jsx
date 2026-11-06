@@ -1,19 +1,30 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import { Button, Card } from "../ui";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Pagination from "../ui/Pagination";
 import PaginatedList from "../ui/PaginatedList";
-import { FaArrowRight, FaSearch, FaSyncAlt, FaCheckCircle, FaUndo } from "react-icons/fa";
+import { FaArrowRight, FaSearch, FaSyncAlt, FaUndo } from "react-icons/fa";
+import AcademicUpdateResults from "./AcademicUpdateResults";
 import { formatDateTime } from "../../utils/helpers";
 import "../../styles/academic-advancement.css";
 
 const yearLabel = year => `S.Y. ${year}–${year + 1}`;
+const classLabel = scope => scope ? `${scope.program} · Year ${scope.yearLevel} · Section ${scope.section}` : "All classes (earlier update)";
+const scopeFromKey = key => { const [program, yearLevel, section] = key.split(":"); return { program, yearLevel: Number(yearLevel), section }; };
 const PAGE_SIZE = 5;
 
 export default function AcademicAdvancement({ onApplied }) {
+  const [searchParams,setSearchParams]=useSearchParams();
+  const [defaultResultId,setDefaultResultId]=useState("");
+  const [resultsRevision,setResultsRevision]=useState(0);
+  const [resultsFocus,setResultsFocus]=useState(0);
+  const savedResultsRef=useRef(null);
   const [options, setOptions] = useState([]);
   const [sourceYear, setSourceYear] = useState(2026);
+  const [classes, setClasses] = useState([]);
+  const [classKey, setClassKey] = useState("");
   const [batch, setBatch] = useState(null);
   const [retained, setRetained] = useState([]);
   const [graduates, setGraduates] = useState([]);
@@ -44,12 +55,25 @@ export default function AcademicAdvancement({ onApplied }) {
       const { data } = await api.get("/admin/academic-advancement/history", { params: { page: historyPage } });
       if (sequence !== historySequence.current) return;
       setHistory(Array.isArray(data.batches) ? data.batches : []);
+      if(data.batches?.[0]?.batchId)setDefaultResultId(previous=>previous||data.batches[0].batchId);
       setHistoryTotal(data.total || 0); setHistoryError("");
       if (data.page && data.page !== historyPage) setHistoryPage(data.page);
     } catch (err) {
       if (sequence === historySequence.current) setHistoryError(err.response?.data?.message || "Could not load recent updates. Try again.");
     } finally { if (sequence === historySequence.current) setHistoryLoading(false); }
   }, [historyPage]);
+  const requestedResult=searchParams.get("result")||"";
+  const resultsId=/^[a-f0-9]{24}$/i.test(requestedResult)?requestedResult:defaultResultId;
+  const openResults=id=>{
+    setSearchParams(previous=>{const next=new URLSearchParams(previous);next.set("result",id);return next;},{replace:true});
+    setResultsRevision(value=>value+1);
+    setResultsFocus(value=>value+1);
+  };
+  useEffect(()=>{
+    if(!resultsFocus)return;
+    savedResultsRef.current?.focus({preventScroll:true});
+    savedResultsRef.current?.scrollIntoView({block:"start",behavior:"instant"});
+  },[resultsFocus]);
   useEffect(() => { loadHistory(); return () => { historySequence.current += 1; }; }, [loadHistory]);
   useEffect(() => {
     if (busy) return;
@@ -58,43 +82,53 @@ export default function AcademicAdvancement({ onApplied }) {
     target?.scrollIntoView({ block: "nearest", behavior: "instant" });
   }, [busy, error, undoResult]);
 
-  const prepare = useCallback(async (year, signal) => {
+  const prepare = useCallback(async (year, key, signal) => {
     const request = ++requestSequence.current;
+    if (!key) { setBatch(null); setBusy(false); return; }
     setBusy(true); setError("");
     try {
-      const { data } = await api.post("/admin/academic-advancement/preview", { sourceYear: year }, { signal });
+      const { data } = await api.post("/admin/academic-advancement/preview", { sourceYear: year, classScope: scopeFromKey(key) }, { signal });
       if (request !== requestSequence.current || signal?.aborted) return;
       setBatch(data);
       const included = new Set(data.students.map(student => student._id));
       setRetained(previous => previous.filter(id => included.has(id)));
       setGraduates(previous => previous.filter(id => included.has(id)));
-      setResult(null); setStarted(false); setPage(1); setSearch("");
+      setResult(null); setStarted(false);
     } catch (err) {
-      if (request === requestSequence.current && !signal?.aborted) setError(err.response?.data?.message || "Could not load the masterlist. Please try again.");
+      if (request === requestSequence.current && !signal?.aborted) setError(err.response?.data?.message || "Could not load this class. Please try again.");
     } finally { if (request === requestSequence.current && !signal?.aborted) setBusy(false); }
   }, []);
 
+  const loadOptions = useCallback(async (year, signal, preferredKey = "") => {
+    const request = ++requestSequence.current;
+    setBusy(true); setError("");
+    try {
+      const { data } = await api.get("/admin/academic-advancement", { params: year ? { sourceYear: year } : {}, signal });
+      if (signal?.aborted || request !== requestSequence.current) return;
+      setOptions(data.sourceYears);
+      const selectedYear = data.selectedSourceYear ?? data.currentSchoolYear;
+      const available = data.classes || [];
+      const selectedKey = available.some(item => item.key === preferredKey) ? preferredKey : available.length === 1 ? available[0].key : "";
+      setSourceYear(selectedYear); setClasses(available); setClassKey(selectedKey); setBatch(null); setPage(1); setSearch("");
+      await prepare(selectedYear, selectedKey, signal);
+    } catch (err) {
+      if (!signal?.aborted && request === requestSequence.current) { setError(err.response?.data?.message || "Could not load classes. Please try again."); setBusy(false); }
+    }
+  }, [prepare]);
   useEffect(() => {
     const controller = new AbortController();
-    setBusy(true);
-    api.get("/admin/academic-advancement", { signal: controller.signal }).then(async ({ data }) => {
-      if (controller.signal.aborted) return;
-      setOptions(data.sourceYears);
-      setSourceYear(data.currentSchoolYear);
-      await prepare(data.currentSchoolYear, controller.signal);
-    }).catch(() => {
-      if (!controller.signal.aborted) { setError("Could not load school years. Reopen this tab to try again."); setBusy(false); }
-    });
+    loadOptions(undefined, controller.signal);
     return () => { controller.abort(); requestSequence.current += 1; };
-  }, [prepare]);
+  }, [loadOptions]);
   const apply = async () => {
-    if (busy) return;
-    setBusy(true); setStarted(true); setError("");
+    if (busy || !batch?.batchId || !classKey) return;
+    setBusy(true); setStarted(true); setError(""); setUndoResult(null);
     try {
       const { data } = await api.post(`/admin/academic-advancement/${batch.batchId}/confirm`, {
         confirmed: true, retainedIds: retained, graduateIds: graduates,
       }, { timeout: 120000 });
       setResult(data);
+      openResults(data.batchId);
       onApplied?.();
       await loadHistory();
     } catch (err) { setError(err.response?.data?.message || "The result could not be confirmed. Retry this same batch; saved students will not advance twice."); }
@@ -106,12 +140,13 @@ export default function AcademicAdvancement({ onApplied }) {
     try {
       const { data } = await api.post(`/admin/academic-advancement/${undoBatch.batchId}/undo`, { confirmed: true }, { timeout: 120000 });
       setUndoResult(data);
+      setResultsRevision(value=>value+1);
       onApplied?.();
       await loadHistory();
       // Undo restores eligibility. Reload a fresh preview; never reuse the old
       // confirmed roster or automatically advance the restored students again.
       setRetained([]); setGraduates([]);
-      await prepare(sourceYear);
+      await loadOptions(sourceYear, undefined, classKey);
     } catch (err) {
       setError(err.response?.data?.message || "Undo could not be confirmed. Retry undo from recent updates; restored students will not change again.");
       await loadHistory();
@@ -126,17 +161,26 @@ export default function AcademicAdvancement({ onApplied }) {
   const counts = students.reduce((summary, student) => ({ ...summary, [action(student)]: summary[action(student)] + 1 }), { Advance: 0, Retain: 0, Graduate: 0 });
   const locked = busy || started;
   const done = result?.status === "completed";
+  const currentScope = classKey ? scopeFromKey(classKey) : null;
 
   return <div className="academic-update space-y-4">
     <Card className="academic-year-panel">
       <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold text-on">Move students to the next school year</h2>
-        {options.length > 1 && <Button size="sm" variant="ghost" disabled={busy || started} onClick={() => setShowYearPicker(value => !value)}>{showYearPicker ? "Done" : "Change school year"}</Button>}
+        {options.length > 1 && <Button size="sm" variant="ghost" disabled={busy || (started && !done)} onClick={() => setShowYearPicker(value => !value)}>{showYearPicker ? "Done" : "Change school year"}</Button>}
       </div>
-      <p className="mt-1 text-sm text-on-dim">Review the masterlist, choose who stays in their year level, then confirm.</p>
+      <p className="mt-1 text-sm text-on-dim">Choose one class. Students load automatically; check only those who should keep their year.</p>
+      <div className="academic-class-field"><label htmlFor="academic-class">Class to update</label>
+        <select id="academic-class" className="field-select" value={classKey} disabled={busy || (started && !done)} onChange={event => {
+          const key = event.target.value; setClassKey(key); setBatch(null); setRetained([]); setGraduates([]); setResult(null); setUndoResult(null); setStarted(false); setReview(false); setPage(1); setSearch(""); prepare(sourceYear, key);
+        }}>
+          <option value="">{classes.length ? "Choose program, year and section" : "No eligible classes in this school year"}</option>
+          {classes.map(item => <option key={item.key} value={item.key}>{classLabel(item)}</option>)}
+        </select>
+      </div>
       <div className="academic-year-controls">
         <div className="academic-year-field"><span>From school year</span>
           {showYearPicker ? <select aria-label="From school year" className="field-select" value={sourceYear} disabled={busy || (started && !done) || !options.length} onChange={event => {
-            const year = Number(event.target.value); setSourceYear(year); setBatch(null); setRetained([]); setGraduates([]); setResult(null); setStarted(false); prepare(year);
+            const year = Number(event.target.value); setClassKey(""); setBatch(null); setRetained([]); setGraduates([]); setResult(null); setUndoResult(null); setStarted(false); setReview(false); loadOptions(year);
           }}>
             {options.map(year => <option key={year} value={year}>{year}–{year + 1}</option>)}
           </select> : <p className="academic-year-destination academic-year-source">{sourceYear}–{sourceYear + 1}</p>}
@@ -144,30 +188,25 @@ export default function AcademicAdvancement({ onApplied }) {
         <FaArrowRight className="academic-year-arrow" aria-hidden="true" />
         <div className="academic-year-field"><span>To school year</span><p className="academic-year-destination">{sourceYear + 1}–{sourceYear + 2}</p></div>
       </div>
-      <p className="academic-year-note">Nothing changes until you confirm. Program, section, and past records stay the same.</p>
+      <p className="academic-year-note">{currentScope ? `${classLabel(currentScope)} → ${currentScope.yearLevel === 4 ? "Year 4, unless graduation is selected" : `Year ${currentScope.yearLevel + 1}`}. ` : "Choose a class to see its students. "}Nothing changes until you confirm. Program, section, and past records stay the same.</p>
     </Card>
 
-    {error && <div ref={errorFeedback} tabIndex={-1} className="alert alert-danger" role="alert">{error}{!busy && !started && options.length > 0 && <Button className="ml-3" size="sm" variant="secondary" onClick={() => prepare(sourceYear)}>Retry</Button>}</div>}
-    {busy && !batch && <p className="px-1 text-sm text-on-muted" role="status">Loading student masterlist...</p>}
+    {error && <div ref={errorFeedback} tabIndex={-1} className="alert alert-danger" role="alert">{error}{!busy && !started && <Button className="ml-3" size="sm" variant="secondary" onClick={() => loadOptions(sourceYear, undefined, classKey)}>Retry</Button>}</div>}
+    {busy && !batch && <p className="px-1 text-sm text-on-muted" role="status">Loading classes and students...</p>}
     {undoResult && <Card ref={undoFeedback} tabIndex={-1} role="status" className="space-y-2">
       <h3 className="font-semibold text-on">{undoResult.status === "undone" ? "Academic update undone" : "Undo needs attention"}</h3>
       <p className="text-sm text-on-dim">{undoResult.undo.counts.restored} students restored to their previous academic standing.{undoResult.undo.counts.skipped > 0 && ` ${undoResult.undo.counts.skipped} changed records were left untouched.`}{undoResult.undo.counts.failed > 0 && ` ${undoResult.undo.counts.failed} could not be restored; retry undo.`}</p>
       <PaginatedList key={undoResult.batchId} items={undoResult.undo.issues} label="Undo issue pages" className="space-y-2 text-sm text-on-dim" renderItem={issue => <li key={issue.studentId}><strong>{issue.name}:</strong> {issue.message}</li>} />
     </Card>}
-    {result && <Card>
-      <h3 className="flex items-center gap-2 font-semibold text-on" role="status">{done && <FaCheckCircle className="text-ok" aria-hidden="true" />}{done ? "Academic update completed" : "Some records need another attempt"}</h3>
-      <p className="mt-2 text-sm text-on-dim">{result.counts.advanced} advanced · {result.counts.retained} kept their year · {result.counts.graduated} graduated{result.counts.skipped > 0 && ` · ${result.counts.skipped} skipped`}{result.counts.failed > 0 && ` · ${result.counts.failed} failed`}</p>
-      {["completed", "partial"].includes(result.status) && <Button className="mt-3" size="sm" variant="secondary" disabled={busy} onClick={() => setUndoBatch(result)}><FaUndo aria-hidden="true" />Undo this update</Button>}
-      {!!result.issues.length && <PaginatedList key={result.batchId} items={result.issues} label="Academic update issue pages" className="mt-3 space-y-2 text-sm text-on-dim" renderItem={issue => <li key={issue.studentId}><strong>{issue.name}:</strong> {issue.message}</li>} />}
-    </Card>}
+    {resultsId&&<AcademicUpdateResults key={resultsId} batchId={resultsId} revision={resultsRevision} fallback={result} disabled={busy} onUndo={setUndoBatch} containerRef={savedResultsRef} />}
 
-    {batch && !done && !students.length && <Card><h3 className="font-semibold text-on">No students need updating</h3><p className="mt-1 text-sm text-on-dim">Students already processed, graduated, incomplete, or assigned to another school year are excluded.</p><Button className="mt-3" size="sm" variant="secondary" disabled={busy} onClick={() => prepare(sourceYear)}><FaSyncAlt aria-hidden="true" />Refresh</Button></Card>}
+    {batch && !done && !students.length && <Card><h3 className="font-semibold text-on">No students need updating in this class</h3><p className="mt-1 text-sm text-on-dim">Already processed, graduated, incomplete, or other-school-year records are excluded. Choose another class or refresh the available list.</p><Button className="mt-3" size="sm" variant="secondary" disabled={busy} onClick={() => loadOptions(sourceYear, undefined, classKey)}><FaSyncAlt aria-hidden="true" />Refresh classes</Button></Card>}
     {batch && !done && students.length > 0 && <Card padding="none" className="academic-masterlist">
       <div className="academic-list-heading">
-        <div><h3 className="font-semibold text-on">Student masterlist <span className="academic-list-count">{students.length}</span></h3>
-          <p className="mt-1 text-xs text-on-dim">Years 1–3 advance by default. Check <strong>Keep year</strong> for exceptions.</p>
+        <div><h3 className="font-semibold text-on">{classLabel(currentScope)} <span className="academic-list-count">{students.length}</span></h3>
+          <p className="mt-1 text-xs text-on-dim">{currentScope?.yearLevel === 4 ? "Check Mark graduated only for confirmed graduates. Unchecked students stay in Year 4." : <>Students advance by default. Check <strong>Keep year</strong> only for exceptions.</>}</p>
         </div>
-        <Button size="sm" variant="ghost" disabled={busy || started} onClick={() => prepare(sourceYear)}><FaSyncAlt aria-hidden="true" />Refresh</Button>
+        <Button size="sm" variant="ghost" disabled={busy || started} onClick={() => prepare(sourceYear, classKey)}><FaSyncAlt aria-hidden="true" />Refresh</Button>
         <label className="academic-search"><span className="sr-only">Search student</span><FaSearch aria-hidden="true" />
           <input type="search" className="field" placeholder="Search name or email" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} />
         </label>
@@ -190,12 +229,12 @@ export default function AcademicAdvancement({ onApplied }) {
       </ul>
       {!matching.length && <p className="py-8 text-center text-sm text-on-muted">No students match your search.</p>}
       <div className="academic-list-bottom">
-        <p className="text-xs text-on-muted">Fourth-year students stay in Year 4 unless marked graduated.{batch.excludedCount > 0 && ` ${batch.excludedCount} ineligible records are excluded.`}</p>
+        <p className="text-xs text-on-muted">Only this class is included.{batch.excludedCount > 0 && ` ${batch.excludedCount} ineligible records are excluded.`}</p>
         <Pagination page={currentPage} pageSize={PAGE_SIZE} total={matching.length} onChange={setPage} label="Academic masterlist pages" />
       </div>
       <div className="academic-review-bar">
         <div><p className="academic-summary" aria-live="polite"><span><strong>{counts.Advance}</strong> advance</span><span><strong>{counts.Retain}</strong> keep year</span><span><strong>{counts.Graduate}</strong> graduate</span></p>
-          <p className="mt-1 text-xs text-on-muted">Applies to all {students.length} students, across every page.</p>
+          <p className="mt-1 text-xs text-on-muted">Applies to all {students.length} students in {currentScope?.program}-{currentScope?.yearLevel}{currentScope?.section}, across every page.</p>
         </div>
         <Button disabled={busy} loading={busy} onClick={() => started ? apply() : setReview(true)}>{busy ? "Saving batch..." : started ? "Retry same batch" : "Review changes"}{!busy && !started && <FaArrowRight aria-hidden="true" />}</Button>
       </div>
@@ -208,17 +247,18 @@ export default function AcademicAdvancement({ onApplied }) {
         const canUndo = ["completed", "partial", "reverting", "undo_partial"].includes(item.status);
         const statusLabel = { completed: "Completed", partial: "Partly completed", running: "Update in progress", reverting: "Undo interrupted · retry available", undo_partial: "Undo needs attention", undone: "Undone" }[item.status] || item.status;
         return <li key={item.batchId} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl bg-card-alt/40 p-3">
-          <div className="min-w-0 flex-1"><p className="text-sm font-medium text-on">{yearLabel(item.sourceYear)} → {yearLabel(item.targetYear)}</p><p className="mt-1 text-xs text-on-dim">{statusLabel} · {item.createdAt ? formatDateTime(item.createdAt) : "Saved update"}</p><p className="mt-1 text-xs text-on-muted">{item.counts.advanced} advanced · {item.counts.retained} kept year · {item.counts.graduated} graduated{item.undoneAt && ` · ${item.undo.counts.restored} restored`}</p></div>
-          {canUndo && <Button size="sm" variant="secondary" disabled={busy || historyLoading} onClick={() => setUndoBatch(item)} aria-label={`Undo update from ${item.sourceYear} to ${item.targetYear}`}><FaUndo aria-hidden="true" />{["undo_partial", "reverting"].includes(item.status) ? "Retry undo" : "Undo update"}</Button>}
+          <div className="min-w-0 flex-1"><p className="text-sm font-medium text-on">{classLabel(item.classScope)}</p><p className="mt-1 text-xs text-on-dim">{yearLabel(item.sourceYear)} → {yearLabel(item.targetYear)}</p><p className="mt-1 text-xs text-on-dim">{statusLabel} · {item.createdAt ? formatDateTime(item.createdAt) : "Saved update"}</p><p className="mt-1 text-xs text-on-muted">{item.counts.advanced} advanced · {item.counts.retained} kept year · {item.counts.graduated} graduated{item.undoneAt && ` · ${item.undo.counts.restored} restored`}</p></div>
+          <div className="flex flex-wrap gap-2"><Button size="sm" variant="ghost" disabled={busy||historyLoading} onClick={()=>openResults(item.batchId)} aria-label={`View results for ${classLabel(item.classScope)} from ${item.sourceYear}`}>View results</Button>
+            {canUndo && <Button size="sm" variant="secondary" disabled={busy || historyLoading} onClick={() => setUndoBatch(item)} aria-label={`Undo ${classLabel(item.classScope)} update from ${item.sourceYear} to ${item.targetYear}`}><FaUndo aria-hidden="true" />{["undo_partial", "reverting"].includes(item.status) ? "Retry undo" : "Undo update"}</Button>}</div>
         </li>;
       })}</ul>}
       <Pagination page={historyPage} pageSize={PAGE_SIZE} total={historyTotal} onChange={setHistoryPage} disabled={busy || historyLoading} label="Bulk update history pages" />
     </Card>
     <ConfirmDialog open={review} title="Confirm academic advancement?" variant="primary" confirmLabel="Confirm advancement" busy={busy} onConfirm={apply} onCancel={() => setReview(false)}
-      message={`${yearLabel(batch?.sourceYear || sourceYear)} → ${yearLabel(batch?.targetYear || sourceYear + 1)}. ${counts.Advance} advance, ${counts.Retain} keep their year level, and ${counts.Graduate} are marked graduated.`}>
+      message={`${classLabel(batch?.classScope || currentScope)} only. ${yearLabel(batch?.sourceYear || sourceYear)} → ${yearLabel(batch?.targetYear || sourceYear + 1)}. ${counts.Advance} advance, ${counts.Retain} keep their year level, and ${counts.Graduate} are marked graduated.`}>
       <PaginatedList key={batch?.batchId} items={students.filter(student => action(student) !== "Advance")} label="Academic exception review pages" disabled={busy} className="space-y-2 text-sm text-on-dim" renderItem={student => <li key={student._id}>{student.name} — {action(student) === "Graduate" ? "Mark graduated" : `Keep Year ${student.yearLevel}`}</li>} />
     </ConfirmDialog>
     <ConfirmDialog open={!!undoBatch} title="Undo this academic update?" confirmLabel="Undo update" busy={busy} onConfirm={undoUpdate} onCancel={() => setUndoBatch(null)}
-      message={`Restore students from ${yearLabel(undoBatch?.targetYear || sourceYear + 1)} to their saved standing before this update. Later academic edits are skipped. Attendance, service hours, and organizer access stay unchanged.`} />
+      message={`${classLabel(undoBatch?.classScope)}. Restore students from ${yearLabel(undoBatch?.targetYear || sourceYear + 1)} to their saved standing before this update. Later academic edits are skipped. Attendance, service hours, and organizer access stay unchanged.`} />
   </div>;
 }

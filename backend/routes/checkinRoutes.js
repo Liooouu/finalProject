@@ -24,6 +24,8 @@ const {
 } = require("../services/eventLifecycle");
 const faceIdentify = require("../services/faceIdentify");
 const { recordAttendance } = require("../services/attendanceMarking");
+const { isActiveStudent } = require("../services/studentEligibility");
+const { setBrowserCookie, browserMatches } = require("../services/stationBrowser");
 
 const SESSION_MAX_MS = 12 * 60 * 60 * 1000;
 const SESSION_GRACE_MS = 15 * 60 * 1000;
@@ -80,12 +82,14 @@ function rateLimited(key) {
   return hits.length > RATE_LIMIT;
 }
 
-async function loadStation(token) {
+async function loadStation(token, req) {
   const tokenHash = sha256(token);
   const session = await CheckInSession.findOne({ tokenHash });
   if (!session) return { error: "not-found" };
-  const operator = await User.findById(session.openedBy).select("role organizerAccess organizerAccessVersion");
+  if (!browserMatches(req, session)) return { error: "browser", message: "Reopen the face station from the organizer dashboard on this browser." };
+  const operator = await User.findById(session.openedBy).select("role organizerAccess organizerAccessVersion sessionVersion");
   if (!operator || !(operator.role === "organizer" || (operator.role === "student" && operator.organizerAccess && (operator.organizerAccessVersion || 0) === (session.organizerAccessVersion || 0)))) return { error: "not-found" };
+  if ((operator.sessionVersion || 0) !== (session.authSessionVersion || 0)) return { error: "not-found", message: "Your organizer session changed. Reopen the face station from the dashboard." };
   const event = await Event.findById(session.event);
   if (!event) return { error: "not-found" };
   return { session, event, tokenHash };
@@ -124,6 +128,8 @@ router.post("/sessions", protect, async (req, res) => {
       event: event._id,
       openedBy: req.user._id,
       organizerAccessVersion: req.user.organizerAccessVersion || 0,
+      authSessionVersion: req.user.sessionVersion || 0,
+      browserSecretHash: setBrowserCookie(res, sha256(token), expiresAt),
       tokenHash: sha256(token),
       stationLabel: String(stationLabel || "").trim().slice(0, 80),
       expiresAt,
@@ -208,13 +214,13 @@ router.delete("/sessions/:id", protect, async (req, res) => {
   }
 });
 
-// ── Kiosk endpoints (public, token-gated) ─────────────────────────────────────
+// ── Kiosk endpoints (station token plus issuing-browser cookie) ──────────────
 
 // What the kiosk should show: event name, window state, live count.
 router.get("/:token", async (req, res) => {
   try {
-    const { session, event, error } = await loadStation(req.params.token);
-    if (error) return res.status(404).json({ error: "Check-in station not found" });
+    const { session, event, error, message } = await loadStation(req.params.token, req);
+    if (error) return res.status(error === "browser" ? 403 : 404).json({ error: message || "Check-in station not found" });
 
     const now = new Date();
     const [checkedIn, faceCheckedIn] = await Promise.all([
@@ -253,8 +259,8 @@ router.post("/:token", async (req, res) => {
       return res.status(429).json({ error: "Too many scans. Wait a moment and try again." });
     }
 
-    const { session, event, error, tokenHash } = await loadStation(req.params.token);
-    if (error) return res.status(404).json({ error: "Check-in station not found" });
+    const { session, event, error, tokenHash, message } = await loadStation(req.params.token, req);
+    if (error) return res.status(error === "browser" ? 403 : 404).json({ error: message || "Check-in station not found" });
 
     const now = new Date();
     const state = stationState(session, event, now);
@@ -291,9 +297,9 @@ router.post("/:token", async (req, res) => {
     }
 
     const student = await User.findById(match.student.id).select(
-      "name role program yearLevel section faceEnrolledAt faceConsentAt faceEnrollmentVersion"
+      "name role program yearLevel section enrollmentStatus emailVerified faceEnrolledAt faceConsentAt faceEnrollmentVersion"
     );
-    if (!student || student.role !== "student" || !student.faceEnrolledAt || !student.faceConsentAt ||
+    if (!isActiveStudent(student) || !student.faceEnrolledAt || !student.faceConsentAt ||
         (student.faceEnrollmentVersion || 0) !== match.student.enrollmentVersion) {
       faceIdentify.remove(match.student.id);
       await CheckInSession.updateOne(

@@ -40,7 +40,7 @@ const AcademicStanding = () => {
     </div>
     <details className="mt-5 rounded-xl border border-line px-4 py-3 text-xs text-on-dim">
       <summary className="cursor-pointer font-medium text-on">How school-year progression works</summary>
-      <p className="mt-3 leading-relaxed">An administrator reviews the masterlist before advancing year levels. Students may retain their year level in the new school year. Graduation requires explicit confirmation. Past attendance and service balances are retained.</p>
+      <p className="mt-3 leading-relaxed">An administrator reviews registered student accounts before advancing year levels. Students may retain their year level in the new school year. Graduation requires explicit confirmation. Past attendance and service balances are retained.</p>
     </details>
     {!!data.student.history?.length && <details className="mt-3 rounded-xl border border-line px-4 py-3 text-xs text-on-dim"><summary className="cursor-pointer font-medium text-on">Previous school years</summary><ul className="mt-3 space-y-2">{data.student.history.map((record, index) => <li key={record._id || index}>SY {record.schoolYearStart}–{record.schoolYearStart + 1}: {yearLabel(record.yearLevel)}, Section {record.section}</li>)}</ul></details>}
   </FlightPanel>;

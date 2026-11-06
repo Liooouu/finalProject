@@ -229,13 +229,6 @@ const AuthPage = () => {
 
         continueAuth(res.data);
       } else {
-        const normalizedProgram = String(formData.program || "")
-          .trim()
-          .toUpperCase();
-        const normalizedSection = String(formData.section || "")
-          .trim()
-          .toUpperCase();
-        const yearNum = Number(formData.yearLevel);
         // The account keeps one display name; the three inputs exist so a
         // student record isn't entered as an unsearchable blob.
         const displayName = [
@@ -272,9 +265,9 @@ const AuthPage = () => {
           email: formData.email.trim(),
           password: formData.password.trim(),
           role: "student",
-          program: normalizedProgram,
-          yearLevel: yearNum,
-          section: normalizedSection,
+          program: formData.program,
+          yearLevel: Number(formData.yearLevel),
+          section: formData.section,
         });
 
         // Email verification is enforced when the server can send mail.
@@ -1179,78 +1172,30 @@ const AuthPage = () => {
 
                   {!isLogin && (
                     <div className="auth-academic-fields">
-                      <div className="space-y-1.5">
-                        <label
-                          htmlFor="program"
-                          className="text-sm font-medium text-on"
-                        >
-                          Program
-                        </label>
-                        <select
-                          id="program"
-                          name="program"
-                          value={formData.program}
-                          onChange={handleChange}
-                          className={inputClasses}
-                          required
-                        >
-                          <option value="">Select Program</option>
-                          <option value="BSIT">BSIT</option>
-                          <option value="BSCS">BSCS</option>
-                          <option value="BSEMC">BSEMC</option>
+                      <div className="min-w-0 space-y-1.5">
+                        <label htmlFor="program" className="text-sm font-medium text-on">Program</label>
+                        <select id="program" name="program" value={formData.program} onChange={handleChange} className={inputClasses} required>
+                          <option value="" disabled>Select</option>
+                          {["BSIT", "BSCS", "BSEMC"].map(value => <option key={value}>{value}</option>)}
                         </select>
                       </div>
-
-                      <div className="space-y-1.5">
-                        <label
-                          htmlFor="yearLevel"
-                          className="text-sm font-medium text-on"
-                        >
-                          Year Level
-                        </label>
-                        <select
-                          id="yearLevel"
-                          name="yearLevel"
-                          value={formData.yearLevel}
-                          onChange={handleChange}
-                          className={inputClasses}
-                          required
-                        >
-                          <option value="">Select Year</option>
-                          <option value="1">1</option>
-                          <option value="2">2</option>
-                          <option value="3">3</option>
-                          <option value="4">4</option>
+                      <div className="min-w-0 space-y-1.5">
+                        <label htmlFor="yearLevel" className="text-sm font-medium text-on">Year</label>
+                        <select id="yearLevel" name="yearLevel" value={formData.yearLevel} onChange={handleChange} className={inputClasses} required>
+                          <option value="" disabled>Select</option>
+                          {[1, 2, 3, 4].map(value => <option key={value} value={value}>{value}</option>)}
                         </select>
                       </div>
-                      <div className="space-y-1.5">
-                        <label
-                          htmlFor="section"
-                          className="text-sm font-medium text-on"
-                        >
-                          Section
-                        </label>
-                        <input
-                          id="section"
-                          type="text"
-                          name="section"
-                          value={formData.section}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              section: e.target.value
-                                .toUpperCase()
-                                .replace(/[^ABC]/g, ""),
-                            })
-                          }
-                          placeholder="A"
-                          maxLength={1}
-                          className={inputClasses}
-                          required
-                        />
+                      <div className="min-w-0 space-y-1.5">
+                        <label htmlFor="section" className="text-sm font-medium text-on">Section</label>
+                        <select id="section" name="section" value={formData.section} onChange={handleChange} className={inputClasses} required>
+                          <option value="" disabled>Select</option>
+                          {["A", "B", "C"].map(value => <option key={value}>{value}</option>)}
+                        </select>
                       </div>
                     </div>
                   )}
+                  {!isLogin && <p className="text-xs leading-relaxed text-on-dim">Enter your current academic details and verify your email to continue.</p>}
                   {!isLogin && (
                     <p className="text-xs leading-relaxed text-on-dim">
                       Before registering, read the{" "}

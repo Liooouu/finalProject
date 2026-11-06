@@ -1,6 +1,7 @@
 const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('node:module');
+const crypto = require('node:crypto');
 const originalLoad = Module._load;
 const studentId = '111111111111111111111111';
 const eventId = '222222222222222222222222';
@@ -39,13 +40,14 @@ beforeEach(() => {
   enrolledUser = enrolled(studentId, vector());
   operator = { role: 'organizer' };
   session = { openedBy: '444444444444444444444444', _id: '333333333333333333333333', event: eventId, expiresAt: new Date(Date.now() + 3600000), closedAt: null };
+  session.tokenHash=crypto.createHash('sha256').update('station-token').digest('hex');session.browserSecretHash=crypto.createHash('sha256').update('browser-secret').digest('hex');
   const day = new Date(Date.now() + 8 * 3600000).toISOString().slice(0,10);
   event = { _id: eventId, title: 'Test event', date: day, attendanceStartTime: '00:00', attendanceEndTime: '23:59', endTime: '23:59', status: 'live', organizer: '444444444444444444444444' };
   identified = { result: 'match', distance: 0.1, student: { id: studentId, enrollmentVersion: 1 } };
 });
 async function request(path, body, method = 'POST') {
   const route = router.stack.find((layer) => layer.route?.path === (path === 'sessions' ? '/sessions' : '/:token') && layer.route.methods[method.toLowerCase()]).route;
-  const req = { body, params: { token: path }, query: {}, user: { _id: studentId, role: 'student' } };
+  const req = { body, params: { token: path }, query: {}, user: { _id: studentId, role: 'student' },headers:{cookie:`tracked_station_${session.tokenHash.slice(0,16)}=browser-secret`} };
   const result = { status: 200, body: null };
   const res = { status(code) { result.status = code; return this; }, json(value) { result.body = value; return this; } };
   await route.stack.at(-1).handle(req, res);

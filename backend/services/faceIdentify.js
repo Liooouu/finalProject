@@ -13,6 +13,7 @@
 // When the second bar fails the face is "ambiguous" and the kiosk tells the
 // student to see the organizer instead of guessing.
 const User = require("../models/User");
+const { activeStudentFilter, isActiveStudent } = require("./studentEligibility");
 
 const DESCRIPTOR_LENGTH = 128;
 const INDEX_MAX_AGE_MS = 5 * 60 * 1000;
@@ -38,7 +39,7 @@ function toEntry(user) {
 
 async function refresh() {
   const users = await User.find({
-    role: "student",
+    ...activeStudentFilter(),
     faceEnrolledAt: { $ne: null },
     faceConsentAt: { $ne: null },
     "faceDescriptor.127": { $exists: true },
@@ -73,7 +74,7 @@ async function ensureFresh() {
 
 function upsert(user) {
   if (!user || !Array.isArray(user.faceDescriptor)) return remove(user?._id);
-  if (user.role !== "student" || !user.faceEnrolledAt || !user.faceConsentAt) return remove(user._id);
+  if (!isActiveStudent(user) || !user.faceEnrolledAt || !user.faceConsentAt) return remove(user._id);
   if (user.faceDescriptor.length !== DESCRIPTOR_LENGTH) return remove(user._id);
   if (!user.faceDescriptor.every((n) => Number.isFinite(n))) return remove(user._id);
   index.set(String(user._id), toEntry(user));
