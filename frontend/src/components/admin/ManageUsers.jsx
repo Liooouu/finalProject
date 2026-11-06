@@ -1,3 +1,4 @@
+import AcademicPeriodsSettings from "./AcademicPeriodsSettings";
 import { useTransientState } from "../../utils/useTransientState";
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -138,7 +139,7 @@ const ManageUsers = () => {
   const currentAttendancePage = Math.min(attendancePage, attendancePages);
   const visibleAttendance = userAttendance.slice((currentAttendancePage - 1) * 5, currentAttendancePage * 5);
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") === "advancement" ? "advancement" : "users";
+  const activeTab = ["advancement","terms"].includes(searchParams.get("tab")) ? searchParams.get("tab") : "users";
   const setActiveTab = tab => setSearchParams(previous => {
     const next = new URLSearchParams(previous);
     if (tab !== "users") next.set("tab", tab); else next.delete("tab");
@@ -503,6 +504,7 @@ const ManageUsers = () => {
         tabs={[
           { key: "users", label: "Users", count: users.length },
           { key: "advancement", label: "Year levels" },
+          { key: "terms", label: "School terms" },
         ]}
       />
 
@@ -528,7 +530,7 @@ const ManageUsers = () => {
 
           {renderDirectory()}
         </>
-      ) : (
+      ) : activeTab === "terms" ? <AcademicPeriodsSettings /> : (
         <AcademicAdvancement onApplied={() => fetchUsers({ silent: true })} />
       )}
 

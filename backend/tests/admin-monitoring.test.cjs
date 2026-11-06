@@ -22,6 +22,7 @@ Module._load = function(name, parent, ...rest) {
   '../models/Excuse': {}, '../models/Notification': {},
   '../models/ManualAttendanceRequest': { find: () => query([]), exists: async () => pendingManual },
   '../models/CheckInSession': { create: async data => { stationWrites++; stationData=data; return { ...data, _id: 'session' }; } },
+  '../services/academicPeriods':{read:async()=>({mode:'manual',configured:true,confirmed:false,current:{startYear:2026,label:'2026–2027',semesters:[{id:'first'},{id:'second'}]},currentSemester:{id:'first'},years:[],version:1}),eventAssignment:async()=>({academicYearStart:2026,semester:'first'})},
   '../services/notify': { notifyUsers: async (recipients,options) => {notificationOptions=options;if(failEventNotification)throw Error('Storage unavailable');}, eventRecipients: async () => [] },
   '../services/fileStore': {}, '../services/faceIdentify': {},
   '../middleware/authMiddleware': { protect: (req, res, next) => next() },

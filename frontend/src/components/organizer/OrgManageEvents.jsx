@@ -1,3 +1,4 @@
+import { applyEventField } from "../../utils/academicPeriods";
 import { useTransientState } from "../../utils/useTransientState";
 import EventCreateForm from "../shared/EventCreateForm";
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -56,7 +57,7 @@ const OrgManageEvents = () => {
   const [searchParams] = useSearchParams();
   const [events, setEvents] = useState(() => readScreen("organizer:events:all")?.events ?? []);
   const periodSelection = useOrganizerPeriod();
-  const { period, semester } = periodSelection;
+  const { period, semester, schoolYear } = periodSelection;
   const [page, setPage] = useState(1);
   const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(() => readScreen("organizer:events:all") === undefined);
@@ -131,8 +132,7 @@ const OrgManageEvents = () => {
 
   useAutoRefresh(fetchEvents, { interval: 30000 });
 
-  const handleChange = (e) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) => { const field={name:e.target.name,value:e.target.value}; setForm(previous=>applyEventField(previous,field)); };
 
 
   const handleSubmit = async (e) => {
@@ -286,7 +286,7 @@ const OrgManageEvents = () => {
           }
         />
       ) : (
-        <StablePage pageKey={`organizer-events:${viewMode}:${eventRange}:${statusFilter}:${period?.startYear || "all"}:${semester}:${visibleEvents.length}`} footer={<Pagination page={currentPage} pageSize={EVENT_PAGE_SIZE} total={visibleEvents.length} onChange={setPage} label="Organizer event pages" />}>
+        <StablePage pageKey={`organizer-events:${viewMode}:${eventRange}:${statusFilter}:${schoolYear}:${semester}:${visibleEvents.length}`} footer={<Pagination page={currentPage} pageSize={EVENT_PAGE_SIZE} total={visibleEvents.length} onChange={setPage} label="Organizer event pages" />}>
         <div className="managed-events-grid-organizer stretch-page-grid grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           {pageEvents.map((event) => {
             const ownedByMe = isOwnEvent(event);

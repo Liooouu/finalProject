@@ -38,6 +38,7 @@ Module._load=function(name,parent,...rest){
   '../models/Event':{updateMany:async(filter,update)=>{removedReviewerAssignments.push({filter,update});}},
   '../models/ManualAttendanceRequest':{exists:async()=>pendingManualBlock},
   '../models/CheckInSession':{updateMany:async(filter,update)=>{closedStations.push({filter,update});}},'../models/Attendance':{find:filter=>({sort:async()=>attendanceRecords.filter(record=>record.student===String(filter.student)).sort((a,b)=>a.attendedAt-b.attendedAt)})},'../models/Excuse':{},'../models/Notification':{},'../models/FaceAppeal':{find:filter=>query([{_id:'own-appeal',student:String(filter.student),status:'pending',note:'My face verification request'}])},
+  '../services/academicPeriods':{read:async()=>({mode:'manual',configured:true,confirmed:false,current:{startYear:2026,label:'2026–2027',semesters:[{id:'first'},{id:'second'}]},currentSemester:{id:'first'},years:[],version:1}),eventAssignment:async()=>({academicYearStart:2026,semester:'first'})},
   '../services/notify':{notifyUsers:async(recipients,notice)=>{if(failNotification)throw new Error('Mail unavailable');notifications.push(notice);}},
   '../services/mailer':{isMailEnabled:async()=>false,sendMail:async()=>true,resetTransporter:()=>{}},
   '../services/fileStore':{},'../services/faceMatcher':{},'../services/faceIdentify':{remove:()=>{}},

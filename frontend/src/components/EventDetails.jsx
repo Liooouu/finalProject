@@ -1,3 +1,5 @@
+import EventAcademicFields from "./shared/EventAcademicFields";
+import { applyEventField, academicTermLabel } from "../utils/academicPeriods";
 import { useTransientState } from "../utils/useTransientState";
 import TimePicker from "./ui/TimePicker";
 import EventLastEdit from "./shared/EventLastEdit";
@@ -134,6 +136,8 @@ const EventDetails = () => {
         setEvent(eventData);
         setEditForm({
           title: eventData.title,
+          academicYearStart: eventData.academicYearStart ?? null,
+          semester: eventData.semester ?? null,
           description: eventData.description,
           location: eventData.location,
           date: eventData.date ? new Date(eventData.date).toISOString().split("T")[0] : "",
@@ -263,7 +267,8 @@ const EventDetails = () => {
   );
 
   const handleEditChange = (e) => {
-    setEditForm({ ...editForm, [e.target.name]: e.target.value });
+    const field={name:e.target.name,value:e.target.value};
+    setEditForm(previous=>applyEventField(previous,field));
   };
 
 
@@ -418,6 +423,7 @@ const EventDetails = () => {
             <p className="mt-1 text-xs text-on-muted">
               Scheduled check-in window. Later check-ins may be marked late.
             </p>
+            <p className="mt-3 text-sm text-on-muted">{academicTermLabel(event)}</p>
             <EventLastEdit event={event} className="mt-4" />
             {event.organizer && (
               <div className="mt-4 border-t border-line pt-3">
@@ -580,6 +586,7 @@ const EventDetails = () => {
 
             {isEditing ? (
               <form onSubmit={handleSaveEdit} className="space-y-4">
+                <EventAcademicFields value={editForm} onChange={handleEditChange} readOnly={role!=="admin"} disabled={saving}/>
                 <div>
                   <label htmlFor="ed-title" className="field-label">
                     Title

@@ -1,3 +1,6 @@
+import { useAcademicPeriods } from "../../utils/useAcademicPeriods";
+import { recordsForAcademicPeriod } from "../../utils/academicPeriods";
+import AcademicPeriodFilter from "../organizer/AcademicPeriodFilter";
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
@@ -23,6 +26,7 @@ const TABS = [
 ];
 
 const AttendEvents = () => {
+  const periodSelection=useAcademicPeriods();
   const seed = readScreen(CACHE_KEY);
   const [events, setEvents] = useState(seed?.events ?? []);
   const [attendance, setAttendance] = useState(seed?.attendance ?? []);
@@ -71,7 +75,7 @@ const AttendEvents = () => {
   useAutoRefresh(fetchEvents, { interval: 30000 });
 
   const { active, past } = useMemo(() => splitEventsByLifecycle(events), [events]);
-  const visible = tab === "active" ? active : past;
+  const visible = recordsForAcademicPeriod(tab === "active" ? active : past,periodSelection.period,periodSelection.semester);
   const currentPage = Math.min(page, Math.max(1, Math.ceil(visible.length / 5)));
   const pageEvents = visible.slice((currentPage - 1) * 5, currentPage * 5);
 
@@ -99,6 +103,7 @@ const AttendEvents = () => {
         }
       />
 
+      <AcademicPeriodFilter selection={{...periodSelection,setSchoolYear:value=>{periodSelection.setSchoolYear(value);setPage(1);},setSemester:value=>{periodSelection.setSemester(value);setPage(1);}}}/>
       {eventsError && <div role="alert" className="alert alert-danger">Events could not be refreshed. Please reload to try again.</div>}
       {visible.length === 0 ? (
         <EmptyState
@@ -111,7 +116,7 @@ const AttendEvents = () => {
           }
         />
       ) : (
-        <StablePage pageKey={`student-events:${tab}`} footer={<Pagination page={currentPage} pageSize={5} total={visible.length} onChange={setPage} label="Student event pages" />}><div className="student-event-grid grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <StablePage pageKey={`student-events:${tab}:${periodSelection.schoolYear}:${periodSelection.semester}`} footer={<Pagination page={currentPage} pageSize={5} total={visible.length} onChange={setPage} label="Student event pages" />}><div className="student-event-grid grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {pageEvents.map((event) => <StudentEventCard key={event._id} event={event} attendance={attendance.find((record) => (record.event?._id || record.event) === event._id)} attendanceError={attendanceError} />)}
         </div></StablePage>
       )}

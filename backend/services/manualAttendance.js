@@ -53,7 +53,7 @@ function buildProposal(event, payload, now = new Date()) {
 
 function createService(deps) {
   const { Request, Attendance, Event, User, notifyUsers = async () => {} } = deps;
-  const populated = query => query.populate("event", "title date time endDate endTime status attendanceStartTime attendanceEndTime manualAttendanceReviewers")
+  const populated = query => query.populate("event", "title date time academicYearStart semester endDate endTime status attendanceStartTime attendanceEndTime manualAttendanceReviewers")
     .populate("student", "name email program yearLevel section").populate("requestedBy", "name email").populate("reviewedBy", "name email");
   function publicRow(value, user) {
     const row = plain(value);
@@ -268,7 +268,7 @@ function createService(deps) {
     return { results };
   }
   async function pendingManualEventsForStudent(studentId) {
-    return Request.find({ student: studentId, status: "pending" }).populate("event", "title date time endDate endTime status attendanceStartTime attendanceEndTime")
+    return Request.find({ student: studentId, status: "pending" }).populate("event", "title date time academicYearStart semester endDate endTime status attendanceStartTime attendanceEndTime")
       .populate("requestedBy", "name email").select("event student requestedBy proposedStatus proposedHours effectiveAt submittedAt status").lean();
   }
   return { submit, list, summary, reviewEvents, reviewers, assignReviewers, reviewBatch, reviewOne, pendingManualEventsForStudent };

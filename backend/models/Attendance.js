@@ -10,6 +10,9 @@ const communityServiceLogSchema = new mongoose.Schema({
 
 const attendanceSchema = new mongoose.Schema({
   event: { type: mongoose.Schema.Types.ObjectId, ref: "Event", required: true },
+  // Saved with the event title/date when an event is deleted; balances remain intact.
+  academicYearStart: { type: Number, default: null },
+  semester: { type: String, enum: ["first", "second", null], default: null },
   student: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   attendedAt: { type: Date, default: Date.now },
   status: { type: String, enum: ["present", "late", "absent", "pending", "excused"], default: "pending" },

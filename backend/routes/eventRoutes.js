@@ -7,6 +7,7 @@ const Excuse = require("../models/Excuse");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const { notifyUsers, eventRecipients } = require("../services/notify");
+const academicPeriods = require("../services/academicPeriods");
 const fileStore = require("../services/fileStore");
 const { protect } = require("../middleware/authMiddleware");
 const {
@@ -70,11 +71,13 @@ router.post("/", protect, async (req, res) => {
       return res.status(400).json({ error: scheduleError });
     }
 
+    const assignment = await academicPeriods.eventAssignment(req.body, { role: req.user.role });
+
     // Duplicate-submission guard, made concurrency-safe with an in-process lock.
     // A plain check-then-insert lets two simultaneous requests both pass the
     // check before either inserts; serializing identical creates closes that
     // window for this single API process.
-    const key = createKey(req.user._id, title, date, time);
+    const key = `${createKey(req.user._id, title, date, time)}|${assignment.academicYearStart}:${assignment.semester}`;
     const pending = inFlightCreates.get(key);
     if (pending) {
       try {
@@ -88,6 +91,7 @@ router.post("/", protect, async (req, res) => {
     const work = (async () => {
       const duplicate = await Event.findOne({
         organizer: req.user._id,
+        ...assignment,
         title,
         date,
         time,
@@ -98,6 +102,7 @@ router.post("/", protect, async (req, res) => {
       if (duplicate) return { event: duplicate, created: false };
 
       const created = new Event({
+        ...assignment,
         title,
         description,
         date,
@@ -143,7 +148,7 @@ router.post("/", protect, async (req, res) => {
     }
     res.status(201).json(notificationWarning ? { ...(event.toObject ? event.toObject() : event), notificationWarning } : event);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -160,7 +165,7 @@ router.get("/my-events", protect, async (req, res) => {
     const withCounts = events.map((e) => ({ ...e.toObject(), attendeeCount: map[e._id.toString()] || 0 }));
     res.json(withCounts);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -182,7 +187,7 @@ router.get("/all", protect, async (req, res) => {
     const withCounts = events.map((e) => ({ ...e.toObject(), attendeeCount: map[e._id.toString()] || 0 }));
     res.json(withCounts);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -256,7 +261,7 @@ router.patch("/:id/status", protect, async (req, res) => {
     }
     res.json(notificationWarning ? { ...(event.toObject ? event.toObject() : event), notificationWarning } : event);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -289,7 +294,7 @@ router.patch("/:id/automation", protect, async (req, res) => {
 
     res.json(event);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -312,7 +317,7 @@ router.get("/", protect, async (req, res) => {
 
     res.json(events);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -320,12 +325,12 @@ router.get("/", protect, async (req, res) => {
 router.get("/my-attendance", protect, async (req, res) => {
   try {
     const attendance = await Attendance.find({ student: req.user._id })
-      .populate("event", "title date time location")
+      .populate("event", "title date time location academicYearStart semester")
       .sort({ attendedAt: -1 });
     const pending = await manualAttendance.pendingManualEventsForStudent(req.user._id);
     res.json(projectManualAttendance(attendance, pending, { studentId: req.user._id }));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -339,7 +344,7 @@ router.get("/:id", protect, async (req, res) => {
     // from the clock strings on the device.
     res.json({ ...event.toObject(), attendanceWindow: attendanceWindowPayload(event) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -367,7 +372,7 @@ router.get("/:id/attendees", protect, async (req, res) => {
       .select("event student requestedBy status effectiveAt submittedAt proposedStatus proposedHours").lean();
     res.json(projectManualAttendance(attendees, pending));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -428,7 +433,7 @@ router.get("/:id/attendees/groups", protect, async (req, res) => {
 
     res.json(mapped);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -483,7 +488,9 @@ router.put("/:id", protect, async (req, res) => {
       return res.status(400).json({ error: scheduleError });
     }
 
+    const assignment = await academicPeriods.eventAssignment(req.body, { existing, role: req.user.role });
     const update = {
+      ...assignment,
       ...editorStamp(req.user),
       title,
       description,
@@ -572,7 +579,7 @@ router.put("/:id", protect, async (req, res) => {
     }
     res.json(notificationWarning ? { ...(event.toObject ? event.toObject() : event), notificationWarning } : event);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -604,6 +611,8 @@ router.delete("/:id", protect, async (req, res) => {
         $set: {
           eventTitle: event.title,
           eventDate: event.date,
+          academicYearStart: event.academicYearStart ?? null,
+          semester: event.semester ?? null,
         },
       }
     );
@@ -628,7 +637,7 @@ router.delete("/:id", protect, async (req, res) => {
 
     res.json({ message: "Event deleted successfully. Community service hours were preserved." });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 

@@ -1,6 +1,6 @@
 # Academic year advancement
 
-Manage Users has an **Year levels** tab beside Users and Face appeals.
+Manage Users has a **Year levels** tab beside Users and School terms.
 Only an administrator in the admin portal can use the corresponding API.
 
 1. Open the tab. Search a student name/email or use the clearly labeled Program,
@@ -24,10 +24,10 @@ saved preview for the selected class is included once, including students with o
 The server saves the class scope with the batch and its history. It rejects a
 new API preview without a valid class; filtering is not only a screen display.
 Earlier saved batches remain reviewable/undoable with their original scope.
-Program and section stay unchanged. An exception still moves to the target
-school year, but retains their year level. The target is one school year after
+Program and section stay unchanged. Unchecked students retain their source
+school year and year level. The target is one school year after
 the source; a source later than the current configured school year is refused.
-Dates in the unconfirmed calendar are still provisional and do not establish
+Manual school terms do not establish
 official enrollment or graduation.
 
 The preview excludes already processed, graduated, incomplete, and other-year

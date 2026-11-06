@@ -76,6 +76,7 @@ app.use("/api/organizer", organizerRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/checkin", checkinRoutes);
 app.use("/api/manual-attendance", manualAttendanceRoutes);
+app.use("/api/academic-periods", require("./routes/academicPeriodRoutes"));
 app.use("/api/files", require("./routes/fileRoutes"));
 
 // ✅ HEALTH CHECK — used by the container HEALTHCHECK and by Coolify's health

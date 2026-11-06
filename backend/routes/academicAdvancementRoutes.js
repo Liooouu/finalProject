@@ -1,13 +1,14 @@
 const router = require("express").Router();
 const { isValidObjectId } = require("mongoose");
 const advancement = require("../services/academicAdvancement");
-const { schoolYearStart } = require("../services/academicCalendar");
+const academicPeriods = require("../services/academicPeriods");
 
 // Mounted behind protect + authorize("admin") in adminRoutes.
 router.get("/", async (req, res) => {
   try {
-    const currentSchoolYear = Math.max(2026, schoolYearStart());
+    const currentSchoolYear = (await academicPeriods.read()).current?.startYear || Math.max(2026, new Date().getFullYear());
     const selectedSourceYear = req.query.sourceYear === undefined ? currentSchoolYear : Number(req.query.sourceYear);
+    if (selectedSourceYear > currentSchoolYear) return res.status(400).json({message:"Choose the current or an earlier school year for advancement."});
     const { classes, students } = await advancement.studentOptions(selectedSourceYear);
     res.set("Cache-Control", "no-store");
     res.json({ currentSchoolYear, selectedSourceYear, classes, students, sourceYears: Array.from({ length: currentSchoolYear - 2026 + 1 }, (_, index) => currentSchoolYear - index) });
@@ -16,6 +17,8 @@ router.get("/", async (req, res) => {
 router.post("/preview", async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
+    const currentSchoolYear=(await academicPeriods.read()).current?.startYear || Math.max(2026,new Date().getFullYear());
+    if (Number(req.body.sourceYear)>currentSchoolYear) return res.status(400).json({message:"Choose the current or an earlier school year for advancement."});
     if (!req.body.classScope) return res.status(400).json({ message: "Choose a class before preparing an academic update." });
     res.json(await advancement.preview(req.user._id, req.body.sourceYear, req.body.classScope, true));
   } catch (error) {

@@ -1,3 +1,5 @@
+import { useAcademicPeriods } from "../../utils/useAcademicPeriods";
+import AcademicPeriodFilter from "../organizer/AcademicPeriodFilter";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import api from "../../api/axios";
 import { recordsForAcademicPeriod } from "../../utils/academicPeriods";
@@ -35,22 +37,9 @@ const CommunityService = () => {
   const [data, setData] = useState(seed?.data ?? null);
   const [loading, setLoading] = useState(seed === undefined);
   const [recordPage, setRecordPage] = useState(1);
-  const [calendar, setCalendar] = useState(seed?.calendar ?? null);
-  const [schoolYear, setSchoolYear] = useState("all");
-  const [semester, setSemester] = useState("all");
+  const periodSelection=useAcademicPeriods();
+  const {schoolYear,semester,period}=periodSelection;
   const historyViewportRef = useRef(null);
-  useEffect(() => {
-    let active = true;
-    api.get("/student/academic-status").then(({ data: payload }) => {
-      if (!active || !payload?.years) return;
-      setCalendar(payload);
-      // The academic calendar changes at most once a year; cache it with the
-      // ledger so the filter is available immediately on the next visit.
-      writeScreen(CACHE_KEY, { ...(readScreen(CACHE_KEY) || {}), calendar: payload });
-    }).catch(() => {});
-    return () => { active = false; };
-  }, []);
-
   usePageMeta("Community Service", "Track your attendance and service hours.");
 
   const fetchData = useCallback(async ({ silent = false } = {}) => {
@@ -77,7 +66,6 @@ const CommunityService = () => {
     return <Loading label="Loading records..." />;
   }
 
-  const period = calendar?.years.find(item => String(item.startYear) === schoolYear);
   const records = recordsForAcademicPeriod(data?.breakdown || [], period, semester);
   const currentPage = Math.min(recordPage, Math.max(1, Math.ceil(records.length / 5)));
   const visibleRecords = records.slice((currentPage - 1) * 5, currentPage * 5);
@@ -135,22 +123,8 @@ const CommunityService = () => {
         />
       </div>
 
-      {calendar && <section className="student-card rounded-xl border border-line bg-card/60 p-4" aria-label="School year and semester filters">
-        {!calendar.confirmed && <p className="mb-3 text-xs text-warn">Calendar preview: semester dates are not official. Filters below use the sample calendar.</p>}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-xs text-on-dim" htmlFor="history-school-year">School year
-            <select aria-label="School year" id="history-school-year" className="field-select mt-1" value={schoolYear} onChange={event => { setSchoolYear(event.target.value); setSemester("all"); setRecordPage(1); }}>
-              <option value="all">All school years</option>{calendar.years.map(item => <option key={item.startYear} value={item.startYear}>{item.label}</option>)}
-            </select>
-          </label>
-          <label className="text-xs text-on-dim" htmlFor="history-semester">Semester
-            <select aria-label="Semester" id="history-semester" className="field-select mt-1" value={semester} disabled={!period} onChange={event => { setSemester(event.target.value); setRecordPage(1); }}>
-              <option value="all">All semesters</option>{period?.semesters.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select>
-          </label>
-        </div>
-        <p className="mt-3 text-xs text-on-muted">Filters change the records below. Your total service balance includes all school years.</p>
-      </section>}
+      <AcademicPeriodFilter selection={{...periodSelection,setSchoolYear:value=>{periodSelection.setSchoolYear(value);setRecordPage(1);},setSemester:value=>{periodSelection.setSemester(value);setRecordPage(1);}}}/>
+      <p className="text-xs text-on-muted">Filters change the records below. Your service balance includes all school years and semesters.</p>
 
       <FlightPanel
         level="ledger"

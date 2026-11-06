@@ -1,6 +1,6 @@
 // backend/models/Setting.js
-// Singleton-style key/value settings document. Currently only one entry
-// (`key: "email"`) retains legacy SMTP configuration and template overrides.
+// Keyed settings: academic-periods stores manually configured school terms.
+// The email entry retains legacy SMTP configuration and template overrides.
 // SMTP is now maintained through the API environment, not an admin profile.
 // Read-only compatibility in services/appSettings.js prevents an interruption
 // for existing deployments while their maintainer migrates the credentials.
@@ -18,6 +18,11 @@ const templateSchema = new mongoose.Schema(
 const settingSchema = new mongoose.Schema(
   {
     key: { type: String, required: true, unique: true },
+    academicPeriods: {
+      years: [{ type: Number, min: 2026, max: 2100 }],
+      active: { startYear: Number, semester: { type: String, enum: ["first", "second"] } },
+      version: { type: Number, default: 0 },
+    },
     smtp: {
       host: { type: String, default: "" },
       port: { type: Number, default: null },

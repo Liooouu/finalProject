@@ -1,3 +1,5 @@
+import { useAcademicPeriods } from "../../utils/useAcademicPeriods";
+import AcademicPeriodFilter from "../organizer/AcademicPeriodFilter";
 import AttendanceRecordActions from "./AttendanceRecordActions";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../../api/axios";
@@ -86,17 +88,20 @@ const AttendanceReports = () => {
     events: [],
   });
   const { isDark } = useTheme();
+  const periodSelection=useAcademicPeriods();
+  const {schoolYear,semester}=periodSelection;
+  const periodParams=useMemo(()=>({...schoolYear!=="all"?{academicYearStart:schoolYear}:{},...semester!=="all"?{semester}: {}}),[schoolYear,semester]);
 
   usePageMeta("Reports", "System-wide analytics, breakdowns, and exports.");
 
   const attendanceParams = useMemo(() => {
-    const params = {};
+    const params = {...periodParams};
     if (filters.program !== "all") params.program = filters.program;
     if (filters.yearLevel !== "all") params.yearLevel = filters.yearLevel;
     if (filters.section !== "all") params.section = filters.section;
     if (filters.eventId !== "all") params.eventId = filters.eventId;
     return params;
-  }, [filters]);
+  }, [filters,periodParams]);
 
   const hasActiveFilters = Object.values(filters).some((value) => value !== "all");
 
@@ -125,14 +130,14 @@ const AttendanceReports = () => {
   const fetchEvents = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get("/reports/events");
+      const res = await api.get("/reports/events", {params:periodParams});
       setEventsData(res.data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [periodParams]);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -154,8 +159,8 @@ const AttendanceReports = () => {
   }, [activeTab, fetchAttendance]);
 
   useEffect(() => {
-    if (activeTab === "events" && !eventsData) fetchEvents();
-  }, [activeTab, eventsData, fetchEvents]);
+    if (activeTab === "events") fetchEvents();
+  }, [activeTab, fetchEvents]);
 
   useEffect(() => {
     if (activeTab === "users") fetchUsers();
@@ -165,7 +170,7 @@ const AttendanceReports = () => {
   const downloadCSV = async (type) => {
     setExporting(true);
     try {
-      const params = type === "attendance" ? attendanceParams : undefined;
+      const params = type === "attendance" ? attendanceParams : type === "events" ? periodParams : undefined;
       const response = await api.get(`/reports/${type}/export`, {
         params,
         responseType: "blob",
@@ -389,6 +394,8 @@ const AttendanceReports = () => {
         <Tabs active={activeTab} onChange={setActiveTab} tabs={[{key:"attendance",label:"Attendance"},{key:"events",label:"Events"},{key:"users",label:"Users"}]} />
       </header>
 
+      {activeTab!=="users" && <AcademicPeriodFilter selection={{...periodSelection,setSchoolYear:value=>{periodSelection.setSchoolYear(value);setAttendancePage(1);setEventLedgerPage(1);},setSemester:value=>{periodSelection.setSemester(value);setAttendancePage(1);setEventLedgerPage(1);}}}/>}
+
       {loading && !attendanceData && !eventsData && !usersData && (
         <Card>
           <TableSkeleton rows={5} />
@@ -485,7 +492,7 @@ const AttendanceReports = () => {
                 subtitle={`${attendanceData.stats.total} matching records · ${attendancePageSize} per page`}
 
               >
-                <AttendanceRecordActions scopeKey={`${JSON.stringify(filters)}:${attendancePage}`} records={attendanceData.records} loading={attendanceLoading} onDeleted={() => Promise.all([fetchAttendance(), fetchEvents()])}>{({ selecting, checkbox, busy }) => <StablePage loading={attendanceLoading || busy} pageKey={`${JSON.stringify(filters)}:${attendanceData.stats.total}`} footer={<div className="admin-table-pager"><Pagination page={attendancePage} pageSize={attendancePageSize} total={attendanceData.stats.total} disabled={attendanceLoading || busy} onChange={setAttendancePage} label="Attendance report pages" /></div>}>
+                <AttendanceRecordActions scopeKey={`${JSON.stringify(periodParams)}:${JSON.stringify(filters)}:${attendancePage}`} records={attendanceData.records} loading={attendanceLoading} onDeleted={() => Promise.all([fetchAttendance(), fetchEvents()])}>{({ selecting, checkbox, busy }) => <StablePage loading={attendanceLoading || busy} pageKey={`${JSON.stringify(periodParams)}:${JSON.stringify(filters)}:${attendanceData.stats.total}`} footer={<div className="admin-table-pager"><Pagination page={attendancePage} pageSize={attendancePageSize} total={attendanceData.stats.total} disabled={attendanceLoading || busy} onChange={setAttendancePage} label="Attendance report pages" /></div>}>
                 <div className="overflow-x-auto">
                   <table className="data-table admin-records-table min-w-[960px]" aria-busy={attendanceLoading}>
                     <colgroup>{selecting && <col style={{width:"48px"}} />}<col style={{width:"24%"}} /><col style={{width:"24%"}} /><col style={{width:"22%"}} /><col style={{width:"13%"}} /><col /></colgroup>
@@ -607,7 +614,7 @@ const AttendanceReports = () => {
               </Button>
             }
           >
-            <StablePage pageKey="Event report pages" footer={<div className="px-4 pb-4"><Pagination page={currentEventLedgerPage} pageSize={5} total={eventTotal} onChange={setEventLedgerPage} label="Event report pages" /></div>}><div className="overflow-x-auto">
+            <StablePage pageKey={`Event report pages:${JSON.stringify(periodParams)}`} footer={<div className="px-4 pb-4"><Pagination page={currentEventLedgerPage} pageSize={5} total={eventTotal} onChange={setEventLedgerPage} label="Event report pages" /></div>}><div className="overflow-x-auto">
               <table className="data-table min-w-[760px]">
                 <thead>
                   <tr>

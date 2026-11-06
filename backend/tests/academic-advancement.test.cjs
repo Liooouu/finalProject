@@ -61,7 +61,7 @@ beforeEach(() => {
 test("only 2026 onward source years up to the current school year are accepted", () => {
   const now = new Date("2026-11-05T00:00:00Z");
   assert.equal(sourceYearIssue(2026, now), "");
-  for (const year of [2025, 2027, "2026", 2026.5]) assert.ok(sourceYearIssue(year, now));
+  for (const year of [2025, 2101, "2026", 2026.5]) assert.ok(sourceYearIssue(year, now));
 });
 test("preview includes the entire eligible roster once, including promoted students", async () => {
   users.set("admin", { _id: "admin", role: "admin" });

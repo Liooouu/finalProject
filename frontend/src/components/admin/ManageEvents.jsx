@@ -1,3 +1,7 @@
+import { useAcademicPeriods } from "../../utils/useAcademicPeriods";
+import AcademicPeriodFilter from "../organizer/AcademicPeriodFilter";
+import { recordsForAcademicPeriod } from "../../utils/academicPeriods";
+import { applyEventField } from "../../utils/academicPeriods";
 import { useTransientState } from "../../utils/useTransientState";
 import EventCreateForm from "../shared/EventCreateForm";
 import ManagedEventCard from "../shared/ManagedEventCard";
@@ -44,6 +48,7 @@ const EMPTY_FORM = {
 };
 
 const ManageEvents = () => {
+  const periodSelection=useAcademicPeriods();
   const navigate = useNavigate();
   const seed = readScreen(CACHE_KEY);
   const [events, setEvents] = useState(seed?.events ?? []);
@@ -135,8 +140,7 @@ const ManageEvents = () => {
     }
   };
 
-  const handleCreateChange = (e) =>
-    setCreateForm({ ...createForm, [e.target.name]: e.target.value });
+  const handleCreateChange = (e) => { const field={name:e.target.name,value:e.target.value}; setCreateForm(previous=>applyEventField(previous,field)); };
 
 
   const handleCreateSubmit = async (e) => {
@@ -177,7 +181,7 @@ const ManageEvents = () => {
   const currentAttendeePage = Math.min(attendeePage, Math.max(1, Math.ceil(matchingAttendees.length / 5)));
   const visibleAttendees = matchingAttendees.slice((currentAttendeePage - 1) * 5, currentAttendeePage * 5);
 
-  const filteredEvents = events
+  const filteredEvents = recordsForAcademicPeriod(events,periodSelection.period,periodSelection.semester)
     .filter((event) => {
       const matchesSearch =
         event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -228,6 +232,7 @@ const ManageEvents = () => {
         </div>
       )}
 
+      {!showCreate && <AcademicPeriodFilter selection={{...periodSelection,setSchoolYear:value=>{periodSelection.setSchoolYear(value);setEventsPage(1);},setSemester:value=>{periodSelection.setSemester(value);setEventsPage(1);}}}/>}
       {loadError && <div className="alert alert-danger" role="alert"><p>{loadError}</p><Button variant="secondary" size="sm" onClick={() => fetchEvents()}>Retry loading events</Button></div>}
 
       {!showCreate && (
@@ -278,7 +283,7 @@ const ManageEvents = () => {
         />
       ) : (
         <div className="flex min-w-0 flex-col gap-4">
-        <StablePage fill className="gap-4" pageKey={`admin-events:${searchTerm}:${eventRange}:${statusFilter}:${filteredEvents.length}`} footer={<div className="admin-event-page-footer shrink-0 pb-2 pt-1 [&>nav]:mt-0"><Pagination page={visibleEventPage} pageSize={EVENT_PAGE_SIZE} total={filteredEvents.length} onChange={setEventsPage} label="Admin event pages" /></div>}>
+        <StablePage fill className="gap-4" pageKey={`admin-events:${periodSelection.schoolYear}:${periodSelection.semester}:${searchTerm}:${eventRange}:${statusFilter}:${filteredEvents.length}`} footer={<div className="admin-event-page-footer shrink-0 pb-2 pt-1 [&>nav]:mt-0"><Pagination page={visibleEventPage} pageSize={EVENT_PAGE_SIZE} total={filteredEvents.length} onChange={setEventsPage} label="Admin event pages" /></div>}>
         <div className="managed-events-grid-admin admin-event-page-grid stretch-page-grid grid min-w-0 flex-1 grid-cols-1 items-stretch gap-4 xl:grid-cols-3" data-testid="admin-event-page">
           {pagedEvents.map((event) => (
             <ManagedEventCard key={event._id} event={event} actions={

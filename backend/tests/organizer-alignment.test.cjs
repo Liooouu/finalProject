@@ -17,7 +17,8 @@ Module._load = function(name, parent, ...rest) {
       findByIdAndUpdate: async () => {},
     },
     '../models/Event': { find: () => Object.assign(query([{_id:'event'}]), { distinct: async () => ['event'] }) }, '../models/Attendance': { findOne: async () => record, aggregate: async () => [] },
-    '../services/fileStore': {}, '../services/notify': { notifyUsers: async (users, notice) => { notices.push(notice); if (failNotice) throw new Error("Email delivery unavailable"); } },
+    '../services/fileStore': {}, '../services/academicPeriods':{read:async()=>({mode:'manual',configured:true,confirmed:false,current:{startYear:2026,label:'2026–2027',semesters:[{id:'first'},{id:'second'}]},currentSemester:{id:'first'},years:[],version:1}),eventAssignment:async()=>({academicYearStart:2026,semester:'first'})},
+  '../services/notify': { notifyUsers: async (users, notice) => { notices.push(notice); if (failNotice) throw new Error("Email delivery unavailable"); } },
     '../middleware/authMiddleware': { protect: (req, res, next) => next() },
   };
   return mocks[name] || originalLoad.call(this, name, parent, ...rest);
@@ -56,7 +57,7 @@ test('organizers cannot approve or reject their own letters regardless of event 
 test('admins can approve and reject every student letter independent of event ownership and author identity',async()=>{for(const status of ['approved','rejected']){letter.status='pending';letter.student='admin-reviewer';record.status='absent';assert.equal((await review({status},{role:'admin',_id:'admin-reviewer'})).status,200);}});
 
 test('already-reviewed and concurrent reviews do not change hours twice', async () => { letter.status = 'approved'; assert.equal((await review()).status, 400); letter.status = 'pending'; race = true; assert.equal((await review()).status, 409); assert.equal(saves, 0); });
-test('academic calendar endpoint is role protected and preserves preview mode', async () => { const handler = router.stack.find(layer => layer.route?.path === '/academic-calendar').route.stack.at(-1).handle; for (const role of ['student', 'organizer']) { let code = 200, data; const res = { status(c) { code = c; return this; }, json(d) { data = d; } }; handler({ user: { role } }, res); assert.equal(code, role === 'student' ? 403 : 200); if (role === 'organizer') { assert.equal(data.confirmed, false); assert.equal(data.current.semesters.length, 2); } } });
+test('academic calendar endpoint is role protected and returns manually configured terms', async () => { const handler = router.stack.find(layer => layer.route?.path === '/academic-calendar').route.stack.at(-1).handle; for (const role of ['student', 'organizer']) { let code = 200, data; const res = { status(c) { code = c; return this; }, json(d) { data = d; } }; await handler({ user: { role } }, res); assert.equal(code, role === 'student' ? 403 : 200); if (role === 'organizer') { assert.equal(data.confirmed, false); assert.equal(data.current.semesters.length, 2); } } });
 
 test('excuse queue spans events and exposes individual review permissions and submission policy', async () => {
   const handler = router.stack.find(layer => layer.route?.path === '/excuses' && layer.route.methods.get).route.stack.at(-1).handle;

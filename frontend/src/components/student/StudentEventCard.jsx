@@ -1,3 +1,4 @@
+import { academicTermLabel } from "../../utils/academicPeriods";
 import React from "react";
 import { FaCalendarAlt, FaClock, FaMapMarkerAlt, FaCheckCircle, FaExclamationCircle } from "react-icons/fa";
 import { BsClipboardCheck } from "react-icons/bs";
@@ -29,6 +30,7 @@ export default function StudentEventCard({ event, attendance, attendanceError = 
           </span>
           <StatusChip status={event.status} />
         </div>
+        <p className="mt-3 text-xs text-brand">{academicTermLabel(event)}</p>
         <h3 className="mt-3 whitespace-normal font-display text-lg font-semibold leading-snug tracking-tight text-on [overflow-wrap:anywhere]">{event.title}</h3>
         <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-on-dim [overflow-wrap:anywhere]">{event.description || "No description provided."}</p>
       </div>

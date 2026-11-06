@@ -15,7 +15,7 @@ const { notifyUsers } = require("../services/notify");
 const { isValidObjectId } = require("mongoose");
 const { excuseWindow } = require("../services/excuseWindow");
 const { submissionRevisionFilter, resubmissionIssue, excuseReviewerFilter } = require("../services/excuseReview");
-const { calendarView } = require("../services/academicCalendar");
+const academicPeriods = require("../services/academicPeriods");
 const { pendingManualEventsForStudent } = require("../services/manualAttendance");
 const { projectManualAttendance } = require("../services/manualAttendanceView");
 const faceMatcher = require("../services/faceMatcher");
@@ -26,7 +26,7 @@ router.get("/academic-status", protect, async (req, res) => {
     const account = req.user.role === "student" ? req.user : await User.findById(req.user._id);
     if (!account) return res.status(404).json({ error: "Student account not found" });
     const student = account;
-    const calendar = calendarView();
+    const calendar = await academicPeriods.read();
     res.json({ ...calendar, student: { yearLevel: student.yearLevel, section: student.section, program: student.program, enrollmentStatus: student.enrollmentStatus || "active", academicYearStart: student.academicYearStart, history: student.academicHistory || [] }, promotionEnabled: false });
   } catch (err) { res.status(500).json({ error: "Could not load academic standing" }); }
 });
@@ -71,7 +71,7 @@ router.get("/community-service", protect, async (req, res) => {
     }
 
     const storedAttendances = await Attendance.find({ student: req.user._id })
-      .populate("event", "title date time")
+      .populate("event", "title date time academicYearStart semester")
       .sort({ attendedAt: -1 });
     const pendingRequests = await pendingManualEventsForStudent(req.user._id);
     const attendances = projectManualAttendance(storedAttendances, pendingRequests, { studentId: req.user._id });
@@ -106,7 +106,7 @@ router.get("/excuses", protect, async (req, res) => {
     }
 
     const excuses = await Excuse.find({ student: req.user._id })
-      .populate("event", "title date time endDate endTime")
+      .populate("event", "title date time endDate endTime academicYearStart semester")
       .sort({ createdAt: -1 });
     const absent = await Attendance.find({ student: req.user._id, status: "absent" }).select("event");
     const absentIds = new Set(absent.map(record => String(record.event?._id || record.event)));
@@ -215,7 +215,7 @@ router.patch("/excuses/:id", protect, upload.array("attachments", 5), async (req
   try {
     if (req.user.role !== "student") return res.status(403).json({ error: "Only students can resubmit excuse letters" });
     if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid excuse letter ID" });
-    const letter = await Excuse.findOne({ _id: req.params.id, student: req.user._id }).populate("event", "title date time endDate endTime organizer");
+    const letter = await Excuse.findOne({ _id: req.params.id, student: req.user._id }).populate("event", "title date time endDate endTime organizer academicYearStart semester");
     if (!letter) return res.status(404).json({ error: "Excuse letter not found" });
     const expectedVersion = Number(req.body.expectedVersion);
     if (!Number.isInteger(expectedVersion) || expectedVersion < 1) return res.status(400).json({ error: "Reload the letter before resubmitting" });
@@ -246,7 +246,7 @@ router.patch("/excuses/:id", protect, upload.array("attachments", 5), async (req
       { $set: { excuseText: text, attachments, attachmentUrl: attachments[0], status: "pending", responseNote: "", reviewedBy: null, lastSubmittedAt: new Date(), submissionVersion: expectedVersion + 1 },
         $push: { submissionHistory: { submittedAt: letter.lastSubmittedAt || letter.createdAt, submissionVersion: expectedVersion, excuseText: letter.excuseText, attachments: originalFiles, status: letter.status, responseNote: letter.responseNote || "", reviewedBy: letter.reviewedBy } } },
       { new: true, runValidators: true }
-    ).populate("event", "title date time endDate endTime");
+    ).populate("event", "title date time endDate endTime academicYearStart semester");
     if (!revised) {
       await fileStore.deleteByUrls(savedUrls);
       return res.status(409).json({ error: "This letter was changed or reviewed while you were editing. Reload to see the latest status." });
@@ -273,7 +273,7 @@ router.get("/absent-events", protect, async (req, res) => {
     const attendances = await Attendance.find({ 
       student: req.user._id,
       status: "absent"
-    }).populate("event", "title date time endDate endTime");
+    }).populate("event", "title date time endDate endTime academicYearStart semester");
 
     res.json(attendances.map(record => { const data = record.toObject(); const window = record.event ? excuseWindow(record.event) : { allowed: false, deadline: null }; return { ...data, canSubmitExcuse: window.allowed, excuseDeadline: window.deadline }; }));
   } catch (err) {

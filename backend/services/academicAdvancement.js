@@ -1,11 +1,10 @@
 const User = require("../models/User");
 const AcademicAdvancement = require("../models/AcademicAdvancement");
-const { schoolYearStart } = require("./academicCalendar");
 
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 const sameIds = (a, b) => [...a].sort().join(",") === [...b].sort().join(",");
-function sourceYearIssue(year, now = new Date()) {
-  return !Number.isInteger(year) || year < 2026 || year > Math.max(2026, schoolYearStart(now))
+function sourceYearIssue(year) {
+  return !Number.isInteger(year) || year < 2026 || year > 2100
     ? "Choose an existing school year from 2026 onward. Advance one school year at a time." : "";
 }
 function isEligible(student, sourceYear) {

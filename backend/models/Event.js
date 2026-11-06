@@ -4,6 +4,8 @@ const mongoose = require("mongoose");
 const eventSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String },
+  academicYearStart: { type: Number, min: 2026, max: 2100, default: null },
+  semester: { type: String, enum: ["first", "second", null], default: null },
   date: { type: Date, required: true },
   time: { type: String, required: true },
   endDate: { type: Date },

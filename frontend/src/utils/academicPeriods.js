@@ -1,11 +1,24 @@
-export const recordsForAcademicPeriod = (records, period, semester = "all") => {
-  if (!period) return records;
-  const range = semester === "all" ? period : period.semesters.find(item => item.id === semester);
-  if (!range) return [];
-  const start = new Date(range.start).getTime(), end = new Date(range.end).getTime();
-  return records.filter(record => {
-    const value = record.event?.date || record.eventDate || record.date || record.attendedAt;
-    const timestamp = new Date(value).getTime();
-    return Number.isFinite(timestamp) && timestamp >= start && timestamp <= end;
+export function eventTerm(record) {
+  const event=record?.event && typeof record.event==="object"?record.event:record;
+  const startYear=event?.academicYearStart;
+  const semester=event?.semester;
+  return Number.isInteger(startYear)&&["first","second"].includes(semester)?{startYear,semester}:null;
+}
+export function academicTermLabel(record) {
+  const term=eventTerm(record);
+  return term?`${term.startYear}–${term.startYear+1} · ${term.semester==="first"?"1st":"2nd"} Semester`:"Unassigned academic term";
+}
+export const recordsForAcademicPeriod=(records,period,semester="all")=>{
+  if(!period)return records;
+  return records.filter(record=>{
+    const term=eventTerm(record);
+    if(period.unassigned)return !term;
+    return !!term&&term.startYear===period.startYear&&(semester==="all"||term.semester===semester);
   });
 };
+
+export function applyEventField(previous,{name,value}) {
+  if(name!=="academicTerm")return {...previous,[name]:value};
+  const [year,semester]=value.split(":");
+  return {...previous,academicYearStart:year?Number(year):null,semester:semester||null};
+}

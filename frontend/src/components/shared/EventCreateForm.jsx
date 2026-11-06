@@ -1,5 +1,6 @@
 import React from "react";
 import { Button, Card } from "../ui";
+import EventAcademicFields from "./EventAcademicFields";
 import TimePicker from "../ui/TimePicker";
 import "../../styles/event-create-form.css";
 
@@ -17,6 +18,7 @@ export default function EventCreateForm({ value, onChange, onSubmit, busy, error
   return (
     <Card as="form" onSubmit={onSubmit} className="event-create-form" aria-label="Create event">
       {error && <div className="alert alert-danger mb-4" role="alert"><span aria-hidden="true">!</span><p>{error}</p></div>}
+      <div className="mb-4"><EventAcademicFields value={value} onChange={onChange} creating disabled={busy}/></div>
       <div className="event-create-layout">
         <fieldset className="event-create-section">
           <legend>Event details</legend>

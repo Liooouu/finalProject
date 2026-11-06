@@ -1,3 +1,4 @@
+import { academicTermLabel } from "../../utils/academicPeriods";
 import React from "react";
 import { FaMapMarkerAlt, FaUsers } from "react-icons/fa";
 import { Card, StatusChip } from "../ui";
@@ -9,7 +10,7 @@ import "../../styles/managed-event-cards.css";
 export default function ManagedEventCard({ event, actions, details, showAttendees = false }) {
   return <Card as="article" className="managed-event-card">
     <header className="managed-event-heading"><h3>{event.title}</h3><StatusChip status={event.status} /></header>
-    <p className="managed-event-description">{event.description || "No description provided."}</p>
+    <p className="managed-event-description"><span className="mb-2 block text-xs text-brand">{academicTermLabel(event)}</span>{event.description || "No description provided."}</p>
     <dl className="managed-event-details">
       <div><dt>Starts</dt><dd>{formatDate(event.date)}<br />{formatTime12Hour(event.time)}</dd></div>
       <div><dt>Ends</dt><dd>{formatDate(event.endDate || event.date)}<br />{formatTime12Hour(event.endTime || "23:59")}</dd></div>

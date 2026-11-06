@@ -4,7 +4,7 @@ const { protect } = require("../middleware/authMiddleware");
 const Excuse = require("../models/Excuse");
 const Event = require("../models/Event");
 const Attendance = require("../models/Attendance");
-const { calendarView } = require("../services/academicCalendar");
+const academicPeriods = require("../services/academicPeriods");
 const { excuseWindow } = require("../services/excuseWindow");
 const { excuseReviewIssue, submissionRevisionFilter, excuseReviewFilter, canReviewExcuse } = require("../services/excuseReview");
 const fileStore = require("../services/fileStore");
@@ -25,9 +25,9 @@ const canManageExcuse = (excuse, user) => {
   return !!organizerId && String(organizerId) === String(user._id);
 };
 
-router.get("/academic-calendar", protect, (req, res) => {
+router.get("/academic-calendar", protect, async (req, res) => {
   if (!["organizer", "admin"].includes(req.user.role)) return res.status(403).json({ error: "Not authorized" });
-  res.json(calendarView());
+  try { res.json(await academicPeriods.read()); } catch { res.status(503).json({ error: "School terms unavailable. Please try again." }); }
 });
 
 router.get("/excuses", protect, async (req, res) => {
@@ -41,7 +41,7 @@ router.get("/excuses", protect, async (req, res) => {
 
     const excuses = await Excuse.find(filter)
       .populate("student", "name email program yearLevel section enrollmentStatus")
-      .populate("event", "title date time endDate endTime organizer")
+      .populate("event", "title date time endDate endTime organizer academicYearStart semester")
       .populate("reviewedBy", "name")
       .sort({ createdAt: -1 });
 
@@ -114,7 +114,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
     }
 
     // Check the reviewer identity before any status, penalty or notification change.
-    const loaded = await Excuse.findById(req.params.id).populate("event", "title date time endDate endTime organizer");
+    const loaded = await Excuse.findById(req.params.id).populate("event", "title date time endDate endTime organizer academicYearStart semester");
     if (!loaded) return res.status(404).json({ error: "Excuse not found" });
     if (!canReviewExcuse(loaded, req.user)) {
       return res.status(403).json({ error: "You cannot approve or reject your own excuse letter" });
@@ -141,7 +141,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
       { new: true }
     )
       .populate("student", "name email program yearLevel section enrollmentStatus")
-      .populate("event", "title date time endDate endTime organizer")
+      .populate("event", "title date time endDate endTime organizer academicYearStart semester")
       .populate("reviewedBy", "name");
 
     if (!excuse) {
@@ -229,7 +229,7 @@ router.delete("/excuses/:id", protect, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const excuse = await Excuse.findById(req.params.id).populate("event", "organizer");
+    const excuse = await Excuse.findById(req.params.id).populate("event", "organizer academicYearStart semester");
     if (!excuse) {
       return res.status(404).json({ error: "Excuse not found" });
     }

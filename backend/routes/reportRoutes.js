@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const Attendance = require("../models/Attendance");
 const Event = require("../models/Event");
 const User = require("../models/User");
+const academicPeriods = require("../services/academicPeriods");
 const { protect, authorize } = require("../middleware/authMiddleware");
 const { manilaDayRange } = require("../services/eventLifecycle");
 const ManualAttendanceRequest = require("../models/ManualAttendanceRequest");
@@ -133,6 +134,8 @@ function buildStudentFilter(query = {}) {
 
 async function buildAttendanceMatch(query = {}) {
   const match = buildMatch(query);
+  const periodMatch = await academicPeriods.attendanceFilter(query);
+  if (Object.keys(periodMatch).length) match.$and = [periodMatch];
 
   // A single student's ledger (the admin user panel) asks for their records
   // directly instead of downloading the whole report and filtering it here.
@@ -249,7 +252,7 @@ router.get("/attendance", async (req, res) => {
     const [attendance, totalRecords, statusStats, byEvent, students, matchedStudents, filters, events] =
       await Promise.all([
         Attendance.find(match)
-          .populate("event", "title date time")
+          .populate("event", "title date time academicYearStart semester")
           .populate("student", "name email program yearLevel section")
           .sort({ attendedAt: -1, _id: -1 })
           .skip((requestedPage - 1) * limit)
@@ -350,6 +353,8 @@ router.get("/attendance/export", async (req, res) => {
   try {
     const studentFilter = buildStudentFilter(req.query);
     const match = buildMatch(req.query);
+    const periodMatch = await academicPeriods.attendanceFilter(req.query);
+    if (Object.keys(periodMatch).length) match.$and = [periodMatch];
 
     const [students, selectedEvent] = await Promise.all([
       User.find(studentFilter)
@@ -364,7 +369,7 @@ router.get("/attendance/export", async (req, res) => {
     match.student = { $in: students.map((student) => student._id) };
 
     const attendance = await reviewedRecords(await Attendance.find(match)
-      .populate("event", "title date time")
+      .populate("event", "title date time academicYearStart semester")
       .lean());
 
     const byStudent = new Map();
@@ -467,7 +472,7 @@ async function attendanceCountsByEvent() {
 router.get("/events", async (req, res) => {
   try {
     const [events, counts] = await Promise.all([
-      Event.find().populate("organizer", "name email").sort({ date: -1 }).lean(),
+      Event.find(academicPeriods.eventFilter(req.query)).populate("organizer", "name email").sort({ date: -1 }).lean(),
       attendanceCountsByEvent(),
     ]);
 
@@ -481,6 +486,8 @@ router.get("/events", async (req, res) => {
         _id: event._id,
         title: event.title,
         description: event.description,
+        academicYearStart: event.academicYearStart ?? null,
+        semester: event.semester ?? null,
         date: event.date,
         time: event.time,
         location: event.location,
@@ -518,7 +525,7 @@ router.get("/events", async (req, res) => {
 router.get("/events/export", async (req, res) => {
   try {
     const [events, counts] = await Promise.all([
-      Event.find().populate("organizer", "name email").sort({ date: -1 }).lean(),
+      Event.find(academicPeriods.eventFilter(req.query)).populate("organizer", "name email").sort({ date: -1 }).lean(),
       attendanceCountsByEvent(),
     ]);
 
