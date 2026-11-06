@@ -560,14 +560,13 @@ router.get("/users", async (req, res) => {
   try {
     const users = await User.find().select(REPORT_USER_FIELDS).sort({ createdAt: -1 }).lean();
 
-    const byRole = await User.aggregate([
-      { $group: { _id: "$role", count: { $sum: 1 } } },
-    ]);
-
+    // Count each account once, from the same snapshot as the user ledger.
+    // Promotion grants organizer access without changing the student identity.
     const roleMap = { student: 0, organizer: 0, admin: 0 };
-    byRole.forEach((r) => {
-      roleMap[r._id] = r.count;
-    });
+    for (const user of users) {
+      const reportRole = user.role === "student" && user.organizerAccess === true ? "organizer" : user.role;
+      if (Object.hasOwn(roleMap, reportRole)) roleMap[reportRole] += 1;
+    }
 
     res.json({
       users,
@@ -590,7 +589,7 @@ router.get("/users/export", async (req, res) => {
       ...users.map((u) => [
         u.name,
         u.email,
-        u.role,
+        u.role === "student" && u.organizerAccess === true ? "Student/Organizer" : u.role,
         u.createdAt ? fmtDate.format(new Date(u.createdAt)) : "",
       ]),
     ];

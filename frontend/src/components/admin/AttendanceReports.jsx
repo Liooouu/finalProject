@@ -1,6 +1,7 @@
 import AttendanceRecordActions from "./AttendanceRecordActions";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../../api/axios";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import { useTheme } from "../../context/ThemeContext";
 import { usePageMeta } from "../../context/PageMetaContext";
 import {
@@ -154,8 +155,12 @@ const AttendanceReports = () => {
 
   useEffect(() => {
     if (activeTab === "events" && !eventsData) fetchEvents();
-    if (activeTab === "users" && !usersData) fetchUsers();
-  }, [activeTab, eventsData, usersData, fetchEvents, fetchUsers]);
+  }, [activeTab, eventsData, fetchEvents]);
+
+  useEffect(() => {
+    if (activeTab === "users") fetchUsers();
+  }, [activeTab, fetchUsers]);
+  useAutoRefresh(fetchUsers, { interval: 30000, enabled: activeTab === "users" });
 
   const downloadCSV = async (type) => {
     setExporting(true);
@@ -343,7 +348,7 @@ const AttendanceReports = () => {
           tone: "brand",
         },
         {
-          label: "Organizers",
+          label: "Event Organizers",
           value: usersData.stats.organizer,
           color: palette.late,
           tone: "warn",
@@ -668,7 +673,7 @@ const AttendanceReports = () => {
             <ChartCard
               className="min-w-0"
               title="Users by role"
-              subtitle="Student organizers are included under Students."
+              subtitle="Promoted students count as Event Organizers until demoted."
               actions={
                 <span className="num rounded-full border border-line bg-card-alt/60 px-2.5 py-1 text-[10px] font-medium text-on-muted">
                   {usersData.stats.total}
@@ -714,7 +719,7 @@ const AttendanceReports = () => {
                       <td>
                         <span
                           className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium capitalize ${
-                            roleStyles[u.role] || roleStyles.student
+                            roleStyles[u.role === "student" && u.organizerAccess ? "organizer" : u.role] || roleStyles.student
                           }`}
                         >
                           {u.role === "student" && u.organizerAccess ? "Student/Organizer" : u.role}
