@@ -49,8 +49,8 @@ const ManageUsers = () => {
   const [loading, setLoading] = useState(seed === undefined);
   const [selectedUser, setSelectedUser] = useState(null);
   const [search, setSearch] = useState("");
-  const [staffPage, setStaffPage] = useState(1);
-  const [studentPage, setStudentPage] = useState(1);
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [directoryPage, setDirectoryPage] = useState(1);
   const [appealPage, setAppealPage] = useState(1);
   const [promoteTarget, setPromoteTarget] = useState(null);
   const [promoting, setPromoting] = useState(false);
@@ -214,6 +214,14 @@ const ManageUsers = () => {
     return "Unassigned";
   };
 
+  // Readable class line for the directory: "BSIT · 3rd Year · A".
+  const yearLabels = { 1: "1st Year", 2: "2nd Year", 3: "3rd Year", 4: "4th Year" };
+  const academicSummary = (user) => {
+    const year = yearLabels[Number(user.yearLevel)];
+    const parts = [user.program, year, user.section].filter(Boolean);
+    return parts.length ? parts.join(" · ") : "Unassigned";
+  };
+
   const unlockFace = async (target) => {
     try {
       const res = await api.post(`/admin/users/${target._id}/unlock-face`);
@@ -339,12 +347,20 @@ const ManageUsers = () => {
   const term = search.trim().toLowerCase();
   const matchingUsers = users.filter(user => !term ||
     [user.name, user.email].some(value => String(value || "").toLowerCase().includes(term)));
-  const staffUsers = matchingUsers.filter(
+  const studentCount = users.filter((user) => user.role === "student").length;
+  // Staff access as the portal defines it: an admin, a legacy organizer, or a
+  // student who was promoted. Counting them once keeps the summary honest.
+  const staffCount = users.filter(
     (user) => user.role === "admin" || user.role === "organizer" || user.organizerAccess === true
-  );
-  const studentUsers = matchingUsers.filter(
-    user => user.role === "student" && user.organizerAccess !== true
-  );
+  ).length;
+  const filteredUsers = matchingUsers
+    .filter((user) => {
+      if (roleFilter === "admins") return user.role === "admin";
+      if (roleFilter === "organizers") return user.role === "organizer" || user.organizerAccess === true;
+      if (roleFilter === "students") return user.role === "student";
+      return true;
+    })
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 
   const getRoleBadge = (role, organizerAccess = false) => (
     <span
@@ -356,132 +372,59 @@ const ManageUsers = () => {
     </span>
   );
 
-  const renderUserActions = (user, compact = false) => {
-    const showUnlock = user.role === "student" && isFaceLocked(user);
-    const actionCount =
-      1 +
-      (showUnlock ? 1 : 0) +
-      (user.role !== "admin" ? 1 : 0);
-
-    if (compact) {
-      return (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            onClick={() => openUserDetails(user)}
-            variant="secondary"
-            size="icon"
-            style={{ width: 28, height: 28 }}
-            title="View details"
-            aria-label={`View ${user.name}`}
-          >
-            <FaEye className="text-[11px]" />
-          </Button>
-          {showUnlock && (
-            <Button
-              onClick={() => setUnlockTarget(user)}
-              variant="secondary"
-              size="icon"
-              style={{ width: 28, height: 28 }}
-              title="Clear face-verification lockout"
-              aria-label={`Unlock face verification for ${user.name}`}
-            >
-              <FaUnlock className="text-[11px]" />
-            </Button>
-          )}
-          {user.role !== "admin" && (
-            <Button
-              onClick={() => setDeleteTarget(user._id)}
-              variant="danger"
-              size="icon"
-              style={{ width: 28, height: 28 }}
-              title="Delete account"
-              aria-label={`Delete ${user.name}`}
-            >
-              <FaTrash className="text-[11px]" />
-            </Button>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div className="mt-3 grid grid-cols-2 gap-2">
+  // One row action. Face unlocks, organizer access, service balances and
+  // account deletion live in the details dialog, where the student's state is
+  // visible; keeping them in the table turned every row into a menu.
+  const renderUserActions = (user, compact = false) =>
+    compact ? (
+      <div className="flex items-center justify-end gap-1">
+        <Button
+          onClick={() => openUserDetails(user)}
+          variant="secondary"
+          size="icon"
+          style={{ width: 28, height: 28 }}
+          title="View details"
+          aria-label={`View ${user.name}`}
+        >
+          <FaEye className="text-[11px]" />
+        </Button>
+      </div>
+    ) : (
+      <div className="mt-3">
         <Button
           onClick={() => openUserDetails(user)}
           variant="secondary"
           size="sm"
-          className={`w-full ${actionCount === 1 ? "col-span-2" : ""}`}
+          className="w-full"
         >
           <FaEye className="text-[11px]" />
-          View
+          View details
         </Button>
-        {showUnlock && (
-          <Button
-            onClick={() => setUnlockTarget(user)}
-            variant="secondary"
-            size="sm"
-            className="w-full"
-          >
-            <FaUnlock className="text-[11px]" />
-            Unlock
-          </Button>
-        )}
-        {user.role !== "admin" && (
-          <Button
-            onClick={() => setDeleteTarget(user._id)}
-            variant="danger"
-            size="sm"
-            className={`w-full ${actionCount === 3 ? "col-span-2" : ""}`}
-          >
-            <FaTrash className="text-[11px]" />
-            Delete
-          </Button>
-        )}
       </div>
     );
-  };
 
-  const renderUserTable = (
-    list,
-    {
-      title,
-      subtitle,
-      emptyTitle,
-      showGroup = false,
-      page,
-      onPageChange,
-    }
-  ) => {
-    const currentPage = Math.min(page, Math.max(1, Math.ceil(list.length / 5)));
-    const visibleUsers = list.slice((currentPage - 1) * 5, currentPage * 5);
+  // One directory for every account. Two tables doubled the filters and hid the
+  // role behind the section a person happened to be filed under; a single list
+  // with a role filter answers "who has access to what" in one place.
+  const renderDirectory = () => {
+    const currentPage = Math.min(directoryPage, Math.max(1, Math.ceil(filteredUsers.length / 5)));
+    const visibleUsers = filteredUsers.slice((currentPage - 1) * 5, currentPage * 5);
     return (
-    <Card as="section" aria-label={title} padding="none" className="flex min-w-0 flex-col overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3.5">
-        <div>
-          <h2 className="text-sm font-semibold text-on">{title}</h2>
-          <p className="text-xs text-on-muted">{subtitle}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-full border border-line bg-card-alt px-2.5 py-0.5 text-xs font-medium text-on-dim">
-            {list.length}
-          </span>
-        </div>
-      </div>
-
-      <StablePage fill pageKey={`directory:${title}:${term}`} loading={loading} footer={<div className="px-4 pb-4"><Pagination page={currentPage} pageSize={5} total={list.length} onChange={onPageChange} disabled={loading} label={`${title} pages`} /></div>}>
+    <Card as="section" aria-label="Accounts" padding="none" className="flex min-w-0 flex-col overflow-hidden">
+      <StablePage fill pageKey={`directory:${roleFilter}:${term}`} loading={loading} footer={<div className="px-4 pb-4"><Pagination page={currentPage} pageSize={5} total={filteredUsers.length} onChange={setDirectoryPage} disabled={loading} label="Account pages" /></div>}>
       <div className="min-w-0">
         {loading ? (
         <div className="p-4">
           <TableSkeleton rows={4} />
         </div>
-      ) : list.length === 0 ? (
+      ) : filteredUsers.length === 0 ? (
         <EmptyState
           icon={<FaUsers />}
-          title={emptyTitle}
+          title="No accounts found"
           description={
-            term ? "Try another name or email." : showGroup
-              ? "Student accounts will appear here once registered."
-              : "Staff accounts will appear here once created."
+            term || roleFilter !== "all"
+              ? "Try another name or email, or switch the filter back to all accounts."
+              : "Accounts will appear here once registered."
           }
         />
       ) : (
@@ -508,29 +451,13 @@ const ManageUsers = () => {
                         </p>
                       </div>
                       <div className="shrink-0">
-                        {showGroup ? (
-                          <span className="inline-flex items-center rounded-full border border-brand/20 bg-brand/10 px-2 py-0.5 text-[10px] font-semibold text-brand">
-                            {getGroupLabel(user)}
-                          </span>
-                        ) : (
-                          getRoleBadge(user.role, user.organizerAccess)
-                        )}
+                        {getRoleBadge(user.role, user.organizerAccess)}
                       </div>
                     </div>
 
-                    {showGroup && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <span className="rounded-full border border-line bg-card px-2 py-0.5 text-[10px] font-medium text-on-dim">
-                          {user.program || "No program"}
-                        </span>
-                        <span className="rounded-full border border-line bg-card px-2 py-0.5 text-[10px] font-medium text-on-dim">
-                          Year {user.yearLevel ?? "?"}
-                        </span>
-                        <span className="rounded-full border border-line bg-card px-2 py-0.5 text-[10px] font-medium text-on-dim">
-                          Section {user.section || "?"}
-                        </span>
-                      </div>
-                    )}
+                    <p className="mt-1.5 text-xs text-on-muted">
+                      {user.role === "student" ? academicSummary(user) : "Staff account"}
+                    </p>
 
                     {user.role === "student" && isFaceLocked(user) && (
                       <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-danger/10 px-2 py-0.5 text-[10px] font-medium text-danger">
@@ -549,13 +476,15 @@ const ManageUsers = () => {
           <table className="data-table hidden table-fixed sm:table">
             <colgroup>
               <col />
-              <col className={showGroup ? "w-[180px]" : "w-[152px]"} />
-              <col className="w-[156px]" />
+              <col className="w-[150px]" />
+              <col className="w-[186px]" />
+              <col className="w-[68px]" />
             </colgroup>
             <thead className="sticky top-0 z-10 bg-card">
               <tr>
                 <th>Name / Email</th>
-                {showGroup ? <th>Academic group</th> : <th>Role</th>}
+                <th>Role</th>
+                <th>Program · Year · Section</th>
                 <th
                   className="text-right"
                   style={{ paddingLeft: 8, paddingRight: 8 }}
@@ -587,18 +516,11 @@ const ManageUsers = () => {
                       </div>
                     </div>
                   </td>
+                  <td>{getRoleBadge(user.role, user.organizerAccess)}</td>
                   <td>
-                    {showGroup ? (
-                      <div>
-                        <p className="text-on-dim">{getGroupLabel(user)}</p>
-                        <p className="whitespace-normal break-words text-xs text-on-muted">
-                          {user.program || "?"} · Year {user.yearLevel ?? "?"} · Section{" "}
-                          {user.section || "?"}
-                        </p>
-                      </div>
-                    ) : (
-                      getRoleBadge(user.role, user.organizerAccess)
-                    )}
+                    <p className="truncate text-on-dim" title={user.role === "student" ? academicSummary(user) : undefined}>
+                      {user.role === "student" ? academicSummary(user) : "—"}
+                    </p>
                   </td>
                   <td style={{ paddingLeft: 8, paddingRight: 8 }}>
                     {renderUserActions(user, true)}
@@ -624,7 +546,7 @@ const ManageUsers = () => {
       <PageHeader
         eyebrow="People & access"
         title="Manage users"
-        subtitle={`${matchingUsers.length} of ${users.length} accounts`}
+        subtitle={`${users.length} accounts · ${studentCount} students · ${staffCount} with staff access`}
       />
 
       {message && (
@@ -649,42 +571,25 @@ const ManageUsers = () => {
 
       {activeTab === "users" ? (
         <>
-          <div
-            role="note"
-            aria-label="User action icon guide"
-            className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[var(--panel-radius)] border border-line bg-card-alt/40 px-4 py-3 text-xs text-on-dim"
-          >
-            <span className="font-semibold uppercase tracking-[0.12em] text-on-muted">
-              Action guide
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <FaEye className="text-[11px] text-brand" aria-hidden="true" />
-              View user details and attendance
-            </span>
-
-          </div>
-
           <Card padding="sm">
-            <label htmlFor="manage-user-search" className="field-label">Search users</label>
-            <input id="manage-user-search" type="search" className="field" placeholder="Search name or email..." value={search} onChange={event => { setSearch(event.target.value); setStaffPage(1); setStudentPage(1); }} />
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-0 flex-1">
+                <label htmlFor="manage-user-search" className="field-label">Search accounts</label>
+                <input id="manage-user-search" type="search" className="field" placeholder="Search name or email..." value={search} onChange={event => { setSearch(event.target.value); setDirectoryPage(1); }} />
+              </div>
+              <div className="w-full sm:w-56">
+                <label htmlFor="manage-user-role" className="field-label">Filter</label>
+                <select id="manage-user-role" className="field-select" value={roleFilter} onChange={event => { setRoleFilter(event.target.value); setDirectoryPage(1); }}>
+                  <option value="all">All accounts</option>
+                  <option value="students">Students</option>
+                  <option value="organizers">Organizers</option>
+                  <option value="admins">Admins</option>
+                </select>
+              </div>
+            </div>
           </Card>
 
-          <div className="grid gap-4 xl:grid-cols-2">
-            {renderUserTable(staffUsers, {
-              title: "Admin & Event Organizers",
-              subtitle: "Admins and accounts with organizer access",
-              emptyTitle: "No admin or organizer accounts found",
-              page: staffPage, onPageChange: setStaffPage,
-            })}
-
-            {renderUserTable(studentUsers, {
-              title: "Students",
-              subtitle: "Accounts with student access only",
-              emptyTitle: "No students found",
-              showGroup: true,
-              page: studentPage, onPageChange: setStudentPage,
-            })}
-          </div>
+          {renderDirectory()}
         </>
       ) : activeTab === "advancement" ? (
         <AcademicAdvancement onApplied={() => fetchUsers({ silent: true })} />
@@ -908,6 +813,7 @@ const ManageUsers = () => {
                       size="sm"
                       onClick={() => setUnlockTarget(selectedUser)}
                     >
+                      <FaUnlock className="text-[11px]" />
                       Unlock face verification
                     </Button>
                   )}
@@ -952,6 +858,30 @@ const ManageUsers = () => {
                   <Pagination page={currentAttendancePage} pageSize={5} total={userAttendance.length} onChange={setAttendancePage} label="Student attendance history pages" />
                 </>
               )}
+
+              {selectedUser.role !== "admin" && (
+                <section
+                  aria-label="Delete account"
+                  className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/30 bg-danger/5 p-4"
+                >
+                  <div>
+                    <h4 className="font-medium text-on">Delete this account</h4>
+                    <p className="text-sm text-on-dim">
+                      Permanently removes the account and its attendance records.
+                      This cannot be undone.
+                    </p>
+                  </div>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={savingAcademic || demoting || removingCS}
+                    onClick={() => setDeleteTarget(selectedUser._id)}
+                  >
+                    <FaTrash className="text-[11px]" />
+                    Delete account
+                  </Button>
+                </section>
+              )}
             </div>
           </div>
         </div>
@@ -983,6 +913,7 @@ const ManageUsers = () => {
         onConfirm={() => {
           const target = deleteTarget;
           setDeleteTarget(null);
+          setShowModal(false);
           deleteUser(target);
         }}
         onCancel={() => setDeleteTarget(null)}

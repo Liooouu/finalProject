@@ -60,14 +60,15 @@
 .admin-text-link { color:var(--brand); font-size:11px; white-space:nowrap; }
 .admin-review-list,.admin-next-list { list-style:none; margin:10px 0 0; padding:0; }
 .admin-home-reviews { display:flex; flex-direction:column; }
-.admin-review-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; flex:1; margin-top:14px; }
-.admin-review-list li { display:flex; min-width:0; }
-.admin-review-box { display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; gap:8px; min-height:178px; padding:16px 8px; border-radius:9px; background:color-mix(in srgb,var(--card-alt-bg) 65%,var(--card-bg)); text-align:center; transition:transform 160ms ease,box-shadow 160ms ease,background-color 160ms ease; }
-.admin-review-icon { display:grid; place-items:center; width:36px; height:36px; border-radius:10px; background:color-mix(in srgb,var(--brand) 10%,transparent); color:var(--brand); }
-.admin-review-icon svg { width:16px; height:16px; }
+.admin-review-list { display:flex; flex-direction:column; gap:8px; flex:1; margin-top:14px; }
+.admin-review-list li { display:flex; flex:1 1 auto; min-width:0; }
+.admin-review-box { display:flex; align-items:center; width:100%; gap:12px; padding:12px 14px; border-radius:9px; background:color-mix(in srgb,var(--card-alt-bg) 65%,var(--card-bg)); text-align:left; transition:transform 160ms ease,box-shadow 160ms ease,background-color 160ms ease; }
+.admin-review-icon { display:grid; place-items:center; flex-shrink:0; width:34px; height:34px; border-radius:10px; background:color-mix(in srgb,var(--brand) 10%,transparent); color:var(--brand); }
+.admin-review-icon svg { width:15px; height:15px; }
+.admin-review-text { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; }
 .admin-review-label { font-size:12px; line-height:1.4; }
-.admin-review-count { font-size:30px; line-height:1; font-weight:500; font-variant-numeric:tabular-nums; }
-.admin-review-caption { margin-top:-3px; font-size:11px; color:var(--on-muted); }
+.admin-review-desc { font-size:11px; line-height:1.35; color:var(--on-muted); }
+.admin-review-count { flex-shrink:0; font-size:24px; line-height:1; font-weight:500; font-variant-numeric:tabular-nums; }
 .admin-review-box:focus-visible { outline:2px solid var(--brand); outline-offset:3px; transform:translateY(-3px); box-shadow:0 6px 14px -6px color-mix(in srgb,var(--brand) 30%,transparent); }
 @media(hover:hover) and (pointer:fine) {
   .admin-review-box:hover { transform:translateY(-3px); background:var(--card-alt-bg); box-shadow:0 6px 14px -6px color-mix(in srgb,var(--brand) 30%,transparent); }

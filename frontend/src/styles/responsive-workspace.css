@@ -52,8 +52,6 @@
 .portal-refined main nav[aria-label$="pages"]>div>span { min-width:6.8rem; text-align:center; }
 .portal-refined main .record-pagination-controls>span { min-width:0; }
 .portal-refined .manual-review-details { overflow-wrap:anywhere; }
-.portal-refined .admin-review-list { grid-template-columns:repeat(auto-fit,minmax(105px,1fr)); }
-.portal-refined .admin-review-box { min-height:150px; }
 @media(max-width:767px) {
   .portal-refined aside nav button { min-height:44px; }
   .portal-refined .flight-page { padding:16px 16px calc(24px + env(safe-area-inset-bottom)); }
@@ -73,9 +71,6 @@
   .portal-refined.organizer-refined .organizer-home-grid .organizer-attendance-card .field-select { font-size:16px; padding-left:12px; }
   .portal-refined.organizer-refined .organizer-home-grid .organizer-station-actions button { min-height:44px; padding:10px 14px; font-size:14px; }
   .portal-refined.organizer-refined .organizer-home-grid .organizer-manual-card .organizer-review-box>.text-xs { display:block; }
-  .portal-refined .admin-home-reviews .admin-review-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .portal-refined .admin-home-reviews .admin-review-list>li:last-child:nth-child(odd) { grid-column:1/-1; }
-  .portal-refined .admin-review-box { min-height:112px; padding:12px; gap:6px; }
   .portal-refined .student-pending-attendance>p { flex-basis:100%; }
   .portal-refined .student-pending-attendance>button { width:100%; }
 }
