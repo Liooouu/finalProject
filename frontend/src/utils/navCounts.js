@@ -65,7 +65,7 @@ const load = async () => {
   }
 
   // A role switch may have happened while the requests were in flight.
-  if (shared.role === role) publish(next);
+  if (shared.role === role) publish({ ...next, reviews: (next.manual || 0) + (next.appeals || 0) + (next.excuses || 0) });
 };
 
 const stop = () => {

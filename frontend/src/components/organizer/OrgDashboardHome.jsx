@@ -123,18 +123,18 @@ export default function OrganizerHome() {
           <span className="text-xs text-on-muted">Verify the student and submit for review.</span>
         </Link>
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-xs">
-          <Link to="/organizer/dashboard/manual-reviews?view=mine" className="font-medium text-on-dim hover:text-on">{manualSummary ? `${manualSummary.pendingMine || 0} submitted · pending` : "My submitted requests"}</Link>
-          <Link to="/organizer/dashboard/manual-reviews?view=review" className="font-medium text-brand">{manualSummary?.pendingReview ? `${manualSummary.pendingReview} to review →` : "Assigned reviews →"}</Link>
+          <Link to="/organizer/dashboard/reviews/manual?view=mine" className="font-medium text-on-dim hover:text-on">{manualSummary ? `${manualSummary.pendingMine || 0} submitted · pending` : "My submitted requests"}</Link>
+          <Link to="/organizer/dashboard/reviews/manual?view=review" className="font-medium text-brand">{manualSummary?.pendingReview ? `${manualSummary.pendingReview} to review →` : "Assigned reviews →"}</Link>
         </div>
         {manualError && <p className="text-xs text-on-muted">Request counts could not refresh. <button onClick={() => refresh()} className="underline">Retry</button></p>}
       </BaseCard>
       <BaseCard title="Excuse letters" eyebrow="04 · Requests to review" icon={<FaEnvelopeOpenText />} className={`${cardClass} organizer-excuses-card col-span-2`} bodyClassName={bodyClass}>
         {lettersError && <p role="alert" className="text-xs text-danger">Letters could not be refreshed. <button onClick={() => refresh()} className="underline">Try again</button></p>}
         {!lettersError || letters.length ? <>
-          <Link to="/organizer/dashboard/excuses" className="portal-inset portal-action-box organizer-review-box flex-1" aria-label="Review letters"><span className="text-xs text-on-dim">Waiting for review</span><strong className="num text-on">{pending.length}</strong><span className="text-xs text-brand">Review letters →</span></Link>
+          <Link to="/organizer/dashboard/reviews/excuses" className="portal-inset portal-action-box organizer-review-box flex-1" aria-label="Review letters"><span className="text-xs text-on-dim">Waiting for review</span><strong className="num text-on">{pending.length}</strong><span className="text-xs text-brand">Review letters →</span></Link>
           {pending.length ? <ul className="divide-y divide-line">{pending.slice(0, 2).map(letter => <li key={letter._id} className="py-2"><p className="text-sm font-medium text-on">{letter.student?.name || "Student"}</p><p className="mt-0.5 text-xs text-on-muted [overflow-wrap:anywhere]">{letter.event?.title || "Event unavailable"}</p></li>)}</ul> : <p className="text-xs text-on-muted">You’re all caught up.</p>}
         </> : <p className="text-sm text-on-muted">Review count unavailable.</p>}
-        {lettersError && !letters.length && <div className="mt-auto pt-3"><Button as={Link} to="/organizer/dashboard/excuses" variant="secondary" size="sm">Review letters</Button></div>}
+        {lettersError && !letters.length && <div className="mt-auto pt-3"><Button as={Link} to="/organizer/dashboard/reviews/excuses" variant="secondary" size="sm">Review letters</Button></div>}
       </BaseCard>
     </div>
   </div>;

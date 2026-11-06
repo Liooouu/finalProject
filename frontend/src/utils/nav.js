@@ -17,6 +17,8 @@ export const profilePathFor = {
 };
 
 const TITLES = {
+  "/admin/dashboard/reviews": "Reviews",
+  "/organizer/dashboard/reviews": "Reviews",
   "/student/dashboard": "Dashboard",
   "/student/dashboard/events": "Attend Events",
   "/student/dashboard/events/": "Event Details",

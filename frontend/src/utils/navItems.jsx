@@ -22,13 +22,7 @@ const sectionsByRole = {
       label: "Management",
       items: [
         { name: "Manage Events", path: "/admin/dashboard/events", icon: <FaCalendarAlt /> },
-        { name: "Manual Reviews", path: "/admin/dashboard/manual-reviews", icon: <FaCalendarCheck />, badge: "manual" },
-        {
-          name: "Manage Excuses",
-          path: "/admin/dashboard/excuses",
-          icon: <FaEdit />,
-          badge: "excuses",
-        },
+        { name: "Reviews", path: "/admin/dashboard/reviews", icon: <FaCalendarCheck />, badge: "reviews" },
         { name: "Manage Users", path: "/admin/dashboard/users", icon: <FaUsers /> },
       ],
     },
@@ -54,13 +48,7 @@ const sectionsByRole = {
       items: [
         { name: "Manage Events", path: "/organizer/dashboard/events", icon: <FaCalendarAlt /> },
         { name: "Manual Attendance", path: "/organizer/dashboard/manual-attendance", icon: <FaCalendarCheck /> },
-        { name: "Manual Requests", path: "/organizer/dashboard/manual-reviews", icon: <FaClock />, badge: "manual" },
-        {
-          name: "Manage Excuses",
-          path: "/organizer/dashboard/excuses",
-          icon: <FaEdit />,
-          badge: "excuses",
-        },
+        { name: "Reviews", path: "/organizer/dashboard/reviews", icon: <FaCalendarCheck />, badge: "reviews" },
       ],
     },
     {

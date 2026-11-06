@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import {
-  FaCheck,
   FaTimes,
   FaEye,
   FaShieldAlt,
@@ -11,7 +10,6 @@ import {
   FaUnlock,
   FaUsers,
 } from "react-icons/fa";
-import PrivateImage from "../shared/PrivateImage";
 import EmptyState from "../shared/EmptyState";
 import { usePageMeta } from "../../context/PageMetaContext";
 import {
@@ -30,7 +28,6 @@ import { formatDate, formatDateTime } from "../../utils/helpers";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 
 const CACHE_KEY = "admin:users:enrollment-status";
-const APPEALS_CACHE_KEY = "admin:face-appeals";
 
 const roleStyles = {
   admin: "border-brand/25 bg-brand/10 text-brand",
@@ -44,14 +41,12 @@ const SECTION_OPTIONS = ["A", "B", "C"];
 
 const ManageUsers = () => {
   const seed = readScreen(CACHE_KEY);
-  const appealsSeed = readScreen(APPEALS_CACHE_KEY);
   const [users, setUsers] = useState(seed?.users ?? []);
   const [loading, setLoading] = useState(seed === undefined);
   const [selectedUser, setSelectedUser] = useState(null);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [directoryPage, setDirectoryPage] = useState(1);
-  const [appealPage, setAppealPage] = useState(1);
   const [promoteTarget, setPromoteTarget] = useState(null);
   const [promoting, setPromoting] = useState(false);
   const [faceStatusLoading, setFaceStatusLoading] = useState(false);
@@ -143,18 +138,12 @@ const ManageUsers = () => {
   const currentAttendancePage = Math.min(attendancePage, attendancePages);
   const visibleAttendance = userAttendance.slice((currentAttendancePage - 1) * 5, currentAttendancePage * 5);
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = ["appeals", "advancement"].includes(searchParams.get("tab")) ? searchParams.get("tab") : "users";
+  const activeTab = searchParams.get("tab") === "advancement" ? "advancement" : "users";
   const setActiveTab = tab => setSearchParams(previous => {
     const next = new URLSearchParams(previous);
     if (tab !== "users") next.set("tab", tab); else next.delete("tab");
     return next;
   }, { replace: true });
-  const [appeals, setAppeals] = useState(appealsSeed?.appeals ?? []);
-  const [appealsLoading, setAppealsLoading] = useState(false);
-  const [reviewTarget, setReviewTarget] = useState(null);
-  const [reviewNote, setReviewNote] = useState("");
-  const [reviewIdentityChecked, setReviewIdentityChecked] = useState(false);
-  const [reviewingAppeal, setReviewingAppeal] = useState(false);
   const [unlockTarget, setUnlockTarget] = useState(null);
 
   usePageMeta("Manage Users", "Search, inspect, and manage all accounts.");
@@ -173,24 +162,10 @@ const ManageUsers = () => {
     }
   };
 
-  const fetchAppeals = async ({ silent = false } = {}) => {
-    if (!silent) setAppealsLoading(true);
-    try {
-      const res = await api.get("/admin/security/face-appeals");
-      setAppeals(res.data);
-      writeScreen(APPEALS_CACHE_KEY, { appeals: res.data });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      if (!silent) setAppealsLoading(false);
-    }
-  };
-
   useEffect(() => {
     // Anything cached is already painted, so the background refresh must not
     // flash the table back to a skeleton.
     fetchUsers({ silent: readScreen(CACHE_KEY) !== undefined });
-    fetchAppeals({ silent: readScreen(APPEALS_CACHE_KEY) !== undefined });
   }, []);
 
   // Promote, unlock and delete edit the list locally, so the cache has to
@@ -238,39 +213,6 @@ const ManageUsers = () => {
       setUnlockTarget(null);
       setMessage(err.response?.data?.message || "Failed to unlock face verification");
       setMessageType("error");
-    }
-  };
-
-  const handleReview = async (appeal, action) => {
-    if (reviewingAppeal) return;
-    if (appeal.replacement && action === "approved" && !reviewIdentityChecked) return;
-    setReviewingAppeal(true);
-    try {
-      const res = await api.post(`/admin/security/face-appeals/${appeal._id}/review`, {
-        action,
-        note: action === "rejected" ? reviewNote : "",
-        identityChecked: reviewIdentityChecked,
-      });
-      setAppeals((prev) => prev.map((a) => (a._id === appeal._id ? res.data.appeal : a)));
-      setReviewTarget(null);
-      setReviewNote("");
-      setMessage(res.data.message || `Appeal ${action}`);
-      setMessageType("success");
-      if (action === "approved" && appeal.student?._id) {
-        setUsers((prev) =>
-          prev.map((u) =>
-            u._id === appeal.student._id
-              ? { ...u, faceLockUntil: null, faceAttempts: 0 }
-              : u
-          )
-        );
-      }
-    } catch (err) {
-      console.error(err);
-      setMessage(err.response?.data?.message || "Failed to review appeal");
-      setMessageType("error");
-    } finally {
-      setReviewingAppeal(false);
     }
   };
 
@@ -537,10 +479,6 @@ const ManageUsers = () => {
   );
   };
 
-  const pendingCount = appeals.filter((a) => a.status === "pending").length;
-  const currentAppealPage = Math.min(appealPage, Math.max(1, Math.ceil(appeals.length / 5)));
-  const visibleAppeals = appeals.slice((currentAppealPage - 1) * 5, currentAppealPage * 5);
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -564,7 +502,6 @@ const ManageUsers = () => {
         onChange={setActiveTab}
         tabs={[
           { key: "users", label: "Users", count: users.length },
-          { key: "appeals", label: "Face appeals", count: pendingCount || undefined },
           { key: "advancement", label: "Year levels" },
         ]}
       />
@@ -591,124 +528,8 @@ const ManageUsers = () => {
 
           {renderDirectory()}
         </>
-      ) : activeTab === "advancement" ? (
-        <AcademicAdvancement onApplied={() => fetchUsers({ silent: true })} />
       ) : (
-        <div className="space-y-4">
-          <p className="text-sm text-on-dim">
-            {pendingCount} pending · {appeals.length} total appeals
-          </p>
-          {appealsLoading ? (
-            <Card>
-              <TableSkeleton rows={4} />
-            </Card>
-          ) : appeals.length === 0 ? (
-            <Card>
-              <EmptyState
-                icon={<FaShieldAlt />}
-                title="No face verification appeals"
-                description="Appeals submitted by students will appear here for review."
-              />
-            </Card>
-          ) : (
-            <StablePage pageKey="face-appeals" footer={<Pagination page={currentAppealPage} pageSize={5} total={appeals.length} onChange={setAppealPage} label="Face appeal pages" />}><div className="space-y-3">
-              {visibleAppeals.map((appeal) => (
-                <Card key={appeal._id} as="article">
-                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-on">
-                        {appeal.student?.name || "Unknown student"}
-                      </p>
-                      <p className="truncate text-sm text-on-dim">{appeal.student?.email}</p>
-                      {appeal.replacement && <p className="mt-1 text-xs text-brand">Face replacement · school ID check required</p>}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {isFaceLocked(appeal.student) && (
-                        <span className="rounded-full bg-danger/10 px-2.5 py-0.5 text-[11px] font-medium text-danger">
-                          Face locked
-                        </span>
-                      )}
-                      <StatusChip status={appeal.status} />
-                    </div>
-                  </div>
-
-                  {appeal.note && (
-                    <p className="mb-4 rounded-xl border border-line bg-card-alt/40 px-3.5 py-2.5 text-sm text-on-dim">
-                      &quot;{appeal.note}&quot;
-                    </p>
-                  )}
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <p className="mb-1.5 text-xs font-medium text-on-muted">
-                        Proof photo (submitted)
-                      </p>
-                      <PrivateImage
-                        src={appeal.photoUrl}
-                        alt="Proof"
-                        className="aspect-[4/3] w-full rounded-xl border border-line object-cover"
-                      />
-                    </div>
-                    <div>
-                      <p className="mb-1.5 text-xs font-medium text-on-muted">
-                        Enrolled face photo
-                      </p>
-                      {appeal.student?.facePhoto ? (
-                        <PrivateImage
-                          src={appeal.student.facePhoto}
-                          alt="Enrolled face"
-                          className="aspect-[4/3] w-full rounded-xl border border-line object-cover"
-                        />
-                      ) : (
-                        <div className="flex aspect-[4/3] w-full items-center justify-center rounded-xl border border-line bg-card-alt text-sm text-on-muted">
-                          No face enrolled
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <p className="mt-3 text-xs text-on-muted">
-                    Submitted {formatDateTime(appeal.createdAt)}
-                  </p>
-
-                  {appeal.status === "pending" && (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => {
-                          setReviewNote("");
-                          setReviewIdentityChecked(false);
-                          setReviewTarget({ appeal, action: "approved" });
-                        }}
-                      >
-                        <FaCheck className="text-xs" /> Approve
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="danger"
-                        onClick={() => {
-                          setReviewNote("");
-                          setReviewTarget({ appeal, action: "rejected" });
-                        }}
-                      >
-                        <FaTimes className="text-xs" /> Reject
-                      </Button>
-                    </div>
-                  )}
-
-                  {appeal.status !== "pending" && appeal.responseNote && (
-                    <p className="mt-3 text-sm text-on-dim">
-                      <span className="font-medium text-on">Admin note:</span>{" "}
-                      {appeal.responseNote}
-                    </p>
-                  )}
-                </Card>
-              ))}
-            </div></StablePage>
-          )}
-        </div>
+        <AcademicAdvancement onApplied={() => fetchUsers({ silent: true })} />
       )}
 
       {showModal && selectedUser && (
@@ -935,42 +756,7 @@ const ManageUsers = () => {
         onCancel={() => setUnlockTarget(null)}
       />
 
-      <ConfirmDialog
-        open={!!reviewTarget}
-        title={
-          reviewTarget?.action === "approved"
-            ? "Approve this appeal?"
-            : "Reject this appeal?"
-        }
-        message={
-          reviewTarget?.action === "approved"
-            ? reviewTarget?.appeal.replacement ? "Check the student's school ID and proof photo. Approval permits replacing the enrolled face with this same verified identity within seven days." : "Approving unlocks the student's face verification so they can retry immediately."
-            : "Rejecting notifies the student that their appeal was declined. Add a reason below."
-        }
-        confirmLabel={reviewTarget?.action === "approved" ? "Approve" : "Reject"}
-        cancelLabel="Cancel"
-        variant={reviewTarget?.action === "approved" ? "default" : "danger"}
-        busy={reviewingAppeal}
-        confirmDisabled={reviewTarget?.action === "approved" && reviewTarget?.appeal.replacement && !reviewIdentityChecked}
-        onConfirm={() =>
-          reviewTarget && handleReview(reviewTarget.appeal, reviewTarget.action)
-        }
-        onCancel={() => {
-          setReviewTarget(null);
-          setReviewNote("");
-        }}
-      >
-        {reviewTarget?.action === "approved" && reviewTarget?.appeal.replacement && <label className="mt-3 flex items-start gap-2 text-sm text-on-dim"><input type="checkbox" checked={reviewIdentityChecked} onChange={e=>setReviewIdentityChecked(e.target.checked)} /><span>I checked the school ID and confirmed that the proof photo belongs to this student.</span></label>}
-        {reviewTarget?.action === "rejected" && (
-          <textarea
-            value={reviewNote}
-            onChange={(e) => setReviewNote(e.target.value)}
-            placeholder="Optional reason for rejection (shown to the student)..."
-            rows={2}
-            className="field mt-3"
-          />
-        )}
-      </ConfirmDialog>
+
     </div>
   );
 };

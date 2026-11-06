@@ -194,7 +194,7 @@ export default function OrgManageAttendees({ embedded = false, event }) {
         </StablePage> : <EmptyState compact icon={<FaUsers />} title="No matching students" description="Try another name or email." />}
       </Card>}
       {panel === "requests" && <Card className="min-w-0">
-        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="panel-heading">My submitted requests</h2><Link to="/organizer/dashboard/manual-reviews?view=review" className="text-sm font-medium text-brand">Review assigned requests →</Link></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="panel-heading">My submitted requests</h2><Link to="/organizer/dashboard/reviews/manual?view=review" className="text-sm font-medium text-brand">Review assigned requests →</Link></div>
         <p className="mt-1 text-sm text-on-muted">The recorded attendance time is kept even when review happens later.</p>
         <div className="mt-4"><label className="sr-only" htmlFor="manual-request-status">Request status</label><select id="manual-request-status" className="field-select w-full sm:w-auto" value={requestStatus} onChange={e => { setRequestStatus(e.target.value); setRequestPage(1); }}><option value="all">All requests</option><option value="pending">Pending review</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></div>
         {requestsError && <p role="alert" className="mt-3 text-sm text-danger">Requests could not be refreshed. <button onClick={fetchRequests} className="underline">Try again</button></p>}

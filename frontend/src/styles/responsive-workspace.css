@@ -2,6 +2,13 @@
 .stable-page { display:flex; flex-direction:column; min-width:0; }
 .manual-desk-tabs { width:100%; }
 .manual-desk-tabs>button { flex:1; justify-content:center; }
+.reviews-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); overflow:visible; }
+.reviews-tabs-admin { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.reviews-tabs>button { min-width:0; padding:10px 6px; white-space:normal; }
+.reviews-tabs>button>span { justify-content:center; flex-wrap:wrap; row-gap:4px; }
+@media(max-width:639px) {
+  .reviews-tabs>button>span { display:grid; grid-template-rows:2.6em auto; justify-items:center; align-items:center; width:100%; }
+}
 @media(max-width:639px) { .manual-desk-tabs>button { padding-left:8px; padding-right:8px; } }
 .stable-page.stable-page-fill { flex:1 0 auto; }
 .stable-page-fill>.stable-page-footer { margin-top:auto; }

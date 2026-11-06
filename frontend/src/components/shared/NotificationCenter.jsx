@@ -95,13 +95,13 @@ const targetForNotification = (notif, role) => {
 
   if (role === "admin") {
     if (/face verification appeal|impersonation|face verification/.test(text)) {
-      return "/admin/dashboard/users";
+      return "/admin/dashboard/reviews/face-appeals";
     }
-    if (/excuse/.test(text)) return "/admin/dashboard/excuses";
+    if (/excuse/.test(text)) return "/admin/dashboard/reviews/excuses";
     return eventTarget || "/admin/dashboard/events";
   }
 
-  if (/excuse/.test(text)) return "/organizer/dashboard/excuses";
+  if (/excuse/.test(text)) return "/organizer/dashboard/reviews/excuses";
   return eventTarget || "/organizer/dashboard/events";
 };
 

@@ -26,16 +26,16 @@ const chunks = {
   // Organizer portal
   [ROLE_PATHS.organizer]: () => import("../components/organizer/OrgDashboardHome"),
   "/organizer/dashboard/events": () => import("../components/organizer/OrgManageEvents"),
-  "/organizer/dashboard/excuses": () => import("../components/organizer/ManageExcuses"),
+  "/organizer/dashboard/excuses": () => import("../components/shared/ReviewsHub"),
   "/organizer/dashboard/manual-attendance": () => import("../components/organizer/ManualAttendance"),
-  "/organizer/dashboard/manual-reviews": () => import("../components/shared/ManualAttendanceReviews"),
+  "/organizer/dashboard/reviews": () => import("../components/shared/ReviewsHub"),
   "/organizer/dashboard/profile": () => import("../components/settings/ProfileSettings"),
 
   // Admin portal
   [ROLE_PATHS.admin]: () => import("../components/admin/DashboardHome"),
   "/admin/dashboard/events": () => import("../components/admin/ManageEvents"),
-  "/admin/dashboard/manual-reviews": () => import("../components/shared/ManualAttendanceReviews"),
-  "/admin/dashboard/excuses": () => import("../components/organizer/ManageExcuses"),
+  "/admin/dashboard/reviews": () => import("../components/shared/ReviewsHub"),
+  "/admin/dashboard/excuses": () => import("../components/shared/ReviewsHub"),
   "/admin/dashboard/users": () => import("../components/admin/ManageUsers"),
   "/admin/dashboard/reports": () => import("../components/admin/AttendanceReports"),
   "/admin/dashboard/profile": () => import("../components/settings/ProfileSettings"),
@@ -55,12 +55,12 @@ const IDLE_ROUTES = {
   organizer: [
     ROLE_PATHS.organizer,
     "/organizer/dashboard/events",
-    "/organizer/dashboard/excuses",
+    "/organizer/dashboard/reviews",
   ],
   admin: [
     ROLE_PATHS.admin,
     "/admin/dashboard/events",
-    "/admin/dashboard/excuses",
+    "/admin/dashboard/reviews",
     "/admin/dashboard/users",
   ],
 };

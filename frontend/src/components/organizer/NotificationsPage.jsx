@@ -7,7 +7,7 @@ const ORGANIZER_ACTIONS = [
     icon: <FaEdit />,
     label: "Manage excuses",
     description: "Review student excuse letters",
-    to: "/organizer/dashboard/excuses",
+    to: "/organizer/dashboard/reviews/excuses",
   },
   {
     icon: <FaCalendarAlt />,
@@ -28,7 +28,7 @@ const ADMIN_ACTIONS = [
     icon: <FaEdit />,
     label: "Review excuses",
     description: "Act on student excuse letters",
-    to: "/admin/dashboard/excuses",
+    to: "/admin/dashboard/reviews/excuses",
   },
   {
     icon: <FaUsers />,

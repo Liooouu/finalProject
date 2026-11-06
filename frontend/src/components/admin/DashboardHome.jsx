@@ -1,3 +1,4 @@
+import "../../styles/admin-dashboard-bento.css";
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../../api/axios";
@@ -6,7 +7,7 @@ import { formatDate, formatTime12Hour, splitEventsByLifecycle } from "../../util
 import { Card, Button, StatusChip } from "../ui";
 import Loading from "../shared/Loading";
 import EmptyState from "../shared/EmptyState";
-import { FaClipboardList, FaEnvelope, FaShieldAlt } from "react-icons/fa";
+import { FaClipboardList, FaEnvelope, FaShieldAlt, FaUsers, FaArrowRight, FaCalendarAlt } from "react-icons/fa";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 
 const CACHE_KEY = "admin:home:overview";
@@ -61,28 +62,33 @@ export default function DashboardHome() {
     .active.sort((a, b) => (a.status === "live" ? 0 : 1) - (b.status === "live" ? 0 : 1) || new Date(a.date) - new Date(b.date))
     .slice(0, EVENT_PREVIEW);
   const reviews = [
-    { label: "Manual attendance", description: "Verify check-ins and attendance corrections", count: state.manual?.pendingReview ?? null, path: "/admin/dashboard/manual-reviews", icon: <FaClipboardList /> },
-    { label: "Face appeals", description: "Review student identity requests", count: state.appeals?.filter(item => item.status === "pending").length ?? null, path: "/admin/dashboard/users?tab=appeals", icon: <FaShieldAlt /> },
-    { label: "Excuse letters", description: "Review pending absence letters", count: state.excuses?.filter(item => item.status === "pending").length ?? null, path: "/admin/dashboard/excuses", icon: <FaEnvelope /> },
+    { label: "Manual attendance", description: "Verify check-ins and attendance corrections", count: state.manual?.pendingReview ?? null, path: "/admin/dashboard/reviews/manual", icon: <FaClipboardList /> },
+    { label: "Face appeals", description: "Review student identity requests", count: state.appeals?.filter(item => item.status === "pending").length ?? null, path: "/admin/dashboard/reviews/face-appeals", icon: <FaShieldAlt /> },
+    { label: "Excuse letters", description: "Review pending absence letters", count: state.excuses?.filter(item => item.status === "pending").length ?? null, path: "/admin/dashboard/reviews/excuses", icon: <FaEnvelope /> },
   ];
   return <div className="admin-home-page">
     <header className="admin-page-heading"><h1>Admin dashboard</h1><p>Attendance overview and the work that needs your attention.</p></header>
     {!!state.failures.length && <div role="alert" className="alert alert-danger"><p>Could not refresh: {state.failures.join(", ")}. Previously loaded records stay visible.</p><Button onClick={load} variant="secondary" size="sm">Try again</Button></div>}
-    <div className="admin-home-summary">
+    <div className="admin-bento-grid">
       <Card as="section" className="admin-home-rate">
-        <h2><FaClipboardList aria-hidden="true" /> Attendance rate</h2>
-        <div className="admin-rate-box"><strong className="admin-rate-value" data-testid="admin-attendance-rate">{state.attendance && rate !== null ? `${rate}%` : "—"}</strong></div>
+        <div className="admin-bento-heading"><span className="admin-bento-icon" aria-hidden="true"><FaClipboardList /></span><div><p className="admin-bento-eyebrow">Attendance overview</p><h2>Attendance rate</h2></div></div>
+        <div className="admin-rate-box"><span className="admin-rate-caption">Overall attendance</span><strong className="admin-rate-value" data-testid="admin-attendance-rate">{state.attendance && rate !== null ? `${rate}%` : "—"}</strong><span className="admin-rate-context">Present and late records count as attended</span></div>
         <p>{!state.attendance ? "Attendance data unavailable." : total ? `${attended} attended out of ${total} records.` : "No attendance records yet."}</p>
         <span className="sr-only">Present and late records count as attended. The total includes all recorded statuses.</span>
         <Link to="/admin/dashboard/reports" className="admin-text-link" aria-label="View attendance reports">View attendance reports →</Link>
       </Card>
       <Card as="section" className="admin-home-reviews">
-        <h2>Needs review</h2>
+        <div className="admin-section-heading"><h2>Needs review</h2><Link to="/admin/dashboard/reviews" className="admin-text-link">All reviews <FaArrowRight aria-hidden="true" /></Link></div>
         <ul className="admin-review-list">{reviews.map(item=><li key={item.label}><Link to={item.path} className="admin-review-box"><span className="admin-review-icon" aria-hidden="true">{item.icon}</span><span className="admin-review-text"><span className="admin-review-label">{item.label}</span><span className="admin-review-desc">{item.description}</span></span><strong className={`admin-review-count ${item.count ? "text-warn" : "text-on-muted"}`}>{item.count ?? "—"}</strong><span className="sr-only">{item.count === null ? "Unavailable" : " pending"}</span></Link></li>)}</ul>
       </Card>
+      <Card as={Link} to="/admin/dashboard/users" aria-label="Manage users" className="admin-home-users">
+        <span className="admin-bento-icon admin-users-icon" aria-hidden="true"><FaUsers /></span>
+        <div className="admin-users-copy"><p className="admin-bento-eyebrow">People &amp; access</p><h2>Manage users</h2><p>View accounts, update student details, and manage organizer access.</p></div>
+        <span className="admin-users-arrow" aria-hidden="true"><FaArrowRight /></span>
+      </Card>
       <Card as="section" className="admin-home-events">
-        <div className="admin-section-heading"><h2>Live &amp; upcoming events</h2><Link to="/admin/dashboard/events" className="admin-text-link">View all events →</Link></div>
-        {!state.events ? <EmptyState compact title="Events unavailable" description="Try loading the event list again." /> : !active.length ? <EmptyState compact title="No active events" description="New events will appear here when scheduled." /> : <ul className="admin-next-list stretch-page-list gap-1">{active.map(event=><li key={event._id} className="min-h-[74px]"><Link to={`/admin/dashboard/events/${event._id}`} className="h-full"><div><p className="line-clamp-2" title={event.title}>{event.title}</p><span>{formatDate(event.date)}{event.time ? ` · ${formatTime12Hour(event.time)}` : ""}</span></div><StatusChip status={event.status} /></Link></li>)}</ul>}
+        <div className="admin-section-heading"><h2><FaCalendarAlt aria-hidden="true" /> Live &amp; upcoming events</h2><Link to="/admin/dashboard/events" className="admin-text-link">View all events →</Link></div>
+        {!state.events ? <EmptyState compact title="Events unavailable" description="Try loading the event list again." /> : !active.length ? <EmptyState compact title="No active events" description="New events will appear here when scheduled." /> : <ul className="admin-next-list stretch-page-list gap-1">{active.map(event=><li key={event._id} className="min-h-[74px]"><Link to={`/admin/dashboard/events/${event._id}`} className="h-full"><div><p className="line-clamp-2" title={event.title}>{event.title}</p><span>{formatDate(event.date)}{event.time ? ` · ${formatTime12Hour(event.time)}` : ""}</span>{event.location && <span className="admin-event-venue">{event.location}</span>}</div><StatusChip status={event.status} /></Link></li>)}</ul>}
       </Card>
     </div>
   </div>;

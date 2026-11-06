@@ -1,7 +1,8 @@
 import "../styles/portal-workspace.css";
 import React, { Suspense, lazy, useEffect } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import ReviewRedirect from "../components/shared/ReviewRedirect";
 import Topbar from "../components/Topbar";
 import AppBackground from "../components/shared/AppBackground";
 import RouteFallback from "../components/shared/RouteFallback";
@@ -16,13 +17,19 @@ import "../styles/responsive-workspace.css";
 // reports table are only fetched when that page is actually opened.
 const DashboardHome = lazy(() => import("../components/admin/DashboardHome"));
 const ManageEvents = lazy(() => import("../components/admin/ManageEvents"));
-const ManageExcuses = lazy(() => import("../components/organizer/ManageExcuses"));
+const ReviewsHub = lazy(() => import("../components/shared/ReviewsHub"));
 const ManageUsers = lazy(() => import("../components/admin/ManageUsers"));
 const AttendanceReport = lazy(() => import("../components/admin/AttendanceReports"));
 const NotificationsPage = lazy(() => import("../components/organizer/NotificationsPage"));
 const ProfileSettings = lazy(() => import("../components/settings/ProfileSettings"));
 const EventDetails = lazy(() => import("../components/EventDetails"));
-const ManualAttendanceReviews = lazy(() => import("../components/shared/ManualAttendanceReviews"));
+
+const UserDirectoryRoute = () => {
+  const location = useLocation();
+  return new URLSearchParams(location.search).get("tab") === "appeals"
+    ? <Navigate to="/admin/dashboard/reviews/face-appeals" replace />
+    : <ManageUsers />;
+};
 
 const AdminDashboard = () => {
   const scrollRef = useScrollRestoration();
@@ -49,10 +56,12 @@ const AdminDashboard = () => {
                   <Route path="events" element={<ManageEvents />} />
                   <Route path="events/:id" element={<EventDetails />} />
                   <Route path="events/:id/attendees" element={<EventDetails />} />
-                  <Route path="excuses" element={<ManageExcuses />} />
-                  <Route path="users" element={<ManageUsers />} />
+                  <Route path="excuses" element={<ReviewRedirect kind="excuses" />} />
+                  <Route path="users" element={<UserDirectoryRoute />} />
                   <Route path="reports" element={<AttendanceReport />} />
-                  <Route path="manual-reviews" element={<ManualAttendanceReviews />} />
+                  <Route path="manual-reviews" element={<ReviewRedirect kind="manual" />} />
+                  <Route path="reviews" element={<ReviewsHub />} />
+                  <Route path="reviews/:kind" element={<ReviewsHub />} />
                   <Route path="settings/email" element={<Navigate to="/admin/dashboard/profile" replace />} />
                   <Route path="notifications" element={<NotificationsPage role="admin" />} />
                   <Route path="profile" element={<ProfileSettings />} />

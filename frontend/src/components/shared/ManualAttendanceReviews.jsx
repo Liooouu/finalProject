@@ -16,10 +16,14 @@ const PAGE_SIZE = 5;
 const errorMessage = (error, fallback) => error.response?.data?.error || error.response?.data?.message || fallback;
 const displayTime = value => value ? formatDateTime(value) : "—";
 
-export default function ManualAttendanceReviews() {
+export default function ManualAttendanceReviews({ defaultView = "mine" }) {
   const isAdmin = getUserRole() === "admin";
   const location = useLocation();
-  const [view, setView] = useState(() => !isAdmin && new URLSearchParams(location.search).get("view") !== "review" ? "mine" : "review");
+  const [view, setView] = useState(() => {
+    if (isAdmin) return "review";
+    const requested = new URLSearchParams(location.search).get("view");
+    return ["mine", "review"].includes(requested) ? requested : defaultView;
+  });
   const [status, setStatus] = useState("pending");
   const [eventId, setEventId] = useState("");
   const [events, setEvents] = useState([]);

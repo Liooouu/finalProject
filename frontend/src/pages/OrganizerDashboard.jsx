@@ -4,6 +4,7 @@ import "../styles/portal-neumorphism.css";
 import "../styles/responsive-workspace.css";
 import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import ReviewRedirect from "../components/shared/ReviewRedirect";
 import Topbar from "../components/Topbar";
 import AppBackground from "../components/shared/AppBackground";
 import RouteFallback from "../components/shared/RouteFallback";
@@ -15,12 +16,12 @@ import { prefetchIdle } from "../utils/prefetchRoutes";
 // downloaded when they are opened.
 const OrganizerHome = lazy(() => import("../components/organizer/OrgDashboardHome"));
 const OrgManageEvents = lazy(() => import("../components/organizer/OrgManageEvents"));
-const ManageExcuses = lazy(() => import("../components/organizer/ManageExcuses"));
+const ReviewsHub = lazy(() => import("../components/shared/ReviewsHub"));
 const NotificationsPage = lazy(() => import("../components/organizer/NotificationsPage"));
 const ProfileSettings = lazy(() => import("../components/settings/ProfileSettings"));
 const EventDetails = lazy(() => import("../components/EventDetails"));
 const ManualAttendance = lazy(() => import("../components/organizer/ManualAttendance"));
-const ManualAttendanceReviews = lazy(() => import("../components/shared/ManualAttendanceReviews"));
+
 const LegacyAttendanceRedirect = () => {
   const { id } = useParams();
   return <Navigate to={`/organizer/dashboard/manual-attendance/${id}`} replace />;
@@ -51,8 +52,10 @@ const OrganizerDashboard = () => {
                   <Route path="events/:id/attendees" element={<LegacyAttendanceRedirect />} />
                   <Route path="manual-attendance" element={<ManualAttendance />} />
                   <Route path="manual-attendance/:id" element={<ManualAttendance />} />
-                  <Route path="manual-reviews" element={<ManualAttendanceReviews />} />
-                  <Route path="excuses" element={<ManageExcuses />} />
+                  <Route path="manual-reviews" element={<ReviewRedirect kind="manual" />} />
+                  <Route path="reviews" element={<ReviewsHub />} />
+                  <Route path="reviews/:kind" element={<ReviewsHub />} />
+                  <Route path="excuses" element={<ReviewRedirect kind="excuses" />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="profile" element={<ProfileSettings />} />
                   <Route path="*" element={<Navigate to="/organizer/dashboard" replace />} />
