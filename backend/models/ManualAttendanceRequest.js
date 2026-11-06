@@ -20,6 +20,11 @@ const schema = new mongoose.Schema({
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   reviewedAt: { type: Date, default: null },
   reviewNote: { type: String, default: "", maxlength: 1000 },
+  resolution: { type: String, enum: ["manual", "existing_face"] },
+  confirmedAttendance: {
+    attendance: { type: mongoose.Schema.Types.ObjectId, ref: "Attendance" },
+    status: String, method: String, attendedAt: Date, hours: Number,
+  },
   reviewLock: { token: String, until: Date },
 }, { timestamps: true });
 

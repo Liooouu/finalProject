@@ -131,7 +131,7 @@ test('older requests without an attendance fingerprint can approve missing or ne
       assert.equal(f.data.Attendance[0].status,'present');
       assert.equal(f.data.Attendance[0].communityServiceHours,0);
     }else{
-      await assert.rejects(review,/changed|face check-in|approved excuse/);
+      await assert.rejects(review,/changed|face attendance|approved excuse/);
       assert.equal(f.writes,0);
       assert.equal(f.data.Request[0].status,'pending');
     }
@@ -171,11 +171,49 @@ test('rejection creates missing automatic absence after cutoff and preserves exi
   assert.equal(g.data.Attendance[0].method,'face');assert.equal(g.data.Attendance[0].communityServiceHours,0);
 });
 test('later face, excuse or human changes cannot be overwritten',async()=>{
-  for(const record of [{status:'present',method:'face',communityServiceHours:0},{status:'excused',method:'manual',communityServiceHours:0},{status:'absent',method:'auto',communityServiceHours:3}]){
+  for(const record of [{status:'late',method:'face',communityServiceHours:4},{status:'excused',method:'manual',communityServiceHours:0},{status:'absent',method:'auto',communityServiceHours:3}]){
     const f=fixture(),request=await f.api.submit(requester,payload(),at('08:20:00'));
     f.data.Attendance.push({_id:'record',event:ids.event,student:ids.student,...record});
-    await assert.rejects(f.api.reviewOne(admin,request._id,'approved','',at('22:00:00')),/already controls|changed/);assert.equal(f.writes,0);
+    await assert.rejects(f.api.reviewOne(admin,request._id,'approved','',at('22:00:00')),/face attendance|already Excused|changed/);assert.equal(f.writes,0);
   }
+});
+
+test('matching face attendance completes a pending request without rewriting face evidence or hours',async()=>{
+  for(const clock of ['08:20:00','08:45:00']){
+    const f=fixture(),request=await f.api.submit(requester,payload(),at(clock));
+    const record={_id:'777777777777777777777777',event:ids.event,student:ids.student,status:clock==='08:20:00'?'present':'late',method:'face',attendedAt:at(clock==='08:20:00'?'08:25:00':'08:50:00'),verifiedAt:at('08:50:00'),checkInSession:ids.other,matchDistance:0.3,communityServiceHours:clock==='08:20:00'?0:2,communityServiceLog:[{action:'removed',hours:2,note:'Staff adjustment'}],updatedAt:at('13:00:00')};
+    f.data.Attendance.push(copy(record));f.data.Event[0].status='finished';
+    const result=await f.api.reviewBatch(admin,{ids:[request._id],decision:'approved',verifiedPresence:true});
+    assert.equal(result.results[0].status,'approved');assert.equal(result.results[0].keptExistingAttendance,true);
+    assert.deepEqual(f.data.Attendance,[record]);assert.equal(f.writes,0);
+    assert.equal(f.data.Request[0].resolution,'existing_face');assert.equal(f.data.Request[0].reviewedBy,ids.admin);
+    assert.equal(f.data.Request[0].confirmedAttendance.attendance,record._id);
+    assert.equal(Number(f.data.Request[0].confirmedAttendance.attendedAt),Number(record.attendedAt));
+    assert.equal(Number(f.data.Request[0].effectiveAt),Number(at(clock)));
+    const retry=await f.api.reviewBatch(admin,{ids:[request._id],decision:'approved',verifiedPresence:true});
+    assert.equal(retry.results[0].keptExistingAttendance,true);assert.equal(f.writes,0);
+  }
+});
+
+test('matching face approval still requires independent verified review and handles a lost finalization',async()=>{
+  const f=fixture(),request=await f.api.submit(requester,payload(),at('08:20:00'));
+  f.data.Attendance.push({_id:ids.other,event:ids.event,student:ids.student,status:'present',method:'face',communityServiceHours:0});
+  await assert.rejects(f.api.reviewOne(requester,request._id,'approved',''),/independent/);
+  await assert.rejects(f.api.reviewBatch(admin,{ids:[request._id],decision:'approved'}),/independent verification/);
+  f.failFinalize=true;await assert.rejects(f.api.reviewOne(admin,request._id,'approved',''),/connection interrupted/);
+  assert.equal(f.data.Request[0].status,'pending');assert.equal(f.writes,0);
+  assert.equal((await f.api.reviewOne(reviewer,request._id,'approved','')).keptExistingAttendance,true);
+  assert.equal(f.data.Request[0].reviewedBy,ids.reviewer);assert.equal(f.writes,0);
+});
+
+test('current attendance shown on a request is scoped and excludes biometric/session data',async()=>{
+  const f=fixture(),request=await f.api.submit(requester,payload(),at('08:20:00'));
+  f.data.Attendance.push({_id:ids.other,event:ids.event,student:ids.student,status:'present',method:'face',attendedAt:at('08:25:00'),communityServiceHours:0,matchDistance:0.3,checkInSession:ids.other,faceDescriptor:[0.1]});
+  f.data.Attendance.push({_id:ids.admin,event:ids.other,student:ids.student,status:'late',method:'face',communityServiceHours:4});
+  const row=(await f.api.list(admin,{status:'pending'})).requests[0];assert.equal(row._id,request._id);
+  assert.deepEqual(Object.keys(row.currentAttendance).sort(),['attendance','attendedAt','hours','method','status'].sort());
+  assert.equal(row.currentAttendance.status,'present');assert.equal(row.currentAttendance.hours,0);
+  assert.equal((await f.api.list({_id:ids.other,role:'student'})).requests.length,0);
 });
 test('conditional attendance write conflicts rather than overwriting a concurrent edit',async()=>{
   const f=fixture();f.data.Attendance.push({_id:'record',event:ids.event,student:ids.student,status:'absent',method:'manual',communityServiceHours:8,updatedAt:at('12:00:00')});

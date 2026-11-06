@@ -5,6 +5,10 @@ const { eventWindow, eventLastCheckInAt, isTerminal } = require("./eventLifecycl
 const idOf = value => String(value?._id || value || "");
 const plain = value => value?.toObject ? value.toObject() : value;
 const baseHours = status => status === "absent" ? 8 : status === "late" ? 4 : 0;
+const attendanceSummary = record => record ? { attendance: record._id, status: record.status, method: record.method,
+  attendedAt: record.attendedAt, hours: record.communityServiceHours || 0 } : null;
+const reviewResult = request => ({ id: idOf(request), status: request.status,
+  ...(request.resolution === "existing_face" ? { keptExistingAttendance: true } : {}) });
 function fail(status, message) { const error = new Error(message); error.status = status; throw error; }
 function fingerprint(record) {
   if (!record) return null;
@@ -106,7 +110,13 @@ function createService(deps) {
     const total = await Request.countDocuments(filter);
     const page = Math.min(Math.max(1, parseInt(query.page, 10) || 1), Math.max(1, Math.ceil(total / pageSize)));
     const requests = await populated(Request.find(filter).sort({ submittedAt: -1, _id: -1 }).skip((page - 1) * pageSize).limit(pageSize)).lean();
-    return { requests: requests.map(request => publicRow(request, user)), total, page, pageSize };
+    const pairs = requests.filter(request => request.event && request.student)
+      .map(request => ({ event: request.event._id, student: request.student._id }));
+    const attendance = pairs.length ? await Attendance.find({ $or: pairs })
+      .select("event student status method attendedAt communityServiceHours").lean() : [];
+    const existing = new Map(attendance.map(record => [`${idOf(record.event)}:${idOf(record.student)}`, record]));
+    return { requests: requests.map(request => ({ ...publicRow(request, user),
+      currentAttendance: attendanceSummary(existing.get(`${idOf(request.event)}:${idOf(request.student)}`)) })), total, page, pageSize };
   }
   async function summary(user) {
     const scope = await reviewScope(user, "review");
@@ -149,7 +159,7 @@ function createService(deps) {
     if (!canReview(user, event, request)) fail(403, "An independent administrator or assigned event reviewer must review this request");
     if (request.status !== "pending") {
       if (request.status !== decision) fail(409, "This request has already been reviewed");
-      return { id: idOf(request), status: request.status };
+      return reviewResult(request);
     }
     const token = crypto.randomBytes(16).toString("hex");
     request = await Request.findOneAndUpdate({ _id: id, status: "pending", $or: [{ "reviewLock.until": { $exists: false } }, { "reviewLock.until": null }, { "reviewLock.until": { $lte: now } }] },
@@ -172,8 +182,9 @@ function createService(deps) {
             await Attendance.updateOne({ event: request.event, student: request.student }, { $setOnInsert: {
               event: request.event, student: request.student, attendedAt: request.schedule.cutoff,
               status: "absent", method: "auto", communityServiceHours: 8,
+              createdAt: now, updatedAt: now,
               communityServiceLog: [{ action: "penalty", hours: 8, at: now, note: "Marked absent (auto)" }],
-            } }, { upsert: true });
+            } }, { upsert: true, timestamps: false });
           } catch (error) { if (error.code !== 11000) throw error; }
         }
         const result = await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, { $set: { status: "rejected", reviewedBy: user._id, reviewedAt: now, reviewNote: note }, $unset: { reviewLock: 1 } });
@@ -184,7 +195,23 @@ function createService(deps) {
       const student = await User.findById(request.student).select("role");
       if (!student || student.role !== "student") fail(409, "The student account changed. This request cannot be applied.");
       const current = await Attendance.findOne({ event: request.event, student: request.student }).lean();
-      if (current?.status === "excused" || current?.method === "face") fail(409, "A face check-in or approved excuse already controls this record. Refresh before reviewing.");
+      if (current?.status === "excused") fail(409, "Attendance is already Excused by an approved excuse letter. Reject this duplicate manual request with a note to keep the approved excuse.");
+      if (current?.method === "face") {
+        // A successful face scan can follow a fallback manual request. When
+        // both agree, confirm the request without rewriting verified evidence,
+        // its original time, or any later service-hour adjustment.
+        if (!["present", "late"].includes(current.status) || current.status !== request.proposedStatus) {
+          fail(409, `Existing face attendance is ${current.status}; this request proposes ${request.proposedStatus}. Review the attendance record separately, or reject this duplicate request with a note. No attendance was changed.`);
+        }
+        const finalized = await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, {
+          $set: { status: "approved", reviewedBy: user._id, reviewedAt: now, reviewNote: note,
+            resolution: "existing_face", confirmedAttendance: attendanceSummary(current) },
+          $unset: { reviewLock: 1 },
+        });
+        if (!finalized.modifiedCount) fail(409, "The review changed. Refresh and try again.");
+        await notifyUsers([request.student], { type: "attendance", title: "Attendance request confirmed", message: `Your manual request for "${event.title}" was approved because your face check-in already records you as ${current.status}. Your existing attendance time and service hours were kept.`, relatedEvent: event._id, event, deferEmail: true }).catch(() => {});
+        return { id: idOf(request), status: "approved", keptExistingAttendance: true };
+      }
       // Lean reads of older requests do not apply the schema's null default.
       // Missing and explicit-null fingerprints both mean no prior record;
       // neither permits replacing a later human/face/excuse decision.
@@ -216,7 +243,7 @@ function createService(deps) {
         try { await Attendance.create({ event: request.event, student: request.student, ...changes, manualAttendanceAudit: [audit], communityServiceLog: log }); }
         catch (error) { if (error.code === 11000) fail(409, "Attendance was recorded during review. Refresh and try again."); throw error; }
       }
-      const finalized = await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, { $set: { status: "approved", reviewedBy: user._id, reviewedAt: now, reviewNote: note }, $unset: { reviewLock: 1 } });
+      const finalized = await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, { $set: { status: "approved", reviewedBy: user._id, reviewedAt: now, reviewNote: note, resolution: "manual" }, $unset: { reviewLock: 1 } });
       if (!finalized.modifiedCount) fail(409, "Attendance was applied; refresh the request to recover its review status.");
       await notifyUsers([request.student], { type: "attendance", title: "Manual attendance approved", message: `Your attendance for "${event.title}" was approved as ${request.proposedStatus}. It uses your recorded check-in time, not the approval time.`, relatedEvent: event._id, event, deferEmail: true }).catch(() => {});
       return { id: idOf(request), status: "approved" };
