@@ -275,8 +275,10 @@ const EventDetails = () => {
       const res = await api.put(`/events/${id}`, editForm);
       setEvent(res.data);
       setIsEditing(false);
-      setMessage("Event updated successfully!");
+      setMessageType("success");
+      setMessage(res.data.notificationWarning || "Event updated successfully!");
     } catch (err) {
+      setMessageType("error");
       setMessage(err.response?.data?.error || "Failed to update event");
     } finally {
       setSaving(false);
@@ -296,9 +298,9 @@ const EventDetails = () => {
         lastEditedAt: res.data.lastEditedAt,
       });
       setMessage(
-        newStatus === "upcoming"
+        res.data.notificationWarning || (newStatus === "upcoming"
           ? "Event reopened. It will finish again at its end time."
-          : "Status updated! Automatic status changes are paused for this event."
+          : "Status updated! Automatic status changes are paused for this event.")
       );
     } catch (err) {
       setMessage(err.response?.data?.error || "Failed to update status");

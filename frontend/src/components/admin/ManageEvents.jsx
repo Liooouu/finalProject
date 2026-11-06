@@ -1,16 +1,15 @@
 import { useTransientState } from "../../utils/useTransientState";
 import EventCreateForm from "../shared/EventCreateForm";
-import EventLastEdit from "../shared/EventLastEdit";
+import ManagedEventCard from "../shared/ManagedEventCard";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
-import { FaCalendarAlt, FaEdit, FaMapMarkerAlt, FaPlus, FaUsers } from "react-icons/fa";
+import { FaCalendarAlt, FaEdit, FaPlus, FaUsers } from "react-icons/fa";
 import EmptyState from "../shared/EmptyState";
 import { usePageMeta } from "../../context/PageMetaContext";
 import {
   isTerminalStatus,
-  describeEventLifecycle,
   formatTime12Hour,
   formatDate,
 } from "../../utils/helpers";
@@ -280,24 +279,10 @@ const ManageEvents = () => {
       ) : (
         <div className="flex min-w-0 flex-col gap-4">
         <StablePage fill className="gap-4" pageKey={`admin-events:${searchTerm}:${eventRange}:${statusFilter}:${filteredEvents.length}`} footer={<div className="admin-event-page-footer shrink-0 pb-2 pt-1 [&>nav]:mt-0"><Pagination page={visibleEventPage} pageSize={EVENT_PAGE_SIZE} total={filteredEvents.length} onChange={setEventsPage} label="Admin event pages" /></div>}>
-        <div className="admin-event-page-grid stretch-page-grid grid min-w-0 flex-1 grid-cols-1 items-stretch gap-4 xl:grid-cols-3" data-testid="admin-event-page">
+        <div className="managed-events-grid-admin admin-event-page-grid stretch-page-grid grid min-w-0 flex-1 grid-cols-1 items-stretch gap-4 xl:grid-cols-3" data-testid="admin-event-page">
           {pagedEvents.map((event) => (
-            <Card key={event._id} as="article" className="admin-event-card flex min-h-[340px] min-w-0 flex-col">
-              <div className="flex flex-1 flex-col gap-4">
-                <div className="flex flex-1 flex-col">
-                  <div className="flex items-start justify-between gap-2.5">
-                    <h3 className="min-w-0 flex-1 font-display text-[17px] font-semibold leading-[22px] tracking-tight text-on [overflow-wrap:anywhere]">
-                      {event.title}
-                    </h3>
-                    <StatusChip status={event.status} />
-                  </div>
-                  {event.description && <p className="mt-3 text-sm leading-relaxed text-on-dim [overflow-wrap:anywhere]">{event.description}</p>}
-                  <dl className="mt-4 grid grid-cols-2 gap-4 text-sm text-on-dim [overflow-wrap:anywhere]"><div><dt className="text-xs text-on-muted">Starts</dt><dd className="mt-1">{formatDate(event.date)}<br />{formatTime12Hour(event.time)}</dd></div><div><dt className="text-xs text-on-muted">Ends</dt><dd className="mt-1">{formatDate(event.endDate || event.date)}<br />{formatTime12Hour(event.endTime || "23:59")}</dd></div><div className="col-span-2"><dt className="flex items-center gap-1.5 text-xs text-on-muted"><FaMapMarkerAlt aria-hidden="true" /> Venue</dt><dd className="mt-1">{event.location || "Venue unavailable"}</dd></div><div className="col-span-2"><dt className="text-xs text-on-muted">Attendance window</dt><dd className="mt-1">{formatTime12Hour(event.attendanceStartTime) || "TBA"} – {formatTime12Hour(event.attendanceEndTime) || "TBA"}</dd></div></dl>
-                  <p className="mt-4 flex min-w-0 items-start gap-1.5 text-xs text-on-muted"><FaUsers aria-hidden="true" className="mt-0.5 shrink-0" /><span className="[overflow-wrap:anywhere]">{event.organizer?.name || "Unknown organizer"}</span></p>
-                  <EventLastEdit event={event} className="mt-2" />
-                  <span className="sr-only">{describeEventLifecycle(event)}</span>
-                </div>
-                <div className="mt-auto grid grid-cols-2 items-center gap-2">
+            <ManagedEventCard key={event._id} event={event} actions={
+                <div className="grid grid-cols-2 items-center gap-2">
 
                   <Button
                     onClick={() => navigate(`/admin/dashboard/events/${event._id}`)}
@@ -322,8 +307,7 @@ const ManageEvents = () => {
                     Delete
                   </Button>
                 </div>
-              </div>
-            </Card>
+            } />
           ))}
         </div>
         </StablePage>

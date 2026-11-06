@@ -1,0 +1,26 @@
+.managed-event-card { display:flex; flex-direction:column; min-width:0; gap:16px; }
+.managed-event-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; min-width:0; }
+.managed-event-heading h3 { flex:1; min-width:0; margin:0; font-size:17px; font-weight:600; line-height:1.4; letter-spacing:-.02em; color:var(--on); overflow-wrap:anywhere; }
+.managed-event-heading>span { flex-shrink:0; }
+.managed-event-description { margin:0; white-space:pre-wrap; font-size:14px; line-height:1.6; color:var(--on-dim); overflow-wrap:anywhere; }
+.managed-event-details { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-content:start; gap:16px; margin:0; font-size:14px; line-height:1.5; }
+.managed-event-details>div { min-width:0; }
+.managed-event-wide { grid-column:1/-1; }
+.managed-event-details dt { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--on-muted); }
+.managed-event-details dd { margin:5px 0 0; color:var(--on-dim); overflow-wrap:anywhere; }
+.managed-event-organizer { display:flex; align-items:flex-start; gap:8px; margin:0; font-size:12px; line-height:1.5; color:var(--on-muted); overflow-wrap:anywhere; }
+.managed-event-organizer>svg { flex-shrink:0; margin-top:3px; }
+.managed-event-editor:empty { display:none; }
+.managed-event-actions { margin-top:auto; padding-top:4px; }
+@supports(grid-template-rows:subgrid) {
+  @media(min-width:768px) {
+    .managed-events-grid-organizer>.managed-event-card { display:grid; grid-template-rows:subgrid; grid-row:span 9; }
+    .managed-events-grid-organizer .managed-event-details { grid-row:span 3; grid-template-rows:subgrid; }
+    .managed-events-grid-organizer .managed-event-editor:empty { display:block; }
+  }
+  @media(min-width:1280px) {
+    .managed-events-grid-admin>.managed-event-card { display:grid; grid-template-rows:subgrid; grid-row:span 9; }
+    .managed-events-grid-admin .managed-event-details { grid-row:span 3; grid-template-rows:subgrid; }
+    .managed-events-grid-admin .managed-event-editor:empty { display:block; }
+  }
+}

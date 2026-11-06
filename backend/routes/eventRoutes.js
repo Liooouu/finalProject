@@ -239,21 +239,22 @@ router.patch("/:id/status", protect, async (req, res) => {
     const pinned = resolveAutomation({ currentStatus: oldEvent.status, nextStatus: status });
     if (pinned !== undefined) update.manualOverride = pinned;
 
+    const announceLive = status === STATUS.LIVE && oldEvent.status !== STATUS.LIVE;
     const event = await Event.findByIdAndUpdate(req.params.id, update, { new: true });
 
-    // Announce when an event goes live
-    if (status === STATUS.LIVE && oldEvent.status !== STATUS.LIVE) {
+    let notificationWarning;
+    if (announceLive) {
       const { type, title, message } = eventLiveNotification(event);
-      await notifyUsers(await eventRecipients(event), {
-        type,
-        title,
-        message,
-        relatedEvent: event._id,
-        event,
-      });
+      try {
+        await notifyUsers(await eventRecipients(event), {
+          type, title, message, relatedEvent: event._id, event, deferEmail: true,
+        });
+      } catch (error) {
+        console.error("Event status notification failed:", error.message);
+        notificationWarning = "Event saved, but notifications could not be delivered.";
+      }
     }
-
-    res.json(event);
+    res.json(notificationWarning ? { ...(event.toObject ? event.toObject() : event), notificationWarning } : event);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -554,15 +555,22 @@ router.put("/:id", protect, async (req, res) => {
     if (!event) return res.status(404).json({ error: "Event not found" });
 
     // Notify students, admins and the organizer that event details changed
-    await notifyUsers(await eventRecipients(event), {
-      type: "info",
-      title: "Event Updated",
-      message: `Details of "${event.title}" were updated. Check the latest schedule.`,
-      relatedEvent: event._id,
-      event,
-    });
-
-    res.json(event);
+    // Bell notices are saved before confirmation; SMTP runs outside the save.
+    let notificationWarning;
+    try {
+      await notifyUsers(await eventRecipients(event), {
+        type: "info",
+        title: "Event Updated",
+        message: `Details of "${event.title}" were updated. Check the latest schedule.`,
+        relatedEvent: event._id,
+        event,
+        deferEmail: true,
+      });
+    } catch (error) {
+      console.error("Event update notification failed:", error.message);
+      notificationWarning = "Event saved, but notifications could not be delivered.";
+    }
+    res.json(notificationWarning ? { ...(event.toObject ? event.toObject() : event), notificationWarning } : event);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

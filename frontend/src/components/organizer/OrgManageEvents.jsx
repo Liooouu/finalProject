@@ -5,10 +5,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import {
-  formatTime12Hour,
   isTerminalStatus,
   describeEventLifecycle,
-  formatDate,
 } from "../../utils/helpers";
 import { getUserFromToken } from "../../utils/auth";
 import { FaCalendarAlt, FaPlus } from "react-icons/fa";
@@ -17,10 +15,8 @@ import { usePageMeta } from "../../context/PageMetaContext";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 import {
   Button,
-  Card,
   PageHeader,
   SegmentedControl,
-  StatusChip,
 } from "../ui";
 import { useOrganizerPeriod } from "../../utils/useOrganizerPeriod";
 import { recordsForAcademicPeriod } from "../../utils/academicPeriods";
@@ -30,7 +26,7 @@ import StablePage from "../ui/StablePage";
 import Loading from "../shared/Loading";
 import EmptyState from "../shared/EmptyState";
 import ConfirmDialog from "../ui/ConfirmDialog";
-import EventLastEdit from "../shared/EventLastEdit";
+import ManagedEventCard from "../shared/ManagedEventCard";
 
 const STATUS_FILTERS = [
   { key: "all", label: "All statuses" },
@@ -291,32 +287,24 @@ const OrgManageEvents = () => {
         />
       ) : (
         <StablePage pageKey={`organizer-events:${viewMode}:${eventRange}:${statusFilter}:${period?.startYear || "all"}:${semester}:${visibleEvents.length}`} footer={<Pagination page={currentPage} pageSize={EVENT_PAGE_SIZE} total={visibleEvents.length} onChange={setPage} label="Organizer event pages" />}>
-        <div className="stretch-page-grid grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="managed-events-grid-organizer stretch-page-grid grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           {pageEvents.map((event) => {
             const ownedByMe = isOwnEvent(event);
-            return <Card key={event._id} as="article" className="flex min-w-0 flex-col">
-              <div className="flex items-start justify-between gap-3"><h3 className="min-w-0 flex-1 font-display text-lg font-semibold text-on [overflow-wrap:anywhere]">{event.title}</h3><StatusChip status={event.status} /></div>
-              <div className="mt-4 space-y-2 text-sm text-on-dim">
-                <p><span className="text-on-muted">Starts: </span>{formatDate(event.date)} at {formatTime12Hour(event.time)}</p>
-                <p><span className="text-on-muted">Ends: </span>{formatDate(event.endDate || event.date)} at {formatTime12Hour(event.endTime || "23:59")}</p>
-                <p className="[overflow-wrap:anywhere]"><span className="text-on-muted">Venue: </span>{event.location || "TBA"}</p>
-                <p className="text-xs text-on-muted">{event.attendeeCount ?? 0} checked in · Attendance {formatTime12Hour(event.attendanceStartTime) || "TBA"} – {formatTime12Hour(event.attendanceEndTime) || "TBA"}</p>
-              </div>
-              <EventLastEdit event={event} className="mt-3" />
+            return <ManagedEventCard key={event._id} event={event} showAttendees details={
               <details className="mt-3 text-xs text-on-muted">
                 <summary className="cursor-pointer py-1 font-medium">Event information</summary>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-on-dim [overflow-wrap:anywhere]">{event.description || "No description provided."}</p>
                 <p className="mt-2">{describeEventLifecycle(event)}</p>
                 {viewMode === "all" && <p className="mt-2">Organized by {event.organizer?.name || "Organizer TBA"}</p>}
                 <div className="mt-3"><button type="button" className="font-medium text-brand" onClick={() => toggleGroups(event._id)}>Attendees by group</button>{expandedEvent === event._id && <div className="mt-2 space-y-1">{loadingGroups[event._id] ? "Loading…" : eventGroups[event._id]?.length ? eventGroups[event._id].map(group => <p key={group.key || group.label}>{group.label || "Unassigned"}: {group.attended || 0}</p>) : "No groups found."}</div>}</div>
               </details>
-              <div className="mt-auto pt-4">
+            } actions={
+              <div className="">
                 <div className="flex flex-wrap items-start gap-3 border-t border-line pt-3">
                   <Button variant="secondary" size="sm" onClick={() => navigate(`/organizer/dashboard/events/${event._id}`)}>View / edit event</Button>
                   {ownedByMe && <Button variant="danger" size="sm" onClick={() => setDeleteTarget(event._id)}>Delete</Button>}
                 </div>
               </div>
-            </Card>;
+            } />;
           })}
         </div>
         </StablePage>

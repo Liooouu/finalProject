@@ -74,6 +74,31 @@ test('past events remain available to organizers including other organizers even
 });
 
 test('event creation defers SMTP for both organizer and admin',async()=>{for(const role of ['organizer','admin']){const r=await call(events,'/','post',role,{title:'Fast '+role,date:'2027-01-01',time:'09:00',endTime:'12:00',attendanceStartTime:'08:00',attendanceEndTime:'09:30',location:'Hall'});assert.equal(r.status,201);assert.equal(notificationOptions.deferEmail,true);}});
+
+test('event edits save bell notifications but defer SMTP for both staff roles',async()=>{
+ for(const role of ['admin','organizer']){
+  const result=await call(events,'/:id','put',role,{title:'Fast edit '+role});
+  assert.equal(result.status,200);assert.equal(result.body.title,'Fast edit '+role);
+  assert.equal(notificationOptions.deferEmail,true);assert.equal(notificationOptions.title,'Event Updated');
+ }
+});
+test('live status edits also defer department-wide SMTP',async()=>{
+ for(const role of ['admin','organizer']){
+  event.status='upcoming';const result=await call(events,'/:id/status','patch',role,{status:'live'});
+  assert.equal(result.status,200);assert.equal(event.status,'live');assert.equal(notificationOptions.deferEmail,true);
+ }
+});
+test('an already-saved edit succeeds with a notification warning instead of encouraging duplicate saves',async()=>{
+ failEventNotification=true;
+ const result=await call(events,'/:id','put','admin',{title:'Saved edit'});
+ assert.equal(result.status,200);assert.equal(event.title,'Saved edit');assert.equal(eventWrites,1);
+ assert.match(result.body.notificationWarning,/Event saved/);
+});
+test('notification failure does not report a saved status change as failed',async()=>{
+ failEventNotification=true;
+ const result=await call(events,'/:id/status','patch','organizer',{status:'live'});
+ assert.equal(result.status,200);assert.equal(event.status,'live');assert.match(result.body.notificationWarning,/Event saved/);
+});
 test('saved event still returns success with a warning if notification storage fails',async()=>{failEventNotification=true;const r=await call(events,'/','post','organizer',{title:'Saved even if notification fails',date:'2027-01-01',time:'09:00',endTime:'12:00',attendanceStartTime:'08:00',attendanceEndTime:'09:30',location:'Hall'});assert.equal(r.status,201);assert.equal(eventWrites,1);assert.match(r.body.notificationWarning,/Event saved/);});
 
 test('all events includes shared creators while My events remains creator-only',async()=>{

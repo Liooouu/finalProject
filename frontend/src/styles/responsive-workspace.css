@@ -84,3 +84,5 @@
 @media(prefers-reduced-motion:reduce) {
   .portal-refined main { scroll-behavior:auto; }
 }
+
+.attendance-refresh-status { display:block; width:5rem; min-height:1.5em; text-align:right; font-size:11px; line-height:1.5; color:var(--on-muted); }

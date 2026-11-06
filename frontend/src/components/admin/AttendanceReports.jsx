@@ -470,12 +470,12 @@ const AttendanceReports = () => {
                 <Button variant="primary" size="sm" loading={exporting} title="Export all records matching the current filters" onClick={()=>downloadCSV("attendance")}>Export CSV</Button>
                 <p className="sr-only">Filters apply to both graphs, attendance records and CSV export.</p>
               </div>
-              {attendanceLoading && <p role="status" className="text-xs text-on-muted">Updating results…</p>}
               <FlightPanel
                 level="ledger"
                 glass
                 flush
                 title="Recent attendance records"
+                actions={<span role="status" aria-live="polite" className="attendance-refresh-status">{attendanceLoading ? "Updating…" : ""}</span>}
                 className="admin-records-panel"
                 subtitle={`${attendanceData.stats.total} matching records · ${attendancePageSize} per page`}
 
