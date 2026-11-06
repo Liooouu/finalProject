@@ -455,7 +455,7 @@ const ManageUsers = () => {
     const currentPage = Math.min(page, Math.max(1, Math.ceil(list.length / 5)));
     const visibleUsers = list.slice((currentPage - 1) * 5, currentPage * 5);
     return (
-    <Card as="section" aria-label={title} padding="none" className="min-w-0 overflow-hidden">
+    <Card as="section" aria-label={title} padding="none" className="flex min-w-0 flex-col overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3.5">
         <div>
           <h2 className="text-sm font-semibold text-on">{title}</h2>
@@ -468,7 +468,7 @@ const ManageUsers = () => {
         </div>
       </div>
 
-      <StablePage pageKey={`directory:${title}:${term}`} loading={loading} footer={<div className="px-4 pb-4"><Pagination page={currentPage} pageSize={5} total={list.length} onChange={onPageChange} disabled={loading} label={`${title} pages`} /></div>}>
+      <StablePage fill pageKey={`directory:${title}:${term}`} loading={loading} footer={<div className="px-4 pb-4"><Pagination page={currentPage} pageSize={5} total={list.length} onChange={onPageChange} disabled={loading} label={`${title} pages`} /></div>}>
       <div className="min-w-0">
         {loading ? (
         <div className="p-4">

@@ -3,7 +3,8 @@
 .manual-desk-tabs { width:100%; }
 .manual-desk-tabs>button { flex:1; justify-content:center; }
 @media(max-width:639px) { .manual-desk-tabs>button { padding-left:8px; padding-right:8px; } }
-.stable-page.stable-page-fill { flex:0 0 auto; }
+.stable-page.stable-page-fill { flex:1 0 auto; }
+.stable-page-fill>.stable-page-footer { margin-top:auto; }
 .stable-page-content { display:flex; flex-direction:column; min-width:0; }
 .portal-refined main { scrollbar-gutter:stable; overflow-anchor:none; }
 .record-pagination { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
