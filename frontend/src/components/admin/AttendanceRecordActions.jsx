@@ -4,14 +4,23 @@ import api from "../../api/axios";
 import { clearScreens } from "../../utils/queryCache";
 import Button from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
-// Selection is limited to the visible page. Parents key this by page/filter scope.
-export default function AttendanceRecordActions({ records, onDeleted, loading = false, children }) {
+// Reset selection without remounting the pager and losing its scroll anchor.
+export default function AttendanceRecordActions({ records, onDeleted, loading = false, scopeKey = "records", children }) {
+  const [selectionScope, setSelectionScope] = useState(scopeKey);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [errors, setErrors] = useState([]);
+  if (selectionScope !== scopeKey) {
+    setSelectionScope(scopeKey);
+    setSelecting(false);
+    setSelectedIds([]);
+    setConfirming(false);
+    setNotice("");
+    setErrors([]);
+  }
   const available = records.filter(record => record._id);
   const selected = available.filter(record => selectedIds.includes(record._id));
   const toggle = id => setSelectedIds(ids => ids.includes(id) ? ids.filter(value => value !== id) : [...ids, id]);

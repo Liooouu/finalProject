@@ -5,6 +5,39 @@
 @media(max-width:639px) { .manual-desk-tabs>button { padding-left:8px; padding-right:8px; } }
 .stable-page.stable-page-fill { flex:0 0 auto; }
 .stable-page-content { display:flex; flex-direction:column; min-width:0; }
+.portal-refined main { scrollbar-gutter:stable; overflow-anchor:none; }
+.record-pagination { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
+.record-pagination>p { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.record-pagination-controls { display:grid; grid-template-columns:5.5rem minmax(6.5rem,auto) 4rem; align-items:center; gap:8px; }
+.record-pagination-controls>span { text-align:center; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.portal-refined main .record-pagination button { white-space:nowrap; transform:none; transition:background-color 150ms,color 150ms,box-shadow 150ms; }
+.student-event-details { display:grid; align-content:start; gap:14px; margin:0; }
+.student-event-detail { display:grid; grid-template-columns:14px minmax(0,1fr); align-items:start; column-gap:10px; }
+.student-event-detail>svg { width:12px; height:12px; margin-top:3px; }
+.student-event-detail dt { line-height:1.4; }
+.student-event-detail dd { margin:4px 0 0; line-height:1.5; overflow-wrap:anywhere; }
+/* Share natural row heights between adjacent cards, without clipping descriptions
+   or carrying a previous page's empty space onto the next page. */
+@supports (grid-template-rows:subgrid) {
+  @media(min-width:768px) {
+    .student-event-grid>.student-event-card { display:grid; grid-template-rows:subgrid; grid-row:span 5; row-gap:0; }
+    .student-event-grid>.student-event-card>.student-event-body { display:grid; grid-template-rows:subgrid; grid-row:span 4; row-gap:16px; }
+  }
+}
+.report-donut-layout { display:grid; grid-template-columns:minmax(0,1fr); justify-items:center; align-items:center; gap:20px; padding:12px 0; min-width:0; }
+.report-donut-chart { position:relative; width:160px; height:160px; flex-shrink:0; }
+.report-donut-chart>canvas { display:block; }
+.report-donut-total { position:absolute; inset:24%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; pointer-events:none; min-width:0; }
+.report-donut-total>strong { max-width:100%; font-size:clamp(16px,2vw,24px); line-height:1.15; color:var(--on); overflow-wrap:anywhere; text-align:center; }
+.report-donut-total>span { font-size:10px; line-height:1.4; text-transform:uppercase; letter-spacing:.04em; color:var(--on-muted); }
+.report-donut-legend { width:100%; min-width:0; margin:0; padding:0; list-style:none; }
+.report-donut-legend>li { display:grid; grid-template-columns:8px minmax(0,1fr) max-content minmax(3.25rem,max-content); align-items:center; gap:10px; padding:7px 0; font-size:12px; line-height:1.5; }
+.report-donut-dot { width:8px; height:8px; border-radius:50%; }
+.report-donut-label { color:var(--on-dim); overflow-wrap:anywhere; }
+.report-donut-legend strong { color:var(--on); font-weight:600; text-align:right; }
+.report-donut-percent { color:var(--on-muted); text-align:right; white-space:nowrap; }
+@media(min-width:1280px) { .report-donut-layout { grid-template-columns:160px minmax(0,1fr); } }
+@media(max-width:359px) { .record-pagination-controls { grid-template-columns:5rem minmax(5.5rem,auto) 3.5rem; gap:4px; } }
 .stable-page-footer { display:flow-root; flex-shrink:0; position:relative; }
 .stable-page-content>.stretch-page-list { display:grid; grid-auto-rows:auto; align-content:start; }
 .stable-page-content>.stretch-page-grid { flex:0 0 auto; align-content:start; }
@@ -16,6 +49,7 @@
 .portal-refined main nav[aria-label$="pages"] { font-variant-numeric:tabular-nums; }
 .portal-refined main nav[aria-label$="pages"]>div { flex-wrap:wrap; }
 .portal-refined main nav[aria-label$="pages"]>div>span { min-width:6.8rem; text-align:center; }
+.portal-refined main .record-pagination-controls>span { min-width:0; }
 .portal-refined .manual-review-details { overflow-wrap:anywhere; }
 .portal-refined .admin-review-list { grid-template-columns:repeat(auto-fit,minmax(105px,1fr)); }
 .portal-refined .admin-review-box { min-height:150px; }
@@ -29,6 +63,7 @@
   .portal-refined main nav[aria-label$="pages"] { gap:10px; }
   .portal-refined main nav[aria-label$="pages"]>div { justify-content:space-between; gap:6px; }
   .portal-refined main nav[aria-label$="pages"]>div>span { min-width:6.1rem; }
+  .portal-refined main .record-pagination-controls>span { min-width:0; }
   .portal-refined.organizer-refined .organizer-home-grid { grid-template-columns:minmax(0,1fr); }
   .portal-refined.organizer-refined .organizer-home-grid>.fd-surface { grid-column:1/-1; }
   .portal-refined.organizer-refined main .organizer-attendance-card>.fd-rail { padding:14px 16px 0; }

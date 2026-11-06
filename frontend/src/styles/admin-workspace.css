@@ -42,9 +42,6 @@
 .admin-report-chart { min-width:0; display:flex; flex-direction:column; }
 .admin-report-chart>.fd-body { flex:1; }
 .admin-event-plot { height:200px; }
-.admin-status-plot { display:grid; grid-template-columns:148px minmax(0,1fr); align-items:center; gap:20px; min-height:228px; }
-.admin-status-donut { width:148px; height:148px; }
-.admin-status-plot>ul { margin:0; }
 .admin-record-toolbar { display:grid; grid-template-columns:1fr .9fr .8fr 1.4fr auto auto; align-items:center; gap:8px; }
 .admin-report-filter { min-width:0; }
 .admin-record-toolbar .field-select { font-size:12px; padding:9px 30px 9px 10px; min-width:0; border-radius:7px; }
@@ -109,8 +106,6 @@
   .admin-record-toolbar { grid-template-columns:1fr 1fr; }
   .admin-record-toolbar>button:first-of-type { grid-column:auto; }
   .admin-record-toolbar button,.admin-record-toolbar select { min-height:44px; }
-  .admin-status-plot { grid-template-columns:120px minmax(0,1fr); gap:12px; }
-  .admin-status-donut { width:120px; height:120px; }
   .admin-home-summary { grid-template-columns:1fr; gap:12px; }
   .admin-home-events { grid-column:auto; }
   .admin-text-link { display:inline-flex; align-items:center; min-height:32px; }

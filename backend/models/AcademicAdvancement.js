@@ -18,6 +18,8 @@ const schema = new mongoose.Schema({
     enrollmentStatus: String,
   }],
   retainedIds: [String],
+  selectedIds: { type: [String], default: undefined },
+  selectionMode: { type: String, enum: ["explicit"] },
   graduateIds: [String],
   results: [{ _id: false, studentId: String, name: String, outcome: String, message: String }],
   undoResults: [{ _id: false, studentId: String, name: String, outcome: String, message: String }],

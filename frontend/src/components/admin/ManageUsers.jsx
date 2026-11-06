@@ -643,7 +643,7 @@ const ManageUsers = () => {
         tabs={[
           { key: "users", label: "Users", count: users.length },
           { key: "appeals", label: "Face appeals", count: pendingCount || undefined },
-          { key: "advancement", label: "Advance year levels" },
+          { key: "advancement", label: "Year levels" },
         ]}
       />
 

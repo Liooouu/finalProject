@@ -32,19 +32,24 @@ async function readRoster() {
   return User.find({ role: "student" })
     .select("name email role program section yearLevel academicYearStart enrollmentStatus").sort({ name: 1, _id: 1 }).lean();
 }
-async function listClasses(sourceYear) {
+async function studentOptions(sourceYear) {
   const issue = sourceYearIssue(sourceYear);
   if (issue) fail(400, issue);
   const groups = new Map();
-  for (const student of await readRoster()) {
-    if (!isEligible(student, sourceYear)) continue;
+  const students = (await readRoster()).filter(student => isEligible(student,sourceYear));
+  for (const student of students) {
     const key = `${student.program}:${student.yearLevel}:${student.section}`;
     if (!groups.has(key)) groups.set(key, { key, program: student.program, yearLevel: student.yearLevel, section: student.section, count: 0 });
     groups.get(key).count++;
   }
-  return [...groups.values()].sort((a,b) => a.program.localeCompare(b.program) || a.yearLevel-b.yearLevel || a.section.localeCompare(b.section));
+  return {
+    classes: [...groups.values()].sort((a,b) => a.program.localeCompare(b.program) || a.yearLevel-b.yearLevel || a.section.localeCompare(b.section)),
+    students: students.map(student => ({ _id: student._id, name: student.name, email: student.email,
+      program: student.program, yearLevel: student.yearLevel, section: student.section })),
+  };
 }
-async function preview(adminId, sourceYear, classScope = null) {
+async function listClasses(sourceYear) { return (await studentOptions(sourceYear)).classes; }
+async function preview(adminId, sourceYear, classScope = null, explicitSelection = false) {
   const issue = sourceYearIssue(sourceYear);
   if (issue) fail(400, issue);
   const scope = classScope === null ? null : validateClassScope(classScope);
@@ -52,7 +57,7 @@ async function preview(adminId, sourceYear, classScope = null) {
   const students = roster.filter(student => isEligible(student, sourceYear));
   if (!students.length) return { batchId: null, sourceYear, targetYear: sourceYear + 1, classScope: scope, students: [], excludedCount: roster.length };
   const batch = await AcademicAdvancement.create({
-    createdBy: adminId, sourceYear, targetYear: sourceYear + 1, classScope: scope, students,
+    createdBy: adminId, sourceYear, targetYear: sourceYear + 1, classScope: scope, students, ...(explicitSelection?{selectionMode:"explicit"}:{}),
   });
   return { batchId: batch._id, sourceYear, targetYear: sourceYear + 1, classScope: scope, students: batch.students,
     excludedCount: roster.length - students.length };
@@ -67,24 +72,31 @@ function validateChoices(batch, retainedIds, graduateIds) {
     fail(400, "Selections must belong to this batch. Only fourth-year students can be marked graduated, separately from retained students.");
   }
 }
-async function commit(adminId, batchId, retainedIds = [], graduateIds = []) {
+async function commit(adminId, batchId, retainedIds = [], graduateIds = [], selectedIds) {
   let batch = await AcademicAdvancement.findById(batchId);
   if (!batch || String(batch.createdBy) !== String(adminId)) fail(404, "Batch not found. Prepare a new preview.");
   if (!["draft", "running", "partial", "completed"].includes(batch.status)) fail(409, "This batch is being undone or has already been undone. Reload the masterlist to prepare a new update.");
   validateChoices(batch, retainedIds, graduateIds);
+  if(batch.selectionMode==="explicit"&&selectedIds===undefined)fail(400,"Check the students to advance before confirming.");
+  if(selectedIds!==undefined&&(!Array.isArray(selectedIds)||!selectedIds.length||new Set(selectedIds).size!==selectedIds.length||
+    selectedIds.some(id=>typeof id!=="string"||!batch.students.some(student=>String(student._id)===id))||
+    graduateIds.some(id=>!selectedIds.includes(id))||retainedIds.length))fail(400,"Select students to advance or graduate before confirming.");
+  if(selectedIds!==undefined&&!sameIds(graduateIds,batch.students.filter(student=>student.yearLevel===4&&selectedIds.includes(String(student._id))).map(student=>String(student._id))))fail(400,"Explicitly confirm graduation for selected fourth-year students.");
   if (batch.status === "draft") {
     if (Date.now() - new Date(batch.createdAt).getTime() > 60 * 60 * 1000) fail(409, "Preview expired. Reload the masterlist and review again.");
     batch = await AcademicAdvancement.findOneAndUpdate({ _id: batchId, status: "draft" },
-      { $set: { status: "running", retainedIds, graduateIds } }, { new: true }) || await AcademicAdvancement.findById(batchId);
+      { $set: { status: "running", retainedIds, graduateIds, ...(selectedIds!==undefined?{selectedIds}:{}) } }, { new: true }) || await AcademicAdvancement.findById(batchId);
   }
   if (!sameIds(batch.retainedIds, retainedIds) || !sameIds(batch.graduateIds, graduateIds)) {
     fail(409, "This batch already started with different selections. Retry the original selections or prepare a new preview.");
   }
+  if((batch.selectedIds!==undefined||selectedIds!==undefined)&&(!batch.selectedIds||!selectedIds||!sameIds(batch.selectedIds,selectedIds)))fail(409,"This batch already started with different students. Retry the original selection.");
   if (batch.status === "completed") return summarize(batch);
   const retained = new Set(batch.retainedIds), graduates = new Set(batch.graduateIds);
   const results = [];
   for (const student of batch.students) {
     const id = String(student._id);
+    if(batch.selectedIds!==undefined&&!batch.selectedIds.includes(id)){results.push({studentId:id,name:student.name,outcome:"unchanged"});continue;}
     const change = plannedChange(student, retained.has(id), graduates.has(id));
     try {
       const applied = await User.exists({ _id: student._id, "academicTransitions.batch": batch._id });
@@ -128,9 +140,33 @@ async function commit(adminId, batchId, retainedIds = [], graduateIds = []) {
   require("./faceIdentify").clear();
   return summarize(batch);
 }
-async function undo(adminId, batchId) {
+function canFinishUndo(snapshot, current, batch) {
+  const transition=current?.academicTransitions?.find(item=>String(item.batch)===String(batch._id));
+  const latest=current?.academicTransitions?.filter(item=>!item.revertedAt).at(-1);
+  return !!transition&&!transition.revertedAt&&String(latest?.batch)===String(batch._id)&&current.role==="student"&&
+    current.program===snapshot.program&&current.section===snapshot.section&&current.yearLevel===snapshot.yearLevel&&
+    (current.enrollmentStatus||"active")===(snapshot.enrollmentStatus||"active")&&
+    [batch.targetYear,snapshot.academicYearStart??null].includes(current.academicYearStart??null)&&
+    !(current.yearLevel===transition.toYearLevel&&(current.enrollmentStatus||"active")===transition.toStatus&&current.academicYearStart===batch.targetYear);
+}
+async function undoPreview(batchId) {
+  const batch=await AcademicAdvancement.findById(batchId);
+  if(!batch)fail(404,"Academic update not found.");
+  if(!["completed","partial","reverting","undo_partial","undone"].includes(batch.status))fail(409,"Wait for the update to finish before undoing it.");
+  const current=await User.find({_id:{$in:batch.students.map(student=>student._id)}})
+    .select("role program section yearLevel academicYearStart enrollmentStatus academicTransitions").lean();
+  const byId=new Map(current.map(student=>[String(student._id),student]));
+  const reconciliation=batch.students.filter(snapshot=>canFinishUndo(snapshot,byId.get(String(snapshot._id)),batch))
+    .map(snapshot=>({studentId:String(snapshot._id),name:snapshot.name,email:snapshot.email,yearLevel:snapshot.yearLevel,
+      fromSchoolYear:batch.targetYear,toSchoolYear:snapshot.academicYearStart??batch.sourceYear}));
+  return {batch:summarize(batch),reconciliation};
+}
+async function undo(adminId, batchId, reconcileStudentIds = []) {
   let batch = await AcademicAdvancement.findById(batchId);
   if (!batch) fail(404, "Academic update not found.");
+  if(!Array.isArray(reconcileStudentIds)||new Set(reconcileStudentIds).size!==reconcileStudentIds.length||
+    reconcileStudentIds.some(id=>typeof id!=="string"||!batch.students.some(student=>String(student._id)===id)))fail(400,"Undo recovery selections must belong to this update.");
+  const reconcile=new Set(reconcileStudentIds);
   if (batch.status === "undone") return summarize(batch);
   if (!["completed", "partial", "reverting", "undo_partial"].includes(batch.status)) fail(409, "Wait for the academic update to finish before undoing it.");
   batch = await AcademicAdvancement.findOneAndUpdate({ _id: batchId, status: { $in: ["completed", "partial", "undo_partial"] } },
@@ -154,11 +190,14 @@ async function undo(adminId, batchId) {
         continue;
       }
       const restoredAt = new Date();
+      const finishPreviousYear=reconcile.has(id)&&canFinishUndo(snapshot,current,batch);
       // Compare the complete resulting academic standing, then protect the
       // read/write gap. Later staff edits are never silently overwritten.
       const updated = await User.findOneAndUpdate({
         _id: snapshot._id, role: "student", program: snapshot.program, section: snapshot.section,
-        yearLevel: transition.toYearLevel, academicYearStart: batch.targetYear, enrollmentStatus: transition.toStatus,
+        yearLevel: finishPreviousYear?current.yearLevel:transition.toYearLevel,
+        academicYearStart: finishPreviousYear?(current.academicYearStart??null):batch.targetYear,
+        enrollmentStatus: finishPreviousYear?(current.enrollmentStatus||{$in:[null,"active"]}):transition.toStatus,
         updatedAt: current.updatedAt || { $exists: false },
         academicTransitions: { $elemMatch: { batch: batch._id, revertedAt: null } },
       }, {
@@ -172,7 +211,9 @@ async function undo(adminId, batchId) {
         // Another undo may have completed the same student first.
         const fresh = await User.findById(snapshot._id).select("academicTransitions").lean();
         if (!fresh?.academicTransitions?.some(item => String(item.batch) === String(batch._id) && item.revertedAt)) {
-          results.push({ ...result, outcome: "skipped", message: "Student details changed after this update. Review the student manually; no changes were overwritten." });
+          results.push({ ...result, outcome: "skipped", message: canFinishUndo(snapshot,current,batch)
+            ? "Year level is already restored, but the school-year rollback is unfinished. Use Retry undo to review and finish it."
+            : "Student academic details changed after this update. Review the student manually; no changes were overwritten." });
           continue;
         }
       }
@@ -181,15 +222,16 @@ async function undo(adminId, batchId) {
       results.push({ ...result, outcome: "failed", message: "Could not restore this student. Retry undo; restored students will not change again." });
     }
   }
+  const undoComplete=!results.some(item=>["skipped","failed"].includes(item.outcome));
   batch = await AcademicAdvancement.findOneAndUpdate({ _id: batchId, status: { $in: ["reverting", "undo_partial"] } }, {
-    $set: { status: results.some(item => ["skipped", "failed"].includes(item.outcome)) ? "undo_partial" : "undone",
-      undoResults: results, undoneBy: adminId, undoneAt: new Date() },
+    $set: { status: undoComplete?"undone":"undo_partial",
+      undoResults: results, undoneBy: adminId, ...(undoComplete?{undoneAt:new Date()}:{}) },
   }, { new: true }) || await AcademicAdvancement.findById(batchId);
   require("./faceIdentify").clear();
   return summarize(batch);
 }
 async function history(query = {}) {
-  const filter = { status: { $ne: "draft" } }, limit = 5;
+  const filter = { status: { $nin: ["draft", "undone"] } }, limit = 5;
   const total = await AcademicAdvancement.countDocuments(filter);
   const page = Math.min(Math.max(1, parseInt(query.page, 10) || 1), Math.max(1, Math.ceil(total / limit)));
   const batches = await AcademicAdvancement.find(filter)
@@ -199,7 +241,7 @@ async function history(query = {}) {
 }
 function summarize(batch) {
   return { batchId: batch._id, sourceYear: batch.sourceYear, targetYear: batch.targetYear, classScope: batch.classScope || null, status: batch.status,
-    createdAt: batch.createdAt, undoneAt: batch.undoneAt,
+    createdAt: batch.createdAt, unchangedCount:batch.results.filter(result=>result.outcome==="unchanged").length, undoneAt: batch.status==="undone"?batch.undoneAt:null,
     undo: { counts: Object.fromEntries(["restored", "unaffected", "skipped", "failed"].map(key => [key, (batch.undoResults || []).filter(result => result.outcome === key).length])),
       issues: (batch.undoResults || []).filter(result => ["skipped", "failed"].includes(result.outcome)) },
     counts: Object.fromEntries(["advanced", "retained", "graduated", "skipped", "failed"].map(key => [key, batch.results.filter(result => result.outcome === key).length])),
@@ -220,11 +262,11 @@ async function details(batchId, query = {}) {
     const outcome = saved?.outcome || "pending";
     return { studentId: student._id, name: student.name, email: student.email,
       program: student.program, section: student.section, previousYearLevel: student.yearLevel,
-      updatedYearLevel: outcome === "advanced" ? student.yearLevel+1 : ["retained","graduated"].includes(outcome) ? student.yearLevel : null,
+      updatedYearLevel: outcome === "advanced" ? student.yearLevel+1 : ["retained","graduated","unchanged"].includes(outcome) ? student.yearLevel : null,
       outcome, message: saved?.message || "", undoOutcome: undo?.outcome || null, undoMessage: undo?.message || "" };
   });
   // Read saved snapshots, not the current class query: promotion, graduation,
   // later edits or deleted accounts must not erase the historical result.
   return { batch: summarize(batch), students: rows, total, batchSize: (batch.students || []).length, page, pageSize };
 }
-module.exports = { preview, commit, undo, history, details, listClasses, sourceYearIssue, isEligible, plannedChange };
+module.exports = { preview, commit, undo, undoPreview, history, details, studentOptions, listClasses, sourceYearIssue, isEligible, plannedChange };

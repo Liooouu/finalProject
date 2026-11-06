@@ -1,19 +1,23 @@
 # Academic year advancement
 
-Manage Users has an **Advance year levels** tab beside Users and Face appeals.
+Manage Users has an **Year levels** tab beside Users and Face appeals.
 Only an administrator in the admin portal can use the corresponding API.
 
-1. Open the tab and choose **Class to update**, such as BSIT · Year 1 · Section A.
-   It combines program, year level and section in one selector. Only that class
-   loads automatically, with five students per page. If there is only one eligible
-   class, it is selected automatically. Use **Change school year** only when
-   reviewing another available year.
-2. Search by student name or email. Check **Keep current year level** for
-   first- through third-year students who should not advance.
-3. Fourth-year students retain Year 4 by default. Check **Mark graduated** only
-   for students whose completion has been confirmed by the department.
-4. Review the class, counts and named exceptions, then confirm the batch.
-   Choose another class from the same selector to continue.
+1. Open the tab. Search a student name/email or use the clearly labeled Program,
+   Year level and Section filters. Programs are BSIT, BSCS and BSEMC; years are
+   1–4. Search works across eligible registered students before choosing a class.
+2. Choose all three class filters to enable an update. Only that class loads
+   for review, five students per page. No Load button is needed. If there is
+   only one eligible class, its filters fill automatically.
+3. No students are checked initially. **Check all** selects the entire class,
+   across all pages and search results. Uncheck students who should not advance.
+   Checked Years 1–3 advance; checked fourth-year students graduate only after
+   explicit review and confirmation. Unchecked students keep their complete
+   academic standing, including their school-year assignment, unchanged.
+4. Review the selected names and counts, then confirm. Refresh preserves the
+   selection for students still in the same preview. A new class starts unchecked.
+5. Use **Clear search & filters** to return to the full student list. Click the
+   eye icon in Recent bulk updates to inspect saved results in a popup.
 
 Search and pagination do not limit the batch. Every eligible student in the
 saved preview for the selected class is included once, including students with organizer access.
@@ -51,25 +55,28 @@ failed records can be retried. Do not treat a partial result as a completed batc
 
 ## Saved results
 
-After confirmation, **Saved update results** shows each student's previous year,
+After confirmation, a compact summary remains on the page. The eye icon opens
+**Saved update results** in a dialog with each student's previous year,
 year after the update and result. It uses the saved batch, so students remain
 visible after promotion, graduation, later profile edits or account removal.
 The list has five students per page and a name/email search for larger batches.
 The summary distinguishes advanced, retained, graduated, skipped and failed.
 Skipped/failed students never show a planned year as an applied change.
 
-The selected result remains available after changing class or refreshing the
-page. **View results** in Recent bulk updates opens an earlier batch; the
+Results stay in Recent bulk updates after refreshing. The eye icon opens an
+earlier batch without adding another full card to the main screen. An open
+result dialog remains selected after a refresh; the
 selected batch is stored in the page URL without storing student data there.
-With no selected batch, the newest saved update opens automatically. Undo marks
-restoration outcomes alongside the original update; it does not erase results.
+Closing the dialog returns to the student filters. A fully undone update is
+removed from Recent bulk updates. Its internal batch/transition audit is kept;
+incomplete undos stay visible for review and retry.
 Reading or searching results never advances students or changes their records.
 
 ## Undo an accidental update
 
 Use **Undo this update** on the result, or find it in **Recent bulk updates**
-in the same tab. The saved list remains available after a refresh and shows
-five batches per page. Any administrator can undo a completed or partly saved
+in the same tab. The list remains available after a refresh and shows five active/reviewable
+batches per page. Fully undone updates disappear from this list. Any administrator can undo a completed or partly saved
 batch after confirming which update to restore. Drafts and running updates
 cannot be undone.
 
@@ -81,6 +88,15 @@ listed for manual review; an edit racing with the undo is also protected.
 **Retry undo** resumes interrupted or partial restores without changing a
 student twice. An undone batch cannot be confirmed again; a fresh, reviewed
 preview is required to advance restored students.
+
+If the student's year level was already set back but the school-year assignment
+or transition was not restored, Undo first reviews that state. **Finish undo**
+shows the affected names/emails and the school-year rollback before confirming.
+Only students whose program, section and previous academic standing still match
+this batch qualify. Newer transitions and different academic edits stay protected.
+This recovery uses current-record comparisons and atomic writes; no force-undo
+option bypasses those checks. A fresh reviewed batch can advance the restored
+students again; its results appear as a new history entry.
 
 Transitions are retained permanently with `revertedAt` and `revertedBy` for an
 audit. New academic-history snapshots are tagged with their batch and removed

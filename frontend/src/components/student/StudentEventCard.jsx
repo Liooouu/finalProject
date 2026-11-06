@@ -32,7 +32,7 @@ export default function StudentEventCard({ event, attendance, attendanceError = 
         <h3 className="mt-3 whitespace-normal font-display text-lg font-semibold leading-snug tracking-tight text-on [overflow-wrap:anywhere]">{event.title}</h3>
         <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-on-dim [overflow-wrap:anywhere]">{event.description || "No description provided."}</p>
       </div>
-      <div className="flex flex-1 flex-col gap-4 p-4 sm:p-5">
+      <div className="student-event-body flex flex-1 flex-col gap-4 p-4 sm:p-5">
         <div role="status" aria-live="polite" aria-atomic="true" className={`rounded-xl border p-3 ${tone}`}>
           <div className="flex items-start gap-2.5">
             {recorded ? <FaCheckCircle aria-hidden="true" className="mt-0.5 shrink-0 text-lg" /> : <FaExclamationCircle aria-hidden="true" className="mt-0.5 shrink-0 text-lg" />}
@@ -45,10 +45,10 @@ export default function StudentEventCard({ event, attendance, attendanceError = 
             </div>
           </div>
         </div>
-        <dl className="space-y-3 text-sm">
-          <div className="flex items-start gap-2.5"><FaCalendarAlt aria-hidden="true" className="mt-1 shrink-0 text-xs text-on-muted" /><div className="min-w-0"><dt className="text-xs text-on-muted">Starts</dt><dd className="mt-0.5 text-on-dim">{event.date ? formatDate(event.date) : "Date TBA"}{event.time ? ` at ${formatTime12Hour(event.time)}` : " · Time TBA"}</dd></div></div>
-          <div className="flex items-start gap-2.5"><FaClock aria-hidden="true" className="mt-1 shrink-0 text-xs text-on-muted" /><div className="min-w-0"><dt className="text-xs text-on-muted">Ends</dt><dd className="mt-0.5 text-on-dim">{event.endDate || event.date ? formatDate(event.endDate || event.date) : "Date TBA"} at {formatTime12Hour(event.endTime || "23:59")}</dd></div></div>
-          <div className="flex items-start gap-2.5"><FaMapMarkerAlt aria-hidden="true" className="mt-1 shrink-0 text-xs text-on-muted" /><div className="min-w-0"><dt className="text-xs text-on-muted">Venue</dt><dd className="mt-0.5 whitespace-pre-wrap text-on-dim [overflow-wrap:anywhere]">{event.location || "Venue TBA"}</dd></div></div>
+        <dl className="student-event-details text-sm">
+          <div className="student-event-detail"><FaCalendarAlt aria-hidden="true" className="mt-1 shrink-0 text-xs text-on-muted" /><div className="min-w-0"><dt className="text-xs text-on-muted">Starts</dt><dd className="mt-0.5 text-on-dim">{event.date ? formatDate(event.date) : "Date TBA"}{event.time ? ` at ${formatTime12Hour(event.time)}` : " · Time TBA"}</dd></div></div>
+          <div className="student-event-detail"><FaClock aria-hidden="true" className="mt-1 shrink-0 text-xs text-on-muted" /><div className="min-w-0"><dt className="text-xs text-on-muted">Ends</dt><dd className="mt-0.5 text-on-dim">{event.endDate || event.date ? formatDate(event.endDate || event.date) : "Date TBA"} at {formatTime12Hour(event.endTime || "23:59")}</dd></div></div>
+          <div className="student-event-detail"><FaMapMarkerAlt aria-hidden="true" className="mt-1 shrink-0 text-xs text-on-muted" /><div className="min-w-0"><dt className="text-xs text-on-muted">Venue</dt><dd className="mt-0.5 whitespace-pre-wrap text-on-dim [overflow-wrap:anywhere]">{event.location || "Venue TBA"}</dd></div></div>
         </dl>
         <div className="flex items-start gap-2 rounded-xl border border-warn/25 bg-warn/5 px-3 py-2.5 text-xs text-warn">
           <BsClipboardCheck aria-hidden="true" className="mt-0.5 shrink-0" />

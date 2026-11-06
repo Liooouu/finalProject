@@ -27,7 +27,8 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
-import { Bar, Doughnut } from "react-chartjs-2";
+import { Bar } from "react-chartjs-2";
+import ReportDonut from "../ui/ReportDonut";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
 
@@ -228,7 +229,7 @@ const AttendanceReports = () => {
     responsive: true,
     maintainAspectRatio: false,
     cutout: "74%",
-    plugins: { legend: { display: false }, tooltip: tooltipStyle },
+    plugins: { legend: { display: false }, tooltip: { enabled: false } },
   };
 
   const statusRows = attendanceData
@@ -454,38 +455,7 @@ const AttendanceReports = () => {
                     </span>
                   }
                 >
-                  <div className="admin-status-plot">
-                    <div className="admin-status-donut relative">
-                      <Doughnut data={attendanceChartData} options={donutOptions} />
-                      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="num font-display text-2xl font-bold leading-none text-on">
-                          {attendanceData.stats.total}
-                        </span>
-                        <span className="mt-1 text-[10px] uppercase tracking-wide text-on-muted">
-                          records
-                        </span>
-                      </div>
-                    </div>
-
-                    <ul className="w-full space-y-2">
-                      {statusRows.map((row) => (
-                        <li key={row.key} className="flex items-center gap-2 text-xs">
-                          <span
-                            className="h-2 w-2 shrink-0 rounded-full"
-                            style={{ backgroundColor: row.color }}
-                            aria-hidden="true"
-                          />
-                          <span className="min-w-0 flex-1 truncate text-on-dim">
-                            {row.label}
-                          </span>
-                          <span className="num font-semibold text-on">{row.value}</span>
-                          <span className="num w-8 text-right text-on-muted">
-                            {row.pct}%
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  <ReportDonut data={attendanceChartData} options={donutOptions} total={attendanceData.stats.total} unit="records" rows={statusRows} />
                 </ChartCard>
               </div>
 
@@ -510,7 +480,7 @@ const AttendanceReports = () => {
                 subtitle={`${attendanceData.stats.total} matching records · ${attendancePageSize} per page`}
 
               >
-                <AttendanceRecordActions key={`${JSON.stringify(filters)}:${attendancePage}`} records={attendanceData.records} loading={attendanceLoading} onDeleted={() => Promise.all([fetchAttendance(), fetchEvents()])}>{({ selecting, checkbox, busy }) => <StablePage loading={attendanceLoading || busy} pageKey={`${JSON.stringify(filters)}:${attendanceData.stats.total}`} footer={<div className="admin-table-pager"><Pagination page={attendancePage} pageSize={attendancePageSize} total={attendanceData.stats.total} disabled={attendanceLoading || busy} onChange={setAttendancePage} label="Attendance report pages" /></div>}>
+                <AttendanceRecordActions scopeKey={`${JSON.stringify(filters)}:${attendancePage}`} records={attendanceData.records} loading={attendanceLoading} onDeleted={() => Promise.all([fetchAttendance(), fetchEvents()])}>{({ selecting, checkbox, busy }) => <StablePage loading={attendanceLoading || busy} pageKey={`${JSON.stringify(filters)}:${attendanceData.stats.total}`} footer={<div className="admin-table-pager"><Pagination page={attendancePage} pageSize={attendancePageSize} total={attendanceData.stats.total} disabled={attendanceLoading || busy} onChange={setAttendancePage} label="Attendance report pages" /></div>}>
                 <div className="overflow-x-auto">
                   <table className="data-table admin-records-table min-w-[960px]" aria-busy={attendanceLoading}>
                     <colgroup>{selecting && <col style={{width:"48px"}} />}<col style={{width:"24%"}} /><col style={{width:"24%"}} /><col style={{width:"22%"}} /><col style={{width:"13%"}} /><col /></colgroup>
@@ -611,34 +581,7 @@ const AttendanceReports = () => {
                 </span>
               }
             >
-              <div className="grid items-center gap-6 sm:grid-cols-2 sm:py-4">
-                <div className="relative mx-auto h-[180px] w-[180px]">
-                  <Doughnut data={eventStatusData} options={donutOptions} />
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="num font-display text-2xl font-bold leading-none text-on">
-                      {eventsData.stats.total}
-                    </span>
-                    <span className="mt-1 text-[10px] uppercase tracking-wide text-on-muted">
-                      events
-                    </span>
-                  </div>
-                </div>
-
-                <ul className="w-full space-y-2">
-                  {eventStatusRows.map((row) => (
-                    <li key={row.label} className="flex items-center gap-2 text-xs">
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full"
-                        style={{ backgroundColor: row.color }}
-                        aria-hidden="true"
-                      />
-                      <span className="min-w-0 flex-1 truncate text-on-dim">{row.label}</span>
-                      <span className="num font-semibold text-on">{row.value}</span>
-                      <span className="num w-8 text-right text-on-muted">{row.pct}%</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <ReportDonut data={eventStatusData} options={donutOptions} total={eventsData.stats.total} unit="events" rows={eventStatusRows} />
             </ChartCard>
 
 
@@ -732,34 +675,7 @@ const AttendanceReports = () => {
                 </span>
               }
             >
-              <div className="grid items-center gap-6 sm:grid-cols-2 sm:py-4">
-                <div className="relative mx-auto h-[180px] w-[180px]">
-                  <Doughnut data={usersRoleData} options={donutOptions} />
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="num font-display text-2xl font-bold leading-none text-on">
-                      {usersData.stats.total}
-                    </span>
-                    <span className="mt-1 text-[10px] uppercase tracking-wide text-on-muted">
-                      users
-                    </span>
-                  </div>
-                </div>
-
-                <ul className="w-full space-y-2">
-                  {roleRows.map((row) => (
-                    <li key={row.label} className="flex items-center gap-2 text-xs">
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full"
-                        style={{ backgroundColor: row.color }}
-                        aria-hidden="true"
-                      />
-                      <span className="min-w-0 flex-1 truncate text-on-dim">{row.label}</span>
-                      <span className="num font-semibold text-on">{row.value}</span>
-                      <span className="num w-8 text-right text-on-muted">{row.pct}%</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <ReportDonut data={usersRoleData} options={donutOptions} total={usersData.stats.total} unit="users" rows={roleRows} />
             </ChartCard>
 
 
