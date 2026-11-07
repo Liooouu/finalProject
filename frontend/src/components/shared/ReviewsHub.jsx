@@ -17,7 +17,7 @@ export default function ReviewsHub() {
   const counts = useNavCounts(role);
   const base = `/${role}/dashboard/reviews`;
   const tabs = [
-    { key: "manual", label: "Manual Reviews", count: counts.manual },
+    { key: "manual", label: "ID Attendance", count: counts.manual },
     ...(role === "admin" ? [{ key: "face-appeals", label: "Face Appeals", count: counts.appeals }] : []),
     { key: "excuses", label: "Excuses", count: counts.excuses },
   ];

@@ -1,4 +1,5 @@
 import IdPhotoEvidence from "./IdPhotoEvidence";
+import EventReviewers from "../admin/EventReviewers";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { FaClipboardCheck, FaSearch } from "react-icons/fa";
@@ -27,6 +28,8 @@ export default function ManualAttendanceReviews({ defaultView = "mine" }) {
   });
   const [status, setStatus] = useState("pending");
   const [eventId, setEventId] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [assignmentEvent, setAssignmentEvent] = useState("");
   const [events, setEvents] = useState([]);
   const [eventError, setEventError] = useState("");
   const [search, setSearch] = useState("");
@@ -133,10 +136,27 @@ export default function ManualAttendanceReviews({ defaultView = "mine" }) {
 
   const currentPage = Math.min(page, Math.max(1, Math.ceil(total / PAGE_SIZE)));
   const selectedRows = requests.filter(row => selected.has(row._id));
+  const eligibleIds = view === "review" ? requests.filter(row => row.status === "pending" && row.canReview === true).map(row => row._id) : [];
+  const selectedEligibleCount = eligibleIds.filter(id => selected.has(id)).length;
+  const allOnPageSelected = eligibleIds.length > 0 && selectedEligibleCount === eligibleIds.length;
+  const someOnPageSelected = selectedEligibleCount > 0 && !allOnPageSelected;
   const eventMissingFromChoices = eventId && !events.some(event => event._id === eventId);
 
+  const reviewActions = <Card as="section" aria-label="Review selected requests" className="manual-review-actions space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-medium text-on">Review {selected.size === 1 ? "attendance request" : `${selected.size} selected requests`}</h3><Button variant="ghost" size="sm" onClick={resetSelection} disabled={busy}>Clear selection</Button></div>
+      <p className="text-xs text-on-dim">{selectedRows.map(row => row.student?.name || row.student?.email || "Student").join(", ")}</p>
+      <label className="flex items-start gap-3 rounded-xl bg-card-alt/40 p-3 text-sm text-on-dim"><input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-solid)]" checked={verified} onChange={event => setVerified(event.target.checked)} disabled={busy} /><span>I checked the evidence and attendance time for all selected students.</span></label>
+      <div><label htmlFor="manual-review-note" className="field-label">Review note <span className="font-normal text-on-muted">(at least 5 characters when rejecting)</span></label><textarea id="manual-review-note" className="field min-h-20 resize-y" maxLength={1000} placeholder="Reason for rejection, or an optional note." value={note} onChange={event => setNote(event.target.value)} disabled={busy} /></div>
+      <div className="flex flex-col gap-2 sm:flex-row"><Button onClick={() => reviewSelected("approved")} disabled={!!busy || !verified} loading={busy === "approved"}>{busy === "approved" ? "Approving..." : selected.size === 1 ? "Approve attendance" : "Approve selected"}</Button><Button variant="danger" onClick={() => reviewSelected("rejected")} disabled={!!busy || note.trim().length < 5} loading={busy === "rejected"}>{busy === "rejected" ? "Rejecting..." : selected.size === 1 ? "Reject request" : "Reject selected"}</Button></div>
+    </Card>;
+
   return <div className="manual-review-page space-y-4">
-    <PageHeader eyebrow="Attendance exceptions" title={view === "mine" ? "My attendance requests" : "Manual attendance review"} subtitle="Select a request, check its evidence, then approve or reject. Attendance uses the saved check-in time." actions={<Button variant="secondary" size="sm" onClick={() => { loadRequests(); loadEvents(); }} disabled={refreshing || busy}>Refresh</Button>} />
+    <PageHeader eyebrow="Attendance exceptions" title={view === "mine" ? "My attendance requests" : "ID attendance & corrections"} subtitle="Check the evidence, then approve or reject. Capture time determines attendance." actions={<div className="flex flex-wrap gap-2">{isAdmin && <Button size="sm" onClick={() => { setAssignmentEvent(eventId); setAssigning(value => !value); }} aria-expanded={assigning} aria-controls="attendance-reviewer-assignment">{assigning ? "Close assignment" : "Assign reviewers"}</Button>}<Button variant="secondary" size="sm" onClick={() => { loadRequests(); loadEvents(); }} disabled={refreshing || busy}>Refresh</Button></div>} />
+    {isAdmin && <p className="text-sm text-on-muted">Admins can review all requests. Use Assign reviewers to let organizers help.</p>}
+    {isAdmin && assigning && <section id="attendance-reviewer-assignment" aria-label="Assign attendance reviewers" className="space-y-3">
+      <Card><label className="field-label" htmlFor="assignment-event">Event</label><select id="assignment-event" className="field-select w-full" value={assignmentEvent} onChange={event => setAssignmentEvent(event.target.value)}><option value="">Select an event</option>{events.map(event => <option key={event._id} value={event._id}>{event.title}</option>)}</select><p className="mt-2 text-xs text-on-muted">Reviewers can help with this event only.</p>{eventError && <p role="alert" className="mt-2 text-sm text-danger">{eventError}</p>}</Card>
+      {assignmentEvent && <EventReviewers key={assignmentEvent} eventId={assignmentEvent} expanded />}
+    </section>}
     {!isAdmin && <SegmentedControl ariaLabel="Manual request views" value={view} onChange={value => { if (!busy) changeFilter(setView, value); }} options={[{ value: "review", label: "Assigned reviews" }, { value: "mine", label: "My requests" }]} />}
     {loadError && <div role="alert" className="alert alert-danger"><p>{loadError}</p><Button variant="secondary" size="sm" onClick={loadRequests} disabled={refreshing || busy}>Try again</Button></div>}
     <Card className="manual-review-filters">
@@ -145,10 +165,14 @@ export default function ManualAttendanceReviews({ defaultView = "mine" }) {
         <div className="min-w-0"><label className="field-label" htmlFor="manual-review-event">Event</label><select id="manual-review-event" className="field-select w-full min-w-0" value={eventId} onChange={event => changeFilter(setEventId, event.target.value)} disabled={busy}><option value="">All events</option>{eventMissingFromChoices && <option value={eventId}>Selected event</option>}{events.map(event => <option key={event._id} value={event._id}>{event.title}</option>)}</select>{eventError && <p className="mt-1 text-xs text-danger">{eventError}</p>}</div>
         <div><label className="field-label" htmlFor="manual-review-status">Request status</label><select id="manual-review-status" className="field-select w-full" value={status} onChange={event => changeFilter(setStatus, event.target.value)} disabled={busy}><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="all">All statuses</option></select></div>
       </div>
-      {(search || eventId || status !== "all") && <Button className="mt-3" variant="ghost" size="sm" onClick={clearFilters} disabled={busy}>Clear filters · show all requests</Button>}
+      {(search || eventId || status !== "all") && <Button className="mt-3" variant="ghost" size="sm" onClick={clearFilters} disabled={busy}>Reset filters</Button>}
     </Card>
     <section aria-label="Manual attendance requests" aria-busy={refreshing} className="min-w-0">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-medium text-on">{total} request{total === 1 ? "" : "s"}</h3><p className="text-xs text-on-muted">Times shown in Philippine time</p></div>
+      {view === "review" && eligibleIds.length > 0 && <label className="mb-3 flex min-h-11 w-fit cursor-pointer items-center gap-3 text-sm text-on">
+        <input type="checkbox" className="h-5 w-5 shrink-0 accent-[var(--brand-solid)]" ref={node => { if (node) node.indeterminate = someOnPageSelected; }} checked={allOnPageSelected} disabled={loading || refreshing || !!busy || !!loadError} onChange={event => { setSelected(event.target.checked ? new Set(eligibleIds) : new Set()); setVerified(false); setActionError(""); setOutcomeErrors([]); }} />
+        <span>Select all on this page <span className="text-on-muted">({eligibleIds.length})</span></span>
+      </label>}
       <StablePage loading={refreshing} pageKey={`${view}:${status}:${eventId}:${query}:${total}`} footer={<Pagination page={currentPage} pageSize={PAGE_SIZE} total={total} onChange={value => { setPage(value); resetSelection(); }} disabled={refreshing || busy} label="Manual attendance request pages" />}>
       {loading ? <Loading label="Loading manual attendance requests..." /> : !requests.length ? <EmptyState compact icon={<FaClipboardCheck />} title={loadError ? "Requests unavailable" : "No matching requests"} description={view === "mine" ? "Your submitted attendance requests will appear here." : "Requests assigned for your review will appear here."} /> : <ul className="space-y-3">{requests.map(request => {
         const selectable = view === "review" && request.status === "pending" && request.canReview === true;
@@ -161,7 +185,7 @@ export default function ManualAttendanceReviews({ defaultView = "mine" }) {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 [overflow-wrap:anywhere]"><h4 className="font-display text-base font-semibold text-on">{request.student?.name || "Student unavailable"}</h4><p className="mt-0.5 text-xs text-on-muted">{request.student?.email || "Email unavailable"}</p></div><StatusChip status={request.status} /></div>
               <p className="mt-3 text-sm font-medium text-on [overflow-wrap:anywhere]">{request.event?.title || "Event unavailable"}</p>
-              <dl className="mt-3 grid grid-cols-1 gap-x-5 gap-y-3 text-sm sm:grid-cols-2 xl:grid-cols-4"><div><dt className="text-xs text-on-muted">{request.proposedStatus === "absent" ? "Attendance cutoff" : request.mode === "correction" ? "Actual attendance time" : "Recorded check-in"}</dt><dd className="mt-1 font-medium text-on">{displayTime(request.effectiveAt)}</dd></div><div><dt className="text-xs text-on-muted">Requested result</dt><dd className="mt-1 flex flex-wrap items-center gap-2"><StatusChip status={request.proposedStatus} /><span className="text-xs text-on-dim">{request.proposedHours ?? 0} penalty hrs</span></dd></div><div><dt className="text-xs text-on-muted">Submitted</dt><dd className="mt-1 text-on-dim">{displayTime(request.submittedAt)}</dd></div><div><dt className="text-xs text-on-muted">Submitted by</dt><dd className="mt-1 text-on-dim [overflow-wrap:anywhere]">{request.requestedBy?.name || "Organizer"}</dd></div></dl>
+              <dl className="mt-3 grid grid-cols-1 gap-x-5 gap-y-3 text-sm sm:grid-cols-2"><div><dt className="text-xs text-on-muted">{request.proposedStatus === "absent" ? "Attendance cutoff" : request.mode === "correction" ? "Actual attendance time" : "Recorded check-in"}</dt><dd className="mt-1 font-medium text-on">{displayTime(request.effectiveAt)}</dd></div><div><dt className="text-xs text-on-muted">Requested result</dt><dd className="mt-1 flex flex-wrap items-center gap-2"><StatusChip status={request.proposedStatus} /><span className="text-xs text-on-dim">{request.proposedHours ?? 0} penalty hrs</span></dd></div></dl>
               {protectedRecord && <div className="mt-3 space-y-2 rounded-xl bg-card-alt/60 p-3 text-sm text-on-dim">
                 <p className="font-medium text-on">{request.resolution === "existing_face" ? "Confirmed using existing face attendance" : "Attendance already recorded"}</p>
                 <p className="flex flex-wrap items-center gap-2"><StatusChip status={recorded.status} /><span>{recorded.status === "excused" ? "Approved excuse letter" : "Face check-in"} · {recorded.hours ?? 0} service hrs</span></p>
@@ -169,22 +193,17 @@ export default function ManualAttendanceReviews({ defaultView = "mine" }) {
                 <p className="text-xs">{request.resolution === "existing_face" ? "The review confirmed the matching result. The face check-in, its time, and service hours were kept." : matchingFace ? "The face check-in matches this request. Approval confirms the request and keeps the existing attendance time and service hours." : recorded.status === "excused" ? "An approved excuse already controls this record. Reject this duplicate request with a note to keep the excuse." : "This face check-in differs from the request. Review attendance separately, or reject the duplicate with a note; approval will not replace the existing record."}</p>
               </div>}
               <p className="mt-3 whitespace-pre-wrap text-sm text-on-dim [overflow-wrap:anywhere]"><span className="font-medium text-on">Reason: </span>{request.reason}</p>{request.source === "id_photo" && <IdPhotoEvidence request={request} />}
-              {request.mode === "correction" && <p className="mt-2 text-xs text-warn">Correction request · verify the claimed attendance time before approval.</p>}
-              {request.status === "pending" && !selectable && <p className="mt-2 text-xs text-on-muted">{view === "mine" ? "An independent reviewer must handle this request." : "You cannot review your own submission or attendance, or you are not assigned to this event."}</p>}
-              <details className="mt-3 text-xs text-on-muted"><summary className="cursor-pointer font-medium text-on-dim">Review details</summary><dl className="mt-2 grid gap-2 sm:grid-cols-2"><div><dt>Reviewed</dt><dd className="mt-0.5">{displayTime(request.reviewedAt)}</dd></div><div><dt>Reviewed by</dt><dd className="mt-0.5 [overflow-wrap:anywhere]">{request.reviewedBy?.name || (request.resolution === "id_photo" ? "Organizer-attested ID check (no independent review)" : "Not reviewed yet")}</dd></div>{request.schedule?.start && <div><dt>Recorded attendance window</dt><dd className="mt-0.5">{displayTime(request.schedule.start)} – {displayTime(request.schedule.deadline)}</dd></div>}{request.schedule?.cutoff && <div><dt>Last accepted check-in</dt><dd className="mt-0.5">{displayTime(request.schedule.cutoff)}</dd></div>}</dl>{(request.reviewNote || request.note) && <p className="mt-2 whitespace-pre-wrap [overflow-wrap:anywhere]">{request.reviewNote || request.note}</p>}</details>
+              {request.mode === "correction" && <p className="mt-2 text-xs text-warn">Correction: check the claimed time.</p>}
+              {request.status === "pending" && !selectable && <p className="mt-2 text-xs text-on-muted">{view === "mine" ? "Awaiting another reviewer." : "Another authorized reviewer must handle this request."}</p>}
+              <details className="mt-3 text-xs text-on-muted"><summary className="cursor-pointer font-medium text-on-dim">Review details</summary><dl className="mt-2 grid gap-2 sm:grid-cols-2"><div><dt>Submitted</dt><dd className="mt-0.5">{displayTime(request.submittedAt)}</dd></div><div><dt>Submitted by</dt><dd className="mt-0.5 [overflow-wrap:anywhere]">{request.requestedBy?.name || "Organizer"}</dd></div><div><dt>Reviewed</dt><dd className="mt-0.5">{displayTime(request.reviewedAt)}</dd></div><div><dt>Reviewed by</dt><dd className="mt-0.5 [overflow-wrap:anywhere]">{request.reviewedBy?.name || (request.resolution === "id_photo" ? "Organizer-attested ID check (no independent review)" : "Not reviewed yet")}</dd></div>{request.schedule?.start && <div><dt>Recorded attendance window</dt><dd className="mt-0.5">{displayTime(request.schedule.start)} – {displayTime(request.schedule.deadline)}</dd></div>}{request.schedule?.cutoff && <div><dt>Last accepted check-in</dt><dd className="mt-0.5">{displayTime(request.schedule.cutoff)}</dd></div>}</dl>{(request.reviewNote || request.note) && <p className="mt-2 whitespace-pre-wrap [overflow-wrap:anywhere]">{request.reviewNote || request.note}</p>}</details>
             </div>
           </div>
-        </Card></li>;
+          {selectable && !selected.has(request._id) && <Button type="button" className="mt-3" size="sm" variant="secondary" disabled={!!busy} onClick={() => { resetSelection(); setSelected(new Set([request._id])); setActionError(""); }}>Review request</Button>}
+        </Card>{view === "review" && selected.size === 1 && selected.has(request._id) && <div className="mt-3">{reviewActions}</div>}</li>;
       })}</ul>}
       </StablePage>
     </section>
-    {view === "review" && selected.size > 0 && <Card as="section" aria-label="Review selected requests" className="manual-review-actions space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-medium text-on">Decide on {selected.size} selected request{selected.size === 1 ? "" : "s"}</h3><Button variant="ghost" size="sm" onClick={resetSelection} disabled={busy}>Clear selection</Button></div>
-      <p className="text-xs text-on-dim">{selectedRows.map(row => row.student?.name || row.student?.email || "Student").join(", ")}</p>
-      <label className="flex items-start gap-3 rounded-xl bg-card-alt/40 p-3 text-sm text-on-dim"><input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-solid)]" checked={verified} onChange={event => setVerified(event.target.checked)} disabled={busy} /><span>I independently checked attendance and the recorded time for every selected student.</span></label>
-      <div><label htmlFor="manual-review-note" className="field-label">Review note <span className="font-normal text-on-muted">(at least 5 characters when rejecting)</span></label><textarea id="manual-review-note" className="field min-h-20 resize-y" maxLength={1000} placeholder="Explain a rejection or add useful verification details." value={note} onChange={event => setNote(event.target.value)} disabled={busy} /></div>
-      <div className="flex flex-col gap-2 sm:flex-row"><Button onClick={() => reviewSelected("approved")} disabled={!!busy || !verified} loading={busy === "approved"}>{busy === "approved" ? "Approving..." : "Approve selected"}</Button><Button variant="danger" onClick={() => reviewSelected("rejected")} disabled={!!busy || note.trim().length < 5} loading={busy === "rejected"}>{busy === "rejected" ? "Rejecting..." : "Reject selected"}</Button></div>
-    </Card>}
+    {view === "review" && selected.size > 1 && reviewActions}
     {(message || actionError || outcomeErrors.length > 0) && <section ref={feedback} tabIndex={-1} aria-label="Review result" className="space-y-3 rounded-xl focus-visible:outline-2 focus-visible:outline-brand">
       {message && <div role="status" className="alert alert-ok"><p>{message}</p></div>}
       {actionError && <div role="alert" className="alert alert-danger"><p>{actionError}</p></div>}

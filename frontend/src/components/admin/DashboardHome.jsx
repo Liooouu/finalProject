@@ -62,7 +62,7 @@ export default function DashboardHome() {
     .active.sort((a, b) => (a.status === "live" ? 0 : 1) - (b.status === "live" ? 0 : 1) || new Date(a.date) - new Date(b.date))
     .slice(0, EVENT_PREVIEW);
   const reviews = [
-    { label: "Manual attendance", description: "Verify check-ins and attendance corrections", count: state.manual?.pendingReview ?? null, path: "/admin/dashboard/reviews/manual", icon: <FaClipboardList /> },
+    { label: "ID Attendance", description: "Approve pending requests or assign event reviewers", count: state.manual?.pendingReview ?? null, path: "/admin/dashboard/reviews/manual", icon: <FaClipboardList /> },
     { label: "Face appeals", description: "Review student identity requests", count: state.appeals?.filter(item => item.status === "pending").length ?? null, path: "/admin/dashboard/reviews/face-appeals", icon: <FaShieldAlt /> },
     { label: "Excuse letters", description: "Review pending absence letters", count: state.excuses?.filter(item => item.status === "pending").length ?? null, path: "/admin/dashboard/reviews/excuses", icon: <FaEnvelope /> },
   ];
