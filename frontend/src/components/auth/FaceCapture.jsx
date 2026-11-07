@@ -19,6 +19,7 @@ const FaceCapture = ({
   loading = false,
   loadingLabel = "Checking...",
   error: attemptError = "",
+  compact = false,
 }) => {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -131,7 +132,7 @@ const FaceCapture = ({
 
       {preview ? (
         <div className="overflow-hidden rounded-xl border border-line">
-          <img src={preview} alt="Captured face preview" className="w-full scale-x-[-1] object-cover" />
+          <img src={preview} alt="Captured face preview" className={`w-full scale-x-[-1] ${compact ? "max-h-[min(42vh,20rem)] bg-black object-contain" : "object-cover"}`} />
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-line bg-black">
@@ -145,7 +146,7 @@ const FaceCapture = ({
               autoPlay
               playsInline
               muted
-              className="aspect-[4/3] w-full scale-x-[-1] object-cover"
+              className={`aspect-[4/3] w-full scale-x-[-1] ${compact ? "max-h-[min(42vh,20rem)] object-contain" : "object-cover"}`}
             />
           )}
         </div>

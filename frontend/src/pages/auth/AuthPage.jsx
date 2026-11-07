@@ -656,10 +656,8 @@ const AuthPage = () => {
                       Enroll your face
                     </h1>
                     <p className="mt-1.5 text-sm text-on-dim">
-                      Attendance is recorded by face at the organizer&apos;s
-                      check-in station, so your face needs to be on file before
-                      your first event. One quick photo is enough — you never
-                      scan a QR code or show your phone.
+                      Provide your face photo for event attendance. Use your
+                      camera or upload a photo for admin verification.
                     </p>
                   </div>
                 </div>
@@ -750,11 +748,6 @@ const AuthPage = () => {
                         setError("");
                       }}
                     />
-                    <p className="mt-3 text-center text-xs text-on-muted">
-                      Face enrollment is required for student accounts. If your
-                      camera is unavailable, upload a photo for admin
-                      verification.
-                    </p>
                   </>
                 )}
               </div>

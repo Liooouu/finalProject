@@ -52,6 +52,13 @@ try {
   store.set("token_student", studentToken);store.set("token_organizer", organizerToken);store.set("token_admin", adminToken);
   const { default: api } = await server.ssrLoadModule('/src/api/axios.js');
   const authenticateRequest = api.interceptors.request.handlers[0].fulfilled;
+  window.location.pathname = "/auth";
+  store.set("token", studentToken);
+  assert.equal(authenticateRequest({url:"/account/face-enrollment-requests",headers:{}}).headers.Authorization, `Bearer ${studentToken}`, "enrollment status must work while onboarding is still on auth");
+  assert.equal(authenticateRequest({url:"/account/face-enrollment-upload",headers:{}}).headers.Authorization, `Bearer ${studentToken}`);
+  assert.throws(() => authenticateRequest({url:"/student/security/face-appeals",headers:{}}), /Student portal is no longer active/, "keep cross-portal protection intact");
+  store.set("token", organizerToken);
+  window.location.pathname = "/student/dashboard";
   assert.equal(authenticateRequest({url:"/student/community-service",headers:{}}).headers.Authorization, `Bearer ${studentToken}`);
   window.location.pathname = "/organizer/dashboard";
   assert.throws(() => authenticateRequest({url:"/student/community-service",headers:{}}), /Student portal is no longer active/);

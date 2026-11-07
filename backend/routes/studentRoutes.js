@@ -287,7 +287,7 @@ router.get("/security/face-appeals", protect, async (req, res) => {
     if (!hasStudentProfile(req.user)) {
       return res.status(403).json({ error: "Only students can access this" });
     }
-    const appeals = await FaceAppeal.find({ student: req.user._id }).sort({ createdAt: -1 });
+    const appeals = await FaceAppeal.find({ student: req.user._id, deletedAt: null }).sort({ createdAt: -1 });
     res.json(appeals);
   } catch (err) {
     res.status(500).json({ error: err.message });

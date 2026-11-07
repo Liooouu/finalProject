@@ -45,3 +45,16 @@ test('non-students are rejected; a promoted student can request through the orga
   route.stack[1].handle({ user: { role: 'organizer', accountRole: 'student' } }, res, () => { next = true; });
   assert.equal(next, true);
 });
+test('onboarding status reads are account-scoped and expose no photo or descriptor', async () => {
+  const statusRoute = router.stack.find(layer => layer.route?.path === '/face-enrollment-requests').route;
+  let filter, fields;
+  FaceAppeal.find = value => { filter = value; return { select(value) { fields = value; return this; }, sort() { return this; }, limit: async () => [{ _id: 'request', status: 'pending', enrollmentUpload: true }] }; };
+  let data;
+  await statusRoute.stack.at(-1).handle({ user: { _id: 'self', role: 'student' }, query: { studentId: 'other' } }, { json(value) { data = value; } });
+  assert.deepEqual(filter, { student: 'self', enrollmentUpload: true, deletedAt: null });
+  assert.doesNotMatch(fields, /photo|descriptor/i);
+  assert.equal(data[0].status, 'pending');
+  let status;
+  await statusRoute.stack.at(-1).handle({ user: { _id: 'admin', role: 'admin' } }, { status(value) { status = value; return this; }, json() {} });
+  assert.equal(status, 403);
+});

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FaCheck, FaTimes, FaShieldAlt } from "react-icons/fa";
+import { FaCheck, FaTimes, FaShieldAlt, FaTrashAlt } from "react-icons/fa";
 import api from "../../api/axios";
 import PrivateImage from "../shared/PrivateImage";
 import EmptyState from "../shared/EmptyState";
@@ -22,6 +22,8 @@ export default function FaceAppeals() {
   const [selected, setSelected] = useState(new Set());
   const reviewInFlight = useRef(false);
   const [reviewTarget, setReviewTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteError, setDeleteError] = useState("");
   const [reviewNote, setReviewNote] = useState("");
   const [reviewError, setReviewError] = useState("");
   const [resultFailures, setResultFailures] = useState([]);
@@ -35,6 +37,8 @@ export default function FaceAppeals() {
     try {
       const { data } = await api.get("/admin/security/face-appeals");
       setAppeals(data);
+      setAppealPage(previous => Math.min(previous, Math.max(1, Math.ceil(data.length / 6))));
+      setSelected(previous => new Set([...previous].filter(id => data.some(row => row._id === id && row.enrollmentUpload && row.status === "pending"))));
       writeScreen(APPEALS_CACHE_KEY, { appeals: data });
       setLoadError("");
     } catch (error) {
@@ -71,6 +75,19 @@ export default function FaceAppeals() {
       setResultFailures(failures);
       setMessageType(failures.length ? "error" : "success");
     } finally { reviewInFlight.current = false; setReviewingAppeal(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget || reviewInFlight.current) return;
+    reviewInFlight.current = true; setReviewingAppeal(true); setDeleteError("");
+    try {
+      const { data } = await api.delete(`/admin/security/face-appeals/${deleteTarget._id}`);
+      setAppeals(previous => previous.filter(row => row._id !== deleteTarget._id));
+      setSelected(previous => { const next = new Set(previous); next.delete(deleteTarget._id); return next; });
+      clearScreens(); await fetchAppeals();
+      setDeleteTarget(null); setMessageType("success"); setMessage(data.message || "Face appeal deleted.");
+    } catch (error) { setDeleteError(error.response?.data?.message || "Could not delete this appeal. Try again."); }
+    finally { reviewInFlight.current = false; setReviewingAppeal(false); }
   };
 
   return <div className="space-y-4">
@@ -196,6 +213,7 @@ export default function FaceAppeals() {
                       {appeal.responseNote}
                     </p>
                   )}
+                  <div className="mt-4 flex justify-end"><Button type="button" size="sm" variant="danger" disabled={reviewingAppeal} aria-label={`Delete face appeal for ${appeal.student?.name || "student"}`} onClick={() => { setDeleteError(""); setDeleteTarget(appeal); }}><FaTrashAlt aria-hidden="true" /> Delete</Button></div>
                 </Card>
               ))}
             </div></StablePage>
@@ -238,6 +256,12 @@ export default function FaceAppeals() {
             className="field mt-3"
           />
         )}
+      </ConfirmDialog>
+      <ConfirmDialog open={!!deleteTarget} title="Delete this face appeal?"
+        message={`This removes the request from the review list. The student's active enrolled face and attendance will be kept.${deleteTarget?.status === "pending" ? " The student can submit a new request." : deleteTarget?.replacement ? " An unused replacement approval will be withdrawn." : ""}`}
+        confirmLabel="Delete appeal" variant="danger" busy={reviewingAppeal} onConfirm={handleDelete} onCancel={() => { setDeleteTarget(null); setDeleteError(""); }}>
+        <p className="mt-3 break-words text-sm text-on-dim">{deleteTarget?.student?.name} {deleteTarget?.student?.email && `(${deleteTarget.student.email})`}</p>
+        {deleteError && <p role="alert" className="mt-3 text-sm text-danger">{deleteError}</p>}
       </ConfirmDialog>
   </div>;
 }

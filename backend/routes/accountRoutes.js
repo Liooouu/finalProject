@@ -221,6 +221,17 @@ router.post("/picture", protect, upload.single("picture"), async (req, res) => {
 // Stores a webcam-captured photo used as the face-match baseline for the
 // attendance check-in flow. Requires one detectable face and protects enrolled
 // identity changes with the reviewed replacement flow; this is not liveness.
+// Account-scoped so onboarding can check status while still on /auth.
+// Never accept a student ID from the browser or return biometric descriptors.
+router.get("/face-enrollment-requests", protect, async (req, res) => {
+  if (!hasStudentProfile(req.user)) return res.status(403).json({ error: "Only students can access enrollment requests." });
+  try {
+    const requests = await FaceAppeal.find({ student: req.user._id, enrollmentUpload: true, deletedAt: null })
+      .select("status enrollmentUpload responseNote createdAt").sort({ createdAt: -1 }).limit(20);
+    res.json(requests);
+  } catch { res.status(500).json({ error: "Could not load enrollment requests. Please try again." }); }
+});
+
 router.post("/face-enrollment-upload", protect, (req, res, next) => {
   if (!hasStudentProfile(req.user)) return res.status(403).json({ error: "Only students can request face enrollment." });
   next();

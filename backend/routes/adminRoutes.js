@@ -16,6 +16,7 @@ const { notifyUsers } = require("../services/notify");
 const fileStore = require("../services/fileStore");
 const faceIdentify = require("../services/faceIdentify");
 const reviewUploadedFace = require("../services/uploadedFaceEnrollment").createService({ User, FaceAppeal, faceIdentify });
+const deleteFaceAppeal = require("../services/deleteFaceAppeal").createService({ User, FaceAppeal, fileStore });
 const { deleteAccount } = require("../services/deleteAccount");
 
 router.use("/academic-advancement", protect, authorize("admin"), require("./academicAdvancementRoutes"));
@@ -301,7 +302,7 @@ router.get(
   authorize("admin"),
   async (req, res) => {
     try {
-      const filter = {};
+      const filter = { deletedAt: null };
       if (req.query.status) filter.status = req.query.status;
       const appeals = await FaceAppeal.find(filter)
         .select("-reviewClaim -reviewClaimedAt")
@@ -316,6 +317,12 @@ router.get(
 );
 
 // REVIEW A FACE VERIFICATION APPEAL (admin)
+router.delete("/security/face-appeals/:id", protect, authorize("admin"), async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid appeal ID." });
+  try { res.json(await deleteFaceAppeal({ id: req.params.id, admin: req.user })); }
+  catch (error) { res.status(error.status || 500).json({ message: error.status ? error.message : "Could not delete the appeal. Refresh and try again." }); }
+});
+
 // Approve -> clears the face lock and notifies the student they can retry.
 // Reject -> records the response note and notifies the student.
 router.post(
