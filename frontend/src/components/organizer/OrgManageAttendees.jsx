@@ -1,7 +1,10 @@
+import { usePortalBack } from "../../utils/usePortalBack";
+import IdPhotoCheckin from "./IdPhotoCheckin";
+import IdPhotoEvidence from "../shared/IdPhotoEvidence";
 import { useTransientState } from "../../utils/useTransientState";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { FaArrowLeft, FaSearch, FaUserCheck, FaUsers } from "react-icons/fa";
+import { Link, useParams } from "react-router-dom";
+import { FaArrowLeft, FaUserCheck } from "react-icons/fa";
 import api from "../../api/axios";
 import { formatDateTime, isTerminalStatus } from "../../utils/helpers";
 import { getUserFromToken } from "../../utils/auth";
@@ -25,16 +28,12 @@ export default function OrgManageAttendees({ embedded = false, event }) {
   const currentUserId = String(getUserFromToken()?.id || "");
   const cacheKey = `attendees:requests-v1:${eventId}`;
   const seed = readScreen(cacheKey);
-  const navigate = useNavigate();
-  const location = useLocation();
-  const searchRef = useRef(null);
+  const { back: goBack } = usePortalBack(`/organizer/dashboard/events/${eventId}`);
   const requestSequence = useRef(0);
-  const [students, setStudents] = useState(seed?.students || []);
   const [attendees, setAttendees] = useState(seed?.attendees || []);
   const [loading, setLoading] = useState(seed === undefined);
   const [loadError, setLoadError] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [studentPage, setStudentPage] = useState(1);
   const [recordPage, setRecordPage] = useState(1);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [mode, setMode] = useState("checkin");
@@ -53,15 +52,13 @@ export default function OrgManageAttendees({ embedded = false, event }) {
   const [requestsLoading, setRequestsLoading] = useState(true);
   const [panel, setPanel] = useState("checkin");
 
-  usePageMeta(embedded ? "Manual attendance" : "Attendance desk", "Submit verified check-ins for independent review.");
+  usePageMeta(embedded ? "Manual attendance" : "Attendance desk", "Capture ID-assisted check-ins; corrections remain independently reviewed.");
 
   const fetchData = useCallback(async () => {
     try {
-      const [studentsRes, attendeesRes] = await Promise.all([
-        api.get("/admin/users?role=student"), api.get(`/events/${eventId}/attendees`),
-      ]);
-      const next = { students: studentsRes.data || [], attendees: attendeesRes.data || [] };
-      setStudents(next.students); setAttendees(next.attendees); setLoadError(false);
+      const attendeesRes = await api.get(`/events/${eventId}/attendees`);
+      const next = { attendees: attendeesRes.data || [] };
+      setAttendees(next.attendees); setLoadError(false);
       writeScreen(cacheKey, next);
     } catch { setLoadError(true); }
     finally { setLoading(false); }
@@ -88,9 +85,6 @@ export default function OrgManageAttendees({ embedded = false, event }) {
 
   const query = searchTerm.trim().toLowerCase();
   const matches = student => !query || [student?.name, student?.email].some(value => String(value || "").toLowerCase().includes(query));
-  const matchingStudents = students.filter(matches);
-  const currentStudentPage = Math.min(studentPage, Math.max(1, Math.ceil(matchingStudents.length / PAGE_SIZE)));
-  const visibleStudents = matchingStudents.slice((currentStudentPage - 1) * PAGE_SIZE, currentStudentPage * PAGE_SIZE);
   const matchingAttendees = attendees.filter(record => matches(record.student));
   const currentRecordPage = Math.min(recordPage, Math.max(1, Math.ceil(matchingAttendees.length / PAGE_SIZE)));
   const pendingIds = new Set([
@@ -99,7 +93,7 @@ export default function OrgManageAttendees({ embedded = false, event }) {
   ]);
   const selectedRecord = attendees.find(record => studentIdOf(record) === String(selectedStudent?._id));
   const isSelf = String(selectedStudent?._id) === currentUserId;
-  const canChangeRecordedStatus = selectedRecord?.method === "manual" && ["absent", "present", "late"].includes(selectedRecord?.status);
+  const canChangeRecordedStatus = ["manual", "id_photo"].includes(selectedRecord?.method) && ["absent", "present", "late"].includes(selectedRecord?.status);
   const isProtected = selectedRecord?.method === "face" || selectedRecord?.status === "excused";
   const isPending = pendingIds.has(String(selectedStudent?._id));
   const needsDetails = mode === "correction" || reason === "Other";
@@ -144,30 +138,25 @@ export default function OrgManageAttendees({ embedded = false, event }) {
       setSelectedStudent(null); setPanel(mode === "correction" ? "records" : "checkin"); setIdentityChecked(false); setDetails(""); setRequestPage(1); setRequestStatus("all");
       // Keep the last reason and search results so the next person needs fewer steps.
       await Promise.allSettled([fetchData(), requestPage === 1 && requestStatus === "all" ? fetchRequests() : Promise.resolve()]);
-      searchRef.current?.focus();
     } catch (err) {
       setMessage({ error: true, text: err.response?.data?.error || err.response?.data?.message || "The request could not be submitted. Please try again." });
       if (err.response?.status === 409) refresh();
     } finally { setSubmitting(false); }
   };
 
-  if (loading) return <Loading label="Loading attendance desk..." />;
+  if (loading && panel !== "checkin") return <Loading label="Loading attendance desk..." />;
 
   return <div className="min-w-0 space-y-4">
     {!embedded && <PageHeader title="Attendance desk" subtitle="Verify the student, then submit a check-in for review."
-      actions={<Button variant="secondary" size="sm" onClick={() => location.key && location.key !== "default" ? navigate(-1) : navigate(`/organizer/dashboard/events/${eventId}`)}><FaArrowLeft /> Back to event</Button>} />}
+      actions={<Button variant="secondary" size="sm" onClick={goBack}><FaArrowLeft /> Back to event</Button>} />}
     {loadError && <div role="alert" className="alert alert-danger">Attendance could not be refreshed. <button className="underline" onClick={fetchData}>Try again</button></div>}
     {message && <div role={message.error ? "alert" : "status"} className={`alert ${message.error ? "alert-danger" : "alert-ok"}`}><p className="min-w-0 [overflow-wrap:anywhere]">{message.text}</p></div>}
     <SegmentedControl ariaLabel="Attendance desk views" className="manual-desk-tabs" value={panel === "correction" ? "records" : panel} onChange={value => { if (submitting) return; setPanel(value); setSelectedStudent(null); setIdentityChecked(false); setMode("checkin"); }} options={[{value:"checkin",label:"Check in"},{value:"requests",label:"My requests",shortLabel:"Requests",count:requestTotal},{value:"records",label:"Attendance records",shortLabel:"Records",count:attendees.length}]} />
-    {(panel === "checkin" || panel === "correction") && <Card className="min-w-0">
+    {panel === "checkin" && <IdPhotoCheckin event={event} attendees={attendees} onRecorded={refresh} onViewRecords={() => setPanel("records")} />}
+    {panel === "correction" && <Card className="min-w-0">
         <div className="flex items-start gap-3"><FaUserCheck className="mt-1 shrink-0 text-brand" aria-hidden="true" /><div className="min-w-0"><h2 className="panel-heading">{panel === "correction" ? "Correct attendance record" : "Manual check-in"}</h2><p className="mt-1 text-sm text-on-muted">{panel === "correction" ? "Submit corrected information for independent review." : "Find a student, check their ID, then submit for review."}</p></div></div>
-        {panel === "checkin" && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-on-muted"><p>{isTerminalStatus(event?.status) ? "This event has ended. Use attendance records to request a correction." : "Need to fix recorded attendance? Open attendance records."}</p><Button type="button" variant="ghost" size="sm" onClick={() => { setSelectedStudent(null); setSearchTerm(""); setPanel("records"); }}>View attendance records</Button></div>}
-        {!selectedStudent && <div className="mt-4">
-          <label htmlFor="attendee-search" className="field-label">Search student</label>
-          <div className="relative"><FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-on-muted" aria-hidden="true" /><input ref={searchRef} id="attendee-search" type="search" placeholder="Name or email" value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setStudentPage(1); setRecordPage(1); }} className="field field-search w-full" /></div>
-        </div>}
-        {selectedStudent ? <form onSubmit={submit} className="manual-desk-form mt-4 space-y-4">
-          <div className="flex items-start justify-between gap-3 border-b border-line pb-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium text-on [overflow-wrap:anywhere]">{selectedStudent.name}</p>{selectedRecord && <StatusChip status={selectedRecord.status} />}</div><p className="mt-1 text-sm text-on-dim [overflow-wrap:anywhere]">{selectedStudent.email}</p></div><Button type="button" variant="secondary" size="sm" disabled={submitting} onClick={() => { setSelectedStudent(null); setIdentityChecked(false); setSearchTerm(""); setStudentPage(1); if (panel === "correction") setPanel("records"); else requestAnimationFrame(() => searchRef.current?.focus()); }}>{panel === "correction" ? "Back to records" : "Change student"}</Button></div>
+        {selectedStudent && <form onSubmit={submit} className="manual-desk-form mt-4 space-y-4">
+          <div className="flex items-start justify-between gap-3 border-b border-line pb-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium text-on [overflow-wrap:anywhere]">{selectedStudent.name}</p>{selectedRecord && <StatusChip status={selectedRecord.status} />}</div><p className="mt-1 text-sm text-on-dim [overflow-wrap:anywhere]">{selectedStudent.email}</p></div><Button type="button" variant="secondary" size="sm" disabled={submitting} onClick={() => { setSelectedStudent(null); setIdentityChecked(false); setSearchTerm(""); if (panel === "correction") setPanel("records"); }}>{panel === "correction" ? "Back to records" : "Change student"}</Button></div>
           {isSelf || isPending || isProtected ? <p role="status" className="text-sm text-on-dim">{isSelf ? "Another organizer must handle your attendance. You cannot manually mark your own record." : isPending ? "A request is already waiting for review for this student and event." : "This record is face verified or covered by an approved excuse. It cannot be overwritten at the manual desk."}</p> : <>
             <div>
               <div><label htmlFor="manual-reason" className="field-label">Reason for manual attendance</label><select id="manual-reason" className="field-select w-full" required value={reason} onChange={e => setReason(e.target.value)} disabled={submitting}><option value="">Choose a reason</option>{REASONS.filter(value => mode === "correction" || value !== "Attendance correction").map(value => <option key={value}>{value}</option>)}</select></div>
@@ -183,15 +172,7 @@ export default function OrgManageAttendees({ embedded = false, event }) {
             <Button type="submit" className="w-full sm:w-auto" loading={submitting} disabled={!reason || !identityChecked || (needsDetails && details.trim().length < 10)}>{mode === "checkin" ? "Submit check-in" : "Submit correction"}</Button>
             </div>
           </>}
-        </form> : matchingStudents.length ? <StablePage pageKey={`manual-search:${eventId}:${query}:${matchingStudents.length}`} footer={<Pagination page={currentStudentPage} pageSize={PAGE_SIZE} total={matchingStudents.length} onChange={setStudentPage} label="Student search pages" />}>
-          <ul className="mt-4 space-y-2">{visibleStudents.map(student => {
-            const self = String(student._id) === currentUserId;
-            const pending = pendingIds.has(String(student._id));
-            const record = attendees.find(item => studentIdOf(item) === String(student._id));
-            const academic = [student.program, student.yearLevel ? `Year ${student.yearLevel}` : "", student.section ? `Section ${student.section}` : ""].filter(Boolean).join(" · ");
-            return <li key={student._id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl bg-card-alt/30 p-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto]"><div className="min-w-0"><p className="text-sm font-medium text-on [overflow-wrap:anywhere]">{student.name}</p><p className="text-xs text-on-dim [overflow-wrap:anywhere]">{student.email}</p>{academic && <p className="mt-1 text-xs text-on-muted sm:hidden">{academic}</p>}{self && <p className="mt-1 text-xs text-on-muted">Your account — another organizer must record it</p>}</div><div className="hidden min-w-0 space-y-1 sm:block">{academic && <p className="text-xs text-on-muted [overflow-wrap:anywhere]">{academic}</p>}{pending ? <span className="text-xs text-info">Pending review</span> : record ? <StatusChip status={record.status} /> : <span className="text-xs text-on-dim">Not recorded</span>}</div><Button variant="secondary" size="sm" type="button" disabled={self || pending || isTerminalStatus(event?.status) || ["present", "late", "excused"].includes(record?.status) || record?.method === "face"} onClick={() => selectStudent(student)}>{["present", "late", "excused"].includes(record?.status) ? "Recorded" : "Select"}</Button>{pending && <p className="col-span-2 text-xs text-info sm:hidden">Pending review</p>}</li>;
-          })}</ul>
-        </StablePage> : <EmptyState compact icon={<FaUsers />} title="No matching students" description="Try another name or email." />}
+        </form>}
       </Card>}
       {panel === "requests" && <Card className="min-w-0">
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="panel-heading">My submitted requests</h2><Link to="/organizer/dashboard/reviews/manual?view=review" className="text-sm font-medium text-brand">Review assigned requests →</Link></div>
@@ -202,7 +183,7 @@ export default function OrgManageAttendees({ embedded = false, event }) {
         {requestsLoading ? <p role="status" className="py-6 text-sm text-on-muted">Loading requests…</p> : requests.length ? <ul className="mt-4 space-y-3">{requests.map(request => <li key={request._id} className="rounded-xl bg-card-alt/30 p-3">
           <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="text-sm font-medium text-on [overflow-wrap:anywhere]">{request.student?.name || "Student"}</p><p className="text-xs text-on-muted [overflow-wrap:anywhere]">{request.student?.email || ""}</p></div><StatusChip status={request.status} /></div>
           <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2"><div><dt className="text-on-muted">{request.proposedStatus === "absent" ? "Absence cutoff" : "Attendance time"}</dt><dd className="mt-0.5 text-on-dim">{formatDateTime(request.effectiveAt)}</dd></div><div><dt className="text-on-muted">Submitted</dt><dd className="mt-0.5 text-on-dim">{formatDateTime(request.submittedAt)}</dd></div><div><dt className="text-on-muted">Requested result</dt><dd className="mt-0.5 capitalize text-on-dim">{request.proposedStatus} · {request.proposedHours ?? 0} penalty hrs</dd></div>{request.reviewedAt && <div><dt className="text-on-muted">Reviewed</dt><dd className="mt-0.5 text-on-dim">{formatDateTime(request.reviewedAt)}{request.reviewedBy?.name && ` · ${request.reviewedBy.name}`}</dd></div>}</dl>
-          <p className="mt-3 whitespace-pre-wrap text-sm text-on-dim [overflow-wrap:anywhere]">{request.reason}</p>{request.reviewNote && <p className="mt-2 text-xs text-on-muted [overflow-wrap:anywhere]">Reviewer note: {request.reviewNote}</p>}
+          <p className="mt-3 whitespace-pre-wrap text-sm text-on-dim [overflow-wrap:anywhere]">{request.reason}</p>{request.source === "id_photo" && <IdPhotoEvidence request={request} />}{request.reviewNote && <p className="mt-2 text-xs text-on-muted [overflow-wrap:anywhere]">Reviewer note: {request.reviewNote}</p>}
         </li>)}</ul> : !requestsError && <EmptyState compact title="No requests here yet" description="Your submitted requests for this event will appear here." />}
         </StablePage>
       </Card>}
@@ -215,8 +196,8 @@ export default function OrgManageAttendees({ embedded = false, event }) {
         const self = studentIdOf(record) === currentUserId;
         const pending = pendingIds.has(studentIdOf(record));
         const protectedRecord = record.method === "face" || record.status === "excused";
-        return <li key={record._id} className="flex flex-col justify-between gap-3 rounded-xl bg-card-alt/30 p-3 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="text-sm font-medium text-on [overflow-wrap:anywhere]">{student?.name || "Student"}</p><p className="text-xs text-on-dim [overflow-wrap:anywhere]">{student?.email || ""}</p><p className="mt-1 text-xs text-on-muted">{record.method === "face" ? "Face verified" : record.method === "auto" ? "Automatic record" : "Manual record"}{record.attendedAt ? ` · ${formatDateTime(record.attendedAt)}` : ""}</p>{pending && <p className="mt-1 text-xs text-warn">Manual request pending review; automatic absence is provisional.</p>}{self && <p className="mt-1 text-xs text-on-muted">Another organizer must handle your record.</p>}</div><div className="flex flex-wrap items-center gap-3"><StatusChip status={record.status} /><span className="text-xs text-on-muted">{record.communityServiceHours || 0} hrs</span>{!protectedRecord && ["absent", "present", "late"].includes(record.status) && <Button type="button" variant="secondary" size="sm" disabled={self || pending} onClick={() => { selectStudent(student, true); window.requestAnimationFrame(() => document.querySelector(".manual-desk-form")?.scrollIntoView({ behavior: "smooth", block: "start" })); }}>Request correction</Button>}</div></li>;
-      })}</ul> : <EmptyState compact title={query ? "No matching records" : "No attendance records yet"} description="Find a student above to submit a manual check-in." />}
+        return <li key={record._id} className="flex flex-col justify-between gap-3 rounded-xl bg-card-alt/30 p-3 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="text-sm font-medium text-on [overflow-wrap:anywhere]">{student?.name || "Student"}</p><p className="text-xs text-on-dim [overflow-wrap:anywhere]">{student?.email || ""}</p><p className="mt-1 text-xs text-on-muted">{record.method === "face" ? "Face verified" : record.method === "auto" ? "Automatic record" : record.method === "id_photo" ? "ID-assisted check-in" : "Manual record"}{record.attendedAt ? ` · ${formatDateTime(record.attendedAt)}` : ""}</p>{pending && <p className="mt-1 text-xs text-warn">Manual request pending review; automatic absence is provisional.</p>}{self && <p className="mt-1 text-xs text-on-muted">Another organizer must handle your record.</p>}</div><div className="flex flex-wrap items-center gap-3"><StatusChip status={record.status} /><span className="text-xs text-on-muted">{record.communityServiceHours || 0} hrs</span>{!protectedRecord && ["absent", "present", "late"].includes(record.status) && <Button type="button" variant="secondary" size="sm" disabled={self || pending} onClick={() => { selectStudent(student, true); window.requestAnimationFrame(() => document.querySelector(".manual-desk-form")?.scrollIntoView({ behavior: "smooth", block: "start" })); }}>Request correction</Button>}</div></li>;
+      })}</ul> : <EmptyState compact title={query ? "No matching records" : "No attendance records yet"} description="Use the Check in tab to capture a physical school ID." />}
       </StablePage>
     </Card>}
   </div>;

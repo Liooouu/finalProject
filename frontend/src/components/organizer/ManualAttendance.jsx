@@ -14,10 +14,10 @@ export default function ManualAttendance() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  usePageMeta("Manual attendance", "Submit verified check-ins and corrections for review.");
+  usePageMeta("Manual attendance", "Photograph IDs for supervised check-in; review exceptions and corrections.");
   useEffect(() => {
     let active = true;
-    api.get("/events/all").then(({ data }) => {
+    api.get("/events/all", { timeout: 15000 }).then(({ data }) => {
       if (!active) return;
       setEvents([...data].sort((a, b) => new Date(b.date) - new Date(a.date)));
       setLoading(false);
@@ -34,7 +34,7 @@ export default function ManualAttendance() {
         <select id="manual-event" aria-label="Manual attendance event" className="field-select w-full" value={selected?._id || ""} onChange={e => navigate(`/organizer/dashboard/manual-attendance/${e.target.value}`)}><option value="" disabled>Choose an event</option>{events.map(event => <option key={event._id} value={event._id}>{event.title} · {formatDate(event.date)}</option>)}</select>
         {selected && <p className="mt-2 text-xs text-on-muted">Attendance: {selected.attendanceWindow?.start ? formatDateTime(selected.attendanceWindow.start) : `${formatDate(selected.date)} at ${formatTime12Hour(selected.attendanceStartTime)}`} – {selected.attendanceWindow?.end ? formatDateTime(selected.attendanceWindow.end) : formatTime12Hour(selected.attendanceEndTime)} · Philippine time</p>}
       </Card>
-      {selected ? <OrgManageAttendees key={selected._id} event={selected} embedded /> : id ? <div role="alert" className="alert alert-danger">This event is unavailable or you do not have permission to manage it.</div> : <EmptyState compact title="Choose an event to begin" description="Use live check-in during attendance, or submit a documented correction for an earlier event." />}
+      {selected ? <OrgManageAttendees key={selected._id} event={selected} embedded /> : id ? <div role="alert" className="alert alert-danger">This event is unavailable or you do not have permission to manage it.</div> : <EmptyState compact title="Choose an event to begin" description="Photograph the physical ID during attendance. Corrections and offline timing exceptions remain independently reviewed." />}
     </>}
   </div>;
 }

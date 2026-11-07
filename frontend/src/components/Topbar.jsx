@@ -1,3 +1,4 @@
+import { usePortalBack } from "../utils/usePortalBack";
 import React, {
   useCallback,
   useEffect,
@@ -30,6 +31,7 @@ const Topbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { meta } = usePageMeta();
+  const portalBack = usePortalBack();
   const user = getUserFromToken();
   const role = user?.role || getContextRoleFallback();
 
@@ -152,23 +154,15 @@ const Topbar = () => {
           </button>
           {/* Breadcrumb + page title */}
           <div className="min-w-0 flex-1">
-            <button
+            {portalBack.canGoBack ? <button
               type="button"
               aria-label="Go back"
               className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm text-on-dim md:hidden"
-              onClick={() => {
-                if (window.history.state?.idx > 0) navigate(-1);
-                else
-                  navigate(
-                    location.pathname === `/${role}/dashboard`
-                      ? "/"
-                      : `/${role}/dashboard`,
-                  );
-              }}
+              onClick={portalBack.back}
             >
               <FaArrowLeft aria-hidden="true" />
               <span>Back</span>
-            </button>
+            </button> : <span className="inline-flex min-h-10 items-center px-2 text-sm font-medium text-on-dim md:hidden">Dashboard</span>}
             <div className="hidden md:block">
               <Breadcrumbs items={trail} />
               <div className="mt-0.5 flex items-baseline gap-2">

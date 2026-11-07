@@ -1,0 +1,162 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import api from '../../api/axios';
+import { getUserFromToken } from '../../utils/auth';
+import { capturePhoto, listCaptures, removeCapture, saveCapture } from '../../utils/idPhotoQueue';
+import { formatDateTime } from '../../utils/helpers';
+import { Button, Card } from '../ui';
+import Pagination from '../ui/Pagination';
+import StablePage from '../ui/StablePage';
+import ConfirmDialog from '../ui/ConfirmDialog';
+
+const errorText = e => e.response?.data?.error || e.message || 'Please try again.';
+export default function IdPhotoCheckin({ event, attendees = [], onRecorded, onViewRecords }) {
+  const owner = String(getUserFromToken()?.id || '');
+  const eventId = event?._id;
+  const [prepared, setPrepared] = useState(null), [query, setQuery] = useState(''), [student, setStudent] = useState(null);
+  const [page, setPage] = useState(1), [queuePage, setQueuePage] = useState(1), [queue, setQueue] = useState([]);
+  const [photo, setPhoto] = useState(null), [capture, setCapture] = useState(null), [checked, setChecked] = useState(false);
+  const [camera, setCamera] = useState(false), [busy, setBusy] = useState(false), [syncing, setSyncing] = useState(false);
+  const [message, setMessage] = useState(''), [error, setError] = useState(''), [discard, setDiscard] = useState(null);
+  const [online, setOnline] = useState(navigator.onLine), [lastReceipt, setLastReceipt] = useState(null);
+  const video = useRef(null), stream = useRef(null), anchor = useRef(null), syncingRef = useRef(false), active = useRef(true);
+  const preview = useMemo(() => photo ? URL.createObjectURL(photo) : '', [photo]);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+  useEffect(() => {
+    if (camera && video.current && stream.current) {
+      video.current.srcObject = stream.current;
+      video.current.play().catch(() => {});
+    }
+  }, [camera]);
+  const stopCamera = useCallback(() => { stream.current?.getTracks().forEach(track => track.stop()); stream.current = null; setCamera(false); }, []);
+  const refreshQueue = useCallback(async () => {
+    try { const rows = await listCaptures(owner); if (active.current) setQueue(rows); }
+    catch (e) { if (active.current) setError(errorText(e)); }
+  }, [owner]);
+  const prepare = useCallback(async signal => {
+    if (!/^[a-f0-9]{24}$/i.test(eventId || "")) return;
+    try {
+      const started = performance.now();
+      const { data } = await api.post('/id-photo-attendance/prepare', { eventId }, { timeout: 15000, signal });
+      if (!active.current) return;
+      anchor.current = { server: +new Date(data.serverTime), monotonic: started };
+      setPrepared(data); setError('');
+    } catch (e) {
+      if (signal?.aborted || e.code === 'ERR_CANCELED' || !active.current) return;
+      setError(e.response ? errorText(e) : 'Could not connect. Connect once to prepare this event, then keep this page open.');
+    }
+  }, [eventId]);
+  useEffect(() => {
+    active.current = true;
+    const controller = new AbortController();
+    refreshQueue();
+    // Defer past the development StrictMode rehearsal so it does not send duplicate POSTs.
+    const timer = setTimeout(() => prepare(controller.signal), 0);
+    return () => { clearTimeout(timer); controller.abort(); active.current = false; stream.current?.getTracks().forEach(track => track.stop()); };
+  }, [prepare, refreshQueue]);
+  useEffect(() => { const warn = e => { if (queue.length) { e.preventDefault(); e.returnValue = ''; } }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn); }, [queue.length]);
+
+  const sync = useCallback(async () => {
+    if (syncingRef.current || !navigator.onLine) return;
+    syncingRef.current = true; setSyncing(true);
+    let synced = 0;
+    try {
+      const rows = await listCaptures(owner);
+      for (const row of rows) {
+        try {
+          const form = new FormData();
+          for (const key of ['clientId', 'studentId', 'ticket', 'capturedAt']) form.append(key, row[key]);
+          form.append('identityChecked', 'true');
+          form.append('photo', await capturePhoto(owner, row), 'school-id.jpg');
+          const { data } = await api.post('/id-photo-attendance/captures', form, { timeout: 30000 });
+          // Only a server receipt releases the local evidence. A timeout retains the same clientId.
+          await removeCapture(owner, row); synced++;
+          if (active.current) { setLastReceipt({ ...data, name: row.studentName }); setMessage(`${row.studentName}: ${data.message}`); }
+        } catch (e) {
+          if (active.current) setError(`${row.studentName}: ${errorText(e)} The photo remains on this device; retry or discard it after checking the existing record.`);
+          if (!e.response || [401,403,503].includes(e.response.status)) break;
+        }
+      }
+      if (synced && active.current) onRecorded?.();
+    } finally { syncingRef.current = false; if (active.current) { setSyncing(false); await refreshQueue(); } }
+  }, [onRecorded, owner, refreshQueue]);
+  useEffect(() => {
+    const connected = () => { setOnline(true); sync(); };
+    const disconnected = () => setOnline(false);
+    window.addEventListener('online', connected); window.addEventListener('offline', disconnected);
+    const initial = setTimeout(() => { if (navigator.onLine) sync(); }, 0);
+    const timer = setInterval(() => { if (navigator.onLine) sync(); }, 30000);
+    return () => { window.removeEventListener('online', connected); window.removeEventListener('offline', disconnected); clearInterval(timer); clearTimeout(initial); };
+  }, [sync]);
+
+  const startCamera = async () => {
+    setError('');
+    if (!navigator.mediaDevices?.getUserMedia) { setError('The camera needs HTTPS and browser camera permission.'); return; }
+    try {
+      stream.current?.getTracks().forEach(track => track.stop());
+      stream.current = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1600 }, height: { ideal: 1000 } } });
+      if (!active.current) { stream.current.getTracks().forEach(track => track.stop()); return; }
+      setCamera(true);
+    } catch { setError('Camera unavailable. Allow camera access and try again, or use another organizer station.'); }
+  };
+  const takePhoto = async () => {
+    if (!video.current?.videoWidth || !prepared || !student) return;
+    setBusy(true); setError('');
+    try {
+      let signed;
+      // Bind the online check-in to server time for this specific student.
+      if (navigator.onLine) {
+        try { signed = (await api.post('/id-photo-attendance/capture-time', { eventId, studentId: student._id }, { timeout: 4000 })).data; }
+        catch (e) { if (e.response) throw e; }
+      }
+      const capturedAt = signed?.serverTime || new Date(anchor.current.server + performance.now() - anchor.current.monotonic).toISOString();
+      const canvas = document.createElement('canvas'), source = video.current;
+      const scale = Math.min(1, 1600 / Math.max(source.videoWidth, source.videoHeight));
+      canvas.width = Math.round(source.videoWidth * scale); canvas.height = Math.round(source.videoHeight * scale);
+      canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.88));
+      if (!blob) throw new Error('The camera could not capture this image. Try again.');
+      setPhoto(blob); setCapture({ ticket: signed?.ticket || prepared.ticket, capturedAt, basis: signed ? 'server' : 'device' });
+      setChecked(false); stopCamera();
+    } catch (e) { setError(errorText(e)); }
+    finally { setBusy(false); }
+  };
+  const save = async e => {
+    e.preventDefault(); if (!photo || !capture || !student || !checked || busy) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const existing = await listCaptures(owner);
+      if (existing.some(row => row.eventId === eventId && row.studentId === student._id)) throw new Error('A photo for this student and event is already waiting on this device. Sync that capture first.');
+      await saveCapture(owner, { clientId: crypto.randomUUID(), eventId, eventTitle: event.title, studentId: student._id, studentName: student.name, ticket: capture.ticket, capturedAt: capture.capturedAt, basis: capture.basis }, photo);
+      setPhoto(null); setCapture(null); setChecked(false); setStudent(null); setQuery(''); setPage(1);
+      setMessage('Saved on this device — pending sync. Keep this page open; do not clear browser data.');
+      await refreshQueue(); if (navigator.onLine) await sync();
+    } catch (e) { setError(errorText(e)); }
+    finally { setBusy(false); }
+  };
+  const matches = (prepared?.students || []).filter(row => [row.name,row.email].some(value => String(value || '').toLowerCase().includes(query.toLowerCase().trim())));
+  const recordedIds = new Set(attendees.filter(row => ['present','late','excused'].includes(row.status) || row.manualReviewPending || row.pendingManualRequest).map(row => String(row.student?._id || row.student)));
+  for (const row of queue) if (row.eventId === eventId) recordedIds.add(row.studentId);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(matches.length / 5)));
+  const currentQueuePage = Math.min(queuePage, Math.max(1, Math.ceil(queue.length / 5)));
+  return <div className="min-w-0 space-y-4">
+    <Card><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="panel-heading">ID-assisted check-in</h2><p className="mt-1 text-sm text-on-muted">Check the physical ID, take its photo, then submit. Face verification remains the primary method.</p></div><span className={`text-xs font-medium ${online ? 'text-ok' : 'text-warn'}`}>{online ? 'Connection available' : 'Offline · capture on this page'}</span></div>
+      <p className="mt-3 text-xs text-on-muted">ID photos support the organizer’s identity check. They are not automatic ID authentication or biometric verification. Evidence is private and removed from the server after 30 days.</p>
+      {error && <p role="alert" className="alert alert-danger mt-4 [overflow-wrap:anywhere]">{error}</p>}
+      {message && <p role="status" className="alert alert-ok mt-4 [overflow-wrap:anywhere]">{message}</p>}
+      {lastReceipt && <p className="mt-2 text-sm text-on-dim">{lastReceipt.name}: {lastReceipt.status === 'approved' ? `Recorded · ${lastReceipt.attendanceStatus}` : lastReceipt.status === 'rejected' ? 'Rejected' : 'Pending independent review'} · {formatDateTime(lastReceipt.effectiveAt)}</p>}
+      {!prepared ? <div className="mt-4"><Button type="button" disabled={!eventId} onClick={() => prepare()}>Prepare event</Button><p className="mt-2 text-xs text-on-muted">Connect once to load student names and prepare offline capture. Keep this page open during an outage.</p></div> : prepared.available === false ? <div role="status" className="mt-4 rounded-xl bg-card-alt/40 p-4"><h3 className="font-semibold text-on">{prepared.state === 'closed' ? 'Attendance closed' : 'Event schedule needs attention'}</h3><p className="mt-2 text-sm text-on-dim">{prepared.message}</p>{onViewRecords && <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={onViewRecords}>View attendance records</Button>}</div> : !student ? <>
+        <label htmlFor="id-photo-student-search" className="field-label mt-4">Find student</label><input id="id-photo-student-search" type="search" className="field w-full" placeholder="Student name or email" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} />
+        <StablePage pageKey={`id-students:${eventId}:${query}`} footer={<Pagination page={currentPage} pageSize={5} total={matches.length} onChange={setPage} label="ID check-in student pages" />}><ul className="mt-4 space-y-2">{matches.slice((currentPage-1)*5,currentPage*5).map(row => <li key={row._id} className="flex items-center justify-between gap-3 rounded-xl bg-card-alt/40 p-3"><div className="min-w-0"><p className="text-sm font-medium text-on [overflow-wrap:anywhere]">{row.name}</p><p className="text-xs text-on-muted [overflow-wrap:anywhere]">{row.email}</p><p className="mt-1 text-xs text-on-dim">{row.program} · Year {row.yearLevel} · {row.section}</p></div><Button size="sm" variant="secondary" disabled={recordedIds.has(row._id)} onClick={() => { setStudent(row); setError(''); setMessage(''); }}>{recordedIds.has(row._id) ? "Recorded / pending" : "Select"}</Button></li>)}</ul>{!matches.length && <p className="py-6 text-sm text-on-muted">No matching eligible students.</p>}</StablePage>
+      </> : <form onSubmit={save} className="mt-4 space-y-4">
+        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="font-semibold text-on [overflow-wrap:anywhere]">{student.name}</h3><p className="text-sm text-on-muted [overflow-wrap:anywhere]">{student.email}</p></div><Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => { stopCamera(); setStudent(null); setPhoto(null); setCapture(null); setChecked(false); }}>Change student</Button></div>
+        {camera ? <div className="rounded-xl bg-black p-2"><video ref={video} autoPlay playsInline muted className="block max-h-80 w-full rounded-lg object-contain" style={{ transform: 'none' }} /><p className="px-2 py-3 text-center text-sm text-white">Fill the camera view with the ID. Check that the name and photo are readable.</p><div className="flex justify-center gap-2 pb-2"><Button type="button" disabled={busy} onClick={takePhoto}>{busy ? 'Capturing…' : 'Take ID photo'}</Button><Button type="button" variant="secondary" disabled={busy} onClick={stopCamera}>Cancel camera</Button></div></div> : photo ? <div><img src={preview} alt="Captured school ID — check readability before submitting" className="max-h-80 w-full rounded-xl bg-black object-contain" /><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-on-muted">Captured: {formatDateTime(capture?.capturedAt)} · {capture?.basis === 'server' ? 'Server time' : 'Device estimate — needs review'}</p><Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => { setPhoto(null); setCapture(null); setChecked(false); startCamera(); }}>Retake</Button></div></div> : <Button type="button" onClick={startCamera}>Open ID camera</Button>}
+        {photo && <><label className="flex items-start gap-3 text-sm text-on-dim"><input type="checkbox" className="mt-1 shrink-0 accent-brand" checked={checked} onChange={e => setChecked(e.target.checked)} disabled={busy}/><span>I compared this student with their physical school ID. The name, ID photo, and selected account match.</span></label><p className="text-xs text-on-muted">{capture?.basis === 'server' ? 'The recorded server capture time determines Present/Late, even if upload finishes later.' : 'Offline timing is not independently verified. This photo will enter the existing review queue after syncing.'}</p><Button type="submit" disabled={busy || !checked}>{busy ? 'Saving…' : 'Submit check-in'}</Button></>}
+      </form>}
+    </Card>
+    <Card><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="panel-heading">Pending sync ({queue.length})</h2><p className="mt-1 text-xs text-on-muted">Only captures from this organizer account. Synced photos are removed from this device.</p></div><Button type="button" variant="secondary" size="sm" disabled={syncing || !online || !queue.length} onClick={() => { setError(''); sync(); }}>{syncing ? 'Syncing…' : 'Sync now'}</Button></div>
+      <StablePage pageKey={`id-queue:${owner}`} footer={<Pagination page={currentQueuePage} pageSize={5} total={queue.length} onChange={setQueuePage} label="Pending photo pages" />}><ul className="mt-3 space-y-2">{queue.slice((currentQueuePage-1)*5,currentQueuePage*5).map(row => <li key={row.id} className="flex items-start justify-between gap-3 rounded-xl bg-card-alt/40 p-3"><div className="min-w-0"><p className="text-sm font-medium text-on [overflow-wrap:anywhere]">{row.studentName}</p><p className="text-xs text-on-muted [overflow-wrap:anywhere]">{row.eventTitle}</p><p className="mt-1 text-xs text-on-dim">{formatDateTime(row.capturedAt)} · Pending sync</p></div><Button type="button" size="sm" variant="ghost" disabled={syncing} onClick={() => setDiscard(row)}>Discard</Button></li>)}</ul>{!queue.length && <p className="py-4 text-sm text-on-muted">No photos waiting on this device.</p>}</StablePage>
+      <p className="mt-3 text-xs text-on-muted">Unsynced photos are not attendance records. Do not clear browser data; return with this organizer account and sync. A different device cannot recover this queue.</p>
+    </Card>
+    <ConfirmDialog open={!!discard} title="Discard this unsynced ID photo?" message="This removes the only local copy. It will not record attendance. Check existing attendance before discarding a failed upload." confirmLabel="Discard photo" onCancel={() => setDiscard(null)} onConfirm={async () => { try { await removeCapture(owner, discard); setDiscard(null); await refreshQueue(); } catch (e) { setError(errorText(e)); } }} />
+  </div>;
+}

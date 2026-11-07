@@ -1,6 +1,6 @@
+import { usePortalBack } from "../../utils/usePortalBack";
 import { useTransientState } from "../../utils/useTransientState";
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import {
   FaBook,
@@ -29,7 +29,7 @@ const GUIDELINES = [
 ];
 
 const SubmitExcuse = () => {
-  const navigate = useNavigate();
+  const { back: goBack } = usePortalBack();
   const [absentEvents, setAbsentEvents] = useState([]);
   const [letters, setLetters] = useState([]);
   const [editingLetter, setEditingLetter] = useState(null);
@@ -183,7 +183,7 @@ const SubmitExcuse = () => {
         title="Excuse letters"
         subtitle="Explain a missed event and include the required supporting documents."
         actions={
-          <Button variant="secondary" size="sm" onClick={() => navigate(-1)}>
+          <Button variant="secondary" size="sm" onClick={() => goBack()}>
             Back
           </Button>
         }
@@ -386,7 +386,7 @@ const SubmitExcuse = () => {
               </Button>
               <Button
                 type="button"
-                onClick={() => { if (editingLetter || letters.length) { resetForm();setView("history"); } else navigate(-1); }}
+                onClick={() => { if (editingLetter || letters.length) { resetForm();setView("history"); } else goBack(); }}
                 disabled={submitting}
                 variant="secondary"
                 className="px-8"

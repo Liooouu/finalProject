@@ -18,7 +18,7 @@ const attendanceSchema = new mongoose.Schema({
   status: { type: String, enum: ["present", "late", "absent", "pending", "excused"], default: "pending" },
   // How the record was produced. `qr` is kept for rows written before the face
   // kiosk replaced the QR scanner; `auto` is the background absence pass.
-  method: { type: String, enum: ["face", "manual", "qr", "auto"], default: "manual" },
+  method: { type: String, enum: ["face", "manual", "id_photo", "qr", "auto"], default: "manual" },
   // Identification confidence (Euclidean distance) when method is "face".
   matchDistance: { type: Number, default: null },
   checkInSession: {

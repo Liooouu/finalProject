@@ -76,6 +76,7 @@ app.use("/api/organizer", organizerRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/checkin", checkinRoutes);
 app.use("/api/manual-attendance", manualAttendanceRoutes);
+app.use("/api/id-photo-attendance", require("./routes/idPhotoAttendanceRoutes"));
 app.use("/api/academic-periods", require("./routes/academicPeriodRoutes"));
 app.use("/api/files", require("./routes/fileRoutes"));
 
@@ -488,6 +489,9 @@ connectDB()
     // Run once at boot so a restart immediately repairs statuses, then every minute.
     runLifecycleJob();
     setInterval(runLifecycleJob, 60000);
+    const cleanIdPhotos = () => require("./services/idPhotoAttendance").cleanup().catch(error => console.error("ID evidence cleanup:", error.message));
+    cleanIdPhotos();
+    setInterval(cleanIdPhotos, 60 * 60 * 1000);
 
     // A stale TrackED backend on this port should never block startup: free it
     // and bind again. This is what makes "node server.js" behave like

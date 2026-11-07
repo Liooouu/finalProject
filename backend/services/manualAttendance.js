@@ -60,6 +60,9 @@ function createService(deps) {
     const result = { ...row, canReview: row.status === "pending" && canReview(user, row.event, row) };
     delete result.reviewLock;
     delete result.previousAttendance;
+    result.hasIdPhoto = !!row.idPhotoUrl && new Date(row.photoExpiresAt) > new Date();
+    delete result.idPhotoUrl;
+    delete result.photoDigest;
     if (result.event && typeof result.event === "object") { result.event = { ...result.event }; delete result.event.manualAttendanceReviewers; }
     return result;
   }
@@ -153,12 +156,16 @@ function createService(deps) {
     return reviewers(user, payload.eventId);
   }
 
-  async function reviewOne(user, id, decision, note, now = new Date()) {
+  async function reviewOne(user, id, decision, note, now = new Date(), photoAttestation = false) {
     if (!isValidObjectId(id)) fail(400, "Invalid request ID");
     let request = await Request.findById(id).lean();
     if (!request) fail(404, "Request not found");
     const event = await Event.findById(request.event);
-    if (!canReview(user, event, request)) fail(403, "An independent administrator or assigned event reviewer must review this request");
+    const directPhoto = photoAttestation && user?.role === "organizer" && request.source === "id_photo"
+      && request.captureBasis === "server" && idOf(request.attestedBy) === idOf(user)
+      && idOf(request.requestedBy) === idOf(user) && idOf(request.student) !== idOf(user);
+    const reviewerId = directPhoto ? null : user._id;
+    if (!directPhoto && !canReview(user, event, request)) fail(403, "An independent administrator or assigned event reviewer must review this request");
     if (request.status !== "pending") {
       if (request.status !== decision) fail(409, "This request has already been reviewed");
       return reviewResult(request);
@@ -189,7 +196,7 @@ function createService(deps) {
             } }, { upsert: true, timestamps: false });
           } catch (error) { if (error.code !== 11000) throw error; }
         }
-        const result = await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, { $set: { status: "rejected", reviewedBy: user._id, reviewedAt: now, reviewNote: note }, $unset: { reviewLock: 1 } });
+        const result = await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, { $set: { status: "rejected", reviewedBy: reviewerId, reviewedAt: now, reviewNote: note }, $unset: { reviewLock: 1 } });
         if (!result.modifiedCount) fail(409, "The review changed. Refresh and try again.");
         await notifyUsers([request.student], { type: "attendance", title: "Manual attendance request rejected", message: `Your manual attendance request for "${event.title}" was rejected. ${note}`, relatedEvent: event._id, event, deferEmail: true }).catch(() => {});
         return { id: idOf(request), status: "rejected" };
@@ -206,7 +213,7 @@ function createService(deps) {
           fail(409, `Existing face attendance is ${current.status}; this request proposes ${request.proposedStatus}. Review the attendance record separately, or reject this duplicate request with a note. No attendance was changed.`);
         }
         const finalized = await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, {
-          $set: { status: "approved", reviewedBy: user._id, reviewedAt: now, reviewNote: note,
+          $set: { status: "approved", reviewedBy: reviewerId, reviewedAt: now, reviewNote: note,
             resolution: "existing_face", confirmedAttendance: attendanceSummary(current) },
           $unset: { reviewLock: 1 },
         });
@@ -228,10 +235,10 @@ function createService(deps) {
       if (!unchanged && !(expected === null && automaticAbsence) && !(expected?.method === "auto" && expected?.status === "absent" && expected?.hours === 8 && !current)) fail(409, "Attendance changed after this request was submitted. Reject it and submit a fresh correction if needed.");
       const previousHours = current?.communityServiceHours || 0;
       const nextHours = Math.max(0, request.proposedHours + (current ? previousHours - baseHours(current.status) : 0));
-      const audit = { request: request._id, requestedBy: request.requestedBy, reviewedBy: user._id, submittedAt: request.submittedAt,
+      const audit = { request: request._id, requestedBy: request.requestedBy, reviewedBy: reviewerId, submittedAt: request.submittedAt,
         effectiveAt: request.effectiveAt, reviewedAt: now, reason: request.reason, reviewNote: note,
         previousStatus: current?.status || "unrecorded", nextStatus: request.proposedStatus, previousHours, nextHours };
-      const changes = { status: request.proposedStatus, method: "manual", attendedAt: request.effectiveAt, verifiedAt: now,
+      const changes = { status: request.proposedStatus, method: request.source === "id_photo" ? "id_photo" : "manual", attendedAt: request.effectiveAt, verifiedAt: now,
         communityServiceHours: nextHours, manualAttendanceRequest: request._id };
       const delta = nextHours - previousHours;
       const log = delta ? [{ action: delta > 0 ? "penalty" : "removed", hours: Math.abs(delta), at: now,
@@ -245,9 +252,9 @@ function createService(deps) {
         try { await Attendance.create({ event: request.event, student: request.student, ...changes, manualAttendanceAudit: [audit], communityServiceLog: log }); }
         catch (error) { if (error.code === 11000) fail(409, "Attendance was recorded during review. Refresh and try again."); throw error; }
       }
-      const finalized = await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, { $set: { status: "approved", reviewedBy: user._id, reviewedAt: now, reviewNote: note, resolution: "manual" }, $unset: { reviewLock: 1 } });
+      const finalized = await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, { $set: { status: "approved", reviewedBy: reviewerId, reviewedAt: now, reviewNote: note, resolution: request.source === "id_photo" ? "id_photo" : "manual" }, $unset: { reviewLock: 1 } });
       if (!finalized.modifiedCount) fail(409, "Attendance was applied; refresh the request to recover its review status.");
-      await notifyUsers([request.student], { type: "attendance", title: "Manual attendance approved", message: `Your attendance for "${event.title}" was approved as ${request.proposedStatus}. It uses your recorded check-in time, not the approval time.`, relatedEvent: event._id, event, deferEmail: true }).catch(() => {});
+      await notifyUsers([request.student], { type: "attendance", title: directPhoto ? "ID-assisted attendance recorded" : "Manual attendance approved", message: directPhoto ? `An organizer recorded ID-assisted attendance for "${event.title}" as ${request.proposedStatus}. Contact your department if this is incorrect.` : `Your attendance for "${event.title}" was approved as ${request.proposedStatus}. It uses your recorded check-in time, not the approval time.`, relatedEvent: event._id, event, deferEmail: true }).catch(() => {});
       return { id: idOf(request), status: "approved" };
     } finally {
       await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, { $unset: { reviewLock: 1 } }).catch(() => {});
@@ -271,7 +278,8 @@ function createService(deps) {
     return Request.find({ student: studentId, status: "pending" }).populate("event", "title date time academicYearStart semester endDate endTime status attendanceStartTime attendanceEndTime")
       .populate("requestedBy", "name email").select("event student requestedBy proposedStatus proposedHours effectiveAt submittedAt status").lean();
   }
-  return { submit, list, summary, reviewEvents, reviewers, assignReviewers, reviewBatch, reviewOne, pendingManualEventsForStudent };
+  const applyPhoto = (user, id, now = new Date()) => reviewOne(user, id, "approved", "Organizer-attested physical ID check; not independent or biometric verification.", now, true);
+  return { submit, list, summary, reviewEvents, reviewers, assignReviewers, reviewBatch, reviewOne, applyPhoto, pendingManualEventsForStudent };
 }
 
 let defaultService;
@@ -279,5 +287,5 @@ function service() {
   return defaultService ||= createService({ Request: require("../models/ManualAttendanceRequest"), Attendance: require("../models/Attendance"),
     Event: require("../models/Event"), User: require("../models/User"), notifyUsers: require("./notify").notifyUsers });
 }
-const names = ["submit", "list", "summary", "reviewEvents", "reviewers", "assignReviewers", "reviewBatch", "pendingManualEventsForStudent"];
+const names = ["submit", "list", "summary", "reviewEvents", "reviewers", "assignReviewers", "reviewBatch", "pendingManualEventsForStudent", "applyPhoto"];
 module.exports = { createService, buildProposal, canReview, fingerprint, baseHours, ...Object.fromEntries(names.map(name => [name, (...args) => service()[name](...args)])) };

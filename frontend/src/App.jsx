@@ -1,3 +1,4 @@
+import PortalNavigationTracker from "./components/shared/PortalNavigationTracker";
 import React, { Suspense, lazy } from "react";
 import { Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -39,6 +40,7 @@ function LandingRoute() {
 function App() {
   return (
     <ThemeProvider>
+      <PortalNavigationTracker />
       <ChunkBoundary>
         <Suspense fallback={<BootSplash />}>
           <Routes>

@@ -1,10 +1,11 @@
+import { usePortalBack } from "../utils/usePortalBack";
 import EventAcademicFields from "./shared/EventAcademicFields";
 import { applyEventField, academicTermLabel } from "../utils/academicPeriods";
 import { useTransientState } from "../utils/useTransientState";
 import TimePicker from "./ui/TimePicker";
 import EventLastEdit from "./shared/EventLastEdit";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { getUserRole, getUserFromToken } from "../utils/auth";
 import {
@@ -47,7 +48,6 @@ const WINDOW_FORMAT = {
 const EventDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const [event, setEvent] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,13 +63,7 @@ const EventDetails = () => {
       : role === "organizer"
         ? "/organizer/dashboard/events"
         : "/student/dashboard/events";
-  const goBack = () => {
-    if (location.key && location.key !== "default") {
-      navigate(-1);
-      return;
-    }
-    navigate(eventListPath);
-  };
+  const { back: goBack } = usePortalBack(eventListPath);
   const [canManage, setCanManage] = useState(false);
   const [canViewAttendance, setCanViewAttendance] = useState(false);
   // Ticks a few times a minute so the window message flips on its own.

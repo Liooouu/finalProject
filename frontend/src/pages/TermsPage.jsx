@@ -28,7 +28,7 @@ const sections = [
     paragraphs: [
       "Enroll your own face before using face attendance. Attend in person and follow the organizer’s station instructions. Do not impersonate another student, share access to submit attendance for someone else, use photographs or recordings to attempt a false check-in, or alter attendance evidence.",
       "Attendance follows the event’s configured attendance schedule. Late and absent marks can add required community service hours under the department’s rules. The ledger shows hours remaining, penalties, and approved adjustments; it does not automatically certify that service work has been completed.",
-      "Face matching and network availability can fail. If a record appears incorrect, notify an organizer or administrator. Organizers can submit documented manual attendance requests and corrections. An administrator or an organizer assigned as an event reviewer must independently review them. A requester or the student concerned cannot approve their own manual request. Approved present/late requests use the verified attendance time rather than the time of approval.",
+      "Face matching and network availability can fail. If a record appears incorrect, notify an organizer or administrator. Organizers can use ID-assisted check-in by photographing a physical school ID after comparing it with the student and selected account. A server-timed check-in can be recorded on the organizer’s attestation, which is not biometric or independent verification. Offline device-timed captures and conflicts require independent review. Organizers can also submit documented attendance corrections. An administrator or an organizer assigned as an event reviewer must independently review these exceptions and corrections. A requester or the student concerned cannot approve their own manual request. Approved present/late requests use the verified attendance time rather than the time of approval.",
       "Face stations require organizer supervision. Face matching does not eliminate photo or video spoofing risk. Initial enrollment should be checked against the student’s school ID. A check-in records attendance at that time and does not verify continuous presence until the event ends. Replacing an enrolled face with a different identity requires an administrative identity review.",
     ],
   },
@@ -53,6 +53,7 @@ const sections = [
     title: "6. Data handling and face consent",
     paragraphs: [
       "TrackED processes account and academic details, event attendance, service-hour records, excuse letters and attachments, and review history. Face enrollment stores a face photograph, a numerical face template used for matching, and enrollment/consent information. These records support attendance verification and related reviews.",
+      "ID-assisted fallback stores a school ID photo as attendance evidence. Evidence is available only to the student concerned, the submitting organizer, authorized event reviewers, and administrators. The system removes server ID photos after 30 days while retaining the attendance audit. Unsynced photos stay encrypted in the submitting browser, are removed locally after a server receipt, and can be discarded there. Clearing browser data before syncing can permanently lose an unsynced capture. A device-timed offline capture is a claim requiring confirmation, not a trusted server timestamp.",
       "Face enrollment has its own consent step. Reading or agreeing to these terms does not replace that separate consent. If you have concerns about face enrollment or need assistance, contact your department before enrolling.",
       "Access depends on role: students view their own records; authorized organizers handle attendance and reviews; administrators monitor and manage departmental records. Email verification and password recovery use the configured email service. Records are not automatically erased when an event ends.",
       "For the school’s privacy contact, retention schedule, or requests to access, correct, or delete personal data, contact your department’s TrackED administrator or the school’s privacy office. The department must confirm its institutional privacy notice and retention arrangements; this overview does not replace them.",
@@ -94,7 +95,7 @@ export default function TermsPage() {
           <p className="terms-eyebrow">Responsible use of TrackED</p>
           <h1>Terms &amp; Conditions</h1>
           <p>Clear rules for accounts, attendance, and departmental records.</p>
-          <span>Last updated: November 1, 2026</span>
+          <span>Last updated: November 6, 2026</span>
         </div>
         <div className="terms-layout">
           <nav aria-label="Terms sections">

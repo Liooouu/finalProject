@@ -1,11 +1,22 @@
 const mongoose = require("mongoose");
 
-// Separate from Attendance: an unreviewed assertion is not proof of attendance.
+// Evidence/audit ledger: legacy requests and offline exceptions require review.
+// Server-timed ID captures may be applied on the organizer's explicit physical-ID attestation.
 const schema = new mongoose.Schema({
   event: { type: mongoose.Schema.Types.ObjectId, ref: "Event", required: true, immutable: true },
   student: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
   requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
   mode: { type: String, enum: ["checkin", "correction"], required: true, immutable: true },
+  source: { type: String, enum: ["manual", "id_photo"], default: "manual", immutable: true },
+  clientId: { type: String, immutable: true },
+  photoDigest: { type: String, immutable: true },
+  photoScheduleSignature: { type: String, immutable: true },
+  idPhotoUrl: { type: String, default: "" },
+  photoExpiresAt: Date,
+  photoDeletedAt: Date,
+  captureBasis: { type: String, enum: ["server", "device"] },
+  receivedAt: Date,
+  attestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   reason: { type: String, required: true, maxlength: 1000, immutable: true },
   identityChecked: { type: Boolean, required: true, immutable: true },
   effectiveAt: { type: Date, required: true, immutable: true },
@@ -20,7 +31,7 @@ const schema = new mongoose.Schema({
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   reviewedAt: { type: Date, default: null },
   reviewNote: { type: String, default: "", maxlength: 1000 },
-  resolution: { type: String, enum: ["manual", "existing_face"] },
+  resolution: { type: String, enum: ["manual", "existing_face", "id_photo"] },
   confirmedAttendance: {
     attendance: { type: mongoose.Schema.Types.ObjectId, ref: "Attendance" },
     status: String, method: String, attendedAt: Date, hours: Number,
@@ -32,4 +43,5 @@ schema.index({ event: 1, student: 1 }, { unique: true, partialFilterExpression: 
 schema.index({ status: 1, submittedAt: -1 });
 schema.index({ requestedBy: 1, status: 1 });
 schema.index({ student: 1, status: 1 });
+schema.index({ requestedBy: 1, clientId: 1 }, { unique: true, partialFilterExpression: { clientId: { $type: "string" } }, name: "unique_id_photo_upload" });
 module.exports = mongoose.model("ManualAttendanceRequest", schema);
