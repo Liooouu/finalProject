@@ -1,22 +1,20 @@
-import IdPhotoEvidence from "./IdPhotoEvidence";
+import AttendanceReviewCard from "./AttendanceReviewCard";
 import EventReviewers from "../admin/EventReviewers";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { FaClipboardCheck, FaSearch } from "react-icons/fa";
 import api from "../../api/axios";
 import { getUserRole } from "../../utils/auth";
-import { formatDateTime } from "../../utils/helpers";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { Button, Card, PageHeader, SegmentedControl, StatusChip } from "../ui";
+import { Button, Card, PageHeader, SegmentedControl } from "../ui";
 import Pagination from "../ui/Pagination";
 import StablePage from "../ui/StablePage";
 import EmptyState from "./EmptyState";
 import Loading from "./Loading";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 6;
 const errorMessage = (error, fallback) => error.response?.data?.error || error.response?.data?.message || fallback;
-const displayTime = value => value ? formatDateTime(value) : "—";
 
 export default function ManualAttendanceReviews({ defaultView = "mine" }) {
   const isAdmin = getUserRole() === "admin";
@@ -50,6 +48,7 @@ export default function ManualAttendanceReviews({ defaultView = "mine" }) {
   const feedback = useRef(null);
   const requestSequence = useRef(0);
   const mounted = useRef(true);
+  const reviewInFlight = useRef(false);
 
   usePageMeta("Manual attendance review", "Verify manual check-ins and attendance corrections.");
 
@@ -106,19 +105,22 @@ export default function ManualAttendanceReviews({ defaultView = "mine" }) {
     setSelected(previous => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next; });
     setVerified(false); setActionError("");
   };
-  const reviewSelected = async decision => {
-    if (busy || !selected.size) return;
-    if (decision === "approved" && !verified) { setActionError("Confirm that you independently checked the attendance evidence for every selected student."); return; }
-    if (decision === "rejected" && note.trim().length < 5) { setActionError("Add a review note of at least 5 characters explaining why these requests are rejected."); return; }
+  const reviewSelected = async (decision, individual) => {
+    const selectedIds = individual ? [individual.id] : [...selected];
+    const confirmed = individual ? individual.verified : verified;
+    const reviewNote = (individual ? individual.note : note).trim();
+    if (reviewInFlight.current || !selectedIds.length) return false;
+    if (decision === "approved" && !confirmed) { setActionError("Confirm that you independently checked the attendance evidence for every selected student."); return false; }
+    if (decision === "rejected" && reviewNote.length < 5) { setActionError("Add a review note of at least 5 characters explaining why these requests are rejected."); return false; }
+    reviewInFlight.current = true;
     setBusy(decision); setActionError(""); setMessage(""); setOutcomeErrors([]);
     // A refresh started before this decision must not clear its selection or
     // replace the result. Fetch fresh rows explicitly after the review finishes.
     requestSequence.current += 1;
     setRefreshing(false);
-    const selectedIds = [...selected];
     const names = new Map(requests.map(row => [row._id, row.student?.name || row.student?.email || "Student"]));
     try {
-      const { data } = await api.post("/manual-attendance/requests/review", { ids: selectedIds, decision, note: note.trim(), verifiedPresence: decision === "approved" && verified });
+      const { data } = await api.post("/manual-attendance/requests/review", { ids: selectedIds, decision, note: reviewNote, verifiedPresence: decision === "approved" && confirmed });
       if (!mounted.current) return;
       const results = Array.isArray(data.results) ? data.results : [];
       const completed = results.filter(result => result.status === decision && !result.error);
@@ -130,8 +132,9 @@ export default function ManualAttendanceReviews({ defaultView = "mine" }) {
       setSelected(new Set(errors.map(item => item.id))); setVerified(false); setNote("");
       window.dispatchEvent(new Event("tracked:manual-attendance-changed"));
       await loadRequests();
+      return individual ? completed.some(result => String(result.id) === String(individual.id)) : completed.length > 0;
     } catch (error) { if (mounted.current) setActionError(errorMessage(error, "The selected requests could not be reviewed. Refresh before retrying.")); }
-    finally { if (mounted.current) setBusy(false); }
+    finally { reviewInFlight.current = false; if (mounted.current) setBusy(false); }
   };
 
   const currentPage = Math.min(page, Math.max(1, Math.ceil(total / PAGE_SIZE)));
@@ -167,43 +170,17 @@ export default function ManualAttendanceReviews({ defaultView = "mine" }) {
       </div>
       {(search || eventId || status !== "all") && <Button className="mt-3" variant="ghost" size="sm" onClick={clearFilters} disabled={busy}>Reset filters</Button>}
     </Card>
-    <section aria-label="Manual attendance requests" aria-busy={refreshing} className="min-w-0">
+    <section aria-label="Manual attendance requests" aria-busy={refreshing} className="attendance-review-results min-w-0">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-medium text-on">{total} request{total === 1 ? "" : "s"}</h3><p className="text-xs text-on-muted">Times shown in Philippine time</p></div>
       {view === "review" && eligibleIds.length > 0 && <label className="mb-3 flex min-h-11 w-fit cursor-pointer items-center gap-3 text-sm text-on">
         <input type="checkbox" className="h-5 w-5 shrink-0 accent-[var(--brand-solid)]" ref={node => { if (node) node.indeterminate = someOnPageSelected; }} checked={allOnPageSelected} disabled={loading || refreshing || !!busy || !!loadError} onChange={event => { setSelected(event.target.checked ? new Set(eligibleIds) : new Set()); setVerified(false); setActionError(""); setOutcomeErrors([]); }} />
         <span>Select all on this page <span className="text-on-muted">({eligibleIds.length})</span></span>
       </label>}
       <StablePage loading={refreshing} pageKey={`${view}:${status}:${eventId}:${query}:${total}`} footer={<Pagination page={currentPage} pageSize={PAGE_SIZE} total={total} onChange={value => { setPage(value); resetSelection(); }} disabled={refreshing || busy} label="Manual attendance request pages" />}>
-      {loading ? <Loading label="Loading manual attendance requests..." /> : !requests.length ? <EmptyState compact icon={<FaClipboardCheck />} title={loadError ? "Requests unavailable" : "No matching requests"} description={view === "mine" ? "Your submitted attendance requests will appear here." : "Requests assigned for your review will appear here."} /> : <ul className="space-y-3">{requests.map(request => {
-        const selectable = view === "review" && request.status === "pending" && request.canReview === true;
-        const recorded = request.resolution === "existing_face" ? request.confirmedAttendance : request.currentAttendance;
-        const protectedRecord = recorded && (recorded.method === "face" || recorded.status === "excused");
-        const matchingFace = recorded?.method === "face" && ["present", "late"].includes(recorded.status) && recorded.status === request.proposedStatus;
-        return <li key={request._id}><Card as="article" className={`manual-review-record min-w-0 ${selected.has(request._id) ? "ring-2 ring-brand/50" : ""}`}>
-          <div className="flex min-w-0 items-start gap-3">
-            {selectable && <input type="checkbox" aria-label={`Select request for ${request.student?.name || request.student?.email || "student"}`} className="mt-1 h-5 w-5 shrink-0 accent-[var(--brand-solid)]" checked={selected.has(request._id)} onChange={() => toggleRequest(request._id)} disabled={busy} />}
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 [overflow-wrap:anywhere]"><h4 className="font-display text-base font-semibold text-on">{request.student?.name || "Student unavailable"}</h4><p className="mt-0.5 text-xs text-on-muted">{request.student?.email || "Email unavailable"}</p></div><StatusChip status={request.status} /></div>
-              <p className="mt-3 text-sm font-medium text-on [overflow-wrap:anywhere]">{request.event?.title || "Event unavailable"}</p>
-              <dl className="mt-3 grid grid-cols-1 gap-x-5 gap-y-3 text-sm sm:grid-cols-2"><div><dt className="text-xs text-on-muted">{request.proposedStatus === "absent" ? "Attendance cutoff" : request.mode === "correction" ? "Actual attendance time" : "Recorded check-in"}</dt><dd className="mt-1 font-medium text-on">{displayTime(request.effectiveAt)}</dd></div><div><dt className="text-xs text-on-muted">Requested result</dt><dd className="mt-1 flex flex-wrap items-center gap-2"><StatusChip status={request.proposedStatus} /><span className="text-xs text-on-dim">{request.proposedHours ?? 0} penalty hrs</span></dd></div></dl>
-              {protectedRecord && <div className="mt-3 space-y-2 rounded-xl bg-card-alt/60 p-3 text-sm text-on-dim">
-                <p className="font-medium text-on">{request.resolution === "existing_face" ? "Confirmed using existing face attendance" : "Attendance already recorded"}</p>
-                <p className="flex flex-wrap items-center gap-2"><StatusChip status={recorded.status} /><span>{recorded.status === "excused" ? "Approved excuse letter" : "Face check-in"} · {recorded.hours ?? 0} service hrs</span></p>
-                {recorded.method === "face" && <p className="text-xs">Recorded: {displayTime(recorded.attendedAt)}</p>}
-                <p className="text-xs">{request.resolution === "existing_face" ? "The review confirmed the matching result. The face check-in, its time, and service hours were kept." : matchingFace ? "The face check-in matches this request. Approval confirms the request and keeps the existing attendance time and service hours." : recorded.status === "excused" ? "An approved excuse already controls this record. Reject this duplicate request with a note to keep the excuse." : "This face check-in differs from the request. Review attendance separately, or reject the duplicate with a note; approval will not replace the existing record."}</p>
-              </div>}
-              <p className="mt-3 whitespace-pre-wrap text-sm text-on-dim [overflow-wrap:anywhere]"><span className="font-medium text-on">Reason: </span>{request.reason}</p>{request.source === "id_photo" && <IdPhotoEvidence request={request} />}
-              {request.mode === "correction" && <p className="mt-2 text-xs text-warn">Correction: check the claimed time.</p>}
-              {request.status === "pending" && !selectable && <p className="mt-2 text-xs text-on-muted">{view === "mine" ? "Awaiting another reviewer." : "Another authorized reviewer must handle this request."}</p>}
-              <details className="mt-3 text-xs text-on-muted"><summary className="cursor-pointer font-medium text-on-dim">Review details</summary><dl className="mt-2 grid gap-2 sm:grid-cols-2"><div><dt>Submitted</dt><dd className="mt-0.5">{displayTime(request.submittedAt)}</dd></div><div><dt>Submitted by</dt><dd className="mt-0.5 [overflow-wrap:anywhere]">{request.requestedBy?.name || "Organizer"}</dd></div><div><dt>Reviewed</dt><dd className="mt-0.5">{displayTime(request.reviewedAt)}</dd></div><div><dt>Reviewed by</dt><dd className="mt-0.5 [overflow-wrap:anywhere]">{request.reviewedBy?.name || (request.resolution === "id_photo" ? "Organizer-attested ID check (no independent review)" : "Not reviewed yet")}</dd></div>{request.schedule?.start && <div><dt>Recorded attendance window</dt><dd className="mt-0.5">{displayTime(request.schedule.start)} – {displayTime(request.schedule.deadline)}</dd></div>}{request.schedule?.cutoff && <div><dt>Last accepted check-in</dt><dd className="mt-0.5">{displayTime(request.schedule.cutoff)}</dd></div>}</dl>{(request.reviewNote || request.note) && <p className="mt-2 whitespace-pre-wrap [overflow-wrap:anywhere]">{request.reviewNote || request.note}</p>}</details>
-            </div>
-          </div>
-          {selectable && !selected.has(request._id) && <Button type="button" className="mt-3" size="sm" variant="secondary" disabled={!!busy} onClick={() => { resetSelection(); setSelected(new Set([request._id])); setActionError(""); }}>Review request</Button>}
-        </Card>{view === "review" && selected.size === 1 && selected.has(request._id) && <div className="mt-3">{reviewActions}</div>}</li>;
-      })}</ul>}
+      {loading ? <Loading label="Loading manual attendance requests..." /> : !requests.length ? <EmptyState compact icon={<FaClipboardCheck />} title={loadError ? "Requests unavailable" : "No matching requests"} description={view === "mine" ? "Your submitted attendance requests will appear here." : "Requests assigned for your review will appear here."} /> : <ul className="attendance-review-grid">{requests.map(request => <li key={request._id}><AttendanceReviewCard key={`${request._id}:${request.status}`} request={request} reviewMode={view === "review"} selected={selected.has(request._id)} onToggle={() => toggleRequest(request._id)} onReview={reviewSelected} busy={!!busy} /></li>)}</ul>}
       </StablePage>
     </section>
-    {view === "review" && selected.size > 1 && reviewActions}
+    {view === "review" && selected.size > 0 && reviewActions}
     {(message || actionError || outcomeErrors.length > 0) && <section ref={feedback} tabIndex={-1} aria-label="Review result" className="space-y-3 rounded-xl focus-visible:outline-2 focus-visible:outline-brand">
       {message && <div role="status" className="alert alert-ok"><p>{message}</p></div>}
       {actionError && <div role="alert" className="alert alert-danger"><p>{actionError}</p></div>}
