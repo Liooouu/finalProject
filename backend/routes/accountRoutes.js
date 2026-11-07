@@ -13,6 +13,7 @@ const { renderVerificationEmail } = require("../services/emailTemplate");
 const { protect } = require("../middleware/authMiddleware");
 const faceIdentify = require("../services/faceIdentify");
 const FaceAppeal = require("../models/FaceAppeal");
+const { notifyAdmins } = require("../services/notifyAdmins");
 const { deleteAccount } = require("../services/deleteAccount");
 const { isStrongPassword, PASSWORD_MESSAGE } = require("../utils/passwordPolicy");
 
@@ -220,6 +221,35 @@ router.post("/picture", protect, upload.single("picture"), async (req, res) => {
 // Stores a webcam-captured photo used as the face-match baseline for the
 // attendance check-in flow. Requires one detectable face and protects enrolled
 // identity changes with the reviewed replacement flow; this is not liveness.
+router.post("/face-enrollment-upload", protect, (req, res, next) => {
+  if (!hasStudentProfile(req.user)) return res.status(403).json({ error: "Only students can request face enrollment." });
+  next();
+}, faceUpload.single("photo"), async (req, res) => {
+  let saved;
+  try {
+    if (req.body.consent !== "true") return res.status(400).json({ error: "Consent is required for face enrollment." });
+    if (!req.file) return res.status(400).json({ error: "Choose a JPG or PNG photo." });
+    if (await FaceAppeal.exists({ student: req.user._id, status: "pending" })) return res.status(409).json({ error: "You already have a pending face request. Wait for admin review." });
+    const student = await User.findById(req.user._id).select("faceEnrollmentVersion");
+    if (!student) return res.status(404).json({ error: "Student account unavailable." });
+    let face;
+    try { face = await faceMatcher.detectFaceDescriptorFromBuffer(req.file.buffer); }
+    catch { return res.status(400).json({ error: "Upload a clear photo with exactly one face, looking straight ahead." }); }
+    saved = await fileStore.saveBuffer(req.file.buffer, { private: true, originalName: req.file.originalname, contentType: req.file.mimetype });
+    const appeal = await FaceAppeal.create({ student: req.user._id, enrollmentUpload: true,
+      enrollmentVersion: student.faceEnrollmentVersion || 0, enrollmentDescriptor: face.descriptor,
+      consentAt: new Date(), photoUrl: saved.url, note: "Uploaded photo for face enrollment" });
+    saved = null; // Persisted evidence belongs to this request, even if notification fails.
+    const response = appeal.toObject(); delete response.enrollmentDescriptor;
+    res.status(201).json(response);
+    notifyAdmins("Face enrollment awaiting approval",
+      `${req.user.name} submitted a face enrollment photo. Open Reviews > Face Appeals.`).catch(error => console.error("Enrollment notification:", error.message));
+  } catch (error) {
+    if (saved) await fileStore.deleteByUrl(saved.url).catch(() => {});
+    res.status(error.code === 11000 ? 409 : 500).json({ error: error.code === 11000 ? "You already have a pending enrollment request." : "Could not submit the photo. Please try again." });
+  }
+});
+
 router.post(
   "/face",
   protect,

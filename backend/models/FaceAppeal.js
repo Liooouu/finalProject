@@ -11,6 +11,10 @@ const faceAppealSchema = new mongoose.Schema(
     note: { type: String, default: "" },
     photoUrl: { type: String, default: "" },
     replacement: { type: Boolean, default: false },
+    enrollmentUpload: { type: Boolean, default: false },
+    enrollmentDescriptor: { type: [Number], select: false, default: undefined },
+    reviewClaim: String,
+    reviewClaimedAt: Date,
     enrollmentVersion: Number,
     replacementDescriptor: { type: [Number], select: false, default: undefined },
     consentAt: Date,
@@ -23,5 +27,6 @@ const faceAppealSchema = new mongoose.Schema(
 );
 
 faceAppealSchema.index({ student: 1, status: 1, createdAt: -1 });
+faceAppealSchema.index({ student: 1, enrollmentUpload: 1, status: 1 }, { unique: true, partialFilterExpression: { enrollmentUpload: true, status: "pending" } });
 
 module.exports = mongoose.model("FaceAppeal", faceAppealSchema);

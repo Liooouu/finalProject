@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FaCheck, FaTimes, FaShieldAlt } from "react-icons/fa";
 import api from "../../api/axios";
 import PrivateImage from "../shared/PrivateImage";
@@ -19,9 +19,12 @@ export default function FaceAppeals() {
   const [appealsLoading, setAppealsLoading] = useState(seed === undefined);
   const [loadError, setLoadError] = useState("");
   const [appealPage, setAppealPage] = useState(1);
+  const [selected, setSelected] = useState(new Set());
+  const reviewInFlight = useRef(false);
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewNote, setReviewNote] = useState("");
   const [reviewError, setReviewError] = useState("");
+  const [resultFailures, setResultFailures] = useState([]);
   const [reviewIdentityChecked, setReviewIdentityChecked] = useState(false);
   const [reviewingAppeal, setReviewingAppeal] = useState(false);
   const [message, setMessage] = useTransientState("");
@@ -41,42 +44,48 @@ export default function FaceAppeals() {
   useEffect(() => { fetchAppeals(); }, [fetchAppeals]);
   useAutoRefresh(fetchAppeals, { interval: 30000, enabled: !reviewingAppeal });
   const pendingCount = appeals.filter(appeal => appeal.status === "pending").length;
-  const currentAppealPage = Math.min(appealPage, Math.max(1, Math.ceil(appeals.length / 5)));
-  const visibleAppeals = appeals.slice((currentAppealPage - 1) * 5, currentAppealPage * 5);
-  const handleReview = async (appeal, action) => {
-    if (reviewingAppeal) return;
-    if (appeal.replacement && action === "approved" && !reviewIdentityChecked) return;
-    setReviewError("");
-    setReviewingAppeal(true);
+  const currentAppealPage = Math.min(appealPage, Math.max(1, Math.ceil(appeals.length / 6)));
+  const visibleAppeals = appeals.slice((currentAppealPage - 1) * 6, currentAppealPage * 6);
+  const eligible = visibleAppeals.filter(row => row.enrollmentUpload && row.status === "pending");
+  const allSelected = eligible.length > 0 && eligible.every(row => selected.has(row._id));
+  const targets = reviewTarget?.appeals || (reviewTarget?.appeal ? [reviewTarget.appeal] : []);
+  const needsIdentity = targets.some(row => row.enrollmentUpload || row.replacement);
+  const requiresReason = targets.some(row => row.enrollmentUpload);
+  const handleReview = async (rows, action) => {
+    if (reviewInFlight.current || !rows.length) return;
+    if (action === "approved" && needsIdentity && !reviewIdentityChecked) return;
+    if (action === "rejected" && requiresReason && reviewNote.trim().length < 5) return;
+    reviewInFlight.current = true; setReviewError(""); setResultFailures([]); setReviewingAppeal(true);
+    const failures = []; const completed = new Set();
     try {
-      const res = await api.post(`/admin/security/face-appeals/${appeal._id}/review`, {
-        action,
-        note: action === "rejected" ? reviewNote : "",
-        identityChecked: reviewIdentityChecked,
-      });
-      setAppeals((prev) => prev.map((a) => (a._id === appeal._id ? res.data.appeal : a)));
-      setReviewTarget(null);
-      setReviewNote("");
-      setMessage(res.data.message || `Appeal ${action}`);
-      setMessageType("success");
-      clearScreens();
-      writeScreen(APPEALS_CACHE_KEY, { appeals: appeals.map(item => item._id === appeal._id ? res.data.appeal : item) });
-    } catch (err) {
-      console.error(err);
-      setReviewError(err.response?.data?.message || "Failed to review appeal. Please try again.");
-    } finally {
-      setReviewingAppeal(false);
-    }
+      for (const row of rows) {
+        try {
+          await api.post(`/admin/security/face-appeals/${row._id}/review`, { action, note: action === "rejected" ? reviewNote.trim() : "", identityChecked: reviewIdentityChecked });
+          completed.add(row._id);
+        } catch (err) { failures.push(`${row.student?.name || "Student"}: ${err.response?.data?.message || "Review failed. Refresh and retry."}`); }
+      }
+      setSelected(previous => new Set([...previous].filter(id => !completed.has(id))));
+      clearScreens(); await fetchAppeals();
+      setReviewTarget(null); setReviewNote(""); setReviewIdentityChecked(false);
+      setMessage(`${completed.size} request${completed.size === 1 ? "" : "s"} ${action}.`);
+      setResultFailures(failures);
+      setMessageType(failures.length ? "error" : "success");
+    } finally { reviewInFlight.current = false; setReviewingAppeal(false); }
   };
 
   return <div className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-on">Face appeals</h2><p className="text-sm text-on-dim">Verify identity before unlocking face verification or allowing a replacement.</p></div><Button variant="secondary" size="sm" onClick={() => fetchAppeals()} disabled={reviewingAppeal || appealsLoading}>Refresh</Button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-on">Face appeals</h2><p className="text-sm text-on-dim">Review uploaded enrollment photos, replacements and face verification support.</p></div><Button variant="secondary" size="sm" onClick={() => fetchAppeals()} disabled={reviewingAppeal || appealsLoading}>Refresh</Button></div>
     {message && <div role="status" className={`alert ${messageType === "error" ? "alert-danger" : "alert-ok"}`}>{message}</div>}
+    {resultFailures.length > 0 && <div role="alert" className="alert alert-danger"><div><p className="font-medium">Some requests need attention</p><ul className="mt-2 space-y-2">{resultFailures.map((failure, index) => <li key={index}>{failure}</li>)}</ul><Button size="sm" variant="ghost" onClick={() => setResultFailures([])}>Dismiss</Button></div></div>}
     {loadError && <div role="alert" className="alert alert-danger">{loadError}<Button variant="secondary" size="sm" onClick={() => fetchAppeals()}>Try again</Button></div>}
         <div className="space-y-4">
           <p className="text-sm text-on-dim">
             {pendingCount} pending · {appeals.length} total appeals
           </p>
+          {eligible.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3">
+            <label className="flex min-h-11 items-center gap-2 text-sm text-on"><input type="checkbox" checked={allSelected} ref={node => { if (node) node.indeterminate = !allSelected && eligible.some(row => selected.has(row._id)); }} disabled={reviewingAppeal || appealsLoading || !!loadError} onChange={event => setSelected(event.target.checked ? new Set(eligible.map(row => row._id)) : new Set())} />Select all on this page</label>
+            <div className="flex flex-wrap gap-2">{["approved", "rejected"].map(action => <Button key={action} size="sm" variant={action === "rejected" ? "danger" : "primary"} disabled={reviewingAppeal || !eligible.some(row => selected.has(row._id)) || !!loadError} onClick={() => { setReviewNote(""); setReviewError(""); setReviewIdentityChecked(false); setReviewTarget({ appeals: eligible.filter(row => selected.has(row._id)), action }); }}>{action === "approved" ? "Approve selected" : "Reject selected"}</Button>)}</div>
+          </div>}
           {appealsLoading ? (
             <Card>
               <TableSkeleton rows={4} />
@@ -90,15 +99,17 @@ export default function FaceAppeals() {
               />
             </Card>
           ) : (
-            <StablePage pageKey="face-appeals" footer={<Pagination page={currentAppealPage} pageSize={5} total={appeals.length} onChange={setAppealPage} label="Face appeal pages" />}><div className="space-y-3">
+            <StablePage pageKey="face-appeals" footer={<Pagination page={currentAppealPage} pageSize={6} total={appeals.length} onChange={value => { setAppealPage(value); setSelected(new Set()); }} disabled={reviewingAppeal} label="Face appeal pages" />}><div className="grid items-start gap-4 xl:grid-cols-2">
               {visibleAppeals.map((appeal) => (
                 <Card key={appeal._id} as="article">
+                  {appeal.enrollmentUpload && appeal.status === "pending" && <label className="mb-3 flex items-center gap-2 text-sm text-on-dim"><input type="checkbox" checked={selected.has(appeal._id)} disabled={reviewingAppeal} onChange={event => setSelected(previous => { const next = new Set(previous); if (event.target.checked) next.add(appeal._id); else next.delete(appeal._id); return next; })} />Select enrollment request</label>}
                   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-medium text-on">
                         {appeal.student?.name || "Unknown student"}
                       </p>
-                      <p className="truncate text-sm text-on-dim">{appeal.student?.email}</p>
+                      <p className="break-words text-sm text-on-dim">{appeal.student?.email}</p>
+                      {appeal.enrollmentUpload && <p className="mt-1 text-xs text-brand">Uploaded face enrollment · Identity check required</p>}
                       {appeal.replacement && <p className="mt-1 text-xs text-brand">Face replacement · school ID check required</p>}
                     </div>
                     <div className="flex items-center gap-2">
@@ -125,7 +136,7 @@ export default function FaceAppeals() {
                       <PrivateImage
                         src={appeal.photoUrl}
                         alt="Proof"
-                        className="aspect-[4/3] w-full rounded-xl border border-line object-cover"
+                        className="aspect-[4/3] w-full rounded-xl border border-line object-contain bg-card-alt"
                       />
                     </div>
                     <div>
@@ -136,7 +147,7 @@ export default function FaceAppeals() {
                         <PrivateImage
                           src={appeal.student.facePhoto}
                           alt="Enrolled face"
-                          className="aspect-[4/3] w-full rounded-xl border border-line object-cover"
+                          className="aspect-[4/3] w-full rounded-xl border border-line object-contain bg-card-alt"
                         />
                       ) : (
                         <div className="flex aspect-[4/3] w-full items-center justify-center rounded-xl border border-line bg-card-alt text-sm text-on-muted">
@@ -159,7 +170,7 @@ export default function FaceAppeals() {
                           setReviewNote("");
                           setReviewError("");
                           setReviewIdentityChecked(false);
-                          setReviewTarget({ appeal, action: "approved" });
+                          setReviewIdentityChecked(false); setReviewTarget({ appeal, action: "approved" });
                         }}
                       >
                         <FaCheck className="text-xs" /> Approve
@@ -171,7 +182,7 @@ export default function FaceAppeals() {
                         onClick={() => {
                           setReviewNote("");
                           setReviewError("");
-                          setReviewTarget({ appeal, action: "rejected" });
+                          setReviewIdentityChecked(false); setReviewTarget({ appeal, action: "rejected" });
                         }}
                       >
                         <FaTimes className="text-xs" /> Reject
@@ -194,21 +205,21 @@ export default function FaceAppeals() {
         open={!!reviewTarget}
         title={
           reviewTarget?.action === "approved"
-            ? "Approve this appeal?"
-            : "Reject this appeal?"
+            ? `Approve ${targets.length} request${targets.length === 1 ? "" : "s"}?`
+            : `Reject ${targets.length} request${targets.length === 1 ? "" : "s"}?`
         }
         message={
           reviewTarget?.action === "approved"
-            ? reviewTarget?.appeal.replacement ? "Check the student's school ID and proof photo. Approval permits replacing the enrolled face with this same verified identity within seven days." : "Approving unlocks the student's face verification so they can retry immediately."
+            ? targets.some(row => row.enrollmentUpload) ? "Verify each selected student before approval. Approved uploads become the active enrolled faces." : reviewTarget?.appeal?.replacement ? "Check the student's school ID and proof photo. Approval permits replacing the enrolled face with this same verified identity within seven days." : "Approving unlocks the student's face verification so they can retry immediately."
             : "Rejecting notifies the student that their appeal was declined. Add a reason below."
         }
         confirmLabel={reviewTarget?.action === "approved" ? "Approve" : "Reject"}
         cancelLabel="Cancel"
         variant={reviewTarget?.action === "approved" ? "default" : "danger"}
         busy={reviewingAppeal}
-        confirmDisabled={reviewTarget?.action === "approved" && reviewTarget?.appeal.replacement && !reviewIdentityChecked}
+        confirmDisabled={reviewTarget?.action === "approved" ? needsIdentity && !reviewIdentityChecked : requiresReason && reviewNote.trim().length < 5}
         onConfirm={() =>
-          reviewTarget && handleReview(reviewTarget.appeal, reviewTarget.action)
+          reviewTarget && handleReview(targets, reviewTarget.action)
         }
         onCancel={() => {
           setReviewTarget(null);
@@ -216,12 +227,13 @@ export default function FaceAppeals() {
         }}
       >
         {reviewError && <p role="alert" className="mt-3 text-sm text-danger">{reviewError}</p>}
-        {reviewTarget?.action === "approved" && reviewTarget?.appeal.replacement && <label className="mt-3 flex items-start gap-2 text-sm text-on-dim"><input type="checkbox" checked={reviewIdentityChecked} onChange={e=>setReviewIdentityChecked(e.target.checked)} /><span>I checked the school ID and confirmed that the proof photo belongs to this student.</span></label>}
+        {reviewTarget?.action === "approved" && needsIdentity && <label className="mt-3 flex items-start gap-2 text-sm text-on-dim"><input type="checkbox" checked={reviewIdentityChecked} onChange={e=>setReviewIdentityChecked(e.target.checked)} /><span>I verified the identity of every selected student and confirmed that each photo belongs to them.</span></label>}
         {reviewTarget?.action === "rejected" && (
           <textarea
             value={reviewNote}
             onChange={(e) => setReviewNote(e.target.value)}
-            placeholder="Optional reason for rejection (shown to the student)..."
+            placeholder={requiresReason ? "Rejection reason (at least 5 characters)" : "Optional reason shown to the student"}
+            maxLength={1000}
             rows={2}
             className="field mt-3"
           />

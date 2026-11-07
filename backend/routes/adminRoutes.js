@@ -15,6 +15,7 @@ const { isMailEnabled } = require("../services/mailer");
 const { notifyUsers } = require("../services/notify");
 const fileStore = require("../services/fileStore");
 const faceIdentify = require("../services/faceIdentify");
+const reviewUploadedFace = require("../services/uploadedFaceEnrollment").createService({ User, FaceAppeal, faceIdentify });
 const { deleteAccount } = require("../services/deleteAccount");
 
 router.use("/academic-advancement", protect, authorize("admin"), require("./academicAdvancementRoutes"));
@@ -303,6 +304,7 @@ router.get(
       const filter = {};
       if (req.query.status) filter.status = req.query.status;
       const appeals = await FaceAppeal.find(filter)
+        .select("-reviewClaim -reviewClaimedAt")
         .populate("student", "name email facePhoto faceAttempts faceLockUntil")
         .sort({ createdAt: -1 });
       res.json(appeals);
@@ -327,6 +329,13 @@ router.post(
         return res.status(400).json({ message: "action must be 'approved' or 'rejected'" });
       }
       const pendingAppeal = await FaceAppeal.findById(req.params.id);
+      if (pendingAppeal?.enrollmentUpload) {
+        const appeal = await reviewUploadedFace({ id: req.params.id, admin: req.user, action, note, identityChecked: req.body.identityChecked });
+        res.json({ appeal, message: action === "approved" ? "Face enrolled. The student can now use face attendance." : "Enrollment rejected. The student can submit a new photo." });
+        notifyUsers([appeal.student], { type: "system", title: `Face enrollment ${action}`,
+          message: action === "approved" ? "Your uploaded face photo was approved. You can now use face attendance." : `Your photo was rejected. ${appeal.responseNote} You can submit a new photo from Profile > Security.` }).catch(error => console.error("Enrollment notification:", error.message));
+        return;
+      }
       if (pendingAppeal?.replacement && action === "approved" && req.body.identityChecked !== true) {
         return res.status(400).json({ message: "Confirm that you checked the student's school ID and proof photo before approving a replacement." });
       }
@@ -372,7 +381,7 @@ router.post(
       res.json({ appeal, message: `Appeal ${action}` });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ message: "Server error" });
+      res.status(err.status || 500).json({ message: err.status ? err.message : "Server error" });
     }
   }
 );

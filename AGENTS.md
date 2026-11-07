@@ -67,6 +67,8 @@ Uses Tailwind v4 with `@tailwindcss/vite` plugin. No `tailwind.config.js` - styl
 
 ## Role System
 
+Uploaded face enrollment uses pending FaceAppeal requests and admin-only activation. Keep Use camera and Upload photo available after consent in onboarding/Profile > Security. Gallery upload is enrollment-only, not attendance. Admin Face Appeals uses six requests per page, page-local Select all for pending enrollment uploads, identity confirmation before approval and a rejection reason. Preserve newer enrollments and retry-safe review receipts. See docs/UPLOADED_FACE_ENROLLMENT.md.
+
 - **student** - Can register, view events, mark attendance
 - **organizer** - Organizer portal access is granted by an admin to an existing student via Promote Student; the student retains both portals, face enrollment and records. Legacy organizer accounts still work.
 - **admin** - Promotes students to organizers, removes organizer access, edits student academic details, manages accounts and event information, monitors attendance and reports; cannot open stations or record/change attendance statuses. Existing-record service-hour corrections and identity/absence reviews remain administrative interventions.

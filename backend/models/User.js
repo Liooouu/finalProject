@@ -72,6 +72,7 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    faceEnrollmentAppeal: { type: mongoose.Schema.Types.ObjectId, ref: "FaceAppeal", select: false },
     // Email verification. New student registrations set this explicitly
     // (`false` when mail is configured, `true` when it isn't). It deliberately
     // has NO schema default: Mongoose applies defaults when hydrating documents,

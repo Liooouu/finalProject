@@ -9,6 +9,7 @@ import { usePageMeta } from "../../context/PageMetaContext";
 import { Button, FlightPanel, PageHeader, StatusChip } from "../ui";
 import Loading from "../shared/Loading";
 import FaceCapture from "../auth/FaceCapture";
+import FaceEnrollmentChoice from "../auth/FaceEnrollmentChoice";
 import PrivateImage from "../shared/PrivateImage";
 import { formatDateTime } from "../../utils/helpers";
 
@@ -170,11 +171,12 @@ const SecuritySettings = ({ embedded = false }) => {
                 onChange={(e) => setFaceAgreed(e.target.checked)} disabled={faceUploading}
                 className="mt-1 h-4 w-4 shrink-0" />
               <span>I agree to TrackED storing my face photo and face signature for attendance
-                identification. A new capture will replace my current enrolled face.
+                identification and identity review. Camera captures update my enrollment; uploaded photos need admin approval.
                 I can ask the organizer for manual attendance instead.</span>
             </label>
-            {faceAgreed && <FaceCapture
+            {faceAgreed && <FaceEnrollmentChoice
               title={facePhoto ? "Replace my enrolled face" : "Enroll my face"}
+              onEnrolled={async () => { const { data } = await api.get("/account"); setFacePhoto(data.facePhoto); setFaceEnrolledAt(data.faceEnrolledAt); setEnrollingFace(false); }}
               onCapture={handleFaceUpload}
               onCancel={() => setEnrollingFace(false)}
               loading={faceUploading}

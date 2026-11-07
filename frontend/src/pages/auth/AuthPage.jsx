@@ -30,7 +30,7 @@ import BrandMark from "../../components/shared/BrandMark";
 import features from "../../data/features";
 import Button from "../../components/ui/Button";
 import ThemeToggle from "../../components/ui/ThemeToggle";
-import FaceCapture from "../../components/auth/FaceCapture";
+import FaceEnrollmentChoice from "../../components/auth/FaceEnrollmentChoice";
 import { useTheme } from "../../context/ThemeContext";
 import techDark from "../../assets/images/tech-bg-dark.jpg";
 
@@ -737,8 +737,9 @@ const AuthPage = () => {
                   </div>
                 ) : (
                   <>
-                    <FaceCapture
+                    <FaceEnrollmentChoice
                       title="Save my face"
+                      onEnrolled={() => pendingAuth && finishAuth(pendingAuth.token, pendingAuth.role)}
                       onCapture={handleEnrollPhoto}
                       onRetake={() => setError("")}
                       loading={enrolling}
@@ -751,8 +752,8 @@ const AuthPage = () => {
                     />
                     <p className="mt-3 text-center text-xs text-on-muted">
                       Face enrollment is required for student accounts. If your
-                      camera is unavailable, contact an administrator for
-                      enrollment assistance.
+                      camera is unavailable, upload a photo for admin
+                      verification.
                     </p>
                   </>
                 )}
