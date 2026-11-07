@@ -332,6 +332,7 @@ const ManageExcuses = () => {
                       )}
                       <div className="excuse-decision-buttons">
                         <Button
+                          variant="success"
                           onClick={() => handleApprove(excuse._id)}
                           className="flex-1"
                           disabled={!!reviewingId || !!excuse.approvalIssue || excuse.type === "advance" || !(excuse.attachments?.length || excuse.attachmentUrl)}

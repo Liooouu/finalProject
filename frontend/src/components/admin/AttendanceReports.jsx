@@ -390,7 +390,7 @@ const AttendanceReports = () => {
   return (
     <div className="admin-report-page">
       <header className="admin-report-heading">
-        <div><h1>{activeTab === "attendance" ? "Attendance report" : activeTab === "events" ? "Event report" : "User report"}</h1><p>Monitor records and export the information you need.</p></div>
+        <div><h1>{activeTab === "attendance" ? "Attendance report" : activeTab === "events" ? "Event report" : "User report"}</h1><p>Monitor and export records.</p></div>
         <Tabs active={activeTab} onChange={setActiveTab} tabs={[{key:"attendance",label:"Attendance"},{key:"events",label:"Events"},{key:"users",label:"Users"}]} />
       </header>
 
@@ -478,7 +478,7 @@ const AttendanceReports = () => {
                   {key:"section",label:"Section",all:"All sections",options:filterOptions.sections.map(value=>({value,label:`Section ${value}`}))},
                   {key:"eventId",label:"Event",all:"All events",options:filterOptions.events.map(event=>({value:event._id,label:`${event.title} — ${formatDate(event.date)}`}))},
                 ].map(field=><label key={field.key} className={`admin-report-filter admin-report-filter-${field.key}`}><span className="sr-only">{field.label}</span><select aria-label={field.label} className="field-select" value={filters[field.key]} onChange={event=>{setAttendancePage(1);setFilters(previous=>({...previous,[field.key]:event.target.value}));}}><option value="all">{field.all}</option>{field.options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>)}
-                <Button variant="ghost" size="sm" onClick={()=>{setAttendancePage(1);setFilters(EMPTY_FILTERS);}} disabled={!hasActiveFilters}>Reset filters</Button>
+                <Button variant="info" size="sm" onClick={()=>{setAttendancePage(1);setFilters(EMPTY_FILTERS);}} disabled={!hasActiveFilters}>Reset filters</Button>
                 <Button variant="primary" size="sm" loading={exporting} title="Export all records matching the current filters" onClick={()=>downloadCSV("attendance")}>Export CSV</Button>
                 <p className="sr-only">Filters apply to both graphs, attendance records and CSV export.</p>
               </div>

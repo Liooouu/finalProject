@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  FaArrowDown,
-  FaArrowRight,
   FaCamera,
   FaChartBar,
   FaCheck,
@@ -28,8 +26,7 @@ const roles = [
     icon: <FaCamera />,
     role: "For students",
     title: "Check in. Follow your records.",
-    description:
-      "Enroll your face, check in at an organizer’s face station, and view your attendance and required service hours. For a recorded absence, submit an excuse with supporting attachments within seven days after the event ends.",
+    description: "Enroll your face, check in at a station, and track your hours. Submit excuses within seven days.",
     image: campus,
     alt: "Three students walking together outside a campus building",
     position: "45% 50%",
@@ -39,8 +36,7 @@ const roles = [
     icon: <FaUsers />,
     role: "For organizers",
     title: "Manage events, together.",
-    description:
-      "Create and edit shared events, operate face stations, and review other students’ excuse letters. Submit documented manual attendance requests for independent review when students need assistance.",
+    description: "Create shared events, run face stations, and review excuse letters. Submit manual requests for review.",
     image: eventTeam,
     alt: "A team planning together with a laptop and notebooks",
     position: "50% 45%",
@@ -50,8 +46,7 @@ const roles = [
     icon: <FaChartBar />,
     role: "For administrators",
     title: "Monitor, review, and manage.",
-    description:
-      "Monitor attendance, create or correct events, review manual requests and face appeals, and export CSV reports. Manage student accounts and grant or remove organizer access while preserving their student records.",
+    description: "Monitor attendance, manage events and accounts, review requests and appeals, export reports.",
     image: academicStaff,
     alt: "A member of academic staff working with a laptop in a lecture hall",
     position: "50% 43%",
@@ -61,26 +56,22 @@ const securityPoints = [
   {
     icon: <FaCamera />,
     title: "Face attendance",
-    description:
-      "Students enroll their face before checking in at an organizer-operated station.",
+    description: "Enroll once, check in at a station.",
   },
   {
     icon: <FaUsers />,
     title: "Independent review",
-    description:
-      "Manual requests need an admin or an organizer assigned to review that event. Requesters and students cannot approve their own attendance.",
+    description: "Requesters can't approve their own attendance.",
   },
   {
     icon: <FaKey />,
     title: "Account recovery",
-    description:
-      "Recover your password with a one-time email code and get back to your account.",
+    description: "Reset your password with an email code.",
   },
   {
     icon: <FaShieldAlt />,
     title: "Access with a purpose",
-    description:
-      "Students, organizers, and admins get the tools and permissions their role needs.",
+    description: "Each role gets only the tools it needs.",
   },
 ];
 
@@ -150,7 +141,7 @@ export default function LandingPage() {
         <div className="landing-header-actions">
           <ThemeToggle className="landing-theme" />
           <Link className="landing-button landing-button-quiet" to="/auth">
-            Sign in <FaArrowRight aria-hidden="true" />
+            Sign in
           </Link>
         </div>
       </header>
@@ -182,8 +173,7 @@ export default function LandingPage() {
               </Reveal>
               <Reveal delay={140}>
                 <p className="landing-lead">
-                  Monitor departmental event attendance, review excuse letters,
-                  and track required community service hours—all in TrackED.
+                  Attendance, excuses, and service hours — in one place.
                 </p>
               </Reveal>
               <Reveal delay={210} className="landing-hero-actions">
@@ -191,14 +181,14 @@ export default function LandingPage() {
                   to="/auth/signup"
                   className="landing-button landing-button-primary"
                 >
-                  Get started <FaArrowRight aria-hidden="true" />
+                  Get started
                 </Link>
                 <a
                   href="#how-it-works"
                   className="landing-text-link"
                   onClick={(event) => scrollTo(event, "how-it-works")}
                 >
-                  See how it works <FaArrowDown aria-hidden="true" />
+                  See how it works
                 </a>
               </Reveal>
               <Reveal delay={250}>
@@ -243,10 +233,8 @@ export default function LandingPage() {
                   <FaCamera aria-hidden="true" />
                 </span>
                 <div>
-                  <strong>A familiar face. A simpler check-in.</strong>
-                  <p>Face verification at the event station.</p>
+                  <strong>Face check-in at the station.</strong>
                 </div>
-                <FaArrowRight aria-hidden="true" />
               </a>
             </Reveal>
             <a
@@ -255,7 +243,6 @@ export default function LandingPage() {
               onClick={(event) => scrollTo(event, "features")}
             >
               <span>Explore TrackED</span>
-              <FaArrowDown aria-hidden="true" />
             </a>
           </section>
           <section
@@ -275,10 +262,7 @@ export default function LandingPage() {
                   in one place.
                 </h2>
               </div>
-              <p>
-                Keep event attendance, required service hours, and review
-                decisions connected and easy to find.
-              </p>
+              <p>Attendance, hours, and reviews — connected.</p>
             </Reveal>
             <div className="landing-features">
               {features.map((feature, index) => (
@@ -318,19 +302,11 @@ export default function LandingPage() {
                 <br />
                 See where the hours came from.
               </h2>
-              <p>
-                Absences and late marks add required community service hours.
-                Your ledger shows the related events, penalties, and hours
-                removed through approved excuses or administrator adjustments.
-              </p>
+              <p>Absences and late marks add service hours. Your ledger tracks events, penalties, and adjustments.</p>
               <ul>
                 <li>
                   <FaCheck aria-hidden="true" /> Required service hours
                   remaining
-                </li>
-                <li>
-                  <FaCheck aria-hidden="true" /> Event-by-event attendance
-                  history
                 </li>
                 <li>
                   <FaCheck aria-hidden="true" /> Penalty and adjustment
@@ -342,7 +318,7 @@ export default function LandingPage() {
                 className="landing-text-link"
                 onClick={(event) => scrollTo(event, "how-it-works")}
               >
-                Tools for each role <FaArrowRight aria-hidden="true" />
+                Tools for each role
               </a>
             </Reveal>
           </section>
@@ -361,10 +337,6 @@ export default function LandingPage() {
                   One connected department.
                 </h2>
               </div>
-              <p>
-                Everyone has a clear place to start, with the right tools for
-                the work they do.
-              </p>
             </Reveal>
             <div className="landing-roles">
               {roles.map((role, index) => (
@@ -415,11 +387,7 @@ export default function LandingPage() {
                 <br />
                 Reviewed manual requests.
               </h2>
-              <p>
-                Organizers operate face stations and submit documented manual
-                requests when needed. Approved manual attendance uses the
-                verified check-in time to determine attendance status.
-              </p>
+              <p>Organizers run face stations; manual requests are independently reviewed.</p>
             </Reveal>
             <div className="landing-security-grid">
               {securityPoints.map((point, index) => (
@@ -451,15 +419,12 @@ export default function LandingPage() {
                 <br />
                 <span>We’ll help you keep track.</span>
               </h2>
-              <p>
-                Create your student account, enroll your face, and get ready for
-                your next departmental event.
-              </p>
+              <p>Create your account and enroll your face.</p>
               <Link
                 to="/auth/signup"
                 className="landing-button landing-button-primary"
               >
-                Get started <FaArrowRight aria-hidden="true" />
+                Get started
               </Link>
               <p className="landing-final-note">
                 Already registered?{" "}
@@ -473,7 +438,7 @@ export default function LandingPage() {
             <span>CCIT departmental event attendance &amp; reporting</span>
             <Link to="/terms">Terms &amp; Conditions</Link>
             <a href="https://www.pexels.com/" target="_blank" rel="noreferrer">
-              Photography: Pexels <FaArrowRight aria-hidden="true" />
+              Photography: Pexels
             </a>
           </footer>
         </div>
@@ -484,7 +449,7 @@ export default function LandingPage() {
         tabIndex={hideFloatingCta ? -1 : 0}
         className={`landing-floating-cta landing-button landing-button-primary ${hideFloatingCta ? "is-hidden" : ""}`}
       >
-        Get started <FaArrowRight aria-hidden="true" />
+        Get started
       </Link>
     </AppBackground>
   );

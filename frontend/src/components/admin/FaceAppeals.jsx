@@ -101,7 +101,7 @@ export default function FaceAppeals() {
           </p>
           {eligible.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3">
             <label className="flex min-h-11 items-center gap-2 text-sm text-on"><input type="checkbox" checked={allSelected} ref={node => { if (node) node.indeterminate = !allSelected && eligible.some(row => selected.has(row._id)); }} disabled={reviewingAppeal || appealsLoading || !!loadError} onChange={event => setSelected(event.target.checked ? new Set(eligible.map(row => row._id)) : new Set())} />Select all on this page</label>
-            <div className="flex flex-wrap gap-2">{["approved", "rejected"].map(action => <Button key={action} size="sm" variant={action === "rejected" ? "danger" : "primary"} disabled={reviewingAppeal || !eligible.some(row => selected.has(row._id)) || !!loadError} onClick={() => { setReviewNote(""); setReviewError(""); setReviewIdentityChecked(false); setReviewTarget({ appeals: eligible.filter(row => selected.has(row._id)), action }); }}>{action === "approved" ? "Approve selected" : "Reject selected"}</Button>)}</div>
+            <div className="flex flex-wrap gap-2">{["approved", "rejected"].map(action => <Button key={action} size="sm" variant={action === "rejected" ? "danger" : "success"} disabled={reviewingAppeal || !eligible.some(row => selected.has(row._id)) || !!loadError} onClick={() => { setReviewNote(""); setReviewError(""); setReviewIdentityChecked(false); setReviewTarget({ appeals: eligible.filter(row => selected.has(row._id)), action }); }}>{action === "approved" ? "Approve selected" : "Reject selected"}</Button>)}</div>
           </div>}
           {appealsLoading ? (
             <Card>
