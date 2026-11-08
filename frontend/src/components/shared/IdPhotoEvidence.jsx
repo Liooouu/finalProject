@@ -4,7 +4,7 @@ import api from "../../api/axios";
 import { Button } from "../ui";
 import "../../styles/attendance-reviews.css";
 
-export default function IdPhotoEvidence({ request, autoLoad = false }) {
+export default function IdPhotoEvidence({ request, autoLoad = false, layout = "portrait" }) {
   const [requested, setRequested] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [photo, setPhoto] = useState({ id: null, url: "", error: "" });
@@ -39,12 +39,13 @@ export default function IdPhotoEvidence({ request, autoLoad = false }) {
     return () => { if (node?.open) node.close(); };
   }, [expanded, url]);
 
-  return <div className="id-review-evidence">
+  return <div className={`id-review-evidence ${layout === "inline" ? "id-evidence-inline" : ""}`}>
     {url && available ? <>
       <button type="button" className="id-review-photo" onClick={() => setExpanded(true)} aria-label={`Enlarge ID photo for ${request.student?.name || "student"}`}>
         <img src={url} alt="Captured physical school ID" onError={() => setPhoto({ id, url: "", error: "ID photo could not be displayed." })} />
-        <span><FaExpand aria-hidden="true" /> Enlarge ID</span>
+        {layout !== "inline" && <span><FaExpand aria-hidden="true" /> Enlarge ID</span>}
       </button>
+      {layout === "inline" && <Button type="button" variant="secondary" size="sm" onClick={() => setExpanded(true)}><FaExpand aria-hidden="true" /> Enlarge</Button>}
       <dialog ref={dialog} className="id-evidence-dialog" aria-labelledby={titleId} onCancel={() => setExpanded(false)} onClose={() => setExpanded(false)} onClick={event => { if (event.target === event.currentTarget) setExpanded(false); }}>
         <div className="id-evidence-dialog-content">
           <div className="flex items-center justify-between gap-3"><h3 id={titleId} className="font-semibold text-on">{request.student?.name || "Student"} · ID photo</h3><Button type="button" variant="ghost" size="sm" aria-label="Close ID photo" onClick={() => setExpanded(false)}><FaTimes aria-hidden="true" /></Button></div>
