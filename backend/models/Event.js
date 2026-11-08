@@ -31,6 +31,8 @@ const eventSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
     // Absent on older schedules; never reinterpret their saved deadlines.
     timeInPolicy: { type: String, enum: ['window_then_late'] },
+    activityStart: { type: Date },
+    activityEnd: { type: Date },
     timeInOpen: { type: Date, required: true },
     onTimeDeadline: { type: Date, required: true },
     timeInCutoff: { type: Date, required: true },

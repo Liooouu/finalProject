@@ -11,7 +11,7 @@ export function ScheduleExample() {
       <dt>Time Out</dt><dd>5:00–6:00 PM</dd>
       <dt>Invalid Time Out</dt><dd>4:59–6:00 PM (before the event ends)</dd>
     </dl>
-    <p>Time In must end by the event start. Time Out must open at or after the event end. For an overnight event, choose the next end date.</p>
+    <p>Time In must end by the start time. Time Out must open at or after the end time. Each added day/activity uses its own start and end schedule. For an overnight activity, choose the next end date.</p>
   </div>;
 }
 

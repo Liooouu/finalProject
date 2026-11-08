@@ -6,7 +6,7 @@ const { isValidObjectId } = require("mongoose");
 const SESSION_FIELDS = ['name','timeInOpen','onTimeDeadline','timeInCutoff','timeOutOpen','timeOutClose'];
 function normalizeSessions(rows, previous = []) {
   if (!Array.isArray(rows) || rows.length > 30) throw Object.assign(new Error('Use between 1 and 30 attendance sessions.'), { status: 400 });
-  return rows.map(row => {
+  return rows.map((row, index) => {
     if (!row || typeof row !== "object") throw Object.assign(new Error("Each session must contain a name and schedule."), { status: 400 });
     const old = previous.find(value => String(value._id) === String(row._id));
     if (row._id && (!isValidObjectId(row._id) || !old)) throw Object.assign(new Error('Unknown attendance session. Reload this event.'), { status: 400 });
@@ -25,12 +25,21 @@ function normalizeSessions(rows, previous = []) {
       if (clean.onTimeDeadline) clean.onTimeDeadline = new Date(Math.floor(+clean.onTimeDeadline / 60000) * 60000 + 59999);
       if (clean.timeOutOpen) clean.timeInCutoff = new Date(+clean.timeOutOpen - 1);
     }
+    for (const key of ['activityStart', 'activityEnd']) {
+      const raw = row[key] ?? old?.[key];
+      if (raw !== undefined) {
+        if (!(raw instanceof Date) && (typeof raw !== 'string' || !/(Z|[+-]\d{2}:\d{2})$/.test(raw))) throw Object.assign(new Error('Day/activity start and end must include a date, time and time zone.'), { status: 400 });
+        clean[key] = toDate(raw);
+        if (!clean[key]) throw Object.assign(new Error('Choose valid start and end times for this day/activity.'), { status: 400 });
+      }
+    }
+    if (index > 0 && policy && !old && (!clean.activityStart || !clean.activityEnd)) throw Object.assign(new Error('Set the start and end schedule for each additional day/activity.'), { status: 400 });
     if (old) Object.assign(clean, { _id: old._id, eligibleStudents: old.eligibleStudents, rosterLockedAt: old.rosterLockedAt });
     return clean;
   });
 }
 function sessionConfig(rows) {
-  return JSON.stringify((rows || []).map(row => ({ ...Object.fromEntries(SESSION_FIELDS.map(key => [key, key === 'name' ? row.name : toDate(row[key])?.toISOString()])), timeInPolicy: row.timeInPolicy || null })));
+  return JSON.stringify((rows || []).map(row => ({ ...Object.fromEntries(SESSION_FIELDS.map(key => [key, key === 'name' ? row.name : toDate(row[key])?.toISOString()])), timeInPolicy: row.timeInPolicy || null, activityStart: toDate(row.activityStart)?.toISOString() || null, activityEnd: toDate(row.activityEnd)?.toISOString() || null })));
 }
 
 function toDate(v) {
@@ -46,6 +55,12 @@ function validateSession(s, index, eventStart, eventEnd) {
   const name = String(s?.name || "").trim();
   const label = name === "Event attendance" ? "Attendance" : name || `Attendance ${index + 1}`;
   if (!name || name.length > 80) return `${label}: use a name of 1–80 characters`;
+  const ownSchedule = index > 0 && (s.activityStart !== undefined || s.activityEnd !== undefined);
+  if (ownSchedule) {
+    eventStart = toDate(s.activityStart); eventEnd = toDate(s.activityEnd);
+    if (!eventStart || !eventEnd) return `${label}: choose the start and end date/time for this day or activity.`;
+    if (eventEnd <= eventStart) return `${label}: End time must be after Start time. Choose the next end date for an overnight activity.`;
+  }
   const fields = ["timeInOpen", "onTimeDeadline", "timeInCutoff", "timeOutOpen", "timeOutClose"];
   const vals = {};
   for (const f of fields) {
@@ -53,10 +68,10 @@ function validateSession(s, index, eventStart, eventEnd) {
     if (!d) return `${label}: ${f} must be a valid timestamp`;
     vals[f] = d;
   }
-  if (index === 0 && s.timeInPolicy === 'window_then_late' && eventStart && Math.floor(+vals.onTimeDeadline / 60000) > Math.floor(+eventStart / 60000)) {
+  if ((index === 0 || ownSchedule) && s.timeInPolicy === 'window_then_late' && eventStart && Math.floor(+vals.onTimeDeadline / 60000) > Math.floor(+eventStart / 60000)) {
     return `${label}: Time In must end at or before the event start time. For a 9:00 AM start, 7:00–9:00 AM is valid; 9:01 AM is not.`;
   }
-  if (index === 0 && s.timeInPolicy === 'window_then_late' && eventEnd && vals.timeOutOpen < eventEnd) {
+  if ((index === 0 || ownSchedule) && s.timeInPolicy === 'window_then_late' && eventEnd && vals.timeOutOpen < eventEnd) {
     return `${label}: Time Out cannot open before the event ends. For a 5:00 PM end, 5:00–6:00 PM is valid; 4:59–6:00 PM is not.`;
   }
   if (vals.onTimeDeadline < vals.timeInOpen) return `${label}: On-time until is earlier than Time In opens. Move the on-time deadline forward.`;

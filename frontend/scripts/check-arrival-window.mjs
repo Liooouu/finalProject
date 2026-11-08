@@ -42,5 +42,26 @@ try {
   assert.equal(attendanceBoundaryIssue(partial), '', 'incomplete valid form must not raise a boundary popup');
   assert.match(attendanceBoundaryIssue({ ...partial, attendanceSessions: [{ ...partial.attendanceSessions[0], onTimeDeadline: '2026-11-08T09:01:00+08:00' }] }), /Time In must end/);
   assert.match(attendanceBoundaryIssue({ ...partial, attendanceSessions: [{ ...partial.attendanceSessions[0], timeOutOpen: '2026-11-08T16:59:00+08:00' }] }), /Time Out cannot open before/);
+  const { updateActivitySchedule, syncAttendanceDeadlines } = await server.ssrLoadModule('/src/utils/attendanceSessions.js');
+  let added = emptyEventAttendance(1);
+  for (const [key, value] of [['startDate', '2026-11-09'], ['startTime', '09:00'], ['endTime', '17:00']]) added = updateActivitySchedule(added, key, value, event.date);
+  const enterGroup = attendanceGroupsFor(added)[0], exitGroup = attendanceGroupsFor(added)[1];
+  added = updateAttendanceGroup(added, enterGroup, '2026-11-09', 'timeInOpen', '07:00');
+  added = updateAttendanceGroup(added, enterGroup, '2026-11-09', 'onTimeDeadline', '09:00');
+  added = updateAttendanceGroup(added, exitGroup, '2026-11-09', 'timeOutOpen', '17:00');
+  added = updateAttendanceGroup(added, exitGroup, '2026-11-09', 'timeOutClose', '18:00');
+  const twoDays = syncAttendanceDeadlines({ ...event, attendanceSessions: [...event.attendanceSessions, added] });
+  assert.equal(attendanceSetupIssue(twoDays), '');
+  assert.equal(validateSessions(normalizeSessions(twoDays.attendanceSessions), new Date('2026-11-08T20:15:00+08:00'), new Date('2026-11-08T20:20:00+08:00')), null);
+  const reversed = updateAttendanceGroup(added, exitGroup, '2026-11-09', 'timeOutClose', '10:00');
+  assert.match(reversed.timeOutClose, /^2026-11-09T02:00/, 'reversed input must not silently jump to Nov 10');
+  assert.match(attendanceBoundaryIssue({ ...twoDays, attendanceSessions: [twoDays.attendanceSessions[0], reversed] }), /closes before/);
+  const overnight = updateAttendanceGroup({ ...reversed, _timeOutOvernight: true }, exitGroup, '2026-11-09');
+  assert.match(overnight.timeOutClose, /^2026-11-10T02:00/, 'overnight rollover requires explicit consent');
+  const { default: Editor } = await server.ssrLoadModule('/src/components/shared/SessionSetupEditor.jsx');
+  const extraForm = renderToStaticMarkup(React.createElement(Editor, { value: twoDays, onChange() {}, extrasOnly: true }));
+  assert.match(extraForm, /Start date/); assert.match(extraForm, /Start time/);
+  assert.match(extraForm, /End date/); assert.match(extraForm, /End time/);
+  assert.equal((extraForm.match(/type="date"/g) || []).length, 2, 'additional day does not repeat dates inside Time In and Time Out');
   console.log('Arrival-window UI → API → penalty regression and schedule guidance passed.');
 } finally { await server.close(); }

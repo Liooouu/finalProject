@@ -498,7 +498,7 @@ router.get("/events", async (req, res) => {
         description: event.description,
         endDate: event.endDate, endTime: event.endTime,
         attendanceStartTime: event.attendanceStartTime, attendanceEndTime: event.attendanceEndTime,
-        attendanceSessions: (event.attendanceSessions || []).map(({ _id, name, timeInPolicy, timeInOpen, onTimeDeadline, timeInCutoff, timeOutOpen, timeOutClose }) => ({ _id, name, timeInPolicy, timeInOpen, onTimeDeadline, timeInCutoff, timeOutOpen, timeOutClose })),
+        attendanceSessions: (event.attendanceSessions || []).map(({ _id, name, timeInPolicy, activityStart, activityEnd, timeInOpen, onTimeDeadline, timeInCutoff, timeOutOpen, timeOutClose }) => ({ _id, name, timeInPolicy, activityStart, activityEnd, timeInOpen, onTimeDeadline, timeInCutoff, timeOutOpen, timeOutClose })),
         academicYearStart: event.academicYearStart ?? null,
         semester: event.semester ?? null,
         date: event.date,
