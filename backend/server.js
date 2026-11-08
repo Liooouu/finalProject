@@ -492,6 +492,23 @@ connectDB()
             autoFinishedAt: now,
           });
           console.log(`[lifecycle] "${event.title}" finished (auto)`);
+         // Reopen multi-day events finished after an earlier day but that
+         // still have a session window open or upcoming now.
+         const toReopen = await Event.find({
+           status: STATUS.FINISHED,
+           manualOverride: { $ne: true },
+           'attendanceSessions.1': { $exists: true },
+         });
+         for (const event of toReopen) {
+           const sessions = event.attendanceSessions || [];
+           const hasFuture = sessions.some(session => {
+             const close = new Date(session.activityEnd || session.timeOutClose);
+             return Number.isFinite(+close) && +close >= +now;
+           });
+           if (!hasFuture) continue;
+           await Event.findByIdAndUpdate(event._id, { status: STATUS.LIVE, autoFinishedAt: null });
+           console.log(`[lifecycle] "${event.title}" reopened for the next day (auto)`);
+         }
         }
       } catch (err) {
         console.error("Error in attendance processing job:", err.message);

@@ -148,12 +148,25 @@ function eventWindow(event) {
 // window's end when that is later (an event cannot end before its own check-in
 // window). Up to the window's end is "present", after it is "late", and after
 // this instant the event is over: auto-absence and auto-finish run.
+function sessionLastCheckInAt(event) {
+  const sessions = event?.attendanceSessions || [];
+  if (!sessions.length) return null;
+  let last = null;
+  for (const session of sessions) {
+    const close = session.activityEnd || session.timeOutClose;
+    if (close && (!last || +new Date(close) > +last)) last = new Date(close);
+  }
+  return last;
+}
 function eventLastCheckInAt(event) {
   const window = eventWindow(event);
   const endsAt = eventEndAt(event);
   const windowEnd = window ? window.end : null;
-  if (endsAt && windowEnd) return endsAt > windowEnd ? endsAt : windowEnd;
-  return endsAt || windowEnd;
+  const sessionLast = sessionLastCheckInAt(event);
+  let last = endsAt || windowEnd;
+  if (windowEnd && (!last || windowEnd > last)) last = windowEnd;
+  if (sessionLast && (!last || sessionLast > last)) last = sessionLast;
+  return last;
 }
 
 // Which attendance notices are due right now. Absolute instants only: the old
