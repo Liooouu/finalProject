@@ -30,6 +30,8 @@
 .admin-home-users:focus-visible { outline:2px solid var(--brand); outline-offset:4px; }
 .admin-bento-grid .admin-next-list { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; margin-top:16px; }
 .admin-bento-grid .admin-next-list>li { min-height:0; }
+.admin-bento-grid .admin-next-list>li.admin-event-preview { border-radius:12px; background:color-mix(in srgb,var(--card-alt-bg) 65%,var(--card-bg)); }
+.admin-bento-grid .admin-next-list .admin-event-preview>a { height:auto; background:transparent; }
 .admin-bento-grid .admin-next-list a { height:100%; align-items:flex-start; padding:14px; border-radius:12px; background:color-mix(in srgb,var(--card-alt-bg) 65%,var(--card-bg)); }
 .admin-bento-grid .admin-next-list p { font-size:14px; line-height:1.5; font-weight:500; }
 .admin-bento-grid .admin-next-list a>div>span { margin-top:6px; font-size:12px; line-height:1.5; }

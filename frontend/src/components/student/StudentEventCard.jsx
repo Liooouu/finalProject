@@ -1,4 +1,5 @@
 import SessionAttendanceDetails from "../shared/SessionAttendanceDetails";
+import SessionDayPager from "../shared/SessionDayPager";
 import { academicTermLabel } from "../../utils/academicPeriods";
 import React, { useEffect, useState } from "react";
 import { FaCalendarAlt, FaClock, FaMapMarkerAlt, FaCheckCircle, FaExclamationCircle } from "react-icons/fa";
@@ -40,7 +41,7 @@ export default function StudentEventCard({ event, attendance, records = [], atte
       </div>
       <div className="student-event-body flex flex-1 flex-col gap-4 p-4 sm:p-5">
         {openExit && <p className="rounded-xl bg-info/10 p-3 text-sm text-info">Event ended. Time Out is still open until {formatDateTime(openExit.timeOutClose)}.</p>}
-        {event.attendanceSessions?.length ? <div className="space-y-3">{event.attendanceSessions.map(session => { const row = records.find(record => String(record.session?._id || record.session) === String(session._id)); return <div key={session._id} className="rounded-xl bg-card-alt/50 p-3"><SessionAttendanceDetails record={row} session={session} /></div>; })}</div> : <>
+        {event.attendanceSessions?.length ? <SessionDayPager event={event}>{session => { const row = records.find(record => String(record.session?._id || record.session) === String(session._id)); return <div className="rounded-xl bg-card-alt/50 p-3"><SessionAttendanceDetails record={row} session={session} /></div>; }}</SessionDayPager> : <>
         <div role="status" aria-live="polite" aria-atomic="true" className={`rounded-xl border p-3 ${tone}`}>
           <div className="flex items-start gap-2.5">
             {recorded ? <FaCheckCircle aria-hidden="true" className="mt-0.5 shrink-0 text-lg" /> : <FaExclamationCircle aria-hidden="true" className="mt-0.5 shrink-0 text-lg" />}

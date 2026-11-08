@@ -29,10 +29,12 @@ try {
   assert.match(absentLedger, /Not recorded/); assert.match(absentLedger, /Not required/);
   assert.doesNotMatch(absentLedger, /8:00 AM/);
   const student = render(StudentEventCard, { event, records });
-  assert.match(student, /Completed/); assert.match(student, /Incomplete/);
-  assert.match(student, /Late \(4h\) \+ missing Time Out \(2h\): 6h/);
-  assert.match(student, /Afternoon session/);
-  assert.equal((student.match(/>Time In<\/p>/g) || []).length, 2, 'each session prints a Time In heading once');
+  assert.match(student, /Completed/); assert.doesNotMatch(student, /Incomplete|Afternoon session/);
+  assert.match(student, /Day 1 of 2/); assert.match(student, /aria-label="Next day or activity"/);
+  assert.equal((student.match(/>Time In<\/p>/g) || []).length, 1, 'only the selected day is rendered');
+  const laterStudent = render(StudentEventCard, { event: { ...event, attendanceSessions: [...event.attendanceSessions].reverse() }, records });
+  assert.match(laterStudent, /Incomplete|Afternoon session/);
+  assert.match(laterStudent, /Late \(4h\) \+ missing Time Out \(2h\): 6h/);
   const legacy = render(StudentEventCard, { event: { ...event, attendanceSessions: [] }, attendance: { status: 'present' } });
   assert.doesNotMatch(legacy, /Time Out|Incomplete/);
   const editor = render(SessionSetupEditor, { value: { ...event, attendanceSessions: [session] }, onChange() {} });
@@ -55,6 +57,7 @@ try {
   assert.match(schedule, /11:00 AM – 12:00 PM/);
   assert.doesNotMatch(schedule, /Late after/);
   assert.doesNotMatch(schedule, /<details/);
+  assert.doesNotMatch(schedule, /Next day or activity/, 'one-day events do not need navigation arrows');
   assert.match(attendanceWindowLabel('2026-11-08T15:00:00Z', '2026-11-08T16:30:00Z'), /Nov 8.*Nov 9/);
   assert.match(render(EventAttendanceSchedule, { event: { ...event, attendanceSessions: [] } }), /Time In only · no Time Out required/);
   const { default: EventCreateForm } = await server.ssrLoadModule('/src/components/shared/EventCreateForm.jsx');
