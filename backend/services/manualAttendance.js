@@ -38,7 +38,8 @@ function buildProposal(event, payload, now = new Date()) {
   let effectiveAt = now, proposedStatus;
   if (mode === "checkin") {
     if (payload.effectiveAt !== undefined || payload.requestedStatus) fail(400, "Live check-in time is recorded by the server and cannot be backdated");
-    if ((isTerminal(event.status) && !(selected && action === "time_out" && event.status === "finished")) || now > cutoff) fail(400, "Live attendance is closed. Submit a documented correction instead.");
+    const finishedSessionOpen = selected && event.status === 'finished' && require('./sessionAttendance').modeFor(event, selected, now) === action;
+    if ((isTerminal(event.status) && !finishedSessionOpen) || now > cutoff) fail(400, "Live attendance is closed. Submit a documented correction instead.");
     if (now < window.start) fail(400, "The attendance window has not opened yet");
   } else if (payload.requestedStatus === "absent") {
     if (now <= cutoff) fail(400, "Absence may only be requested after attendance has closed");

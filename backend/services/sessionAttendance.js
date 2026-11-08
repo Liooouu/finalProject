@@ -7,6 +7,7 @@ const User = require('../models/User');
 const DeletedAttendance = require('../models/DeletedAttendance');
 const { activeStudentFilter } = require('./studentEligibility');
 const { classify } = require('./penaltyCalc');
+const { publishRecordChange } = require('./recordUpdates');
 const id = value => String(value?._id || value || '');
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 
@@ -20,7 +21,7 @@ function sessionFor(event, sessionId, { required = true } = {}) {
 }
 function modeFor(event, session, now = new Date()) {
   if (!session || event?.status === 'closed') return 'closed';
-  if (event?.status !== 'finished' && +now >= +new Date(session.timeInOpen) && +now <= +new Date(session.timeInCutoff)) return 'time_in';
+  if ((event?.status !== 'finished' || session.timeInPolicy === 'window_then_late') && +now >= +new Date(session.timeInOpen) && +now <= +new Date(session.timeInCutoff)) return 'time_in';
   if (+now >= +new Date(session.timeOutOpen) && +now <= +new Date(session.timeOutClose)) return 'time_out';
   return 'closed';
 }
@@ -138,11 +139,13 @@ async function apply({ event, session, student, action, now = new Date(), method
       if (log || audit) update.$push = { ...(log ? { communityServiceLog: log } : {}), ...(audit ? { manualAttendanceAudit: audit } : {}) };
       const saved = await Attendance.findOneAndUpdate(versionFilter(existing), update, { new: true }).lean();
       if (!saved) continue;
+      publishRecordChange();
       if (result.arrivalStatus || result.completionStatus !== 'pending') await notice(event, session, saved, action, finalizing, method);
       return { ok: true, attendance: saved, status, hours: saved.communityServiceHours, action, completionStatus: result.completionStatus };
     }
     try {
       const saved = await Attendance.create({ ...changes, communityServiceLog: log ? [log] : [], manualAttendanceAudit: audit ? [audit] : [] });
+      publishRecordChange();
       if (result.arrivalStatus || result.completionStatus !== 'pending') await notice(event, session, saved, action, finalizing, method);
       return { ok: true, attendance: saved, status, hours: saved.communityServiceHours, action, completionStatus: result.completionStatus };
     } catch (error) {

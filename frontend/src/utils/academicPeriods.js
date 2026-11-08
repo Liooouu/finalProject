@@ -22,7 +22,7 @@ export function applyEventField(previous,{name,value}) {
   if(name!=="academicTerm") {
     let next={...previous,[name]:value};
     if (["date","endDate"].includes(name)) next = rebaseEventAttendanceDates(previous,next);
-    return ["date", "time", "attendanceSessions"].includes(name) ? syncAttendanceDeadlines(next) : next;
+    return ["date", "endDate", "time", "endTime", "attendanceSessions"].includes(name) ? syncAttendanceDeadlines(next) : next;
   }
   const [year,semester]=value.split(":");
   return {...previous,academicYearStart:year?Number(year):null,semester:semester||null};

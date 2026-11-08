@@ -60,6 +60,10 @@ app.use(cors());
 app.use(compression());
 app.use(express.json());
 
+const { observeRecordWrites, streamRecordUpdates } = require('./services/recordUpdates');
+app.use('/api', observeRecordWrites);
+app.get('/api/record-updates', require('./middleware/authMiddleware').protect, streamRecordUpdates);
+
 // Face photos are biometric data: never serve the private directory directly.
 app.use("/uploads/private-faces", (req, res) => {
   res.status(404).end();

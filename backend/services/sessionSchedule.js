@@ -16,12 +16,21 @@ function normalizeSessions(rows, previous = []) {
       if (!(raw instanceof Date) && (typeof raw !== 'string' || !/(Z|[+-]\d{2}:\d{2})$/.test(raw))) throw Object.assign(new Error('Session timestamps must include a time zone.'), { status: 400 });
       clean[key] = toDate(raw);
     }
+    const policy = row.timeInPolicy ?? old?.timeInPolicy;
+    if (policy !== undefined && policy !== 'window_then_late') throw Object.assign(new Error('Unknown Time In rule. Reload this event.'), { status: 400 });
+    if (policy) {
+      clean.timeInPolicy = policy;
+      // Minute-only inputs include the whole displayed on-time minute. The
+      // late-entry period ends immediately before departure opens.
+      if (clean.onTimeDeadline) clean.onTimeDeadline = new Date(Math.floor(+clean.onTimeDeadline / 60000) * 60000 + 59999);
+      if (clean.timeOutOpen) clean.timeInCutoff = new Date(+clean.timeOutOpen - 1);
+    }
     if (old) Object.assign(clean, { _id: old._id, eligibleStudents: old.eligibleStudents, rosterLockedAt: old.rosterLockedAt });
     return clean;
   });
 }
 function sessionConfig(rows) {
-  return JSON.stringify((rows || []).map(row => Object.fromEntries(SESSION_FIELDS.map(key => [key, key === 'name' ? row.name : toDate(row[key])?.toISOString()]))));
+  return JSON.stringify((rows || []).map(row => ({ ...Object.fromEntries(SESSION_FIELDS.map(key => [key, key === 'name' ? row.name : toDate(row[key])?.toISOString()])), timeInPolicy: row.timeInPolicy || null })));
 }
 
 function toDate(v) {
@@ -44,8 +53,8 @@ function validateSession(s, index, _eventStart, eventEnd) {
     if (!d) return `${label}: ${f} must be a valid timestamp`;
     vals[f] = d;
   }
-  if (vals.onTimeDeadline < vals.timeInOpen) return `${label}: Late after cannot be earlier than Time In opens`;
-  if (!(vals.onTimeDeadline <= vals.timeInCutoff)) return `${label}: Accept until must be the same as or later than Late after`;
+  if (vals.onTimeDeadline < vals.timeInOpen) return `${label}: On-time until is earlier than Time In opens. Move the on-time deadline forward.`;
+  if (!(vals.onTimeDeadline <= vals.timeInCutoff)) return `${label}: Time In must finish before Time Out opens. Move Time Out later or shorten the Time In range.`;
   if (!(vals.timeInCutoff < vals.timeOutOpen)) return `${label}: Time Out must open after Time In closes`;
   if (!(vals.timeOutOpen < vals.timeOutClose)) return `${label}: Time Out close must be after Time Out opens`;
   // Avoid overlapping entry and exit windows: time-in window [open,cutoff] and
@@ -55,7 +64,9 @@ function validateSession(s, index, _eventStart, eventEnd) {
   // queues may close afterward. Keep the system's 2026 date floor instead.
   if (vals.timeInOpen < new Date("2026-01-01T00:00:00+08:00")) return `${label}: attendance dates must be January 1, 2026 or later`;
   // Entry must still close by the event end. Departure uses its own deadline.
-  if (eventEnd && vals.timeInCutoff > eventEnd) return `${label}: Time In must close by the event end time`;
+  const arrivalEnd = s.timeInPolicy === 'window_then_late' ? vals.onTimeDeadline : vals.timeInCutoff;
+  const eventLimit = s.timeInPolicy === 'window_then_late' && eventEnd ? new Date(Math.floor(+eventEnd / 60000) * 60000 + 59999) : eventEnd;
+  if (eventLimit && arrivalEnd > eventLimit) return `${label}: Time In must close by the event end time. Move its on-time deadline earlier or extend the event.`;
   return null;
 }
 
@@ -78,7 +89,7 @@ function validateSessions(sessions, eventStart, eventEnd) {
       const aOut = [new Date(a.timeOutOpen), new Date(a.timeOutClose)];
       const bIn = [new Date(b.timeInOpen), new Date(b.timeInCutoff)];
       const bOut = [new Date(b.timeOutOpen), new Date(b.timeOutClose)];
-      const overlap = (x, y) => x[0] < y[1] && y[0] < x[1];
+      const overlap = (x, y) => x[0] <= y[1] && y[0] <= x[1];
       if (overlap(aIn, bIn) || overlap(aIn, bOut) || overlap(aOut, bIn) || overlap(aOut, bOut)) {
         return `Sessions ${i + 1} and ${j + 1} have overlapping windows`;
       }

@@ -1,4 +1,5 @@
 import AcademicPeriodsSettings from "./AcademicPeriodsSettings";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import { useTransientState } from "../../utils/useTransientState";
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -168,6 +169,8 @@ const ManageUsers = () => {
     // flash the table back to a skeleton.
     fetchUsers({ silent: readScreen(CACHE_KEY) !== undefined });
   }, []);
+
+  useAutoRefresh(fetchUsers, { interval: 30000, enabled: !selectedUser });
 
   // Promote, unlock and delete edit the list locally, so the cache has to
   // follow them — otherwise a deleted account reappears for a second on the

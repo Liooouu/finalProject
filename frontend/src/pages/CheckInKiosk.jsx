@@ -182,8 +182,8 @@ const CheckInKiosk = () => {
           name: data.student?.name || "Student",
           meta:
             data.action === "time_out" ? "Time Out recorded · Session completed" : data.status === "late"
-              ? "Late — 4 community service hours recorded"
-              : "Present",
+              ? "Time In recorded · Late · 4 penalty hours"
+              : "Time In recorded · Present",
           note: data.replacedExcuse ? "Your approved excuse was replaced." : "",
         });
         refreshStation();
@@ -497,18 +497,14 @@ const CheckInKiosk = () => {
             </div>
           )}
 
-          {result?.kind === "warn" && (
+          {['warn', 'ok', 'late'].includes(result?.kind) && (
             <div
               role="status"
               aria-live="polite"
               className={`absolute inset-x-3 top-3 rounded-2xl border px-5 py-4 shadow-2xl backdrop-blur sm:inset-x-6 sm:top-6 ${
-                result.kind === "ok"
+                result.kind === "ok" || result.kind === "late"
                   ? "border-emerald-400/40 bg-emerald-500/95 text-emerald-950"
-                  : result.kind === "late"
-                    ? "border-amber-400/40 bg-amber-400/95 text-amber-950"
-                    : result.kind === "info"
-                      ? "border-sky-400/40 bg-sky-500/95 text-sky-950"
-                      : "border-rose-400/40 bg-rose-500/95 text-rose-950"
+                  : "border-rose-400/40 bg-rose-500/95 text-rose-950"
               }`}
             >
               <div className="flex items-center gap-3">
@@ -528,7 +524,7 @@ const CheckInKiosk = () => {
         </div>
 
         <p role="status" aria-live="polite" className="min-h-6 text-center text-sm text-white/70">
-          {result && result.kind !== 'warn' ? result.kind === 'info' ? result.meta || result.name : `${result.name} · ${result.meta}` : scanning ? `${station?.mode === 'time_out' ? 'Time Out' : 'Time In'} · Look at the camera` : ''}
+          {result?.kind === 'info' ? result.meta || result.name : scanning ? `${station?.mode === 'time_out' ? 'Time Out' : 'Time In'} · Look at the camera` : ''}
         </p>
 
         <div className="grid gap-3 sm:grid-cols-2">

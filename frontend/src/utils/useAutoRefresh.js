@@ -3,8 +3,8 @@ import { subscribeToDataChanges } from "./dataSync";
 
 /**
  * Keeps a screen current without a full-page reload: refetches when another
- * tab reports a change, when the tab regains focus, and on a slow fallback
- * interval for changes made from another device.
+ * tab or the live server stream reports a change, when the tab regains focus,
+ * and on a slow fallback interval if the stream is unavailable.
  */
 export const useAutoRefresh = (
   callback,

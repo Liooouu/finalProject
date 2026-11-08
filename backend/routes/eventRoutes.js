@@ -531,6 +531,13 @@ router.put("/:id", protect, async (req, res) => {
       attendanceEndTime,
       ...(sessionChanged ? { attendanceSessions: nextSessions } : {}),
     };
+    // Legacy notification/lifecycle fields must follow the edited session too;
+    // otherwise its emails can still use the old hidden punctuality deadline.
+    if (sessionChanged && nextSessions?.length) {
+      const clock = value => new Date(value).toLocaleTimeString('en-GB', { timeZone: 'Asia/Manila', hour12: false, hour: '2-digit', minute: '2-digit' });
+      update.attendanceStartTime = nextSchedule.attendanceStartTime = clock(nextSessions[0].timeInOpen);
+      update.attendanceEndTime = nextSchedule.attendanceEndTime = clock(nextSessions[0].onTimeDeadline);
+    }
 
     // Touching the schedule only counts when a value actually CHANGED. Checking
     // mere presence released the manual override every time the edit form
@@ -538,7 +545,7 @@ router.put("/:id", protect, async (req, res) => {
     // could un-pause an event the organizer was holding open.
     const normDate = (v) => (v ? new Date(v).getTime() : null);
     const normClock = (v) => (v == null ? null : String(v).trim());
-    const scheduleTouched =
+    const scheduleTouched = sessionChanged ||
       ["date", "endDate"].some(
         (field) => req.body[field] !== undefined && normDate(req.body[field]) !== normDate(existing[field])
       ) ||

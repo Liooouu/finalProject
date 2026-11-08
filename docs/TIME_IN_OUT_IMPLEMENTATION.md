@@ -20,6 +20,18 @@ Existing events with no attendanceSessions retain Time In-only behavior. Existin
 
 ## Screens and workflow
 
+**November 8 arrival-rule correction:** new periods store
+`timeInPolicy: window_then_late`. The form's Time In range is the on-time range,
+including its final displayed minute. It is no longer derived from the event
+start. Late arrivals are accepted until immediately before Time Out opens; the
+API derives that cutoff and applies it consistently to face, ID and reviewed
+attendance. Create/Edit provide a schedule guide and block invalid ordering or
+overlap before submission. Event cards and emails distinguish on-time arrivals
+from later arrivals. Older saved periods keep their original rule and penalties;
+an unlocked period can explicitly adopt the new rule in Edit Event. Schedules
+with attendance/evidence remain protected. This supersedes the event-start
+deadline described in the original implementation note below.
+
 - Admin and organizer Create/Edit Event place the Time In follow-up under the start date/time and the Time Out follow-up under the end date/time. Primary attendance shares those dates; there are no repeated date pickers. Extra named periods retain separate dates. Time controls use the shared TrackED picker, and midnight rollover remains visible. Local validation explains an invalid ordering before a Create/Save request is sent. The on-time deadline follows the event start automatically; additional periods use their Time In opening. No separate Late after control is shown. Unrelated edits preserve existing saved deadlines. Event date changes do not generate a session or attendance times. Additional days/activities are optional and appear only after an explicit Add another day / activity action. Single-period events hide the redundant day/activity selector in station and ID capture. Preparing an ID desk or opening a station freezes session times before signed offline tickets can be issued; descriptive event details remain editable. Version checks reject racing edits.
 - An organizer chooses the event and session before opening its face station. The server switches that station between Time In and Time Out using its selected session, never another session of the event. Existing organizer permissions, station-browser binding and supervised face-matching thresholds remain in force.
 - Live ID-photo capture chooses a session and automatically uses its current Time In/Time Out window. No gallery upload was added to attendance. Queued captures are encrypted and keyed by event/session/student/action. Signed tickets bind the same scope. An offline exit without an approved entry remains pending; reviewers can approve the entry first and retry the exit. Batch review processes entries before exits.

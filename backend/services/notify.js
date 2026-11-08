@@ -7,6 +7,7 @@ const User = require("../models/User");
 const Notification = require("../models/Notification");
 const { sendMail, isMailEnabled } = require("./mailer");
 const { renderNotificationEmail } = require("./emailTemplate");
+const { publishRecordChange } = require("./recordUpdates");
 
 // A department-wide announcement must not place hundreds of messages in the
 // SMTP pool at once. This limit is shared by overlapping notification batches;
@@ -81,6 +82,7 @@ async function notifyUsers(recipients, { type, title, message, relatedEvent, eve
     }))
   );
 
+  publishRecordChange();
   const deliverEmail = async () => {
     try {
       if (!(await isMailEnabled())) return;

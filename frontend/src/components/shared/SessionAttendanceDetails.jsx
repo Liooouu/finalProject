@@ -1,6 +1,6 @@
 import React from 'react';
 import { formatDateTime } from '../../utils/helpers';
-import { attendanceCompletion, attendancePenaltyLabel } from '../../utils/attendanceSessions';
+import { attendanceCompletion, attendancePenaltyLabel, onTimeWindowEnd } from '../../utils/attendanceSessions';
 import { attendanceWindowLabel } from '../../utils/attendanceWindowLabel';
 
 // One block per attendance session. The scheduled window and the student's own
@@ -25,7 +25,7 @@ export default function SessionAttendanceDetails({ record, session = null, showW
   if (!session && !record?.session) return null;
   const name = session?.name || record?.sessionName || 'Attendance session';
   const status = record ? attendanceCompletion(record) : 'Not checked in';
-  const inWindow = showWindow && session ? attendanceWindowLabel(session.timeInOpen, session.timeInCutoff) : '';
+  const inWindow = showWindow && session ? attendanceWindowLabel(session.timeInOpen, onTimeWindowEnd(session)) : '';
   const outWindow = showWindow && session ? attendanceWindowLabel(session.timeOutOpen, session.timeOutClose) : '';
 
   if (compact) {

@@ -123,7 +123,8 @@ function eventDetailRows(event) {
   if (event.attendanceSessions?.length) {
     for (const session of event.attendanceSessions) {
       const prefix = event.attendanceSessions.length > 1 ? `${session.name} · ` : '';
-      rows.push([`${prefix}Time In`, attendanceTimeRange(session.timeInOpen, session.timeInCutoff, eventStartsAt(event))]);
+      rows.push([`${prefix}Time In`, attendanceTimeRange(session.timeInOpen, session.timeInPolicy === 'window_then_late' ? session.onTimeDeadline : session.timeInCutoff, eventStartsAt(event))]);
+      if (session.timeInPolicy === 'window_then_late') rows.push([`${prefix}Arrival rule`, 'On time within the Time In range; later arrivals are Late until Time Out opens.']);
       rows.push([`${prefix}Time Out`, attendanceTimeRange(session.timeOutOpen, session.timeOutClose, eventEndAt(event))]);
     }
   } else {

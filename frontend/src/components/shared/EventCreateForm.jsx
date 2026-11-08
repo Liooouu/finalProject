@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import SessionSetupEditor, { AttendanceTimeGroup } from "./SessionSetupEditor";
+import AttendanceScheduleGuide, { ScheduleHelp } from "./AttendanceScheduleGuide";
 import { attendanceSetupIssue } from "../../utils/attendanceSessions";
 import { Button, Card } from "../ui";
 import EventAcademicFields from "./EventAcademicFields";
@@ -23,6 +24,7 @@ export default function EventCreateForm({ value, onChange, onSubmit, busy, error
   return (
     <Card as="form" onSubmit={submit} className="event-create-form" aria-label="Create event">
       {(validationError || error) && <div className="alert alert-danger mb-4" role="alert"><span aria-hidden="true">!</span><p>{validationError || error}</p></div>}
+      <AttendanceScheduleGuide issue={validationError} onClose={() => setValidationError('')} />
       <div className="mb-4"><EventAcademicFields value={value} onChange={change} creating disabled={busy}/></div>
       <div className="event-create-layout">
         <fieldset className="event-create-section">
@@ -51,8 +53,8 @@ export default function EventCreateForm({ value, onChange, onSubmit, busy, error
               </div>
               {(value.endDate || value.date) && value.endTime && <AttendanceTimeGroup value={value} onChange={change} groupId="timeOut" followEventDate disabled={busy} />}
             </div>
-
           </div>
+          <ScheduleHelp />
         </fieldset>
       </div>
       <div className="mt-4"><SessionSetupEditor value={value} onChange={change} disabled={busy} extrasOnly /></div>

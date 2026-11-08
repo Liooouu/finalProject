@@ -69,21 +69,25 @@ export const ATTENDANCE_GROUPS = [
   { id: 'timeIn', title: 'Time In', fields: [['timeInOpen', 'Opens'], ['timeInCutoff', 'Accept until']] },
   { id: 'timeOut', title: 'Time Out', fields: [['timeOutOpen', 'Opens'], ['timeOutClose', 'Closes']] },
 ];
-export const emptyEventAttendance = index => ({ name: index === 0 ? 'Event attendance' : `Additional attendance ${index}`, timeInOpen: '', onTimeDeadline: '', timeInCutoff: '', timeOutOpen: '', timeOutClose: '' });
-// The event start already defines punctuality. Additional periods use their
-// own opening time; keep the API's deadline without another user input.
+export const attendanceGroupsFor = row => row?.timeInPolicy === 'window_then_late'
+  ? [{ id: 'timeIn', title: 'Time In', fields: [['timeInOpen', 'Opens'], ['onTimeDeadline', 'On-time until']] }, ATTENDANCE_GROUPS[1]]
+  : ATTENDANCE_GROUPS;
+export const onTimeWindowEnd = row => row?.timeInPolicy === 'window_then_late' ? row.onTimeDeadline : row.timeInCutoff;
+export const emptyEventAttendance = index => ({ name: index === 0 ? 'Event attendance' : `Additional attendance ${index}`, timeInPolicy: 'window_then_late', timeInOpen: '', onTimeDeadline: '', timeInCutoff: '', timeOutOpen: '', timeOutClose: '' });
+// The displayed Time In range is on time; arrival remains possible, but late,
+// until immediately before Time Out opens. Existing saved rules stay intact.
 export function syncAttendanceDeadlines(value) {
-  return { ...value, attendanceSessions: (value.attendanceSessions || []).map((row, index) => ({
+  return { ...value, attendanceSessions: (value.attendanceSessions || []).map(row => row.timeInPolicy === 'window_then_late' ? ({
     ...row,
-    onTimeDeadline: index === 0 && value.date && value.time
-      ? inputInstant(`${value.date}T${value.time}`) : row.timeInOpen,
-  })) };
+    onTimeDeadline: row.onTimeDeadline ? new Date(Math.floor(+new Date(row.onTimeDeadline) / 60000) * 60000 + 59999).toISOString() : '',
+    timeInCutoff: row.timeOutOpen ? new Date(+new Date(row.timeOutOpen) - 1).toISOString() : '',
+  }) : row) };
 }
 export function rebaseEventAttendanceDates(previous, next) {
   const base = previous.attendanceSessions?.[0];
   if (!base || base.name !== 'Event attendance') return next;
   let row = base;
-  for (const group of ATTENDANCE_GROUPS) {
+  for (const group of attendanceGroupsFor(base)) {
     const before = group.id === 'timeIn' ? previous.date : previous.endDate || previous.date;
     const after = group.id === 'timeIn' ? next.date : next.endDate || next.date;
     if (before !== after) row = updateAttendanceGroup(row, group, after || '');
@@ -91,18 +95,29 @@ export function rebaseEventAttendanceDates(previous, next) {
   return row === base ? next : { ...next, attendanceSessions: [row, ...previous.attendanceSessions.slice(1)] };
 }
 export function attendanceSetupIssue(value) {
+  const start = +new Date(`${value.date}T${value.time}:00+08:00`);
+  const end = +new Date(`${value.endDate || value.date}T${value.endTime || '23:59'}:00+08:00`);
+  if (!Number.isFinite(start)) return 'Select the event start date and time first.';
+  if (!Number.isFinite(end) || end <= start) return 'End time must be after Start time. Choose a later end time, or the next date for an overnight event.';
   if (!value.attendanceSessions?.length) return 'Set the Time In and Time Out times below the event schedule.';
   for (const row of value.attendanceSessions) {
     const prefix = row.name === 'Event attendance' ? '' : `${row.name}: `;
-    const times = Object.fromEntries(ATTENDANCE_GROUPS.flatMap(group => group.fields.map(([key,label]) => [key, { at: +new Date(row[key]), label: `${group.title} ${label.toLowerCase()}` }])));
-    times.onTimeDeadline = { at: +new Date(row.onTimeDeadline), label: 'event start time' };
+    const times = Object.fromEntries(attendanceGroupsFor(row).flatMap(group => group.fields.map(([key,label]) => [key, { at: +new Date(row[key]), label: `${group.title} ${label.toLowerCase()}` }])));
+    times.onTimeDeadline = { at: +new Date(row.onTimeDeadline), label: 'Time In on-time deadline' };
     for (const value of Object.values(times)) if (!Number.isFinite(value.at)) return `${prefix}Select ${value.label}.`;
-    if (times.onTimeDeadline.at < times.timeInOpen.at) return `${prefix}Time In must open at or before the start time.`;
-    if (times.timeInCutoff.at < times.onTimeDeadline.at) return `${prefix}Accept until must be at or after the start time.`;
-    if (times.timeOutOpen.at <= times.timeInCutoff.at) return `${prefix}Time Out must open after Time In closes.`;
-    if (times.timeOutClose.at <= times.timeOutOpen.at) return `${prefix}Time Out must close after it opens.`;
-    const end = +new Date(`${value.endDate || value.date}T${value.endTime || '23:59'}:00+08:00`);
-    if (Number.isFinite(end) && times.timeInCutoff.at > end) return `${prefix}Time In must close by the event end time.`;
+    if (times.onTimeDeadline.at < times.timeInOpen.at) return `${prefix}On-time until is earlier than Time In opens. Choose an on-time deadline at or after the opening time.`;
+    const cutoff = +new Date(row.timeInCutoff);
+    if (row.timeInPolicy !== 'window_then_late' && cutoff < times.onTimeDeadline.at) return `${prefix}Accept until must be at or after the on-time deadline.`;
+    if (times.timeOutOpen.at <= times.onTimeDeadline.at || times.timeOutOpen.at <= cutoff) return `${prefix}Time In overlaps Time Out. Move Time Out opens later than the Time In range.`;
+    if (times.timeOutClose.at <= times.timeOutOpen.at) return `${prefix}Time Out closes before it opens. Choose a later closing time.`;
+    const arrivalEnd = row.timeInPolicy === 'window_then_late' ? times.onTimeDeadline.at : cutoff;
+    const endLimit = row.timeInPolicy === 'window_then_late' ? Math.floor(end / 60000) * 60000 + 59999 : end;
+    if (arrivalEnd > endLimit) return `${prefix}Time In extends beyond the event. Move its on-time deadline earlier or extend the event end time.`;
+  }
+  const rows = value.attendanceSessions;
+  for (let i = 0; i < rows.length; i++) for (let j = i + 1; j < rows.length; j++) {
+    const windows = row => [[+new Date(row.timeInOpen), +new Date(row.timeInCutoff)], [+new Date(row.timeOutOpen), +new Date(row.timeOutClose)]];
+    if (windows(rows[i]).some(a => windows(rows[j]).some(b => a[0] <= b[1] && b[0] <= a[1]))) return `${rows[i].name} overlaps ${rows[j].name}. Move one attendance period so their Time In and Time Out windows do not overlap.`;
   }
   return '';
 }

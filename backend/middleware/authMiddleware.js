@@ -31,6 +31,7 @@ const protect = async (req, res, next) => {
     // Never modify the Mongoose document's stored student role for a portal switch.
     req.user = activeRole === user.role ? user : { ...(user.toObject ? user.toObject() : user), accountRole: user.role, role: activeRole };
     req.authRole = activeRole;
+    req.authExpiresAt = decoded.exp ? decoded.exp * 1000 : null;
     next();
   } catch (err) {
     console.error(err);

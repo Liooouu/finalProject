@@ -1,6 +1,7 @@
 import SessionAttendanceDetails from "./shared/SessionAttendanceDetails";
 import EventAttendanceSchedule from "./shared/EventAttendanceSchedule";
 import SessionSetupEditor, { AttendanceTimeGroup } from "./shared/SessionSetupEditor";
+import AttendanceScheduleGuide, { ScheduleHelp } from "./shared/AttendanceScheduleGuide";
 import { attendanceSetupIssue } from "../utils/attendanceSessions";
 import { usePortalBack } from "../utils/usePortalBack";
 import EventAcademicFields from "./shared/EventAcademicFields";
@@ -60,6 +61,7 @@ const EventDetails = () => {
   const [myAttendance, setMyAttendance] = useState(null);
   const [sessionRecords, setSessionRecords] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [scheduleIssue, setScheduleIssue] = useState('');
   const [editForm, setEditForm] = useState({});
   const [role, setRole] = useState(null);
   useEffect(() => {
@@ -282,7 +284,7 @@ const EventDetails = () => {
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (saving) return;
-    if (editForm.attendanceSessions?.length) { const issue = attendanceSetupIssue(editForm); if (issue) { setMessageType("error"); setMessage(issue); return; } }
+    if (editForm.attendanceSessions?.length) { const issue = attendanceSetupIssue(editForm); if (issue) { setScheduleIssue(issue); return; } }
     setSaving(true);
     try {
       const res = await api.put(`/events/${id}`, editForm);
@@ -601,6 +603,8 @@ const EventDetails = () => {
 
             {isEditing ? (
               <form onSubmit={handleSaveEdit} className="space-y-4">
+                <AttendanceScheduleGuide issue={scheduleIssue} onClose={() => setScheduleIssue('')} />
+                <ScheduleHelp />
                 <EventAcademicFields value={editForm} onChange={handleEditChange} readOnly={role!=="admin"} disabled={saving}/>
                 <div>
                   <label htmlFor="ed-title" className="field-label">

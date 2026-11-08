@@ -70,8 +70,8 @@ test('arrival before event start and departure afterward work together', () => {
   assert.match(validateSession({ ...row, timeOutOpen: at('08:00') }, 0, at('08:14'), at('09:14')), /after Time In closes/);
 });
 
-test('Late after may equal Time In opens; an earlier deadline is explained clearly', () => {
+test('saved on-time deadline may equal Time In opens; an earlier deadline is explained clearly', () => {
   const row = { name: 'Event attendance', timeInOpen: '2026-11-08T00:00:00Z', onTimeDeadline: '2026-11-08T00:00:00Z', timeInCutoff: '2026-11-08T01:00:00Z', timeOutOpen: '2026-11-08T09:00:00Z', timeOutClose: '2026-11-08T10:00:00Z' };
   assert.equal(validateSession(row, 0), null);
-  assert.match(validateSession({ ...row, onTimeDeadline: '2026-11-07T23:59:00Z' }, 0), /Late after cannot be earlier/);
+  assert.match(validateSession({ ...row, onTimeDeadline: '2026-11-07T23:59:00Z' }, 0), /On-time until.*earlier/);
 });

@@ -37,7 +37,10 @@ api.interceptors.response.use(
     const method = (response.config?.method || "get").toUpperCase();
     const url = response.config?.url || "";
     const isMutation = !["GET", "HEAD", "OPTIONS"].includes(method);
-    const isQuiet = /^\/(auth|notifications)\b/.test(url);
+    const kioskAttempt = /^\/checkin\/[^/?]+$/.test(url) && url !== '/checkin/sessions';
+    const isQuiet = /^\/(auth|notifications)\b/.test(url) ||
+      url === '/id-photo-attendance/prepare' ||
+      (kioskAttempt && response.data?.result !== 'marked') || response.data?.ok === false;
 
     if (isMutation && !isQuiet) {
       announceDataChange({ method, url });

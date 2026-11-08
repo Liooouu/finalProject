@@ -132,27 +132,27 @@ const AttendanceReports = () => {
     [attendanceParams, attendancePage]
   );
 
-  const fetchEvents = useCallback(async () => {
-    setLoading(true);
+  const fetchEvents = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const res = await api.get("/reports/events", {params:periodParams});
       setEventsData(res.data);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [periodParams]);
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
+  const fetchUsers = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const res = await api.get("/reports/users");
       setUsersData(res.data);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -171,6 +171,8 @@ const AttendanceReports = () => {
     if (activeTab === "users") fetchUsers();
   }, [activeTab, fetchUsers]);
   useAutoRefresh(fetchUsers, { interval: 30000, enabled: activeTab === "users" });
+  useAutoRefresh(() => fetchAttendance(), { interval: 30000, enabled: activeTab === "attendance" });
+  useAutoRefresh(fetchEvents, { interval: 30000, enabled: activeTab === "events" });
 
   const downloadCSV = async (type) => {
     setExporting(true);

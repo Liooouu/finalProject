@@ -1,7 +1,11 @@
+import { startRecordUpdates } from './recordUpdates';
+
 const CHANNEL_NAME = "tracked:data-sync";
 const EVENT_NAME = "tracked:data-changed";
 
 let channel = null;
+let subscribers = 0;
+let stopRecordUpdates = null;
 
 const dispatch = (detail = {}) => {
   if (typeof window === "undefined") return;
@@ -30,11 +34,24 @@ export const subscribeToDataChanges = (handler) => {
   const listener = (event) => handler(event.detail || {});
   window.addEventListener(EVENT_NAME, listener);
   ensureChannel();
-  return () => window.removeEventListener(EVENT_NAME, listener);
+  subscribers += 1;
+  if (!stopRecordUpdates) stopRecordUpdates = startRecordUpdates(() => dispatch({ source: 'server', at: Date.now() }));
+  let removed = false;
+  return () => {
+    if (removed) return;
+    removed = true;
+    window.removeEventListener(EVENT_NAME, listener);
+    subscribers -= 1;
+    if (!subscribers) {
+      stopRecordUpdates?.();
+      stopRecordUpdates = null;
+    }
+  };
 };
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
+    stopRecordUpdates?.();
     channel?.close();
     channel = null;
   });
