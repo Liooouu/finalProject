@@ -94,6 +94,19 @@ function formatClock(value) {
   return `${clock.hours % 12 || 12}:${String(clock.minutes).padStart(2, "0")} ${clock.hours >= 12 ? "PM" : "AM"}`;
 }
 
+function attendanceTimeRange(start, end, reference) {
+  const from = validDate(start), to = validDate(end);
+  if (!from || !to) return "Not set";
+  const day = value => new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(value);
+  const time = value => new Intl.DateTimeFormat("en-PH", { timeZone: TIME_ZONE, hour: "numeric", minute: "2-digit", hour12: true }).format(value).toUpperCase();
+  const ref = validDate(reference);
+  if (day(from) === day(to) && ref && day(from) === day(ref)) return `${time(from)} – ${time(to)}`;
+  // Keep exceptional days explicit without repeating full weekday/year stamps.
+  const year = value => new Intl.DateTimeFormat("en-PH", { timeZone: TIME_ZONE, year: "numeric" }).format(value);
+  const date = value => new Intl.DateTimeFormat("en-PH", { timeZone: TIME_ZONE, month: "short", day: "numeric", ...(ref && year(value) === year(ref) ? {} : { year: "numeric" }) }).format(value);
+  return `${date(from)} ${time(from)} – ${day(from) === day(to) ? '' : `${date(to)} `}${time(to)}`;
+}
+
 function eventDetailRows(event) {
   if (!event) return [];
   const rows = [];
@@ -110,12 +123,12 @@ function eventDetailRows(event) {
   if (event.attendanceSessions?.length) {
     for (const session of event.attendanceSessions) {
       const prefix = event.attendanceSessions.length > 1 ? `${session.name} · ` : '';
-      rows.push([`${prefix}Time In`, `${formatDateTime(session.timeInOpen)} – ${formatDateTime(session.timeInCutoff)}`]);
-      rows.push([`${prefix}Time Out`, `${formatDateTime(session.timeOutOpen)} – ${formatDateTime(session.timeOutClose)}`]);
+      rows.push([`${prefix}Time In`, attendanceTimeRange(session.timeInOpen, session.timeInCutoff, eventStartsAt(event))]);
+      rows.push([`${prefix}Time Out`, attendanceTimeRange(session.timeOutOpen, session.timeOutClose, eventEndAt(event))]);
     }
   } else {
     const window = eventWindow(event);
-    if (window) rows.push(["Time In", `${formatDateTime(window.start)} – ${formatDateTime(window.end)}`]);
+    if (window) rows.push(["Time In", attendanceTimeRange(window.start, window.end, eventStartsAt(event))]);
     rows.push(["Time Out", "Not required for this older event"]);
   }
   if (event.location) rows.push(["Venue", event.location]);
