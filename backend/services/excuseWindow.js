@@ -1,7 +1,7 @@
 const { eventEndAt } = require('./eventLifecycle');
 const EXCUSE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-function excuseWindow(event, now = new Date()) {
-  const endedAt = eventEndAt(event);
+function excuseWindow(event, now = new Date(), session = null) {
+  const endedAt = session ? new Date(session.timeOutClose) : eventEndAt(event);
   if (!endedAt) return { allowed: false, reason: 'Event schedule is unavailable', deadline: null };
   const deadline = new Date(endedAt.getTime() + EXCUSE_WINDOW_MS);
   return { endedAt, deadline, allowed: now >= endedAt && now <= deadline,

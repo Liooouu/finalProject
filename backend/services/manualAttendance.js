@@ -7,7 +7,7 @@ const idOf = value => String(value?._id || value || "");
 const plain = value => value?.toObject ? value.toObject() : value;
 const baseHours = status => status === "absent" ? 8 : status === "late" ? 4 : 0;
 const attendanceSummary = record => record ? { attendance: record._id, status: record.status, method: record.method,
-  attendedAt: record.attendedAt, hours: record.communityServiceHours || 0 } : null;
+  attendedAt: record.attendedAt, ...(record.session ? { session: record.session, sessionName: record.sessionName, timeInAt: record.timeInAt, timeOutAt: record.timeOutAt, completionStatus: record.completionStatus } : {}), hours: record.communityServiceHours || 0 } : null;
 const reviewResult = request => ({ id: idOf(request), status: request.status,
   ...(request.resolution === "existing_face" ? { keptExistingAttendance: true } : {}) });
 function fail(status, message) { const error = new Error(message); error.status = status; throw error; }
@@ -27,13 +27,18 @@ function buildProposal(event, payload, now = new Date()) {
   if (payload.identityChecked !== true) fail(400, "Confirm that you checked the student's identity and attendance evidence");
   const reason = typeof payload.reason === "string" ? payload.reason.trim() : "";
   if (reason.length < 5 || reason.length > 1000) fail(400, "Give a reason between 5 and 1000 characters");
-  const window = eventWindow(event), cutoff = eventLastCheckInAt(event);
+  const selected = (event.attendanceSessions || []).length ? require("./sessionAttendance").sessionFor(event, payload.sessionId) : null;
+  const action = payload.action || "time_in";
+  if (!["time_in", "time_out"].includes(action)) fail(400, "Choose Time In or Time Out.");
+  if (!selected && action !== "time_in") fail(400, "This legacy event uses Time In only.");
+  const window = selected ? { start: new Date(action === "time_out" ? selected.timeOutOpen : selected.timeInOpen), end: new Date(action === "time_out" ? selected.timeOutClose : selected.onTimeDeadline) } : eventWindow(event);
+  const cutoff = selected ? new Date(action === "time_out" ? selected.timeOutClose : selected.timeInCutoff) : eventLastCheckInAt(event);
   if (!window || !cutoff) fail(400, "This event has no valid attendance schedule");
   if (payload.requestedStatus && payload.requestedStatus !== "absent") fail(400, "Present or late is calculated from the check-in time. Excuses use the excuse-letter review.");
   let effectiveAt = now, proposedStatus;
   if (mode === "checkin") {
     if (payload.effectiveAt !== undefined || payload.requestedStatus) fail(400, "Live check-in time is recorded by the server and cannot be backdated");
-    if (isTerminal(event.status) || now > cutoff) fail(400, "Live attendance is closed. Submit a documented correction instead.");
+    if ((isTerminal(event.status) && !(selected && action === "time_out" && event.status === "finished")) || now > cutoff) fail(400, "Live attendance is closed. Submit a documented correction instead.");
     if (now < window.start) fail(400, "The attendance window has not opened yet");
   } else if (payload.requestedStatus === "absent") {
     if (now <= cutoff) fail(400, "Absence may only be requested after attendance has closed");
@@ -46,14 +51,14 @@ function buildProposal(event, payload, now = new Date()) {
     if (!Number.isFinite(effectiveAt.getTime()) || effectiveAt > now) fail(400, "The check-in time must be a valid time in the past");
     if (effectiveAt < window.start || effectiveAt > cutoff) fail(400, "The claimed check-in time must be within this event's attendance period");
   }
-  proposedStatus ||= effectiveAt <= window.end ? "present" : "late";
-  return { mode, reason, identityChecked: true, effectiveAt, submittedAt: now, proposedStatus,
+  proposedStatus ||= action === "time_out" ? "time_out" : effectiveAt <= window.end ? "present" : "late";
+  return { mode, reason, ...(selected ? { session: selected._id, sessionName: selected.name, action } : {}), identityChecked: true, effectiveAt, submittedAt: now, proposedStatus,
     proposedHours: baseHours(proposedStatus), schedule: { start: window.start, deadline: window.end, cutoff } };
 }
 
 function createService(deps) {
   const { Request, Attendance, Event, User, notifyUsers = async () => {} } = deps;
-  const populated = query => query.populate("event", "title date time academicYearStart semester endDate endTime status attendanceStartTime attendanceEndTime manualAttendanceReviewers")
+  const populated = query => query.populate("event", "title date time academicYearStart semester endDate endTime status attendanceStartTime attendanceEndTime manualAttendanceReviewers attendanceSessions")
     .populate("student", "name email program yearLevel section").populate("requestedBy", "name email").populate("reviewedBy", "name email");
   function publicRow(value, user) {
     const row = plain(value);
@@ -70,16 +75,18 @@ function createService(deps) {
     if (user?.role !== "organizer") fail(403, "Only event organizers may submit manual attendance requests");
     if (!isValidObjectId(payload.eventId) || !isValidObjectId(payload.studentId)) fail(400, "A valid event and student are required");
     if (idOf(user) === idOf(payload.studentId)) fail(403, "Another organizer must handle your own attendance");
-    const [event, student, previous] = await Promise.all([
+    const [event, student] = await Promise.all([
       Event.findById(payload.eventId), User.findById(payload.studentId).select("role enrollmentStatus emailVerified"),
-      Attendance.findOne({ event: payload.eventId, student: payload.studentId }).lean(),
     ]);
     if (!event) fail(404, "Event not found");
     if (!student || student.role !== "student") fail(400, "Choose a student account");
     if ((payload.mode || "checkin") === "checkin" && !isActiveStudent(student)) fail(400, "Only active, verified students may check in. Historical corrections remain available for existing records.");
-    if (previous?.status === "excused" || previous?.method === "face") fail(409, "This student already has face-verified attendance or an approved excuse. Review that record separately.");
+    const selectedSession = event.attendanceSessions?.length ? require("./sessionAttendance").sessionFor(event, payload.sessionId) : null;
+    const previous = await Attendance.findOne({ event: payload.eventId, student: payload.studentId, session: selectedSession?._id || null }).lean();
+    if (previous?.status === "excused" || (previous?.method === "face" && !selectedSession)) fail(409, "This student already has face-verified attendance or an approved excuse. Review that record separately.");
     const proposal = buildProposal(event, payload, now);
-    if (proposal.mode === "checkin" && previous && previous.status !== "absent" && previous.status !== "pending") fail(409, "Attendance is already recorded. Use a documented correction if needed.");
+    if (selectedSession) await require("./sessionAttendance").lockSchedule(event, now);
+    if (!selectedSession && proposal.mode === "checkin" && previous && previous.status !== "absent" && previous.status !== "pending") fail(409, "Attendance is already recorded. Use a documented correction if needed.");
     let request;
     try {
       request = await Request.create({ ...proposal, event: event._id, student: student._id, requestedBy: user._id,
@@ -116,12 +123,20 @@ function createService(deps) {
     const page = Math.min(Math.max(1, parseInt(query.page, 10) || 1), Math.max(1, Math.ceil(total / pageSize)));
     const requests = await populated(Request.find(filter).sort({ submittedAt: -1, _id: -1 }).skip((page - 1) * pageSize).limit(pageSize)).lean();
     const pairs = requests.filter(request => request.event && request.student)
-      .map(request => ({ event: request.event._id, student: request.student._id }));
+      .map(request => ({ event: request.event._id, student: request.student._id, session: request.session || null }));
     const attendance = pairs.length ? await Attendance.find({ $or: pairs })
-      .select("event student status method attendedAt communityServiceHours").lean() : [];
-    const existing = new Map(attendance.map(record => [`${idOf(record.event)}:${idOf(record.student)}`, record]));
-    return { requests: requests.map(request => ({ ...publicRow(request, user),
-      currentAttendance: attendanceSummary(existing.get(`${idOf(request.event)}:${idOf(request.student)}`)) })), total, page, pageSize };
+      .select("event session student status method attendedAt timeInAt timeOutAt completionStatus arrivalStatus sessionPenaltyHours sessionName communityServiceHours").lean() : [];
+    const existing = new Map(attendance.map(record => [`${idOf(record.event)}:${idOf(record.student)}:${idOf(record.session)}`, record]));
+    return { requests: requests.map(request => {
+      const current = existing.get(`${idOf(request.event)}:${idOf(request.student)}:${idOf(request.session)}`);
+      const session = request.event?.attendanceSessions?.find(row => idOf(row) === idOf(request.session));
+      const forecast = session && request.status === 'pending' ? require('./penaltyCalc').classify({ session,
+        timeInAt: request.proposedStatus === 'absent' ? null : request.action === 'time_out' ? current?.timeInAt : request.effectiveAt,
+        timeOutAt: request.proposedStatus === 'absent' ? null : request.action === 'time_out' ? request.effectiveAt : current?.timeOutAt,
+        now: new Date() }) : null;
+      return { ...publicRow(request, user), ...(forecast ? { proposedHours: forecast.hours, projectedCompletion: forecast.completionStatus } : {}), currentAttendance: attendanceSummary(current) };
+    }), total, page, pageSize };
+
   }
   async function summary(user) {
     const scope = await reviewScope(user, "review");
@@ -134,7 +149,7 @@ function createService(deps) {
   async function reviewEvents(user) {
     if (!["admin", "organizer"].includes(user?.role)) fail(403, "Review access is required");
     return Event.find(user.role === "admin" ? {} : { manualAttendanceReviewers: user._id })
-      .select("title date time endDate endTime status attendanceStartTime attendanceEndTime").sort({ date: -1 }).lean();
+      .select("title date time endDate endTime status attendanceStartTime attendanceEndTime attendanceSessions").sort({ date: -1 }).lean();
   }
   async function reviewers(user, eventId) {
     if (user?.role !== "admin") fail(403, "Only administrators assign event reviewers");
@@ -176,7 +191,7 @@ function createService(deps) {
     if (!request) fail(409, "Another reviewer is processing this request. Refresh and try again.");
     try {
       // Recover if attendance was committed but the request finalization failed.
-      const alreadyApplied = await Attendance.findOne({ event: request.event, student: request.student, "manualAttendanceAudit.request": request._id }).lean();
+      const alreadyApplied = await Attendance.findOne({ event: request.event, student: request.student, ...(request.session ? { session: request.session } : {}), "manualAttendanceAudit.request": request._id }).lean();
       const priorAudit = alreadyApplied?.manualAttendanceAudit?.find(item => idOf(item.request) === idOf(request));
       if (priorAudit) {
         await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, { $set: { status: "approved", reviewedBy: priorAudit.reviewedBy, reviewedAt: priorAudit.reviewedAt, reviewNote: priorAudit.reviewNote }, $unset: { reviewLock: 1 } });
@@ -186,7 +201,7 @@ function createService(deps) {
         // Some finished/manually closed events are no longer visited by the
         // lifecycle job. Rejecting a request must not grant a permanent absence
         // exemption just because no Attendance row was created yet.
-        if (now > new Date(request.schedule.cutoff)) {
+        if (!request.session && now > new Date(request.schedule.cutoff)) {
           try {
             await Attendance.updateOne({ event: request.event, student: request.student }, { $setOnInsert: {
               event: request.event, student: request.student, attendedAt: request.schedule.cutoff,
@@ -203,6 +218,26 @@ function createService(deps) {
       }
       const student = await User.findById(request.student).select("role");
       if (!student || student.role !== "student") fail(409, "The student account changed. This request cannot be applied.");
+      if (request.session) {
+        const sessions = deps.sessionAttendance || require("./sessionAttendance");
+        const selected = sessions.sessionFor(event, request.session);
+        const action = request.proposedStatus === "absent" ? "absent" : request.action || "time_in";
+        const outcome = await sessions.apply({ event, session: selected, student, action, now: new Date(request.effectiveAt),
+          method: request.source === "id_photo" ? "id_photo" : "manual",
+          review: { request: request._id, requestedBy: request.requestedBy, reviewedBy: reviewerId,
+            submittedAt: request.submittedAt, reviewedAt: now, reason: request.reason, note, mode: request.mode,
+            expectedUpdatedAt: request.previousAttendance?.updatedAt ?? null } });
+        if (!outcome.ok && outcome.reason !== "already") fail(409, outcome.message || "This action cannot be applied yet. Confirm the session Time In first, then retry.");
+        const existing = outcome.attendance;
+        if (outcome.reason === "already" && action === "time_in" && existing.status !== request.proposedStatus) fail(409, "The existing session arrival differs from this request. No attendance was changed.");
+        const resolution = outcome.reason === "already" && existing.method === "face" ? "existing_face" : request.source === "id_photo" ? "id_photo" : "manual";
+        const saved = await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, {
+          $set: { status: "approved", reviewedBy: reviewerId, reviewedAt: now, reviewNote: note, resolution,
+            confirmedAttendance: attendanceSummary(existing) }, $unset: { reviewLock: 1 } });
+        if (!saved.modifiedCount) fail(409, "Attendance was saved. Retry this review to recover its receipt.");
+        await notifyUsers([request.student], { type: "attendance", title: "Session attendance recorded", message: `${event.title} · ${selected.name}: ${action === "time_out" ? "Time Out" : "Time In"} confirmed using the recorded capture time.`, relatedEvent: event._id, event, deferEmail: true }).catch(() => {});
+        return { id: idOf(request), status: "approved", ...(resolution === "existing_face" ? { keptExistingAttendance: true } : {}) };
+      }
       const current = await Attendance.findOne({ event: request.event, student: request.student }).lean();
       if (current?.status === "excused") fail(409, "Attendance is already Excused by an approved excuse letter. Reject this duplicate manual request with a note to keep the approved excuse.");
       if (current?.method === "face") {
@@ -268,7 +303,11 @@ function createService(deps) {
     if (decision === "approved" && payload.verifiedPresence !== true) fail(400, "Confirm independent verification before approving selected requests");
     if (note.length > 1000 || (decision === "rejected" && note.length < 5)) fail(400, "Give a rejection reason between 5 and 1000 characters");
     const results = [];
-    for (const id of [...new Set(payload.ids.map(String))]) {
+    const ordered = await Request.find({ _id: { $in: [...new Set(payload.ids.map(String))] } }).select("_id action effectiveAt").lean();
+    ordered.sort((a,b) => Number(a.action === "time_out") - Number(b.action === "time_out") || +new Date(a.effectiveAt) - +new Date(b.effectiveAt));
+    const order = new Map(ordered.map((row,index) => [idOf(row),index]));
+    const ids = [...new Set(payload.ids.map(String))].sort((a,b) => (order.get(a) ?? 1e9) - (order.get(b) ?? 1e9));
+    for (const id of ids) {
       try { results.push(await reviewOne(user, id, decision, note)); }
       catch (error) { results.push({ id, status: "error", error: error.status ? error.message : "Review could not be completed. Refresh and try again.", code: error.status || 500 }); }
     }
@@ -276,7 +315,7 @@ function createService(deps) {
   }
   async function pendingManualEventsForStudent(studentId) {
     return Request.find({ student: studentId, status: "pending" }).populate("event", "title date time academicYearStart semester endDate endTime status attendanceStartTime attendanceEndTime")
-      .populate("requestedBy", "name email").select("event student requestedBy proposedStatus proposedHours effectiveAt submittedAt status").lean();
+      .populate("requestedBy", "name email").select("event session sessionName action student requestedBy proposedStatus proposedHours effectiveAt submittedAt status").lean();
   }
   const applyPhoto = (user, id, now = new Date()) => reviewOne(user, id, "approved", "Organizer-attested physical ID check; not independent or biometric verification.", now, true);
   return { submit, list, summary, reviewEvents, reviewers, assignReviewers, reviewBatch, reviewOne, applyPhoto, pendingManualEventsForStudent };

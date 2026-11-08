@@ -282,7 +282,7 @@ const ManageExcuses = () => {
                   )}
                 </p>
                 <p className="mt-0.5 text-sm font-medium text-on">
-                  {excuse.event?.title || "Event record unavailable"}
+                  {excuse.event?.title || "Event record unavailable"}{excuse.sessions?.length > 0 && <span className="mt-1 block text-xs text-on-muted">{excuse.event?.attendanceSessions?.find(row => String(row._id) === String(excuse.sessions[0]))?.name || "Selected session"}</span>}
                 </p>
                 <p className="text-xs text-on-muted">
                   {excuse.event?.date ? formatDate(excuse.event.date) : ""}

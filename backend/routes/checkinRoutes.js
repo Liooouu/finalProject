@@ -23,7 +23,7 @@ const {
   attendanceWindowPayload,
 } = require("../services/eventLifecycle");
 const faceIdentify = require("../services/faceIdentify");
-const { recordAttendance } = require("../services/attendanceMarking");
+const { recordAttendance, recordSessionAction } = require("../services/attendanceMarking");
 const { isActiveStudent } = require("../services/studentEligibility");
 const { setBrowserCookie, browserMatches } = require("../services/stationBrowser");
 
@@ -49,18 +49,38 @@ function publicStudent(student) {
 
 // The kiosk only needs to know whether it may accept faces right now. The same
 // gate the write path uses is applied here so the screen and the API agree.
-function stationState(session, event, now = new Date()) {
-  if (session.closedAt) return "closed";
-  if (now >= session.expiresAt) return "expired";
-  if (!event || isTerminal(event.status)) return "closed";
+// Determine the station mode (time_in / time_out / closed) and state from the
+// event's sessions (or legacy single window). Returns { state, mode, session }.
+function stationModeAndState(station, event, now = new Date()) {
+  if (station.closedAt) return { state: "closed", mode: "closed", session: null };
+  if (now >= station.expiresAt) return { state: "expired", mode: "closed", session: null };
+  if (!event) return { state: "closed", mode: "closed", session: null };
 
+  const sessions = Array.isArray(event.attendanceSessions) ? event.attendanceSessions : [];
+  // Finished/closed event: still allow an open Time Out window.
+  const terminal = isTerminal(event.status);
+
+  if (sessions.length) {
+    const selected = sessions.find(row => String(row._id) === String(station.session));
+    if (!selected || event.status === "closed") return { state: "closed", mode: "closed", session: selected || null };
+    const mode = require("../services/sessionAttendance").modeFor(event, selected, now);
+    if (mode !== "closed") return { state: mode === "time_in" && now > new Date(selected.onTimeDeadline) ? "late" : "open", mode, session: selected };
+    return { state: now <= new Date(selected.timeOutClose) ? "before" : "closed", mode: "closed", session: selected };
+  }
+
+  // Legacy time-in-only
+  if (terminal) return { state: "closed", mode: "closed", session: null };
   const window = eventWindow(event);
   const last = eventLastCheckInAt(event);
-  if (!window || !last) return "unavailable";
-  if (now < window.start) return "before";
-  if (now > last) return "closed";
-  if (now > window.end) return "late";
-  return "open";
+  if (!window || !last) return { state: "unavailable", mode: "closed", session: null };
+  if (now < window.start) return { state: "before", mode: "closed", session: null };
+  if (now > last) return { state: "closed", mode: "closed", session: null };
+  if (now > window.end) return { state: "late", mode: "time_in", session: null };
+  return { state: "open", mode: "time_in", session: null };
+}
+
+function stationState(session, event, now = new Date()) {
+  return stationModeAndState(session, event, now).state;
 }
 
 // A tiny in-memory limiter: the public endpoint accepts a 128-number vector,
@@ -100,9 +120,8 @@ async function loadStation(token, req) {
 // Open a check-in station for an event.
 router.post("/sessions", protect, async (req, res) => {
   try {
-    const { eventId, stationLabel } = req.body || {};
+    const { eventId, stationLabel, sessionId } = req.body || {};
     if (!isValidObjectId(eventId)) return res.status(400).json({ error: "A valid eventId is required" });
-
     if (req.user.role !== "organizer") return res.status(403).json({ error: "Only event organizers can open attendance stations" });
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ error: "Event not found" });
@@ -111,14 +130,14 @@ router.post("/sessions", protect, async (req, res) => {
     }
 
     const now = new Date();
-    if (isTerminal(event.status)) {
-      return res.status(400).json({ error: "This event is already closed" });
-    }
-    const lastCheckIn = eventLastCheckInAt(event);
-    if (!lastCheckIn || now >= lastCheckIn) {
-      return res.status(400).json({ error: "The attendance window for this event is over" });
-    }
+    const sessions = event.attendanceSessions || [];
+    const selected = sessions.length ? require("../services/sessionAttendance").sessionFor(event, sessionId || (sessions.length === 1 ? sessions[0]._id : null)) : null;
+    const sessionRef = selected?._id || null;
+    if ((!selected && isTerminal(event.status)) || event.status === "closed") return res.status(400).json({ error: "This event is closed." });
+    const lastCheckIn = selected ? new Date(selected.timeOutClose) : eventLastCheckInAt(event);
+    if (!lastCheckIn || now > lastCheckIn) return res.status(400).json({ error: "This attendance period has ended. Choose another session." });
 
+    if (selected) await require("../services/sessionAttendance").lockSchedule(event, now);
     const token = newToken();
     const expiresAt = new Date(
       Math.min(lastCheckIn.getTime() + SESSION_GRACE_MS, now.getTime() + SESSION_MAX_MS)
@@ -126,6 +145,7 @@ router.post("/sessions", protect, async (req, res) => {
 
     const session = await CheckInSession.create({
       event: event._id,
+      session: sessionRef,
       openedBy: req.user._id,
       organizerAccessVersion: req.user.organizerAccessVersion || 0,
       authSessionVersion: req.user.sessionVersion || 0,
@@ -144,7 +164,7 @@ router.post("/sessions", protect, async (req, res) => {
     });
   } catch (err) {
     console.error("CHECK-IN SESSION CREATE ERROR:", err.message);
-    res.status(500).json({ error: "Could not open the check-in station" });
+    res.status(err.status || 500).json({ error: err.status ? err.message : "Could not open the check-in station" });
   }
 });
 
@@ -223,12 +243,14 @@ router.get("/:token", async (req, res) => {
     if (error) return res.status(error === "browser" ? 403 : 404).json({ error: message || "Check-in station not found" });
 
     const now = new Date();
+    const info = stationModeAndState(session, event, now);
     const [checkedIn, faceCheckedIn] = await Promise.all([
       Attendance.countDocuments({
         event: event._id,
+        ...(session.session ? { session: session.session } : { session: null }),
         status: { $in: ["present", "late"] },
       }),
-      Attendance.countDocuments({ event: event._id, method: "face" }),
+      Attendance.countDocuments({ event: event._id, session: session.session || null, method: "face" }),
     ]);
 
     res.json({
@@ -241,8 +263,10 @@ router.get("/:token", async (req, res) => {
         label: session.stationLabel || "",
         expiresAt: session.expiresAt,
       },
-      state: stationState(session, event, now),
-      window: attendanceWindowPayload(event),
+      state: info.state,
+      mode: info.mode, // "time_in" | "time_out" | "closed"
+      session: info.session ? { id: info.session._id || null, name: info.session.name || "" } : null,
+      window: info.session ? { start: info.mode === "time_out" ? info.session.timeOutOpen : info.session.timeInOpen, end: info.mode === "time_out" ? info.session.timeOutClose : info.session.onTimeDeadline, cutoff: info.session.timeInCutoff, timeOutOpen: info.session.timeOutOpen, timeOutClose: info.session.timeOutClose } : attendanceWindowPayload(event),
       counts: { checkedIn, faceCheckedIn },
     });
   } catch (err) {
@@ -313,24 +337,41 @@ router.post("/:token", async (req, res) => {
       });
     }
 
+    const info = stationModeAndState(session, event, now);
+    const stationSession = session.session ? event.attendanceSessions.find(s => String(s._id) === String(session.session)) : null;
+
     let outcome;
     try {
-      outcome = await recordAttendance({
-        event,
-        student,
-        now,
-        method: "face",
-        matchDistance: Number(match.distance.toFixed(4)),
-        checkInSession: session._id,
-      });
+      if (stationSession) {
+        outcome = await recordSessionAction({
+          event,
+          session: stationSession,
+          student,
+          action: info.mode === "time_out" ? "time_out" : "time_in",
+          now,
+          method: "face",
+          matchDistance: Number(match.distance.toFixed(4)),
+          checkInSession: session._id,
+        });
+      } else {
+        outcome = await recordAttendance({
+          event,
+          student,
+          now,
+          method: "face",
+          matchDistance: Number(match.distance.toFixed(4)),
+          checkInSession: session._id,
+        });
+      }
     } catch (err) {
       // Two kiosks can identify the same student at the same instant; the
       // unique index lets exactly one win.
       if (err.code === 11000) {
-        const existing = await Attendance.findOne({
-          event: event._id,
-          student: student._id,
-        });
+        const existing = await Attendance.findOne(
+          stationSession
+            ? { event: event._id, session: stationSession._id, student: student._id }
+            : { event: event._id, student: student._id }
+        );
         outcome = { ok: false, reason: "already", attendance: existing };
       } else {
         throw err;
@@ -351,7 +392,9 @@ router.post("/:token", async (req, res) => {
         result: "already",
         student: publicStudent(student),
         status: outcome.attendance?.status || "present",
-        message: "Attendance already recorded",
+        action: info.mode,
+        completionStatus: outcome.attendance?.completionStatus,
+        message: info.mode === "time_out" ? "Time Out already recorded" : "Time In already recorded",
       });
     }
 
@@ -359,10 +402,12 @@ router.post("/:token", async (req, res) => {
       return res.json({
         ok: false,
         result: outcome.reason,
-        message:
+        message: outcome.message || (
           outcome.reason === "before"
             ? "Attendance is not open yet."
-            : "Attendance is closed for this event.",
+            : outcome.reason === "no_time_in"
+            ? "Time In required before Time Out."
+            : "Attendance is closed for this event."),
       });
     }
 
@@ -372,10 +417,14 @@ router.post("/:token", async (req, res) => {
       student: publicStudent(student),
       status: outcome.status,
       hours: outcome.hours,
+      action: outcome.action || "time_in",
+      completionStatus: outcome.completionStatus || null,
       distance: match.distance,
       replacedExcuse: outcome.replacedExcuse,
       message:
-        outcome.status === "late"
+        outcome.action === "time_out"
+          ? `Time Out recorded (${outcome.completionStatus || "completed"})`
+          : outcome.status === "late"
           ? "Checked in late — 4 community service hours recorded."
           : "Attendance recorded",
     });

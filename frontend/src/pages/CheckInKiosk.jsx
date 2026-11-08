@@ -30,6 +30,12 @@ const STATE_LABEL = {
   unavailable: "No attendance window",
 };
 
+const MODE_LABEL = {
+  time_in: "TIME IN",
+  time_out: "TIME OUT",
+  closed: "Attendance not open",
+};
+
 function statusWord(status) {
   return status === "late" ? "Late" : "Present";
 }
@@ -170,7 +176,7 @@ const CheckInKiosk = () => {
           kind: data.status === "late" ? "late" : "ok",
           name: data.student?.name || "Student",
           meta:
-            data.status === "late"
+            data.action === "time_out" ? "Time Out recorded · Session completed" : data.status === "late"
               ? "Late — 4 community service hours recorded"
               : "Present",
           note: data.replacedExcuse ? "Your approved excuse was replaced." : "",
@@ -183,7 +189,7 @@ const CheckInKiosk = () => {
         setResult({
           kind: "info",
           name: data.student?.name || "Student",
-          meta: `Already checked in — ${statusWord(data.status)}`,
+          meta: data.message || `Already checked in — ${statusWord(data.status)}`,
         });
         return;
       }
@@ -225,6 +231,7 @@ const CheckInKiosk = () => {
         return;
       }
 
+      if (["no_time_in", "ineligible"].includes(data?.result)) { setResult({ kind: "warn", name: "Attendance needs attention", meta: data.message || "Ask the organizer to check your Time In." }); return; }
       if (data?.result === "finished") {
         setResult({
           kind: "info",
@@ -358,6 +365,9 @@ const CheckInKiosk = () => {
         <div className="flex items-center gap-2">
           <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/70">
             {STATE_LABEL[state] || "Starting"}
+          </span>
+          <span className="rounded-full border border-brand/40 bg-brand/15 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-brand">
+            {MODE_LABEL[station?.mode] || "Attendance not open"}
           </span>
           <button
             type="button"

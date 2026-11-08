@@ -4,7 +4,7 @@ const Module = require('node:module');
 const { excuseReviewIssue, excuseReviewerFilter } = require('../services/excuseReview');
 const { excuseWindow } = require('../services/excuseWindow');
 const organizerId = '111111111111111111111111';
-let letter, record, saves, claims, notices, race, listFilter, failNotice, pendingFilter;
+let attendanceRace, letter, record, saves, claims, notices, race, listFilter, failNotice, pendingFilter;
 const query = value => ({ populate() { return this; }, sort() { return this; }, then(ok, bad) { return Promise.resolve(value).then(ok, bad); } });
 const originalLoad = Module._load;
 Module._load = function(name, parent, ...rest) {
@@ -16,7 +16,7 @@ Module._load = function(name, parent, ...rest) {
       findOneAndUpdate: (filter, update) => { claims++; if (race) return query(null); letter.status = update.status; return query({ ...letter, set(key, value) { this[key] = value; }, student: { _id: 'student', name: 'Student' } }); },
       findByIdAndUpdate: async () => {},
     },
-    '../models/Event': { find: () => Object.assign(query([{_id:'event'}]), { distinct: async () => ['event'] }) }, '../models/Attendance': { findOne: async () => record, aggregate: async () => [] },
+    '../models/Event': { find: () => Object.assign(query([{_id:'event'}]), { distinct: async () => ['event'] }) }, '../models/Attendance': { findOne: async () => record, aggregate: async () => [], updateOne: async (filter, update) => { if (attendanceRace || record.status !== filter.status || record.communityServiceHours !== filter.communityServiceHours) return { modifiedCount: 0 }; Object.assign(record, update.$set); if (update.$push?.communityServiceLog) record.communityServiceLog.push(update.$push.communityServiceLog); saves++; return { modifiedCount: 1 }; } },
     '../services/fileStore': {}, '../services/academicPeriods':{read:async()=>({mode:'manual',configured:true,confirmed:false,current:{startYear:2026,label:'2026–2027',semesters:[{id:'first'},{id:'second'}]},currentSemester:{id:'first'},years:[],version:1}),eventAssignment:async()=>({academicYearStart:2026,semester:'first'})},
   '../services/notify': { notifyUsers: async (users, notice) => { notices.push(notice); if (failNotice) throw new Error("Email delivery unavailable"); } },
     '../middleware/authMiddleware': { protect: (req, res, next) => next() },
@@ -26,7 +26,7 @@ Module._load = function(name, parent, ...rest) {
 const router = require('../routes/organizerRoutes');
 Module._load = originalLoad;
 beforeEach(() => {
-  saves = 0; claims = 0; notices = []; race = false; failNotice = false;
+  attendanceRace = false; saves = 0; claims = 0; notices = []; race = false; failNotice = false;
   letter = { _id: 'letter', type: 'absence', student: 'student', event: { _id: 'event', organizer: organizerId, title: 'Service', date: '2026-09-01', endTime: '12:00' }, status: 'pending', attachments: ['/uploads/proof.pdf'], createdAt: new Date('2026-09-02T04:00:00Z') };
   record = { _id: 'attendance', status: 'absent', communityServiceHours: 5, communityServiceLog: [], save: async () => { saves++; } };
 });
@@ -77,3 +77,13 @@ test('admin queue includes all letters and organizer pending badge excludes only
 test('new and resubmitted letters notify admins and both organizer identities but exclude their author',()=>{assert.deepEqual(excuseReviewerFilter('author'),{$or:[{role:'admin'},{role:'organizer'},{role:'student',organizerAccess:true}],_id:{$ne:'author'}});});
 
 test('own pending letters stay visible with review disabled while admins retain review access',async()=>{letter.student=organizerId;const handler=router.stack.find(l=>l.route?.path==='/excuses'&&l.route.methods.get).route.stack.at(-1).handle;for(const role of ['organizer','admin']){let data;await handler({user:{role,_id:organizerId}},{status(){return this},json(value){data=value}});assert.equal(data.length,1);assert.equal(data[0].student,organizerId);assert.equal(data[0].canReview,role==='admin');assert.equal(data[0].status,'pending');}});
+
+test("a competing attendance write blocks excuse approval without overwriting hours", async () => { attendanceRace = true; const result = await review(); assert.equal(result.status, 409); assert.equal(record.status, "absent"); assert.equal(record.communityServiceHours, 5); assert.equal(saves, 0); });
+
+test('a session excuse is evaluated against only its own deadline and recorded absence', () => {
+  const morning = { _id: 'morning', timeOutClose: '2026-09-01T04:00:00Z' };
+  const value = { ...letter, sessions: ['morning'], event: { ...letter.event, endDate: '2026-09-20', attendanceSessions: [morning] } };
+  assert.equal(excuseReviewIssue(value, { status: 'absent' }), '');
+  assert.match(excuseReviewIssue({ ...value, sessions: [] }, { status: 'absent' }), /specific missed session/);
+  assert.match(excuseReviewIssue(value, { status: 'present' }), /recorded absence/);
+});

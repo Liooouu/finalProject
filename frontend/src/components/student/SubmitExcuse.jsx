@@ -21,11 +21,11 @@ const LETTERS_PER_PAGE = 3;
 const formatSubmissionTime = value => formatDateTime(value, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
 
 const GUIDELINES = [
-  "Submit your first excuse within 7 days after the event ends.",
+  "Submit your first excuse within 7 days after the missed event or session ends.",
   "You can revise and resubmit a filed letter until it is approved.",
   "Attach at least one supporting document, such as a medical certificate.",
   "Provide a clear and detailed explanation for your absence.",
-  "Approved excuses remove your community service hours for that event.",
+  "Approved excuses remove the penalty for the selected missed event or session.",
 ];
 
 const SubmitExcuse = () => {
@@ -129,7 +129,8 @@ const SubmitExcuse = () => {
 
     try {
       const formData = new FormData();
-      formData.append("eventId", selectedEvent);
+      formData.append("eventId", selectedEvent.split(":")[0]);
+      if (selectedEvent.includes(":")) formData.append("sessionId", selectedEvent.split(":")[1]);
       formData.append("excuseText", excuseText);
       formData.append("type", "absence");
       files.forEach((f) => formData.append("attachments", f));
@@ -157,7 +158,7 @@ const SubmitExcuse = () => {
     }
   };
 
-  const eventOptions = editingLetter ? [{ event: editingLetter.event }] : absentEvents.filter(record => !letters.some(letter => (letter.event?._id || letter.event) === record.event._id));
+  const eventOptions = editingLetter ? [{ event: editingLetter.event, session: editingLetter.sessions?.[0] }] : absentEvents.filter(record => !letters.some(letter => (letter.event?._id || letter.event) === record.event._id && String(letter.sessions?.[0] || "") === String(record.session || "")));
   const letterPages = Math.max(1, Math.ceil(letters.length / LETTERS_PER_PAGE));
   const page = Math.min(historyPage, letterPages);
   const visibleLetters = letters.slice((page - 1) * LETTERS_PER_PAGE, page * LETTERS_PER_PAGE);
@@ -167,7 +168,7 @@ const SubmitExcuse = () => {
   };
   const resetForm = () => { setEditingLetter(null);setRetainedAttachments([]);setSelectedEvent("");setExcuseText("");setFiles([]); };
   const editLetter = letter => {
-    setEditingLetter(letter);setSelectedEvent(letter.event._id);setExcuseText(letter.excuseText);setFiles([]);
+    setEditingLetter(letter);setSelectedEvent(`${letter.event._id}${letter.sessions?.[0] ? `:${letter.sessions[0]}` : ""}`);setExcuseText(letter.excuseText);setFiles([]);
     setRetainedAttachments([...new Set([...(letter.attachments || []), letter.attachmentUrl].filter(Boolean))]);
     setMessage("");setView("form");
   };
@@ -205,7 +206,7 @@ const SubmitExcuse = () => {
           <p className="mb-3 text-xs text-on-muted sm:hidden">Swipe left or right to see the letters on this page.</p>
           <div ref={letterRailRef} role="region" aria-label="Excuse letter cards" tabIndex={0} className="nice-scroll grid grid-flow-col items-stretch gap-3 overflow-x-auto snap-x snap-mandatory pb-2" style={{ gridAutoColumns: "minmax(min(16rem, 100%), calc((100% - 1.5rem) / 3))" }}>
             {visibleLetters.map(letter => <article key={letter._id} className="student-card flex h-full min-w-0 snap-start flex-col rounded-2xl border border-line bg-card-alt/40 p-4">
-              <div className="mb-3"><StatusChip status={letter.status} /><h3 className="mt-3 line-clamp-2 break-words font-display text-base font-semibold text-on" title={letter.event?.title || "Event unavailable"}>{letter.event?.title || "Event unavailable"}</h3></div>
+              <div className="mb-3"><StatusChip status={letter.status} /><h3 className="mt-3 line-clamp-2 break-words font-display text-base font-semibold text-on" title={letter.event?.title || "Event unavailable"}>{letter.event?.title || "Event unavailable"}</h3>{letter.sessions?.length > 0 && <p className="mt-1 text-xs text-on-muted">{letter.event?.attendanceSessions?.find(row => String(row._id) === String(letter.sessions[0]))?.name || "Selected session"}</p>}</div>
               <div className="space-y-1 text-xs text-on-muted"><p>First submitted:<br /><span className="text-on-dim">{formatSubmissionTime(letter.createdAt)}</span></p>{(letter.submissionVersion || 1) > 1 && <p>Last resubmitted:<br /><span className="text-on-dim">{formatSubmissionTime(letter.lastSubmittedAt || letter.updatedAt)} · Version {letter.submissionVersion}</span></p>}</div>
               <p className="mt-3 line-clamp-3 break-words text-sm leading-relaxed text-on-dim">{letter.excuseText}</p>
               {letter.responseNote && <p className="mt-2 line-clamp-2 text-xs text-on-dim">Reviewer note: {letter.responseNote}</p>}
@@ -280,8 +281,8 @@ const SubmitExcuse = () => {
                   eventOptions.map((item) => {
                     const event = item.event;
                     return (
-                      <option key={event._id} value={event._id}>
-                        {event.title} - {formatDate(event.date)}
+                      <option key={`${event._id}:${item.session || ""}`} value={item.session ? `${event._id}:${item.session}` : event._id}>
+                        {event.title}{item.sessionName ? ` · ${item.sessionName}` : ""} - {formatDate(event.date)}
                       </option>
                     );
                   })

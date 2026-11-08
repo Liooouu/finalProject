@@ -1,3 +1,4 @@
+import SessionAttendanceDetails from "../shared/SessionAttendanceDetails";
 import { useAcademicPeriods } from "../../utils/useAcademicPeriods";
 import AcademicPeriodFilter from "../organizer/AcademicPeriodFilter";
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -111,7 +112,7 @@ const CommunityService = () => {
           label="Penalty hours"
           value={`${data?.totalHours || 0}h`}
           icon={<FaTimes />}
-          hint="From late (4) and absent (8) marks"
+          hint="Late: 4h · Incomplete: 2h · Late + incomplete: 6h · Absent: 8h per session"
           tone="danger"
         />
         <ServiceSummaryTile
@@ -145,7 +146,7 @@ const CommunityService = () => {
         ) : (
           <StablePage pageKey={`${schoolYear}:${semester}:${records.length}`} footer={<div className="px-4 pb-4"><Pagination page={currentPage} pageSize={5} total={records.length} onChange={changeRecordPage} label="Attendance history pages" /></div>}>
           <ul className="space-y-3 px-4 py-4 md:hidden" aria-label="Attendance breakdown records">{visibleRecords.map((record, index) => <li key={record._id || index} className="portal-inset p-4">
-            <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="min-w-0 flex-1 text-sm font-medium text-on [overflow-wrap:anywhere]">{record.event?.title || record.eventTitle || "Event unavailable"}</h3><StatusBadge status={record.status} /></div>
+            <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="min-w-0 flex-1 text-sm font-medium text-on [overflow-wrap:anywhere]">{record.event?.title || record.eventTitle || "Event unavailable"}</h3><StatusBadge status={record.status} /><SessionAttendanceDetails record={record} /></div>
             <p className="mt-2 text-xs text-on-muted">{formatDate(record.event?.date || record.eventDate) || "Date unavailable"}</p>
             <dl className="mt-3 grid gap-3 text-sm"><div><dt className="text-xs text-on-muted">Service hours</dt><dd className={`mt-1 font-medium ${record.communityServiceHours > 0 ? "text-warn" : "text-on-dim"}`}>{record.communityServiceHours || 0} hours{record.provisionalHours > 0 && <span className="mt-1 block text-xs font-normal text-on-muted">{record.provisionalHours} provisional hours on hold</span>}</dd></div><div><dt className="text-xs text-on-muted">{record.manualReviewPending ? "Recorded check-in" : "Checked in"}</dt><dd className="mt-1 text-on-dim">{formatDateTime(record.manualAttendanceRequest?.effectiveAt || record.attendedAt) || "—"}</dd></div></dl>
             {record.manualReviewPending && <p className="mt-3 text-xs text-info">{record.status === "pending" ? "Awaiting independent review" : "Attendance correction awaiting review"}</p>}
@@ -182,7 +183,7 @@ const CommunityService = () => {
                           : "—"}
                     </td>
                     <td>
-                      <StatusBadge status={record.status} />
+                      <StatusBadge status={record.status} /><SessionAttendanceDetails record={record} />
                       {record.manualReviewPending && <p className="mt-1 text-xs text-info">{record.status === "pending" ? "Under review" : "Correction pending"}</p>}
                     </td>
                     <td>

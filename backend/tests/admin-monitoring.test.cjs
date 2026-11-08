@@ -2,13 +2,17 @@ const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('node:module');
 const owner = '111111111111111111111111', eventId = '222222222222222222222222', studentId = '333333333333333333333333';
-let event, attendanceWrites, eventWrites, stationWrites, stored, creatorRole, notificationOptions, failEventNotification, stationData, sharedEvents, pendingManual;
+let eventWriteRace, event, attendanceWrites, eventWrites, stationWrites, stored, creatorRole, notificationOptions, failEventNotification, stationData, sharedEvents, pendingManual;
 const query = value => ({ populate() { return this; }, select() { return this; }, sort() { return this; }, lean: async () => value, then(ok, bad) { return Promise.resolve(value).then(ok, bad); } });
 class FakeEvent { constructor(data) { Object.assign(this, data, { _id: eventId }); } async save() { eventWrites++; } }
 FakeEvent.findById = async () => event;
 FakeEvent.findOne = async () => null;
 FakeEvent.find = filter => query([event,...sharedEvents].filter(value => !filter?.organizer || value.organizer === filter.organizer));
 FakeEvent.findByIdAndUpdate = (id, update) => { eventWrites++; for (const [key,value] of Object.entries(update)) if (value !== undefined) event[key] = value; return query(event); };
+FakeEvent.findOneAndUpdate = (filter, update) => {
+ if (eventWriteRace || (typeof filter.__v === 'number' && filter.__v !== event.__v) || (filter.__v?.$exists === false && event.__v !== undefined)) return query(null);
+ eventWrites++; for (const [key,value] of Object.entries(update.$set || {})) if (value !== undefined) event[key] = value; event.__v = (event.__v || 0) + (update.$inc?.__v || 0); return query(event);
+};
 class FakeAttendance { constructor(data) { Object.assign(this, data, { _id: 'record' }); } async save() { attendanceWrites++; stored = this; } }
 FakeAttendance.findOne = async () => stored;
 FakeAttendance.findById = () => query(stored);
@@ -33,7 +37,7 @@ const access = require('../services/eventAccess');
 const events = require('../routes/eventRoutes');
 const checkin = require('../routes/checkinRoutes');
 Module._load = originalLoad;
-beforeEach(() => { attendanceWrites = 0; eventWrites = 0; stationWrites = 0; stationData=null;sharedEvents=[];stored = null; notificationOptions=null;failEventNotification=false;pendingManual=false; creatorRole = 'admin'; event = { _id: eventId, organizer: owner, title: 'Original title', date: '2027-01-01', time: '09:00', endDate: '2027-01-01', endTime: '12:00', attendanceStartTime:'08:00', attendanceEndTime:'09:30', status:'upcoming' };Object.defineProperty(event,'toObject',{value(){return {...this}}}); });
+beforeEach(() => { eventWriteRace = false; attendanceWrites = 0; eventWrites = 0; stationWrites = 0; stationData=null;sharedEvents=[];stored = null; notificationOptions=null;failEventNotification=false;pendingManual=false; creatorRole = 'admin'; event = { _id: eventId, organizer: owner, title: 'Original title', date: '2027-01-01', time: '09:00', endDate: '2027-01-01', endTime: '12:00', attendanceStartTime:'08:00', attendanceEndTime:'09:30', status:'upcoming' };Object.defineProperty(event,'toObject',{value(){return {...this}}}); });
 async function call(router, path, method, role, body = {}, id = owner) {
  const handler = router.stack.find(layer => layer.route?.path === path && layer.route.methods[method]).route.stack.at(-1).handle;
  const result = { status: 200 }; const res = { cookie(){return this;},status(code) { result.status = code; return this; }, json(data) { result.body = data; return this; } };
@@ -148,3 +152,5 @@ test('promoted organizers can collaborate but student context and administrators
  assert.equal(access.canViewEventAttendance(event,{role:'admin'}),true);
  assert.equal(access.canViewEventAttendance(event,{role:'student',organizerAccess:true}),false);
 });
+
+test("stale event edits return a visible conflict without overwriting newer attendance setup", async () => { eventWriteRace = true; const result = await call(events,"/:id","put","admin",{title:"Stale edit"}); assert.equal(result.status,409); assert.equal(event.title,"Original title"); assert.equal(eventWrites,0); });

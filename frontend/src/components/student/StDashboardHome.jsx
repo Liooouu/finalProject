@@ -1,3 +1,4 @@
+import SessionAttendanceDetails from "../shared/SessionAttendanceDetails";
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -185,7 +186,7 @@ const DashboardHome = () => {
         <BaseCard title={eventsError && !upcomingEvents.length ? "Upcoming events" : `Upcoming events (${upcoming})`} description="Event details and your attendance at a glance." icon={<FaCalendarAlt />} className="student-dashboard-card paged-dashboard-card min-w-0 overflow-hidden" menu={<Button variant="ghost" size="sm" onClick={() => navigate("/student/dashboard/events")}>View all <FaArrowRight className="text-[10px]" /></Button>}>
           {eventsError && <div role="alert" className="alert alert-danger mb-4"><p>{eventsError}</p>{retry}</div>}
           {!upcomingEvents.length ? <EmptyState compact title={eventsError ? "Events unavailable" : "No upcoming events"} description={eventsError ? "Try loading the event list again." : "New events will appear here when they are published."} /> : <StablePage fill pageKey="student-upcoming" footer={<Pagination page={currentEventPage} pageSize={eventPageSize} total={upcomingEvents.length} onChange={setEventPage} label="Upcoming event pages" />} contentClassName="gap-3">
-            {visibleEvents.map((event) => <StudentEventCard key={event._id} event={event} attendance={attendance.find((record) => (record.event?._id || record.event) === event._id)} attendanceError={attendanceError} />)}
+            {visibleEvents.map((event) => <StudentEventCard key={event._id} event={event} records={attendance.filter(record => (record.event?._id || record.event) === event._id)} attendance={attendance.find((record) => (record.event?._id || record.event) === event._id)} attendanceError={attendanceError} />)}
           </StablePage>}
         </BaseCard>
 
@@ -193,7 +194,7 @@ const DashboardHome = () => {
           {!stats ? <EmptyState compact title="Activity unavailable" description="Activity will appear when your service records can be loaded." /> : !activity.length ? <EmptyState compact title="No activity yet" description="Check in at your next event to start your record." /> : <StablePage fill pageKey="student-activity" footer={<Pagination page={currentActivityPage} pageSize={5} total={activity.length} onChange={setActivityPage} label="Recent attendance pages" />}><ul className="stretch-page-list divide-y divide-line">
             {visibleActivity.map((record, index) => <li key={record._id || index} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${record.status === "absent" ? "bg-danger/10 text-danger ring-danger/20" : record.status === "late" ? "bg-warn/10 text-warn ring-warn/20" : "bg-card-alt text-on-dim ring-line"}`}>{record.status === "present" ? <FaUserCheck /> : <FaClock />}</span>
-              <div className="min-w-0 flex-1"><p className="break-words text-sm font-medium text-on">{record.event?.title || record.eventTitle || "Unknown event"}</p><p className="mt-1 text-xs text-on-muted">{record.event?.date || record.eventDate ? formatDate(record.event?.date || record.eventDate) : "Date unavailable"}</p></div><StatusPill status={record.status} />
+              <div className="min-w-0 flex-1"><p className="break-words text-sm font-medium text-on">{record.event?.title || record.eventTitle || "Unknown event"}</p><p className="mt-1 text-xs text-on-muted">{record.event?.date || record.eventDate ? formatDate(record.event?.date || record.eventDate) : "Date unavailable"}</p><SessionAttendanceDetails record={record} compact /></div><StatusPill status={record.status} />
             </li>)}
           </ul></StablePage>}
         </BaseCard>

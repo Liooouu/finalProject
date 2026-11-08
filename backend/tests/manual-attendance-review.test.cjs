@@ -8,7 +8,7 @@ const at = clock => new Date(`2026-10-30T${clock}+08:00`);
 const payload = () => ({ eventId:ids.event,studentId:ids.student,mode:'checkin',reason:'Camera unavailable',identityChecked:true });
 const copy = value => value === undefined ? undefined : structuredClone(value);
 function values(object,path) { if(!path.length)return [object];if(Array.isArray(object))return object.flatMap(value=>values(value,path));return values(object?.[path[0]],path.slice(1)); }
-function equal(a,b){return a instanceof Date || b instanceof Date ? Number(new Date(a))===Number(new Date(b)) : a===b || String(a)===String(b);}
+function equal(a,b){if(a == null && b == null)return true;return a instanceof Date || b instanceof Date ? Number(new Date(a))===Number(new Date(b)) : a===b || String(a)===String(b);}
 function matches(row,filter={}) { return Object.entries(filter).every(([key,wanted])=>{
   if(key==='$and')return wanted.every(part=>matches(row,part));if(key==='$or')return wanted.some(part=>matches(row,part));
   const found=values(row,key.split('.'));

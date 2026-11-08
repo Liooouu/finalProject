@@ -32,6 +32,7 @@ async function takeExcuseRestore(studentId, eventId) {
 // Reasons the station must refuse a check-in, shared with the kiosk status.
 function checkInGate(event, now = new Date()) {
   if (!event) return { reason: "not-found" };
+  if (event.attendanceSessions?.length) return { reason: "session-required" };
   if (isTerminal(event.status)) {
     return { reason: event.status === "closed" ? "closed" : "finished" };
   }
@@ -153,4 +154,9 @@ async function recordAttendance({
   };
 }
 
-module.exports = { takeExcuseRestore, checkInGate, recordAttendance };
+// Shared session writer also serves delayed ID evidence and independent review.
+async function recordSessionAction(options) {
+  return require("./sessionAttendance").apply(options);
+}
+
+module.exports = { takeExcuseRestore, checkInGate, recordAttendance, recordSessionAction };

@@ -46,6 +46,8 @@ const checkinRoutes = require("./routes/checkinRoutes");
 const manualAttendanceRoutes = require("./routes/manualAttendanceRoutes");
 
 const app = express();
+// Attendance rosters are internal eligibility snapshots, never directory data.
+app.set("json replacer", (key, value) => key === "eligibleStudents" ? undefined : value);
 const PORT = process.env.PORT || 5000;
 let serverHandle = null;
 
@@ -238,6 +240,7 @@ connectDB()
           date: { $lte: todayEnd },
           ...OPEN_STATUS_FILTER,
           manualOverride: { $ne: true },
+          $or: [{ attendanceSessions: { $exists: false } }, { attendanceSessions: { $size: 0 } }],
         });
 
         for (const event of candidateEvents) {
@@ -304,6 +307,13 @@ connectDB()
           } catch (err) {
             console.error(`[lifecycle] absence pass failed for "${event.title}":`, err.message);
           }
+        }
+
+        // Session finalization is retry-safe and keeps staff balance adjustments.
+        const sessionEvents = await Event.find({ attendanceSessions: { $exists: true, $ne: [] } });
+        for (const event of sessionEvents) {
+          try { await require("./services/sessionAttendance").finalize(event, now); }
+          catch (error) { console.error("[lifecycle] session finalization:", error.message); }
         }
 
         // ✅ EVENT DAY REMINDERS — attendance-window notices for events dated

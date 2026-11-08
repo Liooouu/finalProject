@@ -31,6 +31,7 @@ const manualAttendance = require("../services/manualAttendance");
 const ManualAttendanceRequest = require("../models/ManualAttendanceRequest");
 const { projectManualAttendance } = require("../services/manualAttendanceView");
 const { validateSchedule } = require("../services/eventSchedule");
+const { validateSessions, normalizeSessions, sessionConfig } = require("../services/sessionSchedule");
 
 // Only explicit human edits stamp the editor; scheduled jobs do not impersonate one.
 const editorStamp = user => ({ lastEditedBy: user._id, lastEditedByName: user.name || "Staff member", lastEditedAt: new Date() });
@@ -50,7 +51,11 @@ router.post("/", protect, async (req, res) => {
       return res.status(403).json({ error: "Only organizers and admins can create events" });
     }
 
-    const { title, description, date, time, location, mapQuery, attendanceStartTime, attendanceEndTime } = req.body;
+    const { title, description, date, time, location, mapQuery, attendanceSessions } = req.body;
+    if (attendanceSessions !== undefined) { const checked = normalizeSessions(attendanceSessions); const issue = validateSessions(checked); if (!checked.length || issue) return res.status(400).json({ error: issue || "Add at least one attendance session." }); }
+    const clock = value => new Date(value).toLocaleTimeString('en-GB', { timeZone: 'Asia/Manila', hour12: false, hour: '2-digit', minute: '2-digit' });
+    const attendanceStartTime = attendanceSessions?.length ? clock(attendanceSessions[0].timeInOpen) : req.body.attendanceStartTime;
+    const attendanceEndTime = attendanceSessions?.length ? clock(attendanceSessions[0].onTimeDeadline) : req.body.attendanceEndTime;
 
     if (!attendanceStartTime || !attendanceEndTime) {
       return res.status(400).json({ error: "The attendance window (start and end time) is required" });
@@ -70,6 +75,11 @@ router.post("/", protect, async (req, res) => {
     if (scheduleError) {
       return res.status(400).json({ error: scheduleError });
     }
+
+    const sessions = attendanceSessions === undefined ? [] : normalizeSessions(attendanceSessions);
+    if (attendanceSessions !== undefined && !sessions.length) return res.status(400).json({ error: "Add at least one attendance session." });
+    const sessErr = validateSessions(sessions, eventStartsAt({ date, time }), eventEndAt({ date, endDate: endDate || date, time, endTime }));
+    if (sessErr) return res.status(400).json({ error: sessErr });
 
     const assignment = await academicPeriods.eventAssignment(req.body, { role: req.user.role });
 
@@ -113,6 +123,7 @@ router.post("/", protect, async (req, res) => {
         mapQuery,
         attendanceStartTime,
         attendanceEndTime,
+        attendanceSessions: sessions,
         organizer: req.user._id,
       });
       await created.save();
@@ -159,7 +170,8 @@ router.get("/my-events", protect, async (req, res) => {
     const eventIds = events.map((e) => e._id);
     const counts = await Attendance.aggregate([
       { $match: { event: { $in: eventIds }, status: { $in: ["present", "late"] } } },
-      { $group: { _id: "$event", count: { $sum: 1 } } },
+      { $group: { _id: "$event", students: { $addToSet: "$student" } } },
+      { $project: { count: { $size: "$students" } } },
     ]);
     const map = Object.fromEntries(counts.map((c) => [c._id.toString(), c.count]));
     const withCounts = events.map((e) => ({ ...e.toObject(), attendeeCount: map[e._id.toString()] || 0 }));
@@ -181,7 +193,8 @@ router.get("/all", protect, async (req, res) => {
     const eventIds = events.map((e) => e._id);
     const counts = await Attendance.aggregate([
       { $match: { event: { $in: eventIds }, status: { $in: ["present", "late"] } } },
-      { $group: { _id: "$event", count: { $sum: 1 } } },
+      { $group: { _id: "$event", students: { $addToSet: "$student" } } },
+      { $project: { count: { $size: "$students" } } },
     ]);
     const map = Object.fromEntries(counts.map((c) => [c._id.toString(), c.count]));
     const withCounts = events.map((e) => ({ ...e.toObject(), attendeeCount: map[e._id.toString()] || 0 }));
@@ -342,7 +355,8 @@ router.get("/:id", protect, async (req, res) => {
     // The resolved window travels with the event so the student's QR gate uses
     // the same instants the scan endpoint checks, instead of re-deriving them
     // from the clock strings on the device.
-    res.json({ ...event.toObject(), attendanceWindow: attendanceWindowPayload(event) });
+    const sessionScheduleLocked = !!event.attendanceSessions?.length && (event.sessionScheduleLockedAt || event.attendanceSessions.some(row => row.rosterLockedAt) || !!await Attendance.exists({ event: event._id }) || !!await ManualAttendanceRequest.exists({ event: event._id }) || !!await require("../models/CheckInSession").exists({ event: event._id, closedAt: null, expiresAt: { $gt: new Date() } }));
+    res.json({ ...event.toObject(), sessionScheduleLocked, attendanceWindow: attendanceWindowPayload(event) });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
   }
@@ -369,7 +383,7 @@ router.get("/:id/attendees", protect, async (req, res) => {
     const pending = await ManualAttendanceRequest.find({ event: req.params.id, status: "pending" })
       .populate("student", "name email program yearLevel section")
       .populate("requestedBy", "name email")
-      .select("event student requestedBy status effectiveAt submittedAt proposedStatus proposedHours").lean();
+      .select("event session sessionName action student requestedBy status effectiveAt submittedAt proposedStatus proposedHours").lean();
     res.json(projectManualAttendance(attendees, pending));
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
@@ -466,7 +480,7 @@ router.put("/:id", protect, async (req, res) => {
       return res.status(403).json({ error: "You are not allowed to edit this event" });
     }
 
-    const { title, description, date, time, endDate, endTime, location, mapQuery, status, attendanceStartTime, attendanceEndTime } = req.body;
+    const { title, description, date, time, endDate, endTime, location, mapQuery, status, attendanceStartTime, attendanceEndTime, attendanceSessions } = req.body;
 
     // This route writes the status straight from the body, so it needs the same
     // allow-list as PATCH /:id/status — otherwise any string reaches the database.
@@ -488,6 +502,18 @@ router.put("/:id", protect, async (req, res) => {
       return res.status(400).json({ error: scheduleError });
     }
 
+    let nextSessions, sessionChanged = false;
+    if (attendanceSessions !== undefined) {
+      nextSessions = normalizeSessions(attendanceSessions, existing.attendanceSessions || []);
+      sessionChanged = sessionConfig(nextSessions) !== sessionConfig(existing.attendanceSessions);
+      if (sessionChanged) {
+        const protectedSchedule = existing.sessionScheduleLockedAt || existing.attendanceSessions?.some(row => row.rosterLockedAt) || await Attendance.exists({ event: existing._id }) || await ManualAttendanceRequest.exists({ event: existing._id }) || await require("../models/CheckInSession").exists({ event: existing._id, closedAt: null, expiresAt: { $gt: new Date() } });
+        if (protectedSchedule) return res.status(409).json({ error: "Attendance already uses this schedule. Its sessions cannot be changed; descriptive event details can still be edited." });
+      }
+    }
+    const sessErr = validateSessions(nextSessions || existing.attendanceSessions || [], eventStartsAt(nextSchedule), eventEndAt(nextSchedule));
+    if (sessErr) return res.status(400).json({ error: sessErr });
+
     const assignment = await academicPeriods.eventAssignment(req.body, { existing, role: req.user.role });
     const update = {
       ...assignment,
@@ -503,6 +529,7 @@ router.put("/:id", protect, async (req, res) => {
       status,
       attendanceStartTime,
       attendanceEndTime,
+      ...(sessionChanged ? { attendanceSessions: nextSessions } : {}),
     };
 
     // Touching the schedule only counts when a value actually CHANGED. Checking
@@ -555,11 +582,9 @@ router.put("/:id", protect, async (req, res) => {
       update.autoFinishedAt = null;
     }
 
-    const event = await Event.findByIdAndUpdate(req.params.id, update, {
-      new: true,
-    }).populate("organizer", "name email");
+    const event = await Event.findOneAndUpdate({ _id: req.params.id, __v: existing.__v === undefined ? { $exists: false } : existing.__v }, { $set: update, $inc: { __v: 1 } }, { new: true }).populate("organizer", "name email");
 
-    if (!event) return res.status(404).json({ error: "Event not found" });
+    if (!event) return res.status(409).json({ error: "Event changed while you were editing. Reload the latest details and try again." });
 
     // Notify students, admins and the organizer that event details changed
     // Bell notices are saved before confirmation; SMTP runs outside the save.

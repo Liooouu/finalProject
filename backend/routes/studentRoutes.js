@@ -78,9 +78,7 @@ router.get("/community-service", protect, async (req, res) => {
 
     const totalHours = attendances.reduce((sum, a) => sum + (a.communityServiceHours || 0), 0);
     // Only real attendance counts; pending (never marked) and excused do not.
-    const totalAttended = attendances.filter(
-      (a) => a.status === "present" || a.status === "late"
-    ).length;
+    const totalAttended = new Set(attendances.filter(a => a.status === "present" || a.status === "late").map(a => String(a.event?._id || a.event))).size;
     // Penalties (late=4, absent=8) add to totalHours (the student's community
     // service hours); excuses/removals take them off. completedHours stays 0
     // here — it only moves when the student genuinely finishes service.
@@ -106,14 +104,15 @@ router.get("/excuses", protect, async (req, res) => {
     }
 
     const excuses = await Excuse.find({ student: req.user._id })
-      .populate("event", "title date time endDate endTime academicYearStart semester")
+      .populate("event", "title date time endDate endTime academicYearStart semester attendanceSessions")
       .sort({ createdAt: -1 });
-    const absent = await Attendance.find({ student: req.user._id, status: "absent" }).select("event");
-    const absentIds = new Set(absent.map(record => String(record.event?._id || record.event)));
-    const approvedIds = new Set(excuses.filter(letter => letter.status === "approved").map(letter => String(letter.event?._id || letter.event)));
+    const absent = await Attendance.find({ student: req.user._id, status: "absent" }).select("event session");
+    const absentIds = new Set(absent.map(record => `${String(record.event?._id || record.event)}:${record.session || ""}`));
+    const approvedIds = new Set(excuses.filter(letter => letter.status === "approved").map(letter => `${String(letter.event?._id || letter.event)}:${letter.sessions?.[0] || ""}`));
     res.json(excuses.map(letter => {
       const eventId = String(letter.event?._id || letter.event);
-      const issue = resubmissionIssue(letter, absentIds.has(eventId) ? { status: "absent" } : null, approvedIds.has(eventId));
+      const pair = `${eventId}:${letter.sessions?.[0] || ""}`;
+      const issue = resubmissionIssue(letter, absentIds.has(pair) ? { status: "absent" } : null, approvedIds.has(pair));
       return { ...letter.toObject(), lastSubmittedAt: letter.lastSubmittedAt || letter.createdAt, submissionVersion: letter.submissionVersion || 1, canResubmit: !issue, resubmissionIssue: issue };
     }));
   } catch (err) {
@@ -140,13 +139,16 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
       return res.status(404).json({ error: "Event not found" });
     }
 
-    const window = excuseWindow(event);
+    const selectedSession = event.attendanceSessions?.length ? event.attendanceSessions.find(row => String(row._id) === String(req.body.sessionId)) : null;
+    if (event.attendanceSessions?.length && !selectedSession) return res.status(400).json({ error: "Choose the missed attendance session." });
+    const window = excuseWindow(event, new Date(), selectedSession);
     if (!window.allowed) return res.status(400).json({ error: window.reason, deadline: window.deadline });
 
     // Only one active (pending/approved) excuse allowed per event
     const activeExcuse = await Excuse.findOne({
       student: req.user._id,
       event: eventId,
+      ...(selectedSession ? { sessions: selectedSession._id } : { $or: [{ sessions: { $size: 0 } }, { sessions: { $exists: false } }] }),
       status: { $in: ["pending", "approved", "rejected"] },
     });
     if (activeExcuse) {
@@ -159,7 +161,7 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
     }
 
     const absentRecord = await Attendance.findOne({
-      event: eventId, student: req.user._id, status: "absent",
+      event: eventId, student: req.user._id, status: "absent", session: selectedSession?._id || null,
     });
     if (!absentRecord) {
       return res.status(400).json({ error: "You can only file excuses for events you were marked absent in" });
@@ -176,6 +178,7 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
     const excuse = new Excuse({
       student: req.user._id,
       event: eventId,
+      sessions: selectedSession ? [selectedSession._id] : [],
       excuseText: String(excuseText).trim(),
       attachmentUrl: savedUrls[0] || null,
       attachments: savedUrls,
@@ -215,15 +218,15 @@ router.patch("/excuses/:id", protect, upload.array("attachments", 5), async (req
   try {
     if (req.user.role !== "student") return res.status(403).json({ error: "Only students can resubmit excuse letters" });
     if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid excuse letter ID" });
-    const letter = await Excuse.findOne({ _id: req.params.id, student: req.user._id }).populate("event", "title date time endDate endTime organizer academicYearStart semester");
+    const letter = await Excuse.findOne({ _id: req.params.id, student: req.user._id }).populate("event", "title date time endDate endTime organizer academicYearStart semester attendanceSessions");
     if (!letter) return res.status(404).json({ error: "Excuse letter not found" });
     const expectedVersion = Number(req.body.expectedVersion);
     if (!Number.isInteger(expectedVersion) || expectedVersion < 1) return res.status(400).json({ error: "Reload the letter before resubmitting" });
     if (expectedVersion !== (letter.submissionVersion || 1)) return res.status(409).json({ error: "This letter changed. Reload it before resubmitting." });
     const eventId = letter.event?._id;
     const [attendance, approved] = await Promise.all([
-      Attendance.findOne({ student: req.user._id, event: eventId, status: "absent" }),
-      Excuse.findOne({ _id: { $ne: letter._id }, student: req.user._id, event: eventId, status: "approved" }),
+      Attendance.findOne({ student: req.user._id, event: eventId, session: letter.sessions?.[0] || null, status: "absent" }),
+      Excuse.findOne({ _id: { $ne: letter._id }, student: req.user._id, event: eventId, ...(letter.sessions?.length ? { sessions: letter.sessions[0] } : {}), status: "approved" }),
     ]);
     const issue = resubmissionIssue(letter, attendance, Boolean(approved));
     if (issue) return res.status(400).json({ error: issue });
@@ -246,7 +249,7 @@ router.patch("/excuses/:id", protect, upload.array("attachments", 5), async (req
       { $set: { excuseText: text, attachments, attachmentUrl: attachments[0], status: "pending", responseNote: "", reviewedBy: null, lastSubmittedAt: new Date(), submissionVersion: expectedVersion + 1 },
         $push: { submissionHistory: { submittedAt: letter.lastSubmittedAt || letter.createdAt, submissionVersion: expectedVersion, excuseText: letter.excuseText, attachments: originalFiles, status: letter.status, responseNote: letter.responseNote || "", reviewedBy: letter.reviewedBy } } },
       { new: true, runValidators: true }
-    ).populate("event", "title date time endDate endTime academicYearStart semester");
+    ).populate("event", "title date time endDate endTime academicYearStart semester attendanceSessions");
     if (!revised) {
       await fileStore.deleteByUrls(savedUrls);
       return res.status(409).json({ error: "This letter was changed or reviewed while you were editing. Reload to see the latest status." });
@@ -273,9 +276,9 @@ router.get("/absent-events", protect, async (req, res) => {
     const attendances = await Attendance.find({ 
       student: req.user._id,
       status: "absent"
-    }).populate("event", "title date time endDate endTime academicYearStart semester");
+    }).populate("event", "title date time endDate endTime academicYearStart semester attendanceSessions");
 
-    res.json(attendances.map(record => { const data = record.toObject(); const window = record.event ? excuseWindow(record.event) : { allowed: false, deadline: null }; return { ...data, canSubmitExcuse: window.allowed, excuseDeadline: window.deadline }; }));
+    res.json(attendances.map(record => { const data = record.toObject(); const session = record.event?.attendanceSessions?.find(row => String(row._id) === String(record.session)); const window = record.event ? excuseWindow(record.event, new Date(), session) : { allowed: false, deadline: null }; return { ...data, sessionName: session?.name || "", canSubmitExcuse: window.allowed, excuseDeadline: window.deadline }; }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

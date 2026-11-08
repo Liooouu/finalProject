@@ -48,6 +48,7 @@ const EMPTY_FORM = {
   time: "",
   endDate: "",
   endTime: "",
+  attendanceSessions: [],
   attendanceStartTime: "",
   attendanceEndTime: "",
 };

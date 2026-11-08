@@ -81,13 +81,14 @@ export const attendanceCheckInState = (event, now = Date.now()) => {
 
 // Splits a list into what a student can still act on and what is history.
 // Upcoming first (soonest date first), then finished/closed (most recent first).
-export const splitEventsByLifecycle = (events = []) => {
+export const splitEventsByLifecycle = (events = [], now = Date.now()) => {
+  const stillActionable = event => !isTerminalStatus(event.status) || (event.status === "finished" && event.attendanceSessions?.some(row => +new Date(row.timeOutClose) >= +now));
   const byStart = (a, b) => new Date(a.date) - new Date(b.date);
   const byMostRecentEnd = (a, b) => new Date(b.endDate || b.date) - new Date(a.endDate || a.date);
 
   return {
-    active: events.filter((e) => !isTerminalStatus(e.status)).sort(byStart),
-    past: events.filter((e) => isTerminalStatus(e.status)).sort(byMostRecentEnd),
+    active: events.filter(stillActionable).sort(byStart),
+    past: events.filter(e => !stillActionable(e)).sort(byMostRecentEnd),
   };
 };
 

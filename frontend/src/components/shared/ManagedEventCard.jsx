@@ -3,6 +3,7 @@ import React from "react";
 import { FaMapMarkerAlt, FaUsers } from "react-icons/fa";
 import { Card, StatusChip } from "../ui";
 import EventLastEdit from "./EventLastEdit";
+import EventAttendanceSchedule from "./EventAttendanceSchedule";
 import { describeEventLifecycle, formatDate, formatTime12Hour } from "../../utils/helpers";
 import "../../styles/managed-event-cards.css";
 
@@ -15,7 +16,7 @@ export default function ManagedEventCard({ event, actions, details, showAttendee
       <div><dt>Starts</dt><dd>{formatDate(event.date)}<br />{formatTime12Hour(event.time)}</dd></div>
       <div><dt>Ends</dt><dd>{formatDate(event.endDate || event.date)}<br />{formatTime12Hour(event.endTime || "23:59")}</dd></div>
       <div className="managed-event-wide"><dt><FaMapMarkerAlt aria-hidden="true" /> Venue</dt><dd>{event.location || "Venue unavailable"}</dd></div>
-      <div className="managed-event-wide"><dt>Attendance window</dt><dd>{formatTime12Hour(event.attendanceStartTime) || "TBA"} – {formatTime12Hour(event.attendanceEndTime) || "TBA"}</dd></div>
+      <div className="managed-event-wide"><dt>{event.attendanceSessions?.length ? event.attendanceSessions.length === 1 ? "Time In & Time Out" : `${event.attendanceSessions.length} days / activities` : "Attendance window"}</dt><dd>{event.attendanceSessions?.length ? <details><summary className="cursor-pointer">View attendance times</summary><div className="mt-2"><EventAttendanceSchedule event={event} compact /></div></details> : <>{formatTime12Hour(event.attendanceStartTime) || "TBA"} – {formatTime12Hour(event.attendanceEndTime) || "TBA"}</>}</dd></div>
     </dl>
     <p className="managed-event-organizer"><FaUsers aria-hidden="true" /><span>{event.organizer?.name || "Unknown organizer"}{showAttendees && <span className="block mt-1">{event.attendeeCount ?? 0} checked in</span>}</span></p>
     <div className="managed-event-editor"><EventLastEdit event={event} /></div>

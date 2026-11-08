@@ -15,7 +15,7 @@ async function reviewedRecords(records) {
   const pending = await ManualAttendanceRequest.find({ status: "pending",
     event: { $in: records.map(record => record.event?._id || record.event) },
     student: { $in: records.map(record => record.student?._id || record.student) },
-  }).select("event student status proposedStatus proposedHours effectiveAt submittedAt requestedBy").lean();
+  }).select("event session sessionName action student status proposedStatus proposedHours effectiveAt submittedAt requestedBy").lean();
   return projectManualAttendance(records, pending, { includeUnrecorded: false });
 }
 
@@ -73,8 +73,10 @@ function badRequest(message) {
   return err;
 }
 
-function buildMatch({ startDate, endDate, eventId }) {
+function buildMatch({ startDate, endDate, eventId, sessionId, completionStatus }) {
   const match = {};
+  if (sessionId) { if (!mongoose.Types.ObjectId.isValid(sessionId)) throw badRequest("Invalid session id"); match.session = new mongoose.Types.ObjectId(sessionId); }
+  if (completionStatus) { if (!["completed","incomplete","absent","pending","excused"].includes(completionStatus)) throw badRequest("Invalid completion status"); match.completionStatus = completionStatus; }
 
   if (eventId) {
     if (!mongoose.Types.ObjectId.isValid(eventId)) {
@@ -320,9 +322,11 @@ router.get("/attendance", async (req, res) => {
         User.countDocuments(studentFilter),
         Attendance.distinct("student", match),
         loadFilterOptions(),
-        Event.find({}, "title date").sort({ date: -1 }).limit(250).lean(),
+        Event.find({}, "title date attendanceSessions").sort({ date: -1 }).limit(250).lean(),
       ]);
 
+    const completionRows = await Attendance.aggregate([{ $match: { ...match, session: match.session || { $type: "objectId" } } }, ...manualPendingStatusStages(), { $group: { _id: "$completionStatus", count: { $sum: 1 } } }]);
+    const completion = Object.fromEntries(completionRows.map(row => [row._id || "pending", row.count]));
     const statsMap = { present: 0, late: 0, absent: 0, pending: 0, excused: 0 };
     statusStats.forEach((s) => {
       statsMap[s._id] = s.count;
@@ -332,6 +336,7 @@ router.get("/attendance", async (req, res) => {
       records: await reviewedRecords(attendance),
       pagination: { page: requestedPage, pageSize: limit, total: totalRecords, totalPages: Math.max(1, Math.ceil(totalRecords / limit)) },
       stats: {
+        completion,
         total: totalRecords,
         students,
         studentsWithRecords: matchedStudents.length,
@@ -401,7 +406,7 @@ router.get("/attendance/export", async (req, res) => {
         "Event Day",
         "Event Time",
         "Attendance Status",
-        "Marked At",
+        "Marked At", "Session", "Time In", "Time Out", "Arrival", "Completion", "Service Hours",
       ],
     ];
 
@@ -419,7 +424,7 @@ router.get("/attendance/export", async (req, res) => {
           selectedEvent?.date ? fmtEventDay.format(new Date(selectedEvent.date)) : "",
           selectedEvent?.time ? formatEventTime(selectedEvent.time) : "",
           "No attendance",
-          "",
+          "", "", "", "", "", "", "",
         ]);
         continue;
       }
@@ -437,6 +442,10 @@ router.get("/attendance/export", async (req, res) => {
           record.event?.time ? formatEventTime(record.event.time) : "",
           record.status || "",
           record.attendedAt ? fmtDateTime.format(new Date(record.attendedAt)) : "",
+          record.sessionName || "Time In only",
+          record.timeInAt ? fmtDateTime.format(new Date(record.timeInAt)) : "",
+          record.timeOutAt ? fmtDateTime.format(new Date(record.timeOutAt)) : "",
+          record.arrivalStatus || "", record.completionStatus || "Time In only", record.communityServiceHours || 0,
         ]);
       }
     }
@@ -457,6 +466,7 @@ async function attendanceCountsByEvent() {
       $group: {
         _id: "$event",
         total: { $sum: 1 },
+        students: { $addToSet: "$student" },
         present: { $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] } },
         late: { $sum: { $cond: [{ $eq: ["$status", "late"] }, 1, 0] } },
         absent: { $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] } },
@@ -486,6 +496,9 @@ router.get("/events", async (req, res) => {
         _id: event._id,
         title: event.title,
         description: event.description,
+        endDate: event.endDate, endTime: event.endTime,
+        attendanceStartTime: event.attendanceStartTime, attendanceEndTime: event.attendanceEndTime,
+        attendanceSessions: (event.attendanceSessions || []).map(({ _id, name, timeInOpen, onTimeDeadline, timeInCutoff, timeOutOpen, timeOutClose }) => ({ _id, name, timeInOpen, onTimeDeadline, timeInCutoff, timeOutOpen, timeOutClose })),
         academicYearStart: event.academicYearStart ?? null,
         semester: event.semester ?? null,
         date: event.date,
@@ -493,7 +506,8 @@ router.get("/events", async (req, res) => {
         location: event.location,
         status: event.status,
         organizer: event.organizer,
-        totalAttendees: total,
+        totalAttendees: count.students?.length || total,
+        attendanceRecords: total,
         present,
         late,
         absent: count.absent || 0,
@@ -537,7 +551,7 @@ router.get("/events/export", async (req, res) => {
         location: event.location || "",
         status: event.status,
         organizer: event.organizer?.name || "",
-        totalAttendees: count.total || 0,
+        totalAttendees: count.students?.length || count.total || 0,
         present: count.present || 0,
         late: count.late || 0,
       };

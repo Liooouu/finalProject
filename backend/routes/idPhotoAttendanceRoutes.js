@@ -11,7 +11,7 @@ const handle = action => async (req, res) => {
   try { res.set('Cache-Control', 'no-store'); res.json(await action(req)); }
   catch (error) { res.status(error.status || 503).json({ error: error.status ? error.message : 'Photo attendance is unavailable. Your local capture can be retried safely.' }); }
 };
-router.post('/prepare', authorize('organizer'), handle(req => service.prepare(req.user, req.body.eventId)));
+router.post('/prepare', authorize('organizer'), handle(req => service.prepare(req.user, req.body.eventId, new Date(), req.body.sessionId)));
 router.post('/capture-time', authorize('organizer'), handle(req => service.captureTime(req.user, req.body)));
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 3 * 1024 * 1024, files: 1, fields: 8 } }).single('photo');
 router.post('/captures', authorize('organizer'), (req, res, next) => upload(req, res, error => error ? res.status(400).json({ error: 'Capture one JPEG ID photo up to 3 MB.' }) : next()), handle(req => service.submit(req.user, req.body, req.file)));

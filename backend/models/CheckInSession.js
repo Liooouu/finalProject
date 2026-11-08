@@ -12,6 +12,8 @@ const checkInSessionSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // Optional attendance session this station serves (null = legacy time-in-only).
+    session: { type: mongoose.Schema.Types.ObjectId, default: null },
     openedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

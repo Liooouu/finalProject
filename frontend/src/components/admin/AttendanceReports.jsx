@@ -1,3 +1,4 @@
+import { attendanceCompletion, attendancePenaltyLabel } from "../../utils/attendanceSessions";
 import { useAcademicPeriods } from "../../utils/useAcademicPeriods";
 import AcademicPeriodFilter from "../organizer/AcademicPeriodFilter";
 import AttendanceRecordActions from "./AttendanceRecordActions";
@@ -35,7 +36,7 @@ import ReportDonut from "../ui/ReportDonut";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
 
-const EMPTY_FILTERS = { program: "all", yearLevel: "all", section: "all", eventId: "all" };
+const EMPTY_FILTERS = { program: "all", yearLevel: "all", section: "all", eventId: "all", sessionId: "all", completionStatus: "all" };
 const YEAR_LABELS = { 1: "1st Year", 2: "2nd Year", 3: "3rd Year", 4: "4th Year" };
 
 const REPORT_CHART_DARK = {
@@ -100,6 +101,8 @@ const AttendanceReports = () => {
     if (filters.yearLevel !== "all") params.yearLevel = filters.yearLevel;
     if (filters.section !== "all") params.section = filters.section;
     if (filters.eventId !== "all") params.eventId = filters.eventId;
+    if (filters.sessionId !== "all") params.sessionId = filters.sessionId;
+    if (filters.completionStatus !== "all") params.completionStatus = filters.completionStatus;
     return params;
   }, [filters,periodParams]);
 
@@ -420,7 +423,7 @@ const AttendanceReports = () => {
             <>
               <Card as="section" padding="none" className="admin-report-overview" aria-label="Attendance summary">
                 <div><span className="admin-overview-label">Attendance rate</span><strong>{attendanceData.stats.total ? `${attendanceRate}%` : "—"}</strong></div>
-                <div className="admin-overview-copy"><p>{attendedCount} attended out of {attendanceData.stats.total} attendance records.</p><span>Present and late records count as attended.</span></div>
+                <div className="admin-overview-copy"><p>{attendedCount} attended out of {attendanceData.stats.total} attendance records.</p><span>Time In rate: present and late records count as attended; completion is separate.</span>{attendanceData.stats.completion && <p className="mt-2 text-xs text-on-muted">Session completion: {attendanceData.stats.completion.completed || 0} completed · {attendanceData.stats.completion.incomplete || 0} incomplete · {attendanceData.stats.completion.absent || 0} absent · {attendanceData.stats.completion.pending || 0} awaiting Time Out.</p>}</div>
               </Card>
               <div className="admin-report-charts">
                 <ChartCard
@@ -477,7 +480,9 @@ const AttendanceReports = () => {
                   {key:"yearLevel",label:"Year level",all:"All year levels",options:(filterOptions.yearLevels || [1,2,3,4]).map(value=>({value,label:YEAR_LABELS[value] || `Year ${value}`}))},
                   {key:"section",label:"Section",all:"All sections",options:filterOptions.sections.map(value=>({value,label:`Section ${value}`}))},
                   {key:"eventId",label:"Event",all:"All events",options:filterOptions.events.map(event=>({value:event._id,label:`${event.title} — ${formatDate(event.date)}`}))},
-                ].map(field=><label key={field.key} className={`admin-report-filter admin-report-filter-${field.key}`}><span className="sr-only">{field.label}</span><select aria-label={field.label} className="field-select" value={filters[field.key]} onChange={event=>{setAttendancePage(1);setFilters(previous=>({...previous,[field.key]:event.target.value}));}}><option value="all">{field.all}</option>{field.options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>)}
+                  {key:"sessionId",label:"Session",all:"All sessions",options:(filterOptions.events.find(event => event._id === filters.eventId)?.attendanceSessions || []).map(row=>({value:row._id,label:row.name}))},
+                  {key:"completionStatus",label:"Completion",all:"All completion states",options:["completed","incomplete","absent","pending","excused"].map(value=>({value,label:value === "pending" ? "Awaiting Time Out" : value[0].toUpperCase()+value.slice(1)}))},
+                ].map(field=><label key={field.key} className={`admin-report-filter admin-report-filter-${field.key}`}><span className="sr-only">{field.label}</span><select aria-label={field.label} className="field-select" value={filters[field.key]} onChange={event=>{setAttendancePage(1);setFilters(previous=>({...previous,[field.key]:event.target.value,...(field.key === "eventId" ? { sessionId: "all" } : {})}));}}><option value="all">{field.all}</option>{field.options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>)}
                 <Button variant="info" size="sm" onClick={()=>{setAttendancePage(1);setFilters(EMPTY_FILTERS);}} disabled={!hasActiveFilters}>Reset filters</Button>
                 <Button variant="primary" size="sm" loading={exporting} title="Export all records matching the current filters" onClick={()=>downloadCSV("attendance")}>Export CSV</Button>
                 <p className="sr-only">Filters apply to both graphs, attendance records and CSV export.</p>
@@ -495,21 +500,22 @@ const AttendanceReports = () => {
                 <AttendanceRecordActions scopeKey={`${JSON.stringify(periodParams)}:${JSON.stringify(filters)}:${attendancePage}`} records={attendanceData.records} loading={attendanceLoading} onDeleted={() => Promise.all([fetchAttendance(), fetchEvents()])}>{({ selecting, checkbox, busy }) => <StablePage loading={attendanceLoading || busy} pageKey={`${JSON.stringify(periodParams)}:${JSON.stringify(filters)}:${attendanceData.stats.total}`} footer={<div className="admin-table-pager"><Pagination page={attendancePage} pageSize={attendancePageSize} total={attendanceData.stats.total} disabled={attendanceLoading || busy} onChange={setAttendancePage} label="Attendance report pages" /></div>}>
                 <div className="overflow-x-auto">
                   <table className="data-table admin-records-table min-w-[960px]" aria-busy={attendanceLoading}>
-                    <colgroup>{selecting && <col style={{width:"48px"}} />}<col style={{width:"24%"}} /><col style={{width:"24%"}} /><col style={{width:"22%"}} /><col style={{width:"13%"}} /><col /></colgroup>
+                    <colgroup>{selecting && <col style={{width:"48px"}} />}<col style={{width:"22%"}} /><col style={{width:"20%"}} /><col style={{width:"18%"}} /><col style={{width:"12%"}} /><col style={{width:"14%"}} /><col /></colgroup>
                     <thead>
                       <tr>
                         {selecting && <th className="attendance-action-cell"><span className="sr-only">Select</span></th>}
                         <th>Student</th>
-                        <th>Event</th>
+                        <th>Event / Session</th>
                         <th>Program / Year / Section</th>
                         <th>Status</th>
-                        <th>Check-in time</th>
+                        <th>Time In</th>
+                        <th>Time Out</th>
                       </tr>
                     </thead>
                     <tbody>
                       {attendanceData.records.length === 0 ? (
                         <tr>
-                          <td colSpan={selecting ? 6 : 5} className="py-10 text-center text-sm text-on-muted">
+                          <td colSpan={selecting ? 7 : 6} className="py-10 text-center text-sm text-on-muted">
                             No attendance records match these filters.
                           </td>
                         </tr>
@@ -524,7 +530,7 @@ const AttendanceReports = () => {
                             <tr key={r._id || i}>
                               {selecting && <td className="attendance-action-cell">{checkbox(r)}</td>}
                               <td><div className="admin-person-cell"><span className="admin-person-avatar" aria-hidden="true">{(r.student?.name || "?").split(/\s+/).filter(Boolean).slice(0,2).map(word=>word[0]).join("").toUpperCase()}</span><div><p className="font-medium text-on">{r.student?.name || "N/A"}</p><p className="mt-0.5 text-xs text-on-muted">{r.student?.email || "No email"}</p></div></div></td>
-                              <td className="text-on">{r.event?.title || r.eventTitle || "N/A"}</td>
+                              <td className="text-on">{r.event?.title || r.eventTitle || "N/A"}{r.sessionName && <p className="mt-0.5 text-xs text-on-muted">{r.sessionName}</p>}</td>
                               <td>
                                 {program || year || section ? (
                                   <span className="text-on-dim">
@@ -537,18 +543,19 @@ const AttendanceReports = () => {
                               </td>
                               <td>
                                 <StatusChip status={r.status} />
+                                <p className="mt-1 text-xs text-on-muted">{r.session ? `${attendanceCompletion(r)} · ` : ""}{attendancePenaltyLabel(r)}</p>
                               </td>
                               <td className="whitespace-nowrap">
-                                {checkedInAt ? (
+                                {r.timeInAt || checkedInAt ? (
                                   <>
                                     <p className="text-on-dim">
-                                      {formatTime(checkedInAt, {
+                                      {formatTime(r.timeInAt || checkedInAt, {
                                         hour: "numeric",
                                         minute: "2-digit",
                                       })}
                                     </p>
                                     <p className="mt-0.5 text-xs text-on-muted">
-                                      {formatDate(checkedInAt)}
+                                      {formatDate(r.timeInAt || checkedInAt)}
                                     </p>
                                   </>
                                 ) : (
@@ -564,6 +571,16 @@ const AttendanceReports = () => {
                                         : "No check-in time recorded"}
                                     </p>
                                   </>
+                                )}
+                              </td>
+                              <td className="whitespace-nowrap">
+                                {r.timeOutAt ? (
+                                  <>
+                                    <p className="text-on-dim">{formatTime(r.timeOutAt, { hour: "numeric", minute: "2-digit" })}</p>
+                                    <p className="mt-0.5 text-xs text-on-muted">{formatDate(r.timeOutAt)}</p>
+                                  </>
+                                ) : (
+                                  <span className="text-on-muted">—</span>
                                 )}
                               </td>
                             </tr>

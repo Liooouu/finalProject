@@ -14,7 +14,7 @@ export default function AttendanceReviewCard({ request, reviewMode, selected, on
   const noteId = useId();
   const selectable = reviewMode && request.status === "pending" && request.canReview === true;
   const recorded = request.resolution === "existing_face" ? request.confirmedAttendance : request.currentAttendance;
-  const protectedRecord = recorded && (recorded.method === "face" || recorded.status === "excused");
+  const protectedRecord = recorded && (recorded.status === "excused" || (recorded.method === "face" && !(request.session && request.action === "time_out" && !recorded.timeOutAt)) );
   const matchingFace = recorded?.method === "face" && ["present", "late"].includes(recorded.status) && recorded.status === request.proposedStatus;
   const conflict = protectedRecord && !matchingFace;
   const decide = async decision => {
@@ -32,9 +32,10 @@ export default function AttendanceReviewCard({ request, reviewMode, selected, on
       <div className="attendance-review-card-info">
         <div><h3 className="font-display text-base font-semibold text-on [overflow-wrap:anywhere]">{request.student?.name || "Student unavailable"}</h3><p className="mt-0.5 text-xs text-on-muted [overflow-wrap:anywhere]">{request.student?.email || "Email unavailable"}</p></div>
         <dl className="attendance-review-facts">
+          <div><dt>Session / action</dt><dd>{request.sessionName || "Time In only"} · {request.action === "time_out" ? "Time Out" : "Time In"}</dd></div>
           <div><dt>Event</dt><dd>{request.event?.title || "Event unavailable"}</dd></div>
           <div><dt>{request.proposedStatus === "absent" ? "Cutoff" : request.mode === "correction" ? "Claimed time" : "Check-in"}</dt><dd>{displayTime(request.effectiveAt)}</dd></div>
-          <div><dt>Result</dt><dd className="flex flex-wrap items-center gap-2"><StatusChip status={request.proposedStatus} /><span className="text-xs text-on-muted">{request.proposedHours ?? 0} penalty hrs</span></dd></div>
+          <div><dt>Result</dt><dd className="flex flex-wrap items-center gap-2">{request.action === "time_out" ? <span>Time Out</span> : <StatusChip status={request.proposedStatus} />}<span className="text-xs text-on-muted">{request.proposedHours ?? 0} penalty hrs</span></dd></div>
         </dl>
         {request.source === "id_photo" && <p className="text-xs text-info">{request.captureBasis === "device" ? "Offline capture · Verify time" : "ID checked by organizer"}</p>}
         {protectedRecord && <div className="rounded-lg bg-card-alt/60 p-2 text-xs text-on-dim"><p className="font-medium text-on">{request.resolution === "existing_face" ? "Confirmed using existing face attendance" : "Attendance already recorded"}</p><p className="mt-1">{recorded.status === "excused" ? "Approved excuse kept. Reject this duplicate with a note." : matchingFace ? "Matching face attendance: approval keeps its original time and hours." : "Different face attendance: approval cannot replace it. Review or reject this request."}</p></div>}

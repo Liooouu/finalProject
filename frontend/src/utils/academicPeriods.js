@@ -1,3 +1,4 @@
+import { rebaseEventAttendanceDates } from "./attendanceSessions";
 export function eventTerm(record) {
   const event=record?.event && typeof record.event==="object"?record.event:record;
   const startYear=event?.academicYearStart;
@@ -18,7 +19,7 @@ export const recordsForAcademicPeriod=(records,period,semester="all")=>{
 };
 
 export function applyEventField(previous,{name,value}) {
-  if(name!=="academicTerm")return {...previous,[name]:value};
+  if(name!=="academicTerm") { const next={...previous,[name]:value}; return ["date","endDate"].includes(name) ? rebaseEventAttendanceDates(previous,next) : next; }
   const [year,semester]=value.split(":");
   return {...previous,academicYearStart:year?Number(year):null,semester:semester||null};
 }

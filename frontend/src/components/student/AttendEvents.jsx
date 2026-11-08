@@ -117,7 +117,7 @@ const AttendEvents = () => {
         />
       ) : (
         <StablePage pageKey={`student-events:${tab}:${periodSelection.schoolYear}:${periodSelection.semester}`} footer={<Pagination page={currentPage} pageSize={5} total={visible.length} onChange={setPage} label="Student event pages" />}><div className="student-event-grid grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {pageEvents.map((event) => <StudentEventCard key={event._id} event={event} attendance={attendance.find((record) => (record.event?._id || record.event) === event._id)} attendanceError={attendanceError} />)}
+          {pageEvents.map((event) => <StudentEventCard key={event._id} event={event} records={attendance.filter(record => (record.event?._id || record.event) === event._id)} attendance={attendance.find((record) => (record.event?._id || record.event) === event._id)} attendanceError={attendanceError} />)}
         </div></StablePage>
       )}
     </div>

@@ -13,14 +13,26 @@ const { eventWindow, eventLastCheckInAt, isTerminal } = require('./eventLifecycl
 
 const id = value => String(value?._id || value || '');
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
+const sessionAttendance = require('./sessionAttendance');
 const RETENTION = 30 * 24 * 60 * 60 * 1000;
-function scheduleFor(event) {
+function findSession(event, sessionId) { return sessionAttendance.sessionFor(event, sessionId, { required: false }); }
+function scheduleFor(event, session = null, action = 'time_in') {
+  if (session) {
+    if (action === 'time_out') {
+      const open = +new Date(session.timeOutOpen), close = +new Date(session.timeOutClose);
+      if (!Number.isFinite(open) || !Number.isFinite(close)) fail(400, 'This session has no valid Time Out window.');
+      return { start: open, deadline: close, cutoff: close, action: 'time_out', sessionId: String(session._id) };
+    }
+    const open = +new Date(session.timeInOpen), deadline = +new Date(session.onTimeDeadline), cutoff = +new Date(session.timeInCutoff);
+    if (!Number.isFinite(open) || !Number.isFinite(deadline) || !Number.isFinite(cutoff)) fail(400, 'This session has no valid Time In window.');
+    return { start: open, deadline, cutoff, action: 'time_in', sessionId: String(session._id) };
+  }
   const window = eventWindow(event), cutoff = eventLastCheckInAt(event);
   if (!window || !cutoff) fail(400, 'This event has no valid attendance period.');
-  return { start: +window.start, deadline: +window.end, cutoff: +cutoff };
+  return { start: +window.start, deadline: +window.end, cutoff: +cutoff, action: 'time_in', sessionId: null };
 }
-function signature(event) {
-  return crypto.createHash('sha256').update(JSON.stringify({ ...scheduleFor(event), status: event.status })).digest('hex');
+function signature(event, session = null, action = 'time_in') {
+  return crypto.createHash('sha256').update(JSON.stringify({ ...scheduleFor(event, session, action) })).digest('hex');
 }
 function organizer(user) {
   if (user?.role !== 'organizer') fail(403, 'Only organizers can capture ID-assisted attendance.');
@@ -31,10 +43,12 @@ async function loadEvent(eventId) {
   if (!event) fail(404, 'Event not found.');
   return event;
 }
-function ticket(user, event, studentId, now) {
+function ticket(user, event, studentId, now, sessionId = null, action = 'time_in') {
+  const session = findSession(event, sessionId);
+  const sched = scheduleFor(event, session, action);
   return jwt.sign({ purpose: 'id-attendance', kind: studentId ? 'capture' : 'offline', operator: id(user), eventId: id(event),
-    studentId: studentId || null, issuedMs: +now, schedule: scheduleFor(event), signature: signature(event),
-    sessionVersion: user.sessionVersion || 0, organizerVersion: user.organizerAccessVersion || 0 },
+    studentId: studentId || null, issuedMs: +now, schedule: sched, signature: signature(event, session, action),
+    sessionId: sessionId || null, action, sessionVersion: user.sessionVersion || 0, organizerVersion: user.organizerAccessVersion || 0 },
   process.env.JWT_SECRET, { audience: 'tracked-id-attendance', expiresIn: '48h' });
 }
 function verifyTicket(token, user, now = new Date()) {
@@ -50,8 +64,14 @@ function proposalFromTicket(data, payload, now = new Date()) {
   const effectiveAt = new Date(basis === 'server' ? data.issuedMs : payload.capturedAt);
   if (!Number.isFinite(+effectiveAt) || +effectiveAt < data.issuedMs || +effectiveAt > +now + 15000) fail(400, 'The capture time is inconsistent. Keep the photo and request a documented correction.');
   if (+effectiveAt < data.schedule.start || +effectiveAt > data.schedule.cutoff) fail(400, 'This capture is outside the event attendance period.');
+  const action = data.action || 'time_in';
+  if (action === 'time_out') {
+    return { captureBasis: basis, effectiveAt, action: 'time_out', sessionId: data.sessionId || null,
+      proposedStatus: 'time_out', proposedHours: 0,
+      schedule: { start: new Date(data.schedule.start), deadline: new Date(data.schedule.deadline), cutoff: new Date(data.schedule.cutoff) } };
+  }
   const status = +effectiveAt <= data.schedule.deadline ? 'present' : 'late';
-  return { captureBasis: basis, effectiveAt, proposedStatus: status, proposedHours: status === 'late' ? 4 : 0,
+  return { captureBasis: basis, effectiveAt, action: 'time_in', sessionId: data.sessionId || null, proposedStatus: status, proposedHours: status === 'late' ? 4 : 0,
     schedule: { start: new Date(data.schedule.start), deadline: new Date(data.schedule.deadline), cutoff: new Date(data.schedule.cutoff) } };
 }
 function safePhoto(file) {
@@ -62,7 +82,12 @@ function safePhoto(file) {
     return jpeg.encode(decoded, 85).data; // Re-encode; do not retain EXIF/location metadata.
   } catch (error) { if (error.status) throw error; fail(400, 'The photo is unreadable. Retake a clear JPEG image.'); }
 }
-function preparationState(event, now = new Date()) {
+function preparationState(event, now = new Date(), session = null) {
+  if (session) {
+    const mode = sessionAttendance.modeFor(event, session, now);
+    const closed = event.status === 'closed' || +now > +new Date(session.timeOutClose);
+    return { available: !closed, mode, state: closed ? 'closed' : mode === 'closed' ? 'before' : 'open', schedule: scheduleFor(event, session, mode === 'time_out' ? mode : 'time_in'), message: closed ? 'This attendance session is closed. Corrections remain available from records.' : '' };
+  }
   let schedule;
   try { schedule = scheduleFor(event); }
   catch (error) {
@@ -73,17 +98,19 @@ function preparationState(event, now = new Date()) {
     message: 'Attendance is closed for this event. View attendance records to request a documented correction, or choose another event.' };
   return { available: true, state: +now < schedule.start ? 'before' : 'open', schedule };
 }
-async function prepare(user, eventId, now = new Date()) {
+async function prepare(user, eventId, now = new Date(), sessionId = null) {
   organizer(user);
   const event = await loadEvent(eventId);
-  const state = preparationState(event, now);
+  const session = findSession(event, sessionId);
+  const state = preparationState(event, now, session);
   const details = { event: { _id: event._id, title: event.title, date: event.date, status: event.status, time: event.time, attendanceStartTime: event.attendanceStartTime, attendanceEndTime: event.attendanceEndTime },
-    ...state, serverTime: now.toISOString() };
+    ...state, sessionId: session?._id || null, sessionName: session?.name || "", serverTime: now.toISOString() };
   // A valid event with a closed/missing schedule is an expected UI state, not a bad request.
   // Keep the offline upload queue usable, but issue no new ticket or student roster.
   if (!state.available) return details;
-  const students = await User.find({ ...activeStudentFilter(), _id: { $ne: user._id } }).select('name email program yearLevel section').sort({ name: 1 }).lean();
-  return { ...details, students, ticket: ticket(user, event, null, now) };
+  if (session) await sessionAttendance.lockSchedule(event, now);
+  const students = await User.find({ ...activeStudentFilter(), ...(session ? { createdAt: { $lte: new Date(session.timeInOpen) } } : {}), _id: { $ne: user._id } }).select('name email program yearLevel section').sort({ name: 1 }).lean();
+  return { ...details, students, ticket: ticket(user, event, null, now, session?._id, 'time_in'), ...(session ? { tickets: { time_in: ticket(user, event, null, now, session._id, 'time_in'), time_out: ticket(user, event, null, now, session._id, 'time_out') } } : {}) };
 }
 async function captureTime(user, payload, now = new Date()) {
   organizer(user);
@@ -91,21 +118,24 @@ async function captureTime(user, payload, now = new Date()) {
   if (!isValidObjectId(payload.studentId) || id(user) === id(payload.studentId)) fail(400, 'Choose another student.');
   const student = await User.findById(payload.studentId).select('role enrollmentStatus emailVerified');
   if (!isActiveStudent(student)) fail(400, 'Choose an active, verified student account.');
-  const schedule = scheduleFor(event);
-  if (isTerminal(event.status) || +now < schedule.start || +now > schedule.cutoff) fail(400, 'The attendance period is not open.');
-  return { ticket: ticket(user, event, payload.studentId, now), serverTime: now.toISOString() };
+  const session = findSession(event, payload.sessionId);
+  const action = payload.action || 'time_in';
+  if (!['time_in','time_out'].includes(action) || (!session && action !== 'time_in')) fail(400, 'Choose a valid attendance action.');
+  const schedule = scheduleFor(event, session, action);
+  if ((session ? sessionAttendance.modeFor(event, session, now) !== action : isTerminal(event.status)) || +now < schedule.start || +now > schedule.cutoff) fail(400, 'The attendance period is not open.');
+  return { ticket: ticket(user, event, payload.studentId, now, session?._id, action), serverTime: now.toISOString() };
 }
 async function receipt(request, user, now) {
   // A retry after a successful write must not apply attendance twice.
   if (request.status === 'pending' && request.captureBasis === 'server') {
     const event = await Event.findById(request.event);
-    if (event && signature(event) === request.photoScheduleSignature) {
+    if (event && signature(event, findSession(event, request.session), request.action || 'time_in') === request.photoScheduleSignature) {
       try { await manual.applyPhoto(user, request._id, now); }
       catch (error) { if (!error.status || error.status >= 500) throw error; }
       request = await Request.findById(request._id);
     }
   }
-  return { requestId: request._id, status: request.status, attendanceStatus: request.proposedStatus,
+  return { requestId: request._id, status: request.status, attendanceStatus: request.proposedStatus, action: request.action || 'time_in', sessionName: request.sessionName,
     effectiveAt: request.effectiveAt, captureBasis: request.captureBasis,
     message: request.status === 'approved' ? 'ID-assisted attendance recorded.' : request.status === 'rejected' ? 'This submission was rejected. No new attendance was recorded.' : 'Photo received. Independent review is needed for the capture time, changed event, or conflicting attendance.' };
 }
@@ -124,9 +154,15 @@ async function submit(user, payload, file, now = new Date()) {
   const event = await loadEvent(data.eventId);
   const student = await User.findById(payload.studentId).select('role enrollmentStatus emailVerified');
   if (!isActiveStudent(student)) fail(400, 'This student is no longer eligible for new attendance.');
+  const selected = findSession(event, data.sessionId);
   const proposal = proposalFromTicket(data, payload, now);
-  const previous = await Attendance.findOne({ event: event._id, student: student._id }).lean();
-  if (previous?.method === 'face' || ['present', 'late', 'excused'].includes(previous?.status)) fail(409, 'Attendance is already recorded. No photo or duplicate attendance was saved.');
+  if (selected) { proposal.session = selected._id; proposal.sessionName = selected.name; }
+  const previous = await Attendance.findOne({ event: event._id, student: student._id, ...(selected ? { session: selected._id } : { session: null }) }).lean();
+  if (selected && previous?.status !== 'excused' && previous?.[data.action === 'time_out' ? 'timeOutAt' : 'timeInAt']) {
+    if (data.action !== 'time_out' && previous.status !== proposal.proposedStatus) fail(409, 'The existing arrival differs. Use a documented correction.');
+    return { status: 'approved', alreadyRecorded: true, attendanceStatus: previous.status, effectiveAt: previous[data.action === 'time_out' ? 'timeOutAt' : 'timeInAt'], message: 'This session action is already recorded.' };
+  }
+  if (selected ? previous?.status === 'excused' : previous?.method === 'face' || ['present', 'late', 'excused'].includes(previous?.status)) fail(409, 'Attendance is already recorded. No photo or duplicate attendance was saved.');
   const buffer = safePhoto(file);
   const digest = crypto.createHash('sha256').update(buffer).digest('hex');
   const reusedPhoto = await Request.exists({ event: event._id, source: 'id_photo', photoDigest: digest, student: { $ne: student._id } });
@@ -138,7 +174,7 @@ async function submit(user, payload, file, now = new Date()) {
       photoDigest: digest, photoScheduleSignature: data.signature,
       photoExpiresAt: new Date(+now + RETENTION), receivedAt: now, submittedAt: now, identityChecked: true,
       reason: reusedPhoto ? 'ID image reused for another student; independent confirmation required.' : proposal.captureBasis === 'device' ? 'Physical school ID checked; offline capture time needs independent confirmation.' : 'Physical school ID checked; face scanner fallback.',
-      previousAttendance: manual.fingerprint(previous), attestedBy: !reusedPhoto && proposal.captureBasis === 'server' && (!previous || previous.method === 'auto' || previous.status === 'pending') ? user._id : null, status: 'pending' });
+      previousAttendance: manual.fingerprint(previous), attestedBy: !reusedPhoto && proposal.captureBasis === 'server' && (selected || !previous || previous.method === 'auto' || previous.status === 'pending') ? user._id : null, status: 'pending' });
   } catch (error) {
     await fileStore.deleteByUrl(saved.url).catch(() => {});
     if (error.code === 11000) {

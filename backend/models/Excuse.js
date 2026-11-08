@@ -4,6 +4,8 @@ const mongoose = require("mongoose");
 const excuseSchema = new mongoose.Schema({
   student: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   event: { type: mongoose.Schema.Types.ObjectId, ref: "Event", required: true },
+  // Session ids this excuse covers. Empty = a legacy Time In-only event. New letters select one missed session.
+  sessions: [{ type: mongoose.Schema.Types.ObjectId, default: null }],
   excuseText: { type: String, required: true },
   attachmentUrl: { type: String },
   attachments: [{ type: String }],

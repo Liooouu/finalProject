@@ -1,3 +1,4 @@
+import EventAttendanceSchedule from "../shared/EventAttendanceSchedule";
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import api from "../../api/axios";
@@ -63,7 +64,7 @@ export default function OrganizerHome() {
   useEffect(() => { refresh(); }, [refresh]);
   useAutoRefresh(refresh, { interval: 30000 });
   if (loading) return <Loading label="Loading organizer dashboard..." />;
-  const active = events.filter(event => !isTerminalStatus(event.status)).sort((a, b) => (a.status === "live" ? 0 : 1) - (b.status === "live" ? 0 : 1) || new Date(a.date) - new Date(b.date));
+  const active = events.filter(event => !isTerminalStatus(event.status) || (event.status !== "closed" && event.attendanceSessions?.some(row => +new Date(row.timeOutClose) >= Date.now()))).sort((a, b) => (a.status === "live" ? 0 : 1) - (b.status === "live" ? 0 : 1) || new Date(a.date) - new Date(b.date));
   const next = active[0];
   const eventPageSize = 2;
   const currentEventPage = Math.min(eventPage, Math.max(1, Math.ceil(active.length / eventPageSize)));
@@ -98,8 +99,8 @@ export default function OrganizerHome() {
                 <div><dt className="text-xs text-on-muted">Ends</dt><dd className="text-on-dim">{formatDate(event.endDate || event.date)} at {formatTime12Hour(event.endTime || "23:59")}</dd></div>
                 <div className="col-span-2"><dt className="text-xs text-on-muted">Venue</dt><dd className="text-on-dim [overflow-wrap:anywhere]">{event.location || "Venue TBA"}</dd></div>
               </dl>
-              <dl className="grid gap-3 border-t border-line pt-3 text-sm sm:grid-cols-2">
-                <div><dt className="text-xs text-on-muted">Attendance window</dt><dd className="mt-1 text-on-dim">{formatTime12Hour(event.attendanceStartTime) || "TBA"} – {formatTime12Hour(event.attendanceEndTime) || "TBA"}</dd></div>
+              <div className="border-t border-line pt-3"><EventAttendanceSchedule event={event} /></div>
+              <dl className="text-sm">
                 <div><dt className="text-xs text-on-muted">Organized by</dt><dd className="mt-1 text-on-dim [overflow-wrap:anywhere]">{event.organizer?.name || "Organizer TBA"}</dd></div>
               </dl>
             </article>)}
@@ -109,7 +110,6 @@ export default function OrganizerHome() {
       <BaseCard title="Face station" eyebrow="02 · Primary attendance" icon={<FaCamera />} className={`${cardClass} organizer-attendance-card organizer-face-card border-brand/40`} bodyClassName={bodyClass}>
         {faceEvent ? <>
           <div className="portal-inset organizer-event-box"><label className="text-xs text-on-muted">Event<select aria-label="Face station event" value={faceEvent._id} onChange={e => { setFaceEventId(e.target.value); }} className="field-select mt-1 w-full">{active.map(event => <option key={event._id} value={event._id}>{event.title}</option>)}</select></label>
-          <p className="mt-3 text-xs text-on-muted"><span className="block">Attendance:</span><span className="mt-1 block">{formatTime12Hour(faceEvent.attendanceStartTime) || "TBA"} – {formatTime12Hour(faceEvent.attendanceEndTime) || "TBA"}</span></p>
           <div className="organizer-station-actions mt-3 flex flex-wrap items-start gap-2">
             <OpenFaceStationButton key={faceEvent._id} eventId={faceEvent._id} />
           </div>

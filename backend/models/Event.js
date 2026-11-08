@@ -23,6 +23,20 @@ const eventSchema = new mongoose.Schema({
   manualOverride: { type: Boolean, default: false },
   attendanceStartTime: { type: String, required: true },
   attendanceEndTime: { type: String, required: true },
+  // Session-based Time In / Time Out. Empty array = legacy time-in-only event
+  // (no Time Out, no incomplete penalty). Each session is a full timestamp
+  // window so overnight sessions work.
+  sessionScheduleLockedAt: { type: Date, default: null },
+  attendanceSessions: [{
+    name: { type: String, required: true, trim: true },
+    timeInOpen: { type: Date, required: true },
+    onTimeDeadline: { type: Date, required: true },
+    timeInCutoff: { type: Date, required: true },
+    timeOutOpen: { type: Date, required: true },
+    timeOutClose: { type: Date, required: true },
+    eligibleStudents: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    rosterLockedAt: { type: Date, default: null },
+  }],
   openNotified: { type: Boolean, default: false },
   closingSoonNotified: { type: Boolean, default: false },
   closedNotified: { type: Boolean, default: false },

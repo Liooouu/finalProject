@@ -1,5 +1,6 @@
+import SessionAttendanceDetails from "../shared/SessionAttendanceDetails";
 import { academicTermLabel } from "../../utils/academicPeriods";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { FaCalendarAlt, FaClock, FaMapMarkerAlt, FaCheckCircle, FaExclamationCircle } from "react-icons/fa";
 import { BsClipboardCheck } from "react-icons/bs";
 import { StatusChip } from "../ui";
@@ -13,7 +14,10 @@ const results = {
   pending: { title: "Manual check-in · Awaiting review", tone: "border-info/40 bg-info/10 text-info", detail: "An organizer submitted your check-in for independent review. It is not confirmed attendance yet." },
 };
 
-export default function StudentEventCard({ event, attendance, attendanceError = false }) {
+export default function StudentEventCard({ event, attendance, records = [], attendanceError = false }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(timer); }, []);
+  const openExit = event.status === "finished" && event.attendanceSessions?.find(row => now >= +new Date(row.timeOutOpen) && now <= +new Date(row.timeOutClose));
   const result = results[attendance?.status];
   const unavailable = attendanceError && !result;
   const title = result?.title || (unavailable ? "Attendance status unavailable" : "Attendance not marked yet");
@@ -35,6 +39,8 @@ export default function StudentEventCard({ event, attendance, attendanceError = 
         <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-on-dim [overflow-wrap:anywhere]">{event.description || "No description provided."}</p>
       </div>
       <div className="student-event-body flex flex-1 flex-col gap-4 p-4 sm:p-5">
+        {openExit && <p className="rounded-xl bg-info/10 p-3 text-sm text-info">Event ended. Time Out is still open until {formatDateTime(openExit.timeOutClose)}.</p>}
+        {event.attendanceSessions?.length ? <div className="space-y-3">{event.attendanceSessions.map(session => { const row = records.find(record => String(record.session?._id || record.session) === String(session._id)); return <div key={session._id} className="rounded-xl bg-card-alt/50 p-3"><SessionAttendanceDetails record={row} session={session} /></div>; })}</div> : <>
         <div role="status" aria-live="polite" aria-atomic="true" className={`rounded-xl border p-3 ${tone}`}>
           <div className="flex items-start gap-2.5">
             {recorded ? <FaCheckCircle aria-hidden="true" className="mt-0.5 shrink-0 text-lg" /> : <FaExclamationCircle aria-hidden="true" className="mt-0.5 shrink-0 text-lg" />}
@@ -47,15 +53,17 @@ export default function StudentEventCard({ event, attendance, attendanceError = 
             </div>
           </div>
         </div>
+        </>}
         <dl className="student-event-details text-sm">
           <div className="student-event-detail"><FaCalendarAlt aria-hidden="true" className="mt-1 shrink-0 text-xs text-on-muted" /><div className="min-w-0"><dt className="text-xs text-on-muted">Starts</dt><dd className="mt-0.5 text-on-dim">{event.date ? formatDate(event.date) : "Date TBA"}{event.time ? ` at ${formatTime12Hour(event.time)}` : " · Time TBA"}</dd></div></div>
           <div className="student-event-detail"><FaClock aria-hidden="true" className="mt-1 shrink-0 text-xs text-on-muted" /><div className="min-w-0"><dt className="text-xs text-on-muted">Ends</dt><dd className="mt-0.5 text-on-dim">{event.endDate || event.date ? formatDate(event.endDate || event.date) : "Date TBA"} at {formatTime12Hour(event.endTime || "23:59")}</dd></div></div>
           <div className="student-event-detail"><FaMapMarkerAlt aria-hidden="true" className="mt-1 shrink-0 text-xs text-on-muted" /><div className="min-w-0"><dt className="text-xs text-on-muted">Venue</dt><dd className="mt-0.5 whitespace-pre-wrap text-on-dim [overflow-wrap:anywhere]">{event.location || "Venue TBA"}</dd></div></div>
         </dl>
-        <div className="flex items-start gap-2 rounded-xl border border-warn/25 bg-warn/5 px-3 py-2.5 text-xs text-warn">
+        {!event.attendanceSessions?.length && <div className="flex items-start gap-2 rounded-xl border border-warn/25 bg-warn/5 px-3 py-2.5 text-xs text-warn">
           <BsClipboardCheck aria-hidden="true" className="mt-0.5 shrink-0" />
           <p><span className="font-semibold">Attendance window</span><br />{event.attendanceStartTime && event.attendanceEndTime ? `${formatTime12Hour(event.attendanceStartTime)} – ${formatTime12Hour(event.attendanceEndTime)}` : "Not yet announced"}</p>
         </div>
+        }
         <p className="mt-auto border-t border-line pt-3 text-xs text-on-muted [overflow-wrap:anywhere]">Organized by <span className="font-medium text-on-dim">{event.organizer?.name || "Organizer TBA"}</span></p>
       </div>
     </article>

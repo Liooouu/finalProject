@@ -1,3 +1,7 @@
+import SessionAttendanceDetails from "./shared/SessionAttendanceDetails";
+import EventAttendanceSchedule from "./shared/EventAttendanceSchedule";
+import SessionSetupEditor, { AttendanceTimeGroup } from "./shared/SessionSetupEditor";
+import { attendanceSetupIssue } from "../utils/attendanceSessions";
 import { usePortalBack } from "../utils/usePortalBack";
 import EventAcademicFields from "./shared/EventAcademicFields";
 import { applyEventField, academicTermLabel } from "../utils/academicPeriods";
@@ -54,9 +58,17 @@ const EventDetails = () => {
   const [message, setMessage] = useTransientState("");
   const [messageType, setMessageType] = useState("success");
   const [myAttendance, setMyAttendance] = useState(null);
+  const [sessionRecords, setSessionRecords] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [role, setRole] = useState(null);
+  useEffect(() => {
+    if (role !== 'student' || !id || !event?.attendanceSessions?.length) return;
+    let active = true;
+    const refresh = async () => { try { const { data } = await api.get('/events/my-attendance', { timeout: 8000 }); if (active) setSessionRecords(data.filter(row => String(row.event?._id || row.event) === id)); } catch { /* Keep the last confirmed session records. */ } };
+    refresh(); const timer = setInterval(refresh, 15000);
+    return () => { active = false; clearInterval(timer); };
+  }, [role, id, event?.attendanceSessions?.length]);
   const eventListPath =
     role === "admin"
       ? "/admin/dashboard/events"
@@ -129,6 +141,7 @@ const EventDetails = () => {
         eventData = eventRes.data;
         setEvent(eventData);
         setEditForm({
+          attendanceSessions: eventData.attendanceSessions || [],
           title: eventData.title,
           academicYearStart: eventData.academicYearStart ?? null,
           semester: eventData.semester ?? null,
@@ -180,7 +193,7 @@ const EventDetails = () => {
   // the face kiosk or the organizer. When it appears, return to the dashboard
   // with a confirmation toast.
   useEffect(() => {
-    if (role !== "student" || !id || !event || myAttendance) return;
+    if (role !== "student" || !id || !event || event.attendanceSessions?.length || myAttendance) return;
     let cancelled = false;
     let intervalId = null;
 
@@ -269,6 +282,7 @@ const EventDetails = () => {
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (saving) return;
+    if (editForm.attendanceSessions?.length) { const issue = attendanceSetupIssue(editForm); if (issue) { setMessageType("error"); setMessage(issue); return; } }
     setSaving(true);
     try {
       const res = await api.put(`/events/${id}`, editForm);
@@ -409,14 +423,20 @@ const EventDetails = () => {
 
           <div className="rounded-2xl border border-line bg-card-alt/50 p-4">
             <p className="eyebrow">Attendance window</p>
-            <p className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-warn">
-              <BsClipboardCheck className="shrink-0" />
-              {formatTime12Hour(event.attendanceStartTime)} –{" "}
-              {formatTime12Hour(event.attendanceEndTime)}
-            </p>
-            <p className="mt-1 text-xs text-on-muted">
-              Scheduled check-in window. Later check-ins may be marked late.
-            </p>
+            {event.attendanceSessions?.length ? (
+              <div className="mt-2"><EventAttendanceSchedule event={event} compact /></div>
+            ) : (
+              <>
+                <p className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-warn">
+                  <BsClipboardCheck className="shrink-0" />
+                  {formatTime12Hour(event.attendanceStartTime)} –{" "}
+                  {formatTime12Hour(event.attendanceEndTime)}
+                </p>
+                <p className="mt-1 text-xs text-on-muted">
+                  Scheduled check-in window. Later check-ins may be marked late.
+                </p>
+              </>
+            )}
             <p className="mt-3 text-sm text-on-muted">{academicTermLabel(event)}</p>
             <EventLastEdit event={event} className="mt-4" />
             {event.organizer && (
@@ -441,7 +461,8 @@ const EventDetails = () => {
       )}
 
       {/* Student Attendance Section */}
-      {role === "student" && (
+      {role === "student" && event.attendanceSessions?.length > 0 && <Card><h2 className="panel-heading">Session attendance</h2><div className="mt-4 space-y-3">{event.attendanceSessions.map(session => { const row = sessionRecords.find(record => String(record.session?._id || record.session) === String(session._id)); return <div className="rounded-xl bg-card-alt/40 p-3" key={session._id}><SessionAttendanceDetails record={row} session={session} showWindow={false} /></div>; })}</div></Card>}
+      {role === "student" && !event.attendanceSessions?.length && (
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="panel-heading">Attendance</h2>
@@ -657,8 +678,9 @@ const EventDetails = () => {
                   </div>
                 </div>
 
+                {editForm.attendanceSessions?.length ? <AttendanceTimeGroup value={editForm} onChange={handleEditChange} groupId="timeIn" followEventDate disabled={saving || event.sessionScheduleLocked || event.attendanceSessions?.some(row => row.rosterLockedAt)} /> : <>
                 <div className="border-t border-line pt-4">
-                  <h3 className="text-sm font-semibold text-on">Attendance window</h3>
+                  <h3 className="text-sm font-semibold text-on">Attendance window (Time In-only event)</h3>
                   <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <label htmlFor="ed-att-start" className="field-label">
@@ -689,6 +711,7 @@ const EventDetails = () => {
                   </div>
                 </div>
 
+                </>}
                 <div className="border-t border-line pt-4">
                   <h3 className="text-sm font-semibold text-on">Event ends</h3>
                   <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -723,6 +746,8 @@ const EventDetails = () => {
                     Leave blank to use the end of the event date.
                   </p>
                 </div>
+
+                {editForm.attendanceSessions?.length > 0 && <><AttendanceTimeGroup value={editForm} onChange={handleEditChange} groupId="timeOut" followEventDate disabled={saving || event.sessionScheduleLocked || event.attendanceSessions?.some(row => row.rosterLockedAt)} /><SessionSetupEditor value={editForm} onChange={handleEditChange} extrasOnly disabled={saving || event.sessionScheduleLocked || event.attendanceSessions?.some(row => row.rosterLockedAt)} /></>}
 
                 <div>
                   <label htmlFor="ed-status" className="field-label">

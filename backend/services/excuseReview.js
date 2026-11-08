@@ -1,13 +1,15 @@
 const { excuseWindow } = require('./excuseWindow');
 
 // Review uses the submission time, so an on-time request can be reviewed later.
-function excuseReviewIssue(excuse, attendance) {
+function excuseReviewIssue(excuse, attendance, session = null) {
   if (!excuse.event) return 'The event record is unavailable.';
   if (excuse.type !== 'absence') return 'Advance excuse letters are no longer accepted. This request can be rejected only.';
   if (!(excuse.attachments?.length || excuse.attachmentUrl)) return 'A supporting attachment is required before an excuse can be approved.';
   const submitted = new Date(excuse.createdAt);
   if (!Number.isFinite(submitted.getTime())) return 'The submission date is unavailable.';
-  const window = excuseWindow(excuse.event, submitted);
+  session = session || excuse.event.attendanceSessions?.find(row => String(row._id) === String(excuse.sessions?.[0]));
+  if (excuse.event.attendanceSessions?.length && !session) return 'Choose a specific missed session before approval.';
+  const window = excuseWindow(excuse.event, submitted, session);
   if (!window.allowed) return window.reason;
   if (attendance !== undefined && attendance?.status !== 'absent') return 'Only a recorded absence can be excused.';
   return '';
@@ -24,7 +26,8 @@ function resubmissionIssue(excuse, attendance, approvedElsewhere = false) {
   if (excuse.type !== "absence") return "Only missed-event excuse letters can be resubmitted.";
   const submitted = new Date(excuse.createdAt);
   if (!Number.isFinite(submitted.getTime())) return "The original submission date is unavailable.";
-  const window = excuseWindow(excuse.event, submitted);
+  const session = excuse.event.attendanceSessions?.find(row => String(row._id) === String(excuse.sessions?.[0]));
+  const window = excuseWindow(excuse.event, submitted, session);
   if (!window.allowed) return "Only letters originally submitted within the seven-day deadline can be resubmitted.";
   if (attendance?.status !== "absent") return "The event attendance is no longer marked absent.";
   return "";

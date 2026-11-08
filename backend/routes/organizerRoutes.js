@@ -41,13 +41,13 @@ router.get("/excuses", protect, async (req, res) => {
 
     const excuses = await Excuse.find(filter)
       .populate("student", "name email program yearLevel section enrollmentStatus")
-      .populate("event", "title date time endDate endTime organizer academicYearStart semester")
+      .populate("event", "title date time endDate endTime organizer academicYearStart semester attendanceSessions")
       .populate("reviewedBy", "name")
       .sort({ createdAt: -1 });
 
-    res.json(excuses.map(excuse => ({ ...excuse.toObject(), canReview: canReviewExcuse(excuse, req.user), canDelete: canManageExcuse(excuse, req.user), approvalIssue: excuseReviewIssue(excuse), submissionDeadline: excuse.event ? excuseWindow(excuse.event).deadline : null })));
+    res.json(excuses.map(excuse => ({ ...excuse.toObject(), canReview: canReviewExcuse(excuse, req.user), canDelete: canManageExcuse(excuse, req.user), approvalIssue: excuseReviewIssue(excuse), submissionDeadline: excuse.event ? excuseWindow(excuse.event, new Date(), excuse.event.attendanceSessions?.find(row => String(row._id) === String(excuse.sessions?.[0]))).deadline : null })));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -98,7 +98,7 @@ router.get("/stats", protect, async (req, res) => {
       attendeesPerEvent,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -114,7 +114,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
     }
 
     // Check the reviewer identity before any status, penalty or notification change.
-    const loaded = await Excuse.findById(req.params.id).populate("event", "title date time endDate endTime organizer academicYearStart semester");
+    const loaded = await Excuse.findById(req.params.id).populate("event", "title date time endDate endTime organizer academicYearStart semester attendanceSessions");
     if (!loaded) return res.status(404).json({ error: "Excuse not found" });
     if (!canReviewExcuse(loaded, req.user)) {
       return res.status(403).json({ error: "You cannot approve or reject your own excuse letter" });
@@ -123,9 +123,9 @@ router.patch("/excuses/:id", protect, async (req, res) => {
       return res.status(400).json({ error: `This excuse was already ${loaded.status}` });
     }
 
-    const attendance = await Attendance.findOne({ event: loaded.event._id, student: loaded.student });
+    const attendance = await Attendance.findOne({ event: loaded.event._id, student: loaded.student, session: loaded.sessions?.[0] || null });
     if (status === "approved") {
-      const issue = excuseReviewIssue(loaded, attendance);
+      const issue = excuseReviewIssue(loaded, attendance?.status === "excused" && String(attendance.excusedBy) === String(loaded._id) ? { status: "absent" } : attendance);
       if (issue) return res.status(400).json({ error: issue });
       if (removal !== undefined && removal !== "complete") return res.status(400).json({ error: "Approval only removes the penalty for this event" });
     }
@@ -141,7 +141,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
       { new: true }
     )
       .populate("student", "name email program yearLevel section enrollmentStatus")
-      .populate("event", "title date time endDate endTime organizer academicYearStart semester")
+      .populate("event", "title date time endDate endTime organizer academicYearStart semester attendanceSessions")
       .populate("reviewedBy", "name");
 
     if (!excuse) {
@@ -150,16 +150,23 @@ router.patch("/excuses/:id", protect, async (req, res) => {
 
     try {
       if (status === "approved") {
-        const removedHours = attendance.communityServiceHours || 0;
-        attendance.status = "excused";
-        attendance.communityServiceHours = 0;
-        if (removedHours > 0) attendance.communityServiceLog.push({ action: "removed", hours: removedHours, note: "Excuse approved" });
-        await attendance.save();
+        const alreadyApplied = attendance.status === "excused" && String(attendance.excusedBy) === String(loaded._id);
+        const removedHours = alreadyApplied ? attendance.excuseRemovedHours || 0 : attendance.communityServiceHours || 0;
+        if (!alreadyApplied) {
+          const saved = await Attendance.updateOne({ _id: attendance._id, status: "absent", communityServiceHours: attendance.communityServiceHours || 0,
+            ...(attendance.updatedAt ? { updatedAt: attendance.updatedAt } : { updatedAt: { $exists: false } }) }, {
+            $set: { status: "excused", communityServiceHours: 0, excusedBy: loaded._id, excuseRemovedHours: removedHours,
+              ...(attendance.session ? { completionStatus: "excused", sessionPenaltyHours: 0 } : {}) },
+            $inc: { __v: 1 }, ...(removedHours > 0 ? { $push: { communityServiceLog: { action: "removed", hours: removedHours, note: "Excuse approved", at: new Date() } } } : {})
+          });
+          if (!saved.modifiedCount) throw Object.assign(new Error("Attendance changed while reviewing. Refresh before trying again."), { status: 409 });
+        }
 
         await Excuse.findByIdAndUpdate(excuse._id, { removedHours });
         excuse.removedHours = removedHours;
 
-        const message = `Your excuse for "${excuse.event.title}" was approved. ${removedHours} community service hours for this event were removed.`;
+        const sessionName = attendance?.session ? (excuse.event.attendanceSessions?.find(row => String(row._id) === String(attendance.session))?.name || "") : "";
+        const message = `Your excuse for "${excuse.event.title}"${sessionName ? ` (${sessionName})` : ""} was approved. ${removedHours} community service hours for ${sessionName ? "this session" : "this event"} were removed.`;
 
         await notifyUsers([excuse.student], {
           type: "excuse",
@@ -195,7 +202,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
 
     res.json({ ...(excuse.toObject ? excuse.toObject() : excuse), canReview: canReviewExcuse(excuse, req.user), canDelete: canManageExcuse(excuse, req.user) });
   } catch (err) {
-    res.status(err.statusCode || 500).json({ error: err.message });
+    res.status(err.status || err.statusCode || 500).json({ error: err.message });
   }
 });
 
@@ -218,7 +225,7 @@ router.delete("/excuses", protect, async (req, res) => {
     );
     res.json({ deleted: result.deletedCount });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -242,7 +249,7 @@ router.delete("/excuses/:id", protect, async (req, res) => {
     await fileStore.deleteByUrls(files);
     res.json({ message: "Excuse deleted" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 

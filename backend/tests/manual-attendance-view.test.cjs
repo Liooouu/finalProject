@@ -35,3 +35,16 @@ test('projection scopes by student and event rather than only event', () => {
   assert.equal(rows.length, 2); assert.equal(rows[0].communityServiceHours, 8); assert.equal(rows[1].student, student);
   assert.equal(projectManualAttendance([source], [request], { includeUnrecorded: false }).length, 1);
 });
+
+test('pending session exit holds only its incomplete penalty, without removing late hours', () => {
+  const source = { _id: 'row', student, event, session: 'morning', status: 'late', method: 'face', completionStatus: 'incomplete', communityServiceHours: 6 };
+  const [row] = projectManualAttendance([source], [{ ...request, session: 'morning', action: 'time_out' }]);
+  assert.equal(row.status, 'late'); assert.equal(row.completionStatus, 'pending');
+  assert.equal(row.communityServiceHours, 4); assert.equal(row.provisionalHours, 2);
+  assert.equal(source.communityServiceHours, 6);
+});
+test('a pending request for another session cannot suppress this absence', () => {
+  const source = { _id: 'row', student, event, session: 'morning', status: 'absent', method: 'auto', communityServiceHours: 8 };
+  const [row] = projectManualAttendance([source], [{ ...request, session: 'afternoon' }]);
+  assert.equal(row.status, 'absent'); assert.equal(row.communityServiceHours, 8);
+});

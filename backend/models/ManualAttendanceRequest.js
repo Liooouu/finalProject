@@ -4,6 +4,9 @@ const mongoose = require("mongoose");
 // Server-timed ID captures may be applied on the organizer's explicit physical-ID attestation.
 const schema = new mongoose.Schema({
   event: { type: mongoose.Schema.Types.ObjectId, ref: "Event", required: true, immutable: true },
+  session: { type: mongoose.Schema.Types.ObjectId, default: null, immutable: true },
+  sessionName: { type: String, default: "", immutable: true },
+  action: { type: String, enum: ["time_in", "time_out"], default: "time_in", immutable: true },
   student: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
   requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
   mode: { type: String, enum: ["checkin", "correction"], required: true, immutable: true },
@@ -21,7 +24,7 @@ const schema = new mongoose.Schema({
   identityChecked: { type: Boolean, required: true, immutable: true },
   effectiveAt: { type: Date, required: true, immutable: true },
   submittedAt: { type: Date, required: true, immutable: true },
-  proposedStatus: { type: String, enum: ["present", "late", "absent"], required: true, immutable: true },
+  proposedStatus: { type: String, enum: ["present", "late", "absent", "time_out"], required: true, immutable: true },
   proposedHours: { type: Number, required: true, immutable: true },
   schedule: { start: Date, deadline: Date, cutoff: Date },
   // Fingerprint of the record observed by the requester. Approval must not
@@ -35,11 +38,12 @@ const schema = new mongoose.Schema({
   confirmedAttendance: {
     attendance: { type: mongoose.Schema.Types.ObjectId, ref: "Attendance" },
     status: String, method: String, attendedAt: Date, hours: Number,
+    session: mongoose.Schema.Types.ObjectId, sessionName: String, timeInAt: Date, timeOutAt: Date, completionStatus: String,
   },
   reviewLock: { token: String, until: Date },
 }, { timestamps: true });
 
-schema.index({ event: 1, student: 1 }, { unique: true, partialFilterExpression: { status: "pending" }, name: "one_pending_manual_request" });
+schema.index({ event: 1, student: 1, session: 1, action: 1 }, { unique: true, partialFilterExpression: { status: "pending" }, name: "one_pending_session_action" });
 schema.index({ status: 1, submittedAt: -1 });
 schema.index({ requestedBy: 1, status: 1 });
 schema.index({ student: 1, status: 1 });
