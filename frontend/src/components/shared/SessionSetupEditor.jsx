@@ -15,7 +15,7 @@ export function AttendanceTimeGroup({ value, onChange, groupId, index = 0, disab
   return <section aria-label={`${group.title} attendance times`} className="min-w-0 space-y-3 rounded-xl bg-card-alt/40 p-3">
     <h3 className="text-sm font-semibold text-on">{group.title}</h3>
     {!linked && <div><label className="field-label" htmlFor={`attendance-${index}-${group.id}-date`}>Date</label><input id={`attendance-${index}-${group.id}-date`} type="date" className="field field-datetime w-full min-w-0" min="2026-01-01" required disabled={disabled} value={date || ''} onChange={e => setGroup(e.target.value)} /></div>}
-    <div className={`grid min-w-0 gap-3 ${group.id === 'timeIn' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>{group.fields.map(([key,label]) => {
+    <div className="grid min-w-0 gap-3 sm:grid-cols-2">{group.fields.map(([key,label]) => {
       const fieldDate = manilaInput(row[key]).slice(0, 10);
       return <div key={key} className="min-w-0"><label className="field-label" htmlFor={`attendance-${index}-${key}`}>{label}</label><TimePicker id={`attendance-${index}-${key}`} name={key} value={attendanceClock(row, key)} required disabled={disabled || !date} className="field field-datetime w-full min-w-0" onChange={e => setGroup(date, key, e.target.value)} />{fieldDate && fieldDate !== date && <p className="mt-1 text-xs text-on-muted">On {fieldDate}</p>}</div>;
     })}</div>
@@ -35,6 +35,6 @@ export default function SessionSetupEditor({ value, onChange, disabled = false, 
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">{ATTENDANCE_GROUPS.map(group => <AttendanceTimeGroup key={group.id} value={value} onChange={onChange} groupId={group.id} index={index} disabled={disabled} />)}</div>
     </div>)}
     {!disabled && !legacy && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3"><p className="text-xs text-on-muted">Multiple required days or activities? Add another attendance period.</p><Button type="button" size="sm" variant="secondary" disabled={!saved.length || rows.length >= 30} onClick={() => set([...rows, emptyEventAttendance(rows.length)])}>+ Add another day / activity</Button></div>}
-    <details className="text-xs text-on-muted"><summary className="cursor-pointer">Penalty rules</summary><p className="mt-2">Late: 4 hours. Missing Time Out: 2 hours, or 6 hours if also late. Absent: 8 hours total for each required attendance period.</p></details>
+    <details className="text-xs text-on-muted"><summary className="cursor-pointer">Penalty rules</summary><p className="mt-2">On time until the event start; additional periods use their Time In opening. Late: 4 hours. Missing Time Out: 2 hours, or 6 hours if also late. Absent: 8 hours total for each required attendance period.</p></details>
   </div>;
 }

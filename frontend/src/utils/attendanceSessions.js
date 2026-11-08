@@ -66,10 +66,19 @@ export function updateAttendanceGroup(row, group, date, changedKey, time) {
 }
 
 export const ATTENDANCE_GROUPS = [
-  { id: 'timeIn', title: 'Time In', fields: [['timeInOpen', 'Opens'], ['onTimeDeadline', 'Late after'], ['timeInCutoff', 'Accept until']] },
+  { id: 'timeIn', title: 'Time In', fields: [['timeInOpen', 'Opens'], ['timeInCutoff', 'Accept until']] },
   { id: 'timeOut', title: 'Time Out', fields: [['timeOutOpen', 'Opens'], ['timeOutClose', 'Closes']] },
 ];
 export const emptyEventAttendance = index => ({ name: index === 0 ? 'Event attendance' : `Additional attendance ${index}`, timeInOpen: '', onTimeDeadline: '', timeInCutoff: '', timeOutOpen: '', timeOutClose: '' });
+// The event start already defines punctuality. Additional periods use their
+// own opening time; keep the API's deadline without another user input.
+export function syncAttendanceDeadlines(value) {
+  return { ...value, attendanceSessions: (value.attendanceSessions || []).map((row, index) => ({
+    ...row,
+    onTimeDeadline: index === 0 && value.date && value.time
+      ? inputInstant(`${value.date}T${value.time}`) : row.timeInOpen,
+  })) };
+}
 export function rebaseEventAttendanceDates(previous, next) {
   const base = previous.attendanceSessions?.[0];
   if (!base || base.name !== 'Event attendance') return next;
@@ -86,9 +95,10 @@ export function attendanceSetupIssue(value) {
   for (const row of value.attendanceSessions) {
     const prefix = row.name === 'Event attendance' ? '' : `${row.name}: `;
     const times = Object.fromEntries(ATTENDANCE_GROUPS.flatMap(group => group.fields.map(([key,label]) => [key, { at: +new Date(row[key]), label: `${group.title} ${label.toLowerCase()}` }])));
+    times.onTimeDeadline = { at: +new Date(row.onTimeDeadline), label: 'event start time' };
     for (const value of Object.values(times)) if (!Number.isFinite(value.at)) return `${prefix}Select ${value.label}.`;
-    if (times.onTimeDeadline.at < times.timeInOpen.at) return `${prefix}Late after cannot be earlier than Time In opens.`;
-    if (times.timeInCutoff.at < times.onTimeDeadline.at) return `${prefix}Accept until must be the same as or later than Late after.`;
+    if (times.onTimeDeadline.at < times.timeInOpen.at) return `${prefix}Time In must open at or before the start time.`;
+    if (times.timeInCutoff.at < times.onTimeDeadline.at) return `${prefix}Accept until must be at or after the start time.`;
     if (times.timeOutOpen.at <= times.timeInCutoff.at) return `${prefix}Time Out must open after Time In closes.`;
     if (times.timeOutClose.at <= times.timeOutOpen.at) return `${prefix}Time Out must close after it opens.`;
     const end = +new Date(`${value.endDate || value.date}T${value.endTime || '23:59'}:00+08:00`);

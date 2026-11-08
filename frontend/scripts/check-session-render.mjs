@@ -20,7 +20,8 @@ try {
   assert.doesNotMatch(legacy, /Time Out|Incomplete/);
   const editor = render(SessionSetupEditor, { value: { ...event, attendanceSessions: [session] }, onChange() {} });
   assert.equal((editor.match(/type="date"/g) || []).length, 2);
-  assert.equal((editor.match(/aria-haspopup="dialog"/g) || []).length, 5);
+  assert.equal((editor.match(/aria-haspopup="dialog"/g) || []).length, 4);
+  assert.doesNotMatch(editor, /Late after/);
   assert.doesNotMatch(editor, /type="datetime-local"/);
   const blank = render(SessionSetupEditor, { value: { attendanceSessions: [] }, onChange() {} });
   assert.match(blank, /Time In/); assert.match(blank, /Time Out/);
@@ -35,7 +36,7 @@ try {
   assert.match(schedule, /Time In/); assert.match(schedule, /Time Out/);
   assert.match(schedule, /8:00 AM – 9:00 AM/);
   assert.match(schedule, /11:00 AM – 12:00 PM/);
-  assert.match(schedule, /Late after 8:30 AM/);
+  assert.doesNotMatch(schedule, /Late after/);
   assert.doesNotMatch(schedule, /<details/);
   assert.match(attendanceWindowLabel('2026-11-08T15:00:00Z', '2026-11-08T16:30:00Z'), /Nov 8.*Nov 9/);
   assert.match(render(EventAttendanceSchedule, { event: { ...event, attendanceSessions: [] } }), /Time In only · no Time Out required/);
@@ -52,7 +53,15 @@ try {
   const { attendanceSetupIssue, rebaseEventAttendanceDates } = await server.ssrLoadModule('/src/utils/attendanceSessions.js');
   const valid = { ...event, endTime: '12:00', attendanceSessions: [{ ...session, name: 'Event attendance', onTimeDeadline: session.timeInOpen }] };
   assert.equal(attendanceSetupIssue(valid), '', 'zero-minute late grace is valid');
-  assert.match(attendanceSetupIssue({ ...valid, attendanceSessions: [{ ...valid.attendanceSessions[0], onTimeDeadline: '2026-11-07T23:59:00Z' }] }), /Late after cannot/);
+  assert.match(attendanceSetupIssue({ ...valid, attendanceSessions: [{ ...valid.attendanceSessions[0], onTimeDeadline: '2026-11-07T23:59:00Z' }] }), /Time In must open at or before/);
+  const { applyEventField } = await server.ssrLoadModule('/src/utils/academicPeriods.js');
+  const configured = applyEventField({ ...valid, time: '08:30' }, { name: 'attendanceSessions', value: valid.attendanceSessions });
+  assert.equal(configured.attendanceSessions[0].onTimeDeadline, '2026-11-08T00:30:00.000Z');
+  const retimed = applyEventField(configured, { name: 'time', value: '08:45' });
+  assert.equal(retimed.attendanceSessions[0].onTimeDeadline, '2026-11-08T00:45:00.000Z');
+  assert.equal(applyEventField(configured, { name: 'title', value: 'New title' }).attendanceSessions[0].onTimeDeadline, configured.attendanceSessions[0].onTimeDeadline, 'unrelated edits preserve saved deadlines');
+  const extras = applyEventField(configured, { name: 'attendanceSessions', value: [...configured.attendanceSessions, { ...session, name: 'Afternoon' }] });
+  assert.equal(extras.attendanceSessions[1].onTimeDeadline, session.timeInOpen);
   const moved = rebaseEventAttendanceDates(valid, { ...valid, date: '2026-11-09' });
   assert.equal(moved.attendanceSessions[0].timeInOpen, '2026-11-09T00:00:00.000Z');
   assert.equal(moved.attendanceSessions[0].timeOutOpen, '2026-11-09T03:00:00.000Z');
