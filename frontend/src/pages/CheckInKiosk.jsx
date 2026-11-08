@@ -13,6 +13,7 @@ import {
 import api from "../api/axios";
 import { formatDateTime } from "../utils/helpers";
 import TrackMark from "../components/shared/TrackMark";
+import { faceScanIssue } from "../utils/faceScanQuality";
 
 // Same face-recognition models used for enrollment, served as static assets so the
 // kiosk works on the venue's LAN without hitting the API for model files.
@@ -51,6 +52,8 @@ const CheckInKiosk = () => {
   const stateRef = useRef("before");
   const detectorRef = useRef(null);
   const frameRef = useRef(null);
+  const probeRef = useRef(null);
+  const qualityRef = useRef(null);
 
   const [boot, setBoot] = useState("loading"); // loading | ready | error
   const [cameraError, setCameraError] = useState("");
@@ -126,6 +129,7 @@ const CheckInKiosk = () => {
   useEffect(() => {
     let cancelled = false;
     const stream = { current: null };
+    probeRef.current = null;
 
     (async () => {
       try {
@@ -211,6 +215,10 @@ const CheckInKiosk = () => {
         });
         return;
       }
+      if (data?.result === "unstable") {
+        setResult({ kind: "info", name: "Hold still for a moment", meta: "Look straight at the camera while we confirm your face." });
+        return;
+      }
 
       if (data?.result === "no-enrollments") {
         setResult({
@@ -262,12 +270,23 @@ const CheckInKiosk = () => {
       frame.getContext("2d").drawImage(video, 0, 0);
       const detections = await faceapi.detectAllFaces(frame, detectorRef.current);
       if (detections.length > 1) {
+        probeRef.current = null;
         holdUntilRef.current = Date.now() + 1500;
         setResult({ kind: "warn", name: "One person at a time",
           meta: "Only the student checking in should be visible to the camera." });
         return;
       }
-      if (!detections.length) return;
+      if (!detections.length) { probeRef.current = null; return; }
+      const quality = (qualityRef.current ??= document.createElement("canvas"));
+      quality.width = 32; quality.height = 32;
+      const context = quality.getContext("2d", { willReadFrequently: true });
+      const box = detections[0].box;
+      context.drawImage(frame, box.x, box.y, box.width, box.height, 0, 0, 32, 32);
+      const pixels = context.getImageData(0, 0, 32, 32).data;
+      let brightness = 0;
+      for (let i = 0; i < pixels.length; i += 4) brightness += 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+      const issue = faceScanIssue(detections[0], frame.width, frame.height, brightness / 1024);
+      if (issue) { probeRef.current = null; setResult({ kind: "info", name: "Adjust your position", meta: issue }); return; }
 
       // Reuse the single detected face and run the same full landmark and
       // recognition models as before. Crowded frames need neither model.
@@ -279,9 +298,17 @@ const CheckInKiosk = () => {
       if (!match?.descriptor || !["open", "late"].includes(stateRef.current)) return;
 
       const descriptor = Array.from(match.descriptor);
-      const { data } = await api.post(`/checkin/${token}`, { descriptor });
+      const previous = probeRef.current;
+      probeRef.current = { descriptor, at: Date.now(), token, state: stateRef.current };
+      if (!previous || previous.token !== token || previous.state !== stateRef.current || Date.now() - previous.at > 3000) {
+        setResult({ kind: "info", name: "Hold still—confirming your face", meta: "Keep looking at the camera for one more scan." });
+        return;
+      }
+      probeRef.current = null;
+      const { data } = await api.post(`/checkin/${token}`, { descriptors: [previous.descriptor, descriptor] });
       applyResult(data);
     } catch (err) {
+      probeRef.current = null;
       if (err.response?.status === 429) {
         holdUntilRef.current = Date.now() + 3000;
         setResult({
@@ -291,6 +318,7 @@ const CheckInKiosk = () => {
         });
       } else if (err.response?.status === 400) {
         holdUntilRef.current = Date.now() + 1500;
+        setResult({ kind: "warn", name: "Please retry the scan", meta: err.response?.data?.error || "Hold still and look at the camera." });
       } else if (!err.response) {
         setError("Connection lost. Reconnecting…");
       } else {

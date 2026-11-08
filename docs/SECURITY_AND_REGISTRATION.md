@@ -52,7 +52,31 @@ enrollment should be supervised against the student's school ID; masterlist
 membership plus email ownership alone does not prove whose face was captured.
 Check-in records identity at an instant, not continuous presence until the event
 ends. Independent manual review and audits deter abuse but cannot guarantee
-against collusion. No checkout or head-turn step was added.
+against collusion. Session-based events have separate Time In/Time Out; no
+head-turn challenge is used.
+
+### Face identification safeguards (November 2026)
+
+The kiosk requires two consecutive clear frames, not one immediate nearest-face
+decision. Both probes must independently identify the same account/enrollment
+version and stay within 0.18 descriptor distance. The default/maximum identity
+distance is 0.40; the runner-up gap is at least 0.10 with a maximum best/second
+ratio of 0.80. Enrolled references closer than 0.35 are treated as ambiguous even
+when a probe favors one of them. Invalid/permissive identification environment
+values fall back to these conservative settings. These are operational safety
+limits, not calibrated accuracy percentages or a guarantee against lookalikes.
+
+The camera rejects low-confidence, small, clipped or very dark/bright face
+captures and displays corrective guidance. This is not liveness detection.
+Ambiguous identities use the existing organizer-supervised ID fallback rather
+than automatic attendance. No additional photo or descriptor is stored by these
+checks. After deploying both API and frontend, close and reopen existing station
+tabs; old single-frame clients fail closed with a reload message.
+
+Verify on the actual venue devices with the affected students before relying on
+automatic matches. Check that each account has the correct enrolled identity;
+a face enrolled under the wrong account cannot be reliably repaired by changing
+distance limits. Existing incorrect attendance is not automatically reassigned.
 
 ## Eligibility and deletion
 

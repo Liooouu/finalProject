@@ -292,15 +292,10 @@ router.post("/:token", async (req, res) => {
       return res.json({ ok: false, result: state });
     }
 
-    const descriptor = req.body?.descriptor;
-    if (!faceIdentify.isValidDescriptor(descriptor)) {
-      return res.status(400).json({ error: "A valid face descriptor is required" });
-    }
-
-    const match = await faceIdentify.identify(descriptor);
+    const match = await faceIdentify.identifyBatch(req.body?.descriptors);
 
     if (match.result === "invalid") {
-      return res.status(400).json({ error: "A valid face descriptor is required" });
+      return res.status(400).json({ error: "Two clear face scans are required. Reload the station and try again." });
     }
 
     if (match.result !== "match") {

@@ -2,13 +2,13 @@
 // 1:N face identification for the attendance kiosk.
 //
 // The 1:1 verifier (faceMatcher.descriptorsMatch) answers "is this the person
-// we already think it is?" — a loose threshold is safe there because the
-// identity is known. Identification is the opposite question: "which of every
+// we already think it is?" Identification is a different question: "which of every
 // enrolled student is this?" A single loose threshold would eventually mark a
 // lookalike present. So a match must clear two bars:
 //
-//   1. distance <= FACE_IDENTIFY_THRESHOLD (default 0.45, stricter than 0.5)
-//   2. the runner-up must be further away by FACE_IDENTIFY_MARGIN (default 0.06)
+//   1. distance <= FACE_IDENTIFY_THRESHOLD (default and maximum 0.40)
+//   2. runner-up separation >= FACE_IDENTIFY_MARGIN (default/minimum 0.10)
+//   3. refuse near-colliding enrolled references; require two stable probes
 //
 // When the second bar fails the face is "ambiguous" and the kiosk tells the
 // student to see the organizer instead of guessing.
@@ -18,8 +18,13 @@ const { activeStudentFilter, isActiveStudent } = require("./studentEligibility")
 const DESCRIPTOR_LENGTH = 128;
 const INDEX_MAX_AGE_MS = 5 * 60 * 1000;
 
-const threshold = () => parseFloat(process.env.FACE_IDENTIFY_THRESHOLD || "0.45");
-const margin = () => parseFloat(process.env.FACE_IDENTIFY_MARGIN || "0.06");
+// Invalid or permissive deployment values must never disable rejection.
+function safeSetting(name, fallback, minimum, maximum) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value >= minimum && value <= maximum ? value : fallback;
+}
+const threshold = () => safeSetting("FACE_IDENTIFY_THRESHOLD", 0.40, 0.1, 0.40);
+const margin = () => safeSetting("FACE_IDENTIFY_MARGIN", 0.10, 0.10, 1);
 
 let index = new Map();
 let loadedAt = 0;
@@ -133,8 +138,16 @@ async function identify(descriptor) {
   if (best.distance > threshold()) {
     return { result: "unknown", distance: best.distance };
   }
-  if (secondDistance !== Infinity && secondDistance - best.distance < margin()) {
+  if (secondDistance !== Infinity && (secondDistance - best.distance < margin() || best.distance / secondDistance > 0.80)) {
     return { result: "ambiguous", distance: best.distance, secondDistance };
+  }
+
+  // A probe can sit closer to the WRONG member of a lookalike pair and still
+  // clear a probe-only margin. Refuse near-colliding enrollment references too.
+  for (const entry of index.values()) {
+    if (entry.id !== best.entry.id && distance(best.entry.descriptor, entry.descriptor) < 0.35) {
+      return { result: "ambiguous", distance: best.distance, secondDistance };
+    }
   }
 
   return {
@@ -150,6 +163,17 @@ async function identify(descriptor) {
     distance: best.distance,
     secondDistance,
   };
+}
+
+async function identifyBatch(descriptors) {
+  if (!Array.isArray(descriptors) || descriptors.length !== 2 || !descriptors.every(isValidDescriptor)) return { result: "invalid" };
+  if (distance(descriptors[0], descriptors[1]) > 0.18) return { result: "unstable" };
+  const first = await identify(descriptors[0]);
+  if (first.result !== "match") return first;
+  const second = await identify(descriptors[1]);
+  if (second.result !== "match") return second;
+  if (first.student.id !== second.student.id || first.student.enrollmentVersion !== second.student.enrollmentVersion) return { result: "ambiguous" };
+  return { ...second, distance: Math.max(first.distance, second.distance) };
 }
 
 function size() {
@@ -169,6 +193,7 @@ module.exports = {
   upsert,
   remove,
   identify,
+  identifyBatch,
   size,
   clear,
 };

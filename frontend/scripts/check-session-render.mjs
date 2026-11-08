@@ -4,6 +4,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 const server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
 try {
+  const { faceScanIssue } = await server.ssrLoadModule('/src/utils/faceScanQuality.js');
+  const detection = { score: 0.9, box: { x: 100, y: 100, width: 160, height: 180 } };
+  assert.equal(faceScanIssue(detection, 640, 480, 110), '');
+  assert.match(faceScanIssue(detection, 640, 480, 20), /too dark/);
+  assert.match(faceScanIssue(detection, 640, 480, 240), /too bright/);
+  assert.match(faceScanIssue({ ...detection, score: 0.5 }, 640, 480, 110), /hold still/);
+  assert.match(faceScanIssue({ ...detection, box: { ...detection.box, width: 50 } }, 640, 480, 110), /closer/);
+  assert.match(faceScanIssue({ ...detection, box: { ...detection.box, x: -10 } }, 640, 480, 110), /whole face/);
   const { default: StudentEventCard } = await server.ssrLoadModule('/src/components/student/StudentEventCard.jsx');
   const { default: SessionSetupEditor } = await server.ssrLoadModule('/src/components/shared/SessionSetupEditor.jsx');
   const { default: ManagedEventCard } = await server.ssrLoadModule('/src/components/shared/ManagedEventCard.jsx');

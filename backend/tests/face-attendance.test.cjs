@@ -17,7 +17,7 @@ const users = { find: () => chain([]), findById: id => chain(String(id) === stud
 const attendance = { findOne: async () => stored, create: async (value) => { writes++; stored = value; return value; }, countDocuments: async () => 0 };
 const excuses = { findOne: async () => null };
 const sessions = { findOne: async () => session, updateOne: async () => {}, findById: async () => session };
-const identifyMock = { isValidDescriptor: (d) => Array.isArray(d) && d.length === 128 && d.every(Number.isFinite), identify: async () => identified, remove: () => {} };
+const identifyMock = { isValidDescriptor: (d) => Array.isArray(d) && d.length === 128 && d.every(Number.isFinite), identifyBatch: async ds => Array.isArray(ds) && ds.length === 2 && ds.every(d => Array.isArray(d) && d.length === 128 && d.every(Number.isFinite)) ? identified : { result: 'invalid' }, remove: () => {} };
 Module._load = function(request, parent, ...rest) {
   const mocks = {
     '../models/User': users, '../models/Attendance': attendance, '../models/Excuse': excuses,
@@ -59,6 +59,37 @@ test('rejects malformed, non-finite and incorrectly sized descriptors', () => {
 test('matches an enrolled face', async () => { await faceIdentify.refresh(); faceIdentify.upsert(enrolled(studentId, vector())); assert.equal((await faceIdentify.identify(vector(0.01))).student.id, studentId); });
 test('unknown faces are not guessed', async () => { await faceIdentify.refresh(); faceIdentify.upsert(enrolled(studentId, vector())); assert.equal((await faceIdentify.identify(vector(0.2))).result, 'unknown'); });
 test('similar enrolled faces produce ambiguous rather than a guessed identity', async () => { await faceIdentify.refresh(); faceIdentify.upsert(enrolled(studentId, vector())); faceIdentify.upsert(enrolled('other', vector(0.001))); assert.equal((await faceIdentify.identify(vector())).result, 'ambiguous'); });
+test('lookalike enrollment pair is refused even when probe-only margin would pass', async () => {
+  await faceIdentify.refresh(); faceIdentify.upsert(enrolled(studentId, vector())); faceIdentify.upsert(enrolled('other', vector(0.025)));
+  assert.equal((await faceIdentify.identify(vector(-0.005))).result, 'ambiguous');
+});
+test('invalid or permissive threshold settings cannot turn unknown probes into matches', async () => {
+  await faceIdentify.refresh(); faceIdentify.upsert(enrolled(studentId, vector()));
+  const previous = process.env.FACE_IDENTIFY_THRESHOLD;
+  try { for (const setting of ['NaN', 'Infinity', '0.9', '-1', 'garbage']) { process.env.FACE_IDENTIFY_THRESHOLD = setting; assert.equal((await faceIdentify.identify(vector(0.05))).result, 'unknown'); } }
+  finally { if (previous === undefined) delete process.env.FACE_IDENTIFY_THRESHOLD; else process.env.FACE_IDENTIFY_THRESHOLD = previous; }
+});
+test('two stable clear probes confirm one identity, while unstable or missing probes cannot', async () => {
+  await faceIdentify.refresh(); faceIdentify.upsert(enrolled(studentId, vector()));
+  assert.equal((await faceIdentify.identifyBatch([vector(0.005), vector(0.006)])).result, 'match');
+  assert.equal((await faceIdentify.identifyBatch([vector(), vector(0.02)])).result, 'unstable');
+  assert.equal((await faceIdentify.identifyBatch([vector()])).result, 'invalid');
+  assert.equal((await faceIdentify.identifyBatch([vector(), vector(NaN)])).result, 'invalid');
+});
+test('a stable pair near an enrolled lookalike still cannot identify anyone', async () => {
+  await faceIdentify.refresh(); faceIdentify.upsert(enrolled(studentId, vector())); faceIdentify.upsert(enrolled('other', vector(0.025)));
+  assert.equal((await faceIdentify.identifyBatch([vector(-0.005), vector(-0.006)])).result, 'ambiguous');
+});
+test('individually acceptable scans of different students cannot form one confirmation', async () => {
+  await faceIdentify.refresh(); faceIdentify.upsert(enrolled(studentId, vector())); faceIdentify.upsert(enrolled('other', vector(0.04)));
+  assert.equal((await faceIdentify.identify(vector(0.014))).student.id, studentId);
+  assert.equal((await faceIdentify.identify(vector(0.026))).student.id, 'other');
+  assert.equal((await faceIdentify.identifyBatch([vector(0.014), vector(0.026)])).result, 'ambiguous');
+});
+test('a good first scan cannot compensate for an unknown second scan', async () => {
+  await faceIdentify.refresh(); faceIdentify.upsert(enrolled(studentId, vector()));
+  assert.equal((await faceIdentify.identifyBatch([vector(0.035), vector(0.036)])).result, 'unknown');
+});
 test('removed faces cannot be matched', async () => { await faceIdentify.refresh(); faceIdentify.upsert(enrolled(studentId, vector())); faceIdentify.remove(studentId); assert.notEqual((await faceIdentify.identify(vector())).result, 'match'); });
 test('attendance enrollment requires consent', async () => { await faceIdentify.refresh(); faceIdentify.upsert({ ...enrolled(studentId, vector()), faceConsentAt: null }); assert.notEqual((await faceIdentify.identify(vector())).result, 'match'); });
 test('on-time attendance records face audit details', async () => { const now = new Date('2026-10-27T01:30:00Z'); const e = { ...event, date: '2026-10-27', attendanceStartTime: '09:00', attendanceEndTime: '10:00', endTime: '12:00' }; const result = await marking.recordAttendance({ event: e, student: enrolledUser, now, checkInSession: session._id, matchDistance: 0.1 }); assert.equal(result.status,'present'); assert.equal(result.hours,0); assert.equal(stored.method,'face'); assert.equal(stored.checkInSession,session._id); });
@@ -66,14 +97,15 @@ test('late attendance retains the existing four-hour penalty', async () => { con
 test('before-window and finished events reject attendance', () => { const e = {...event,date:'2026-10-27',attendanceStartTime:'09:00',attendanceEndTime:'10:00',endTime:'12:00'}; assert.equal(marking.checkInGate(e,new Date('2026-10-27T00:00:00Z')).reason,'before'); assert.equal(marking.checkInGate(e,new Date('2026-10-27T05:00:00Z')).reason,'closed'); assert.equal(marking.checkInGate({...e,status:'finished'}).reason,'finished'); });
 test('duplicate check-in does not write another attendance record', async () => { stored={status:'present'}; const result=await marking.recordAttendance({event,student:enrolledUser}); assert.equal(result.reason,'already'); assert.equal(writes,0); });
 test('station rejects an invalid face descriptor', async () => { assert.equal((await request('test-token',{descriptor:[0]})).status,400); assert.equal(writes,0); });
-test('unknown and ambiguous faces cannot record attendance', async () => { for(const result of ['unknown','ambiguous']) { identified={result}; assert.equal((await request('test-token',{descriptor:vector()})).body.result,result); } assert.equal(writes,0); });
-test('closed and expired stations cannot record attendance', async () => { session.closedAt=new Date(); assert.equal((await request('test-token',{descriptor:vector()})).body.result,'closed'); session.closedAt=null; session.expiresAt=new Date(0); assert.equal((await request('test-token',{descriptor:vector()})).body.result,'expired'); assert.equal(writes,0); });
-test('reset or unconsented faces cannot record attendance from stale cache', async () => { enrolledUser.faceConsentAt=null; assert.equal((await request('test-token',{descriptor:vector()})).body.result,'not-enrolled'); assert.equal(writes,0); });
-test('old enrollment versions cannot mark a newly enrolled student', async () => { enrolledUser.faceEnrollmentVersion=2; assert.equal((await request('test-token',{descriptor:vector()})).body.result,'not-enrolled'); assert.equal(writes,0); });
-test('station records a match then reports repeat attendance without another write', async () => { assert.equal((await request('test-token',{descriptor:vector()})).body.result,'marked'); assert.equal((await request('test-token',{descriptor:vector()})).body.result,'already'); assert.equal(writes,1); });
+test('single-frame station clients must reload, not silently record attendance', async () => { assert.equal((await request('single-frame',{descriptor:vector()})).status,400); assert.equal(writes,0); });
+test('unknown and ambiguous faces cannot record attendance', async () => { for(const result of ['unknown','ambiguous','unstable']) { identified={result}; assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,result); } assert.equal(writes,0); });
+test('closed and expired stations cannot record attendance', async () => { session.closedAt=new Date(); assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,'closed'); session.closedAt=null; session.expiresAt=new Date(0); assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,'expired'); assert.equal(writes,0); });
+test('reset or unconsented faces cannot record attendance from stale cache', async () => { enrolledUser.faceConsentAt=null; assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,'not-enrolled'); assert.equal(writes,0); });
+test('old enrollment versions cannot mark a newly enrolled student', async () => { enrolledUser.faceEnrollmentVersion=2; assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,'not-enrolled'); assert.equal(writes,0); });
+test('station records a match then reports repeat attendance without another write', async () => { assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,'marked'); assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,'already'); assert.equal(writes,1); });
 test('students cannot create stations', async () => { assert.equal((await request('sessions',{eventId})).status,403); });
 test('malformed event IDs return a client error', async () => { assert.equal((await request('sessions',{eventId:'wrong'})).status,400); });
 
 
-test('a demoted organizer cannot use an already-open face station',async()=>{operator={role:'student',organizerAccess:false,organizerAccessVersion:2};const response=await request('demoted', {descriptor:vector()});assert.equal(response.status,404);assert.equal(writes,0);});
-test('re-promotion cannot revive an old face station',async()=>{operator={role:'student',organizerAccess:true,organizerAccessVersion:3};session.organizerAccessVersion=1;const response=await request('old-grant', {descriptor:vector()});assert.equal(response.status,404);assert.equal(writes,0);});
+test('a demoted organizer cannot use an already-open face station',async()=>{operator={role:'student',organizerAccess:false,organizerAccessVersion:2};const response=await request('demoted', {descriptors:[vector(),vector()]});assert.equal(response.status,404);assert.equal(writes,0);});
+test('re-promotion cannot revive an old face station',async()=>{operator={role:'student',organizerAccess:true,organizerAccessVersion:3};session.organizerAccessVersion=1;const response=await request('old-grant', {descriptors:[vector(),vector()]});assert.equal(response.status,404);assert.equal(writes,0);});
