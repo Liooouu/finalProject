@@ -153,8 +153,13 @@ function sessionLastCheckInAt(event) {
   if (!sessions.length) return null;
   let last = null;
   for (const session of sessions) {
-    const close = session.activityEnd || session.timeOutClose;
-    if (close && (!last || +new Date(close) > +last)) last = new Date(close);
+    // Departure can close after the activity ends. Keep the event actionable
+    // through that deadline, including overnight and additional-day sessions.
+    for (const value of [session.activityEnd, session.timeOutClose]) {
+      if (!value) continue;
+      const close = new Date(value);
+      if (Number.isFinite(+close) && (!last || close > last)) last = close;
+    }
   }
   return last;
 }
@@ -237,7 +242,15 @@ function shouldAutoGoLive(event, now = new Date()) {
 function shouldAutoFinish(event, now = new Date()) {
   if (isTerminal(event.status) || !isAutomated(event)) return false;
   const last = eventLastCheckInAt(event);
-  return !!last && now >= last;
+  // Session Time Out accepts its exact closing instant. Legacy events keep
+  // their existing cutoff semantics.
+  return !!last && (event.attendanceSessions?.length ? now > last : now >= last);
+}
+
+function shouldAutoReopen(event, now = new Date()) {
+  if (event.status !== STATUS.FINISHED || !isAutomated(event) || (event.attendanceSessions?.length || 0) < 2) return false;
+  const last = sessionLastCheckInAt(event);
+  return !!last && now <= last;
 }
 
 // Decide whether the background job should keep running on an event.
@@ -294,6 +307,7 @@ module.exports = {
   attendanceWindowPayload,
   shouldAutoGoLive,
   shouldAutoFinish,
+  shouldAutoReopen,
   resolveAutomation,
   eventLiveNotification,
 };

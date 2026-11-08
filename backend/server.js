@@ -31,6 +31,7 @@ const {
   ATTENDANCE_NOTICES_VERSION,
   shouldAutoGoLive,
   shouldAutoFinish,
+  shouldAutoReopen,
   eventLiveNotification,
 } = require("./services/eventLifecycle");
 
@@ -492,23 +493,28 @@ connectDB()
             autoFinishedAt: now,
           });
           console.log(`[lifecycle] "${event.title}" finished (auto)`);
-         // Reopen multi-day events finished after an earlier day but that
-         // still have a session window open or upcoming now.
-         const toReopen = await Event.find({
-           status: STATUS.FINISHED,
-           manualOverride: { $ne: true },
-           'attendanceSessions.1': { $exists: true },
-         });
-         for (const event of toReopen) {
-           const sessions = event.attendanceSessions || [];
-           const hasFuture = sessions.some(session => {
-             const close = new Date(session.activityEnd || session.timeOutClose);
-             return Number.isFinite(+close) && +close >= +now;
-           });
-           if (!hasFuture) continue;
-           await Event.findByIdAndUpdate(event._id, { status: STATUS.LIVE, autoFinishedAt: null });
-           console.log(`[lifecycle] "${event.title}" reopened for the next day (auto)`);
-         }
+        }
+
+        // Recovery is a separate pass: it must also run when no other event
+        // was just finished. Never revive a human-closed or concurrently edited event.
+        const toReopen = await Event.find({
+          status: STATUS.FINISHED,
+          manualOverride: { $ne: true },
+          'attendanceSessions.1': { $exists: true },
+        });
+        for (const event of toReopen) {
+          try {
+            if (!shouldAutoReopen(event, now)) continue;
+            const reopened = await Event.findOneAndUpdate({
+              _id: event._id, __v: event.__v,
+              status: STATUS.FINISHED, manualOverride: { $ne: true },
+            }, { $set: { status: STATUS.LIVE, autoFinishedAt: null } });
+            if (!reopened) continue;
+            require('./services/recordUpdates').publishRecordChange();
+            console.log(`[lifecycle] "${event.title}" reopened for the next day (auto)`);
+          } catch (err) {
+            console.error(`[lifecycle] reopen failed for "${event.title}":`, err.message);
+          }
         }
       } catch (err) {
         console.error("Error in attendance processing job:", err.message);
