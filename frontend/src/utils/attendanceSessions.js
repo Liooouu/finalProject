@@ -66,8 +66,8 @@ export function updateAttendanceGroup(row, group, date, changedKey, time) {
 }
 
 export const ATTENDANCE_GROUPS = [
-  { id: 'timeIn', title: 'Time In', hint: 'Set when students may arrive and when they become late.', fields: [['timeInOpen', 'Opens'], ['onTimeDeadline', 'Late after'], ['timeInCutoff', 'Accept until']] },
-  { id: 'timeOut', title: 'Time Out', hint: 'Set when students may record their departure.', fields: [['timeOutOpen', 'Opens'], ['timeOutClose', 'Closes']] },
+  { id: 'timeIn', title: 'Time In', fields: [['timeInOpen', 'Opens'], ['onTimeDeadline', 'Late after'], ['timeInCutoff', 'Accept until']] },
+  { id: 'timeOut', title: 'Time Out', fields: [['timeOutOpen', 'Opens'], ['timeOutClose', 'Closes']] },
 ];
 export const emptyEventAttendance = index => ({ name: index === 0 ? 'Event attendance' : `Additional attendance ${index}`, timeInOpen: '', onTimeDeadline: '', timeInCutoff: '', timeOutOpen: '', timeOutClose: '' });
 export function rebaseEventAttendanceDates(previous, next) {

@@ -13,13 +13,12 @@ export function AttendanceTimeGroup({ value, onChange, groupId, index = 0, disab
   const date = linked ? eventDate || '' : attendanceGroupDate(row, group, eventDate);
   const setGroup = (nextDate, key, time) => onChange({ target: { name: 'attendanceSessions', value: rows.map((item, i) => i === index ? updateAttendanceGroup(item, group, nextDate, key, time) : item) } });
   return <section aria-label={`${group.title} attendance times`} className="min-w-0 space-y-3 rounded-xl bg-card-alt/40 p-3">
-    <div><h3 className="text-sm font-semibold text-on">{group.title}</h3><p className="mt-1 text-xs text-on-muted">{group.hint}</p></div>
+    <h3 className="text-sm font-semibold text-on">{group.title}</h3>
     {!linked && <div><label className="field-label" htmlFor={`attendance-${index}-${group.id}-date`}>Date</label><input id={`attendance-${index}-${group.id}-date`} type="date" className="field field-datetime w-full min-w-0" min="2026-01-01" required disabled={disabled} value={date || ''} onChange={e => setGroup(e.target.value)} /></div>}
     <div className={`grid min-w-0 gap-3 ${group.id === 'timeIn' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>{group.fields.map(([key,label]) => {
       const fieldDate = manilaInput(row[key]).slice(0, 10);
       return <div key={key} className="min-w-0"><label className="field-label" htmlFor={`attendance-${index}-${key}`}>{label}</label><TimePicker id={`attendance-${index}-${key}`} name={key} value={attendanceClock(row, key)} required disabled={disabled || !date} className="field field-datetime w-full min-w-0" onChange={e => setGroup(date, key, e.target.value)} />{fieldDate && fieldDate !== date && <p className="mt-1 text-xs text-on-muted">On {fieldDate}</p>}</div>;
     })}</div>
-    {group.id === 'timeIn' && <p className="text-xs text-on-muted">Arrivals after “Late after” are late. “Accept until” is the final arrival cutoff.</p>}
   </section>;
 }
 
