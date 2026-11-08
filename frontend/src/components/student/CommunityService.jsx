@@ -1,19 +1,19 @@
-import SessionAttendanceDetails from "../shared/SessionAttendanceDetails";
+import StudentLedgerRecord from "./StudentLedgerRecord";
 import { useAcademicPeriods } from "../../utils/useAcademicPeriods";
 import AcademicPeriodFilter from "../organizer/AcademicPeriodFilter";
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import api from "../../api/axios";
 import { recordsForAcademicPeriod } from "../../utils/academicPeriods";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import { FaBook, FaCheck, FaClock, FaTimes } from "react-icons/fa";
 import { BsClipboardCheck } from "react-icons/bs";
-import StatusBadge from "../shared/StatusBadge";
+
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
 import Pagination from "../ui/Pagination";
 import StablePage from "../ui/StablePage";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { formatDate, formatDateTime } from "../../utils/helpers";
+
 import { BaseCard, Card, FlightPanel, PageHeader, StatusChip } from "../ui";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 import ManualAttendanceHistory from "./ManualAttendanceHistory";
@@ -40,7 +40,7 @@ const CommunityService = () => {
   const [recordPage, setRecordPage] = useState(1);
   const periodSelection=useAcademicPeriods();
   const {schoolYear,semester,period}=periodSelection;
-  const historyViewportRef = useRef(null);
+
   usePageMeta("Community Service", "Track your attendance and service hours.");
 
   const fetchData = useCallback(async ({ silent = false } = {}) => {
@@ -72,7 +72,7 @@ const CommunityService = () => {
   const visibleRecords = records.slice((currentPage - 1) * 5, currentPage * 5);
   const changeRecordPage = (page) => {
     setRecordPage(page);
-    if (historyViewportRef.current) historyViewportRef.current.scrollTop = 0;
+
   };
 
   const removedHours = (data?.breakdown || []).reduce(
@@ -135,7 +135,7 @@ const CommunityService = () => {
         title="Detailed breakdown"
         subtitle={`${records.length} attendance record${records.length === 1 ? "" : "s"}`}
         icon={<BsClipboardCheck />}
-        className="overflow-hidden"
+        className="overflow-hidden student-ledger-panel"
       >
         {!records.length ? (
           <EmptyState
@@ -145,65 +145,7 @@ const CommunityService = () => {
           />
         ) : (
           <StablePage pageKey={`${schoolYear}:${semester}:${records.length}`} footer={<div className="px-4 pb-4"><Pagination page={currentPage} pageSize={5} total={records.length} onChange={changeRecordPage} label="Attendance history pages" /></div>}>
-          <ul className="space-y-3 px-4 py-4 md:hidden" aria-label="Attendance breakdown records">{visibleRecords.map((record, index) => <li key={record._id || index} className="portal-inset p-4">
-            <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="min-w-0 flex-1 text-sm font-medium text-on [overflow-wrap:anywhere]">{record.event?.title || record.eventTitle || "Event unavailable"}</h3><StatusBadge status={record.status} /><SessionAttendanceDetails record={record} /></div>
-            <p className="mt-2 text-xs text-on-muted">{formatDate(record.event?.date || record.eventDate) || "Date unavailable"}</p>
-            <dl className="mt-3 grid gap-3 text-sm"><div><dt className="text-xs text-on-muted">Service hours</dt><dd className={`mt-1 font-medium ${record.communityServiceHours > 0 ? "text-warn" : "text-on-dim"}`}>{record.communityServiceHours || 0} hours{record.provisionalHours > 0 && <span className="mt-1 block text-xs font-normal text-on-muted">{record.provisionalHours} provisional hours on hold</span>}</dd></div><div><dt className="text-xs text-on-muted">{record.manualReviewPending ? "Recorded check-in" : "Checked in"}</dt><dd className="mt-1 text-on-dim">{formatDateTime(record.manualAttendanceRequest?.effectiveAt || record.attendedAt) || "—"}</dd></div></dl>
-            {record.manualReviewPending && <p className="mt-3 text-xs text-info">{record.status === "pending" ? "Awaiting independent review" : "Attendance correction awaiting review"}</p>}
-          </li>)}</ul>
-          <div ref={historyViewportRef} className="student-history-viewport hidden overflow-x-auto md:block" role="region" aria-label="Attendance breakdown table" tabIndex={0}>
-            <table className="data-table student-history-table">
-              <colgroup>
-                <col style={{ width: "35%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "17%" }} />
-                <col style={{ width: "20%" }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>Event</th>
-                  <th>Date</th>
-                  <th>Status</th>
-                  <th>Community service</th>
-                  <th>Checked in</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRecords.map((record, index) => (
-                  <tr key={record._id || index}>
-                    <td className="font-medium text-on">
-                      {record.event?.title || record.eventTitle || "Unknown event"}
-                    </td>
-                    <td>
-                      {record.event?.date
-                        ? formatDate(record.event.date)
-                        : record.eventDate
-                          ? formatDate(record.eventDate)
-                          : "—"}
-                    </td>
-                    <td>
-                      <StatusBadge status={record.status} /><SessionAttendanceDetails record={record} />
-                      {record.manualReviewPending && <p className="mt-1 text-xs text-info">{record.status === "pending" ? "Under review" : "Correction pending"}</p>}
-                    </td>
-                    <td>
-                      <span
-                        className={`num font-medium ${
-                          record.communityServiceHours > 0 ? "text-warn" : "text-ok"
-                        }`}
-                      >
-                        {record.communityServiceHours || 0} hours
-                      </span>
-                      {record.provisionalHours > 0 && <p className="mt-1 text-xs text-on-muted">{record.provisionalHours} provisional hours on hold</p>}
-                    </td>
-                    <td className="text-xs">
-                      {record.attendedAt ? formatDateTime(record.attendedAt) : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="student-ledger-grid" aria-label="Attendance breakdown records">{visibleRecords.map((record, index) => <li key={record._id || index}><StudentLedgerRecord record={record} /></li>)}</ul>
           </StablePage>
         )}
       </FlightPanel>

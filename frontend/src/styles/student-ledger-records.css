@@ -1,0 +1,18 @@
+.student-ledger-panel { container: student-ledger / inline-size; }
+.student-ledger-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; padding: 1rem; }
+.student-ledger-grid > li { min-width: 0; display: flex; }
+.student-ledger-card { width: 100%; min-width: 0; display: flex; flex-direction: column; gap: .85rem; padding: 1rem; }
+.student-ledger-card h3, .student-ledger-card p, .student-ledger-card dd { overflow-wrap: anywhere; }
+.student-ledger-completion { border-radius: 999px; padding: .15rem .55rem; background: var(--card-alt-bg); color: var(--on-dim); font-size: .7rem; }
+.student-ledger-times { display: grid; gap: .75rem; }
+.student-ledger-times dt { margin-bottom: .3rem; color: var(--on-muted); font-size: .7rem; font-weight: 600; }
+.student-ledger-times dd { margin: 0; border-radius: .6rem; background: var(--card-alt-bg); padding: .6rem .75rem; font-size: .875rem; }
+.student-ledger-hours { margin-top: auto; border-radius: .75rem; padding: .8rem; text-align: center; }
+.student-ledger-hours-clear { background: color-mix(in srgb, var(--ok) 10%, transparent); color: var(--ok); }
+.student-ledger-hours-due { background: color-mix(in srgb, var(--warn) 10%, transparent); color: var(--warn); }
+@container student-ledger (min-width: 36rem) { .student-ledger-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container student-ledger (min-width: 56rem) { .student-ledger-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@supports (grid-template-rows: subgrid) {
+  .student-ledger-grid > li { display: grid; grid-row: span 4; grid-template-rows: subgrid; }
+  .student-ledger-card { display: grid; grid-row: span 4; grid-template-rows: subgrid; }
+}

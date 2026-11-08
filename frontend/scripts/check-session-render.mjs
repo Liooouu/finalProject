@@ -19,6 +19,15 @@ try {
   const event = { _id: 'event', title: 'CCIT assembly', status: 'live', date: '2026-11-08', time: '08:00', endTime: '12:00', attendanceStartTime: '08:00', attendanceEndTime: '08:30', attendanceSessions: [session, { ...session, _id: 'afternoon', name: 'Afternoon session' }] };
   const records = [{ session: 'morning', sessionName: session.name, timeInAt: session.timeInOpen, timeOutAt: session.timeOutOpen, arrivalStatus: 'on_time', completionStatus: 'completed', status: 'present' }, { session: 'afternoon', sessionName: 'Afternoon session', timeInAt: session.timeInOpen, arrivalStatus: 'late', completionStatus: 'incomplete', status: 'late' }];
   const render = (Component, props) => renderToStaticMarkup(React.createElement(Component, props));
+  const { default: StudentLedgerRecord } = await server.ssrLoadModule('/src/components/student/StudentLedgerRecord.jsx');
+  const ledger = render(StudentLedgerRecord, { record: { ...records[0], event, communityServiceHours: 0 } });
+  assert.match(ledger, /student-ledger-card/); assert.match(ledger, /Completed/);
+  assert.equal((ledger.match(/<dt>Time In<\/dt>/g) || []).length, 1);
+  assert.equal((ledger.match(/<dt>Time Out<\/dt>/g) || []).length, 1);
+  assert.doesNotMatch(ledger, /<table|Checked in|Recorded Nov/);
+  const absentLedger = render(StudentLedgerRecord, { record: { status: 'absent', attendedAt: session.timeInOpen, event, communityServiceHours: 8 } });
+  assert.match(absentLedger, /Not recorded/); assert.match(absentLedger, /Not required/);
+  assert.doesNotMatch(absentLedger, /8:00 AM/);
   const student = render(StudentEventCard, { event, records });
   assert.match(student, /Completed/); assert.match(student, /Incomplete/);
   assert.match(student, /Late \(4h\) \+ missing Time Out \(2h\): 6h/);

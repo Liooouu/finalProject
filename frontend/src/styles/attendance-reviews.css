@@ -12,16 +12,17 @@
 .attendance-review-card-actions { display: grid; gap: .65rem; }
 .attendance-review-card-actions button { min-width: 0; white-space: normal; }
 .id-review-evidence { min-width: 0; }
-.id-review-photo { display: grid; width: 100%; border: 1px solid var(--line-color); border-radius: .75rem; overflow: hidden; background: var(--card-alt-bg); cursor: zoom-in; }
+.id-review-photo { display: grid; width: min(100%, 12rem); margin-inline: auto; border: 1px solid var(--line-color); border-radius: .75rem; overflow: hidden; background: var(--card-alt-bg); cursor: zoom-in; }
 .id-review-photo:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
-.id-review-photo > img { display: block; width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: contain; }
+.id-review-photo > img { display: block; width: 100%; height: 16rem; height: min(16rem, 40dvh); object-fit: contain; background: var(--card-alt-bg); }
 .id-review-photo > span { display: flex; align-items: center; justify-content: center; gap: .35rem; min-height: 2rem; padding: .3rem; font-size: .7rem; color: var(--on-dim); }
 .id-review-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .65rem; aspect-ratio: 2 / 3; padding: .75rem; border: 1px dashed var(--line-color); border-radius: .75rem; background: var(--card-alt-bg); text-align: center; font-size: .75rem; color: var(--on-muted); }
 .id-review-placeholder > svg { font-size: 1.65rem; }
-.id-evidence-dialog { width: min(92vw, 46rem); max-height: 92dvh; margin: auto; padding: 1rem; border: 1px solid var(--line-color); border-radius: 1rem; color: var(--on); background: var(--portal-card, var(--card-bg)); }
+.id-review-evidence > .id-review-placeholder { width: min(100%, 12rem); max-height: 19rem; margin-inline: auto; }
+.id-evidence-dialog { width: min(92vw, 28rem); max-height: 90vh; max-height: 90dvh; margin: auto; padding: 1rem; border: 1px solid var(--line-color); border-radius: 1rem; color: var(--on); background: var(--portal-card, var(--card-bg)); }
 .id-evidence-dialog::backdrop { background: rgb(0 0 0 / .75); }
 .id-evidence-dialog-content { display: grid; gap: .75rem; }
-.id-evidence-dialog-content > img { display: block; width: 100%; height: auto; max-height: 76dvh; object-fit: contain; }
+.id-evidence-dialog-content > img { display: block; width: 100%; height: auto; max-height: 68vh; max-height: 68dvh; object-fit: contain; }
 @container attendance-results (max-width: 850px) { .attendance-review-grid { grid-template-columns: minmax(0, 1fr); } }
 @container attendance-card (max-width: 340px) {
   .attendance-review-card-body { grid-template-columns: minmax(0, 1fr); }
