@@ -29,7 +29,7 @@ export function AttendanceTimeGroup({ value, onChange, groupId, index = 0, disab
 
 function ActivitySchedule({ value, row, index, onChange, disabled }) {
   const fields = activityScheduleFields(row, value.date);
-  const change = (key, next) => onChange({ target: { name: 'attendanceSessions', value: value.attendanceSessions.map((item, i) => i === index ? updateActivitySchedule(item, key, next, value.date) : item) } });
+  const change = (key, next) => onChange({ target: { name: 'attendanceSessions', value: (value.attendanceSessions || []).map((item, i) => i === index ? updateActivitySchedule(item, key, next, value.date) : item) } });
   const input = (key, label, type) => <div className="min-w-0"><label className="field-label" htmlFor={`activity-${index}-${key}`}>{label}</label>{type === 'time' ? <TimePicker id={`activity-${index}-${key}`} name={key} value={fields[key]} required disabled={disabled} onChange={event => change(key, event.target.value)} /> : <input id={`activity-${index}-${key}`} type="date" className="field field-datetime w-full min-w-0" min="2026-01-01" required disabled={disabled} value={fields[key]} onChange={event => change(key, event.target.value)} />}</div>;
   return <div className="grid min-w-0 gap-4 lg:grid-cols-2">
     <div className="space-y-3"><div className="grid min-w-0 gap-3 sm:grid-cols-2">{input('startDate', 'Start date', 'date')}{input('startTime', 'Start time', 'time')}</div>{fields.startDate && fields.startTime && <AttendanceTimeGroup value={value} onChange={onChange} groupId="timeIn" index={index} disabled={disabled} followActivityDate />}</div>

@@ -32,7 +32,7 @@ async function sessionEditLocks(event, now = new Date()) {
 function lockedSessionChange(previous, next, locks) {
   const protectedIds = new Set(locks.map(row => row.sessionId));
   return (previous || []).find(row => protectedIds.has(id(row)) && (
-    (row === previous[0] && id(next[0]) !== id(row)) || !next.some(value => id(value) === id(row)) || sessionConfig([row]) !== sessionConfig([next.find(value => id(value) === id(row))])
+    !next.some(value => id(value) === id(row)) || sessionConfig([row]) !== sessionConfig([next.find(value => id(value) === id(row))])
   ));
 }
 

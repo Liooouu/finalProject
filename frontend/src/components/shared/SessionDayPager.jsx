@@ -14,9 +14,9 @@ export default function SessionDayPager({ event, children }) {
   const selectedIndex = selection?.eventKey === eventKey ? periods.findIndex((period, index) => keyOf(period, index) === selection.key) : -1;
   const index = Math.max(0, selectedIndex);
   const period = periods[index];
-  const move = (event, next) => {
-    event.preventDefault();
-    event.stopPropagation();
+  const move = (clickEvent, next) => {
+    clickEvent.preventDefault();
+    clickEvent.stopPropagation();
     if (next < 0 || next >= periods.length) return;
     setSelection({ eventKey, key: keyOf(periods[next], next) });
   };
@@ -26,8 +26,8 @@ export default function SessionDayPager({ event, children }) {
     {periods.length > 1 && <div className="flex min-w-0 items-start justify-between gap-3">
       <div className="min-w-0 text-xs" aria-live="polite" aria-atomic="true"><p className="font-semibold tabular-nums text-on">Day {index + 1} of {periods.length}</p><p className="mt-1 text-on-dim [overflow-wrap:anywhere]">{customName ? `${period.name} · ` : ''}{formatDate(period.activityStart || period.timeInOpen, { month: 'short', day: 'numeric', year: 'numeric' })}</p></div>
       <div role="group" aria-label={`Attendance days for ${event.title || 'event'}`} className="flex shrink-0 gap-1.5">
-        <button type="button" aria-label="Previous day or activity" title="Previous day / activity" disabled={index === 0} className={arrowClass} onClick={event => move(event, index - 1)}><FaChevronLeft aria-hidden="true" className="text-xs" /></button>
-        <button type="button" aria-label="Next day or activity" title="Next day / activity" disabled={index === periods.length - 1} className={arrowClass} onClick={event => move(event, index + 1)}><FaChevronRight aria-hidden="true" className="text-xs" /></button>
+        <button type="button" aria-label="Previous day or activity" title="Previous day / activity" disabled={index === 0} className={arrowClass} onClick={clickEvent => move(clickEvent, index - 1)}><FaChevronLeft aria-hidden="true" className="text-xs" /></button>
+        <button type="button" aria-label="Next day or activity" title="Next day / activity" disabled={index === periods.length - 1} className={arrowClass} onClick={clickEvent => move(clickEvent, index + 1)}><FaChevronRight aria-hidden="true" className="text-xs" /></button>
       </div>
     </div>}
     <div className="min-w-0">{children(period, index)}</div>

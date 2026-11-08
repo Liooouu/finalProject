@@ -75,6 +75,7 @@ export const attendanceGroupsFor = row => row?.timeInPolicy === 'window_then_lat
 export const onTimeWindowEnd = row => row?.timeInPolicy === 'window_then_late' ? row.onTimeDeadline : row.timeInCutoff;
 export const emptyEventAttendance = index => ({ name: index === 0 ? 'Event attendance' : `Day / activity ${index + 1}`, ...(index > 0 ? { activityStart: '', activityEnd: '' } : {}), timeInPolicy: 'window_then_late', timeInOpen: '', onTimeDeadline: '', timeInCutoff: '', timeOutOpen: '', timeOutClose: '' });
 export function activityScheduleFields(row, fallbackDate = '') {
+  if (!row) return { startDate: fallbackDate || '', startTime: '', endDate: fallbackDate || '', endTime: '', ...({}) };
   const from = manilaInput(row.activityStart), to = manilaInput(row.activityEnd);
   const startDate = from.slice(0, 10) || row._timeInDate || manilaInput(row.timeInOpen).slice(0, 10) || fallbackDate;
   return { startDate, startTime: from.slice(11) || '', endDate: to.slice(0, 10) || row._timeOutDate || manilaInput(row.timeOutOpen).slice(0, 10) || startDate, endTime: to.slice(11) || '', ...row._activitySchedule };
@@ -86,7 +87,10 @@ export function updateActivitySchedule(row, key, value, fallbackDate = '') {
   let next = { ...row, _activitySchedule: fields,
     activityStart: fields.startDate && fields.startTime ? inputInstant(`${fields.startDate}T${fields.startTime}`) : '',
     activityEnd: fields.endDate && fields.endTime ? inputInstant(`${fields.endDate}T${fields.endTime}`) : '' };
-  for (const [dateKey, groupIndex] of [['startDate', 0], ['endDate', 1]]) if (fields[dateKey] !== previous[dateKey] || key === dateKey) next = updateAttendanceGroup(next, attendanceGroupsFor(row)[groupIndex], fields[dateKey]);
+  for (const [dateKey, groupIndex] of [['startDate', 0], ['endDate', 1]]) if (fields[dateKey] !== previous[dateKey] || key === dateKey) {
+    const group = attendanceGroupsFor(row)[groupIndex];
+    if (group) next = updateAttendanceGroup(next, group, fields[dateKey]);
+  }
   return next;
 }
 // The displayed Time In range is on time; arrival remains possible, but late,
@@ -113,7 +117,7 @@ export function attendanceBoundaryIssue(value) {
   for (const [index, row] of (value.attendanceSessions || []).entries()) {
     if (row.timeInPolicy !== 'window_then_late') continue;
     const start = index === 0 ? +new Date(`${value.date}T${value.time}:00+08:00`) : +new Date(row.activityStart || '');
-    const end = index === 0 ? value.endTime ? +new Date(`${value.endDate || value.date}T${value.endTime}:00+08:00`) : NaN : +new Date(row.activityEnd || '');
+    const end = index === 0 ? +new Date(`${value.endDate || value.date}T${value.endTime || '23:59'}:00+08:00`) : +new Date(row.activityEnd || '');
     const prefix = index ? `${row.name}: ` : '';
     const deadline = +new Date(row.onTimeDeadline);
     const entry = +new Date(row.timeInOpen);

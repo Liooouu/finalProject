@@ -18,12 +18,20 @@ function normalizeSessions(rows, previous = []) {
     }
     const policy = row.timeInPolicy ?? old?.timeInPolicy;
     if (policy !== undefined && policy !== 'window_then_late') throw Object.assign(new Error('Unknown Time In rule. Reload this event.'), { status: 400 });
+    // Preserve saved deadlines on unrelated edits: only normalize when the
+    // incoming schedule actually changed (or this is a new period).
+    const sameSchedule = !!old && SESSION_FIELDS.slice(1).every(key => {
+      const a = toDate(row[key]), b = toDate(old[key]);
+      return !!a && !!b && +a === +b;
+    });
     if (policy) {
       clean.timeInPolicy = policy;
-      // Minute-only inputs include the whole displayed on-time minute. The
-      // late-entry period ends immediately before departure opens.
-      if (clean.onTimeDeadline) clean.onTimeDeadline = new Date(Math.floor(+clean.onTimeDeadline / 60000) * 60000 + 59999);
-      if (clean.timeOutOpen) clean.timeInCutoff = new Date(+clean.timeOutOpen - 1);
+      if (!sameSchedule) {
+        // Minute-only inputs include the whole displayed on-time minute. The
+        // late-entry period ends immediately before departure opens.
+        if (clean.onTimeDeadline) clean.onTimeDeadline = new Date(Math.floor(+clean.onTimeDeadline / 60000) * 60000 + 59999);
+        if (clean.timeOutOpen) clean.timeInCutoff = new Date(+clean.timeOutOpen - 1);
+      }
     }
     for (const key of ['activityStart', 'activityEnd']) {
       const raw = row[key] ?? old?.[key];
