@@ -94,11 +94,24 @@ export function rebaseEventAttendanceDates(previous, next) {
   }
   return row === base ? next : { ...next, attendanceSessions: [row, ...previous.attendanceSessions.slice(1)] };
 }
+export function attendanceBoundaryIssue(value) {
+  const row = value.attendanceSessions?.[0];
+  if (row?.timeInPolicy !== 'window_then_late') return '';
+  const start = +new Date(`${value.date}T${value.time}:00+08:00`);
+  const deadline = +new Date(row.onTimeDeadline);
+  if (Number.isFinite(start) && Number.isFinite(deadline) && Math.floor(deadline / 60000) > Math.floor(start / 60000)) return 'Time In must end at or before the event start time. For a 9:00 AM start, 7:00–9:00 AM is valid; 9:01 AM is not.';
+  const end = value.endTime ? +new Date(`${value.endDate || value.date}T${value.endTime}:00+08:00`) : NaN;
+  const exit = +new Date(row.timeOutOpen);
+  if (Number.isFinite(end) && Number.isFinite(exit) && exit < end) return 'Time Out cannot open before the event ends. For a 5:00 PM end, 5:00–6:00 PM is valid; 4:59–6:00 PM is not.';
+  return '';
+}
 export function attendanceSetupIssue(value) {
   const start = +new Date(`${value.date}T${value.time}:00+08:00`);
   const end = +new Date(`${value.endDate || value.date}T${value.endTime || '23:59'}:00+08:00`);
   if (!Number.isFinite(start)) return 'Select the event start date and time first.';
   if (!Number.isFinite(end) || end <= start) return 'End time must be after Start time. Choose a later end time, or the next date for an overnight event.';
+  const boundaryIssue = attendanceBoundaryIssue(value);
+  if (boundaryIssue) return boundaryIssue;
   if (!value.attendanceSessions?.length) return 'Set the Time In and Time Out times below the event schedule.';
   for (const row of value.attendanceSessions) {
     const prefix = row.name === 'Event attendance' ? '' : `${row.name}: `;

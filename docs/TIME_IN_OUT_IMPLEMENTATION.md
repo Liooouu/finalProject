@@ -25,8 +25,12 @@ Existing events with no attendanceSessions retain Time In-only behavior. Existin
 including its final displayed minute. It is no longer derived from the event
 start. Late arrivals are accepted until immediately before Time Out opens; the
 API derives that cutoff and applies it consistently to face, ID and reviewed
-attendance. Create/Edit provide a schedule guide and block invalid ordering or
-overlap before submission. Event cards and emails distinguish on-time arrivals
+attendance. For the primary period, the on-time range must end at or before the
+event start; Time Out must open at or after the event end. A one-minute overrun
+or early opening is rejected (9:01 for a 9:00 start, or 4:59 for a 5:00 end).
+Create/Edit show guidance only after invalid input or submission, with no routine
+guide visible in the form. They also block invalid ordering or overlap before
+submission. Event cards and emails distinguish on-time arrivals
 from later arrivals. Older saved periods keep their original rule and penalties;
 an unlocked period can explicitly adopt the new rule in Edit Event. Schedules
 with attendance/evidence remain protected. This supersedes the event-start

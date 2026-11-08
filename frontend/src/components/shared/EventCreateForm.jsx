@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import SessionSetupEditor, { AttendanceTimeGroup } from "./SessionSetupEditor";
-import AttendanceScheduleGuide, { ScheduleHelp } from "./AttendanceScheduleGuide";
-import { attendanceSetupIssue } from "../../utils/attendanceSessions";
+import AttendanceScheduleGuide from "./AttendanceScheduleGuide";
+import { attendanceSetupIssue, attendanceBoundaryIssue } from "../../utils/attendanceSessions";
+import { applyEventField } from "../../utils/academicPeriods";
 import { Button, Card } from "../ui";
 import EventAcademicFields from "./EventAcademicFields";
 import TimePicker from "../ui/TimePicker";
@@ -9,7 +10,7 @@ import "../../styles/event-create-form.css";
 
 export default function EventCreateForm({ value, onChange, onSubmit, busy, error, idPrefix = "event" }) {
   const [validationError, setValidationError] = useState("");
-  const change = e => { setValidationError(""); onChange(e); };
+  const change = e => { setValidationError(attendanceBoundaryIssue(applyEventField(value, e.target))); onChange(e); };
   const submit = e => { const issue = attendanceSetupIssue(value); if (issue) { e.preventDefault(); setValidationError(issue); return; } onSubmit(e); };
   const field = (name, label, type = "text", required = false, placeholder) => (
     <div className="event-create-field">
@@ -54,7 +55,6 @@ export default function EventCreateForm({ value, onChange, onSubmit, busy, error
               {(value.endDate || value.date) && value.endTime && <AttendanceTimeGroup value={value} onChange={change} groupId="timeOut" followEventDate disabled={busy} />}
             </div>
           </div>
-          <ScheduleHelp />
         </fieldset>
       </div>
       <div className="mt-4"><SessionSetupEditor value={value} onChange={change} disabled={busy} extrasOnly /></div>

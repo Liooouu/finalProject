@@ -42,7 +42,7 @@ function toDate(v) {
   return null;
 }
 
-function validateSession(s, index, _eventStart, eventEnd) {
+function validateSession(s, index, eventStart, eventEnd) {
   const name = String(s?.name || "").trim();
   const label = name === "Event attendance" ? "Attendance" : name || `Attendance ${index + 1}`;
   if (!name || name.length > 80) return `${label}: use a name of 1–80 characters`;
@@ -52,6 +52,12 @@ function validateSession(s, index, _eventStart, eventEnd) {
     const d = toDate(s[f]);
     if (!d) return `${label}: ${f} must be a valid timestamp`;
     vals[f] = d;
+  }
+  if (index === 0 && s.timeInPolicy === 'window_then_late' && eventStart && Math.floor(+vals.onTimeDeadline / 60000) > Math.floor(+eventStart / 60000)) {
+    return `${label}: Time In must end at or before the event start time. For a 9:00 AM start, 7:00–9:00 AM is valid; 9:01 AM is not.`;
+  }
+  if (index === 0 && s.timeInPolicy === 'window_then_late' && eventEnd && vals.timeOutOpen < eventEnd) {
+    return `${label}: Time Out cannot open before the event ends. For a 5:00 PM end, 5:00–6:00 PM is valid; 4:59–6:00 PM is not.`;
   }
   if (vals.onTimeDeadline < vals.timeInOpen) return `${label}: On-time until is earlier than Time In opens. Move the on-time deadline forward.`;
   if (!(vals.onTimeDeadline <= vals.timeInCutoff)) return `${label}: Time In must finish before Time Out opens. Move Time Out later or shorten the Time In range.`;

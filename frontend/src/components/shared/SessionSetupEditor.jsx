@@ -19,7 +19,6 @@ export function AttendanceTimeGroup({ value, onChange, groupId, index = 0, disab
       const fieldDate = manilaInput(row[key]).slice(0, 10);
       return <div key={key} className="min-w-0"><label className="field-label" htmlFor={`attendance-${index}-${key}`}>{label}</label><TimePicker id={`attendance-${index}-${key}`} name={key} value={attendanceClock(row, key)} required disabled={disabled || !date} className="field field-datetime w-full min-w-0" onChange={e => setGroup(date, key, e.target.value)} />{fieldDate && fieldDate !== date && <p className="mt-1 text-xs text-on-muted">On {fieldDate}</p>}</div>;
     })}</div>
-    {groupId === 'timeIn' && <p className="text-xs text-on-muted">{row.timeInPolicy === 'window_then_late' ? 'On time throughout this range, including the final minute. Later arrivals are Late until Time Out opens.' : `Existing schedule: on time until ${attendanceClock(row, 'onTimeDeadline') || 'the saved deadline'}; later arrivals are Late until Accept until.`}</p>}
     {groupId === 'timeIn' && row.timeInPolicy !== 'window_then_late' && !disabled && <Button type="button" size="sm" variant="secondary" onClick={() => onChange({ target: { name: 'attendanceSessions', value: rows.map((item, i) => i === index ? { ...item, timeInPolicy: 'window_then_late', onTimeDeadline: item.timeInCutoff } : item) } })}>Use the updated Time In rule</Button>}
   </section>;
 }

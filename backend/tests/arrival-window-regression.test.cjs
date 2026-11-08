@@ -8,9 +8,9 @@ const draft = () => ({ name: 'Event attendance', timeInPolicy: 'window_then_late
   timeInOpen: at('20:13:00'), onTimeDeadline: at('20:15:00'), timeInCutoff: at('20:15:00'),
   timeOutOpen: at('20:20:00'), timeOutClose: at('20:25:00') });
 
-test('8:13–8:15 PM is on time throughout the displayed range, not late after event start', () => {
+test('8:13–8:15 PM is valid for an 8:15 PM event start and on time throughout its displayed range', () => {
   const [session] = normalizeSessions([draft()]);
-  assert.equal(validateSessions([session], at('20:13:00'), at('20:20:00')), null);
+  assert.equal(validateSessions([session], at('20:15:00'), at('20:20:00')), null);
   assert.equal(+session.onTimeDeadline, +at('20:15:59.999'));
   assert.equal(+session.timeInCutoff, +at('20:19:59.999'));
   for (const clock of ['20:13:00', '20:13:00.001', '20:14:30', '20:15:00', '20:15:59.999']) {
@@ -30,9 +30,18 @@ test('8:13–8:15 PM is on time throughout the displayed range, not late after e
 
 test('late entry is available until departure opens even after automatic event finish', () => {
   const [session] = normalizeSessions([{ ...draft(), timeOutOpen: at('20:22:00') }]);
-  assert.equal(validateSessions([session], at('20:13:00'), at('20:20:00')), null);
+  assert.equal(validateSessions([session], at('20:15:00'), at('20:20:00')), null);
   assert.equal(modeFor({ status: 'finished' }, session, at('20:21:59.999')), 'time_in');
   assert.equal(modeFor({ status: 'finished' }, session, at('20:22:00')), 'time_out');
+});
+
+test('event boundaries reject even a one-minute overrun or early Time Out', () => {
+  const arrival = { ...draft(), timeInOpen: at('07:00:00'), onTimeDeadline: at('09:00:00'), timeOutOpen: at('17:00:00'), timeOutClose: at('18:00:00') };
+  const validate = row => validateSessions(normalizeSessions([row]), at('09:00:00'), at('17:00:00'));
+  assert.equal(validate(arrival), null);
+  assert.match(validate({ ...arrival, onTimeDeadline: at('09:01:00') }), /Time In must end at or before/);
+  assert.match(validate({ ...arrival, timeOutOpen: at('16:59:00') }), /Time Out cannot open before/);
+  assert.match(validateSessions(normalizeSessions([draft()]), at('20:13:00'), at('20:20:00')), /Time In must end at or before/, 'the previously reported 8:13–8:15 range is invalid for an 8:13 start');
 });
 
 test('0/4/2/6/8 penalties and delayed absence still use the saved capture times', () => {

@@ -1,8 +1,8 @@
 import SessionAttendanceDetails from "./shared/SessionAttendanceDetails";
 import EventAttendanceSchedule from "./shared/EventAttendanceSchedule";
 import SessionSetupEditor, { AttendanceTimeGroup } from "./shared/SessionSetupEditor";
-import AttendanceScheduleGuide, { ScheduleHelp } from "./shared/AttendanceScheduleGuide";
-import { attendanceSetupIssue } from "../utils/attendanceSessions";
+import AttendanceScheduleGuide from "./shared/AttendanceScheduleGuide";
+import { attendanceSetupIssue, attendanceBoundaryIssue } from "../utils/attendanceSessions";
 import { usePortalBack } from "../utils/usePortalBack";
 import EventAcademicFields from "./shared/EventAcademicFields";
 import { applyEventField, academicTermLabel } from "../utils/academicPeriods";
@@ -277,6 +277,7 @@ const EventDetails = () => {
 
   const handleEditChange = (e) => {
     const field={name:e.target.name,value:e.target.value};
+    setScheduleIssue(attendanceBoundaryIssue(applyEventField(editForm, field)));
     setEditForm(previous=>applyEventField(previous,field));
   };
 
@@ -604,7 +605,6 @@ const EventDetails = () => {
             {isEditing ? (
               <form onSubmit={handleSaveEdit} className="space-y-4">
                 <AttendanceScheduleGuide issue={scheduleIssue} onClose={() => setScheduleIssue('')} />
-                <ScheduleHelp />
                 <EventAcademicFields value={editForm} onChange={handleEditChange} readOnly={role!=="admin"} disabled={saving}/>
                 <div>
                   <label htmlFor="ed-title" className="field-label">
