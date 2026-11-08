@@ -107,9 +107,16 @@ function eventDetailRows(event) {
   if (validDate(event.endDate || event.date) && parseClock(event.endTime)) {
     rows.push(["Ends", formatDateTime(eventEndAt(event))]);
   }
-  const window = eventWindow(event);
-  if (window) {
-    rows.push(["Attendance window", `${formatDateTime(window.start)} – ${formatDateTime(window.end)}`]);
+  if (event.attendanceSessions?.length) {
+    for (const session of event.attendanceSessions) {
+      const prefix = event.attendanceSessions.length > 1 ? `${session.name} · ` : '';
+      rows.push([`${prefix}Time In`, `${formatDateTime(session.timeInOpen)} – ${formatDateTime(session.timeInCutoff)}`]);
+      rows.push([`${prefix}Time Out`, `${formatDateTime(session.timeOutOpen)} – ${formatDateTime(session.timeOutClose)}`]);
+    }
+  } else {
+    const window = eventWindow(event);
+    if (window) rows.push(["Time In", `${formatDateTime(window.start)} – ${formatDateTime(window.end)}`]);
+    rows.push(["Time Out", "Not required for this older event"]);
   }
   if (event.location) rows.push(["Venue", event.location]);
   return rows;
@@ -171,7 +178,7 @@ async function renderNotificationEmail({ title, message, event }) {
   const finalTitle = fillTemplate(tpl.title, vars);
   const body = fillTemplate(tpl.body, vars);
   const details = eventDetailRows(event);
-  const timeNote = details.some(([label]) => ["Starts", "Ends", "Attendance window"].includes(label)) ? TIME_ZONE_NOTE : "";
+  const timeNote = details.some(([label]) => ["Starts", "Ends"].includes(label) || label.includes("Time In")) ? TIME_ZONE_NOTE : "";
   const recordNote = "Open TrackED to view your latest notifications and attendance records.";
   const footer = `This notification was sent for your ${APP_NAME} account. ${HELP_NOTE}`;
   const rowsHtml = details.map(([label, value]) => `<tr>

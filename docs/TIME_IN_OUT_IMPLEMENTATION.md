@@ -12,7 +12,7 @@ New event forms include named attendance sessions, one per required day/activity
 | Late Time In and valid Time Out | 4 hours |
 | On-time Time In, missing Time Out after closing | 2 hours |
 | Late Time In, missing Time Out after closing | 6 hours |
-| No valid Time In after cutoff | 8 hours total |
+| No valid Time In after Time Out closes | 8 hours total |
 
 Arrival and completion are separate. Before the exit deadline, an attendee is awaiting Time Out, not incomplete. Time In may open before the event starts, including while its status is Upcoming. The departure window may extend after the event ends (for example, event ends 5 PM and Time Out runs 5:01–6 PM). Automatically finished events stay visible/actionable for Time Out until that deadline; manually Closed events reject new captures. Time Out alone cannot establish attendance. Automatic reconciliation runs with the existing one-minute lifecycle job. Already finalized rows are not repeatedly written.
 
@@ -51,3 +51,5 @@ Final results: 330 backend regression tests and 8 isolated MongoDB integration t
 - Frontend: `npm test`, `node scripts/check-session-render.mjs`, `npm run build`, and `npm run lint`.
 
 Real device camera quality, lighting and the follow-up user evaluation still require human testing. Automated tests do not replace the planned follow-up evaluation or alter the original 30 survey responses. Production rollout and paper result claims must reflect that distinction.
+
+Final penalty timing: no automatic absence charge until the session's Time Out closes (inclusive deadline). Missing exit remains 2h/6h, not 8h. Before closure, the finalizer reverses only untouched premature automatic absence rows; staff-adjusted balances and reviewed records require manual review. Each reversal leaves a service-log entry. Session stations expire after their configured Time Out close plus 15-minute token grace, while capture itself still stops at the configured close. Legacy station lifetimes remain capped at 12 hours. Existing station tabs must be reopened after deployment to receive the new expiry. Manually Closed events and revoked organizer access still stop capture. Emails show each session's Time In cutoff and Time Out close with Philippine dates. Scanner error pop-ups expire after five seconds without repeated identical messages extending the timer; routine feedback stays below the camera.

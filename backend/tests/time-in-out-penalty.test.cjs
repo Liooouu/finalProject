@@ -61,11 +61,21 @@ test("no incomplete penalty before exit deadline (late carries 4 only)", () => {
   assert.equal(r.state, "awaiting_timeout");
 });
 
-test("time out alone does not establish attendance", () => {
+test("time out alone stays pending before exit closes and never establishes attendance", () => {
   const s = mkSession();
   const r = classify({ timeInAt: null, timeOutAt: new Date("2026-04-10T03:30:00.000Z"), session: s, now: new Date("2026-04-10T04:00:00.000Z") });
-  assert.equal(r.completionStatus, "absent");
-  assert.equal(r.hours, 8);
+  assert.equal(r.completionStatus, "pending");
+  assert.equal(r.hours, 0);
+  const final = classify({ timeInAt: null, timeOutAt: new Date("2026-04-10T03:30:00.000Z"), session: s, now: new Date("2026-04-10T05:00:00.001Z") });
+  assert.equal(final.completionStatus, 'absent'); assert.equal(final.hours, 8);
+});
+
+test('absence is deferred through the inclusive Time Out deadline, not charged at entry cutoff', () => {
+  const session = mkSession();
+  for (const now of ['2026-04-10T02:00:00.001Z', '2026-04-10T04:00:00Z', '2026-04-10T05:00:00Z']) {
+    assert.equal(classify({ session, now: new Date(now) }).hours, 0);
+  }
+  assert.equal(classify({ session, now: new Date('2026-04-10T05:00:00.001Z') }).hours, 8);
 });
 
 test("still pending before cutoff", () => {

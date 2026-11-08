@@ -16,7 +16,7 @@ const chain = (value) => ({ select: () => ({ lean: async () => value, then: (ok,
 const users = { find: () => chain([]), findById: id => chain(String(id) === studentId ? enrolledUser : operator) };
 const attendance = { findOne: async () => stored, create: async (value) => { writes++; stored = value; return value; }, countDocuments: async () => 0 };
 const excuses = { findOne: async () => null };
-const sessions = { findOne: async () => session, updateOne: async () => {}, findById: async () => session };
+const sessions = { findOne: async () => session, updateOne: async () => {}, findById: async () => session, create: async data => ({ ...data, _id: 'new-station' }) };
 const identifyMock = { isValidDescriptor: (d) => Array.isArray(d) && d.length === 128 && d.every(Number.isFinite), identifyBatch: async ds => Array.isArray(ds) && ds.length === 2 && ds.every(d => Array.isArray(d) && d.length === 128 && d.every(Number.isFinite)) ? identified : { result: 'invalid' }, remove: () => {} };
 Module._load = function(request, parent, ...rest) {
   const mocks = {
@@ -45,11 +45,11 @@ beforeEach(() => {
   event = { _id: eventId, title: 'Test event', date: day, attendanceStartTime: '00:00', attendanceEndTime: '23:59', endTime: '23:59', status: 'live', organizer: '444444444444444444444444' };
   identified = { result: 'match', distance: 0.1, student: { id: studentId, enrollmentVersion: 1 } };
 });
-async function request(path, body, method = 'POST') {
+async function request(path, body, method = 'POST', role = 'student') {
   const route = router.stack.find((layer) => layer.route?.path === (path === 'sessions' ? '/sessions' : '/:token') && layer.route.methods[method.toLowerCase()]).route;
-  const req = { body, params: { token: path }, query: {}, user: { _id: studentId, role: 'student' },headers:{cookie:`tracked_station_${session.tokenHash.slice(0,16)}=browser-secret`} };
+  const req = { body, params: { token: path }, query: {}, user: { _id: studentId, role },headers:{cookie:`tracked_station_${session.tokenHash.slice(0,16)}=browser-secret`} };
   const result = { status: 200, body: null };
-  const res = { status(code) { result.status = code; return this; }, json(value) { result.body = value; return this; } };
+  const res = { cookie() {}, status(code) { result.status = code; return this; }, json(value) { result.body = value; return this; } };
   await route.stack.at(-1).handle(req, res);
   return result;
 }
@@ -100,10 +100,23 @@ test('station rejects an invalid face descriptor', async () => { assert.equal((a
 test('single-frame station clients must reload, not silently record attendance', async () => { assert.equal((await request('single-frame',{descriptor:vector()})).status,400); assert.equal(writes,0); });
 test('unknown and ambiguous faces cannot record attendance', async () => { for(const result of ['unknown','ambiguous','unstable']) { identified={result}; assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,result); } assert.equal(writes,0); });
 test('closed and expired stations cannot record attendance', async () => { session.closedAt=new Date(); assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,'closed'); session.closedAt=null; session.expiresAt=new Date(0); assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,'expired'); assert.equal(writes,0); });
+test('finished event keeps its configured Time Out open, including the closing instant', async () => {
+  const now = Date.now(); const period = { _id: 'period', name: 'Main', timeInOpen: new Date(now - 7200000), onTimeDeadline: new Date(now - 7100000), timeInCutoff: new Date(now - 3600000), timeOutOpen: new Date(now - 60000), timeOutClose: new Date(now + 60000) };
+  event.attendanceSessions = [period]; event.status = 'finished'; session.session = 'period';
+  const response = await request('station-status', null, 'GET');
+  assert.equal(response.body.state, 'open'); assert.equal(response.body.mode, 'time_out');
+  event.status = 'closed'; assert.equal((await request('station-status', null, 'GET')).body.state, 'closed');
+});
 test('reset or unconsented faces cannot record attendance from stale cache', async () => { enrolledUser.faceConsentAt=null; assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,'not-enrolled'); assert.equal(writes,0); });
 test('old enrollment versions cannot mark a newly enrolled student', async () => { enrolledUser.faceEnrollmentVersion=2; assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,'not-enrolled'); assert.equal(writes,0); });
 test('station records a match then reports repeat attendance without another write', async () => { assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,'marked'); assert.equal((await request('test-token',{descriptors:[vector(),vector()]})).body.result,'already'); assert.equal(writes,1); });
 test('students cannot create stations', async () => { assert.equal((await request('sessions',{eventId})).status,403); });
+test('a new session station remains valid through a departure more than twelve hours away', async () => {
+  const close = new Date(Date.now() + 20 * 3600000);
+  event.attendanceSessions = [{ _id: 'period', timeOutClose: close }]; event.sessionScheduleLockedAt = new Date();
+  const response = await request('sessions', { eventId, sessionId: 'period' }, 'POST', 'organizer');
+  assert.equal(response.status, 201); assert.ok(+new Date(response.body.expiresAt) > +close);
+});
 test('malformed event IDs return a client error', async () => { assert.equal((await request('sessions',{eventId:'wrong'})).status,400); });
 
 

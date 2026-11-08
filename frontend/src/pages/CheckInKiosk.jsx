@@ -20,7 +20,8 @@ import { faceScanIssue } from "../utils/faceScanQuality";
 const MODEL_URL = `${import.meta.env.BASE_URL}models/face`;
 const SCAN_INTERVAL_MS = 400;
 const SCAN_REST_MS = 100;
-const RESULT_HOLD_MS = 2200;
+const RESULT_HOLD_MS = 5000;
+const SCAN_RESULT_PAUSE_MS = 2200;
 
 const STATE_LABEL = {
   before: "Not open yet",
@@ -60,7 +61,7 @@ const CheckInKiosk = () => {
   const [error, setError] = useState("");
   const [station, setStation] = useState(null);
   const [result, setResult] = useState(null);
-  const [checking, setChecking] = useState(false);
+  const showResult = useCallback(value => setResult(previous => previous?.kind === value.kind && previous?.name === value.name && previous?.meta === value.meta ? previous : value), []);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraNonce, setCameraNonce] = useState(0);
 
@@ -173,10 +174,10 @@ const CheckInKiosk = () => {
   // ── Scan loop ──────────────────────────────────────────────────────────────
   const applyResult = useCallback(
     (data) => {
-      holdUntilRef.current = Date.now() + RESULT_HOLD_MS;
+      holdUntilRef.current = Date.now() + SCAN_RESULT_PAUSE_MS;
 
       if (data?.ok && data.result === "marked") {
-        setResult({
+        showResult({
           kind: data.status === "late" ? "late" : "ok",
           name: data.student?.name || "Student",
           meta:
@@ -190,7 +191,7 @@ const CheckInKiosk = () => {
       }
 
       if (data?.ok && data.result === "already") {
-        setResult({
+        showResult({
           kind: "info",
           name: data.student?.name || "Student",
           meta: data.message || `Already checked in — ${statusWord(data.status)}`,
@@ -199,7 +200,7 @@ const CheckInKiosk = () => {
       }
 
       if (data?.result === "unknown" || data?.result === "not-enrolled") {
-        setResult({
+        showResult({
           kind: "warn",
           name: "Face not recognised",
           meta: "Please see the organizer to be marked manually.",
@@ -208,7 +209,7 @@ const CheckInKiosk = () => {
       }
 
       if (data?.result === "ambiguous") {
-        setResult({
+        showResult({
           kind: "warn",
           name: "Could not confirm your face",
           meta: "Two faces are too similar. Please see the organizer.",
@@ -216,12 +217,12 @@ const CheckInKiosk = () => {
         return;
       }
       if (data?.result === "unstable") {
-        setResult({ kind: "info", name: "Hold still for a moment", meta: "Look straight at the camera while we confirm your face." });
+        showResult({ kind: "info", name: "Hold still for a moment", meta: "Look straight at the camera while we confirm your face." });
         return;
       }
 
       if (data?.result === "no-enrollments") {
-        setResult({
+        showResult({
           kind: "warn",
           name: "No faces enrolled yet",
           meta: "Ask the organizer to mark attendance manually.",
@@ -231,24 +232,24 @@ const CheckInKiosk = () => {
 
       if (["before", "closed", "expired", "unavailable"].includes(data?.result)) {
         refreshStation();
-        setResult({
-          kind: "info",
+        showResult({
+          kind: data.result === "before" ? "info" : "warn",
           name: STATE_LABEL[data.result] || "Attendance closed",
-          meta: "This station is not accepting check-ins right now.",
+          meta: data.result === "expired" ? "Organizer: reopen this station from the dashboard." : "Check this session's Time In and Time Out schedule.",
         });
         return;
       }
 
-      if (["no_time_in", "ineligible"].includes(data?.result)) { setResult({ kind: "warn", name: "Attendance needs attention", meta: data.message || "Ask the organizer to check your Time In." }); return; }
+      if (["no_time_in", "ineligible"].includes(data?.result)) { showResult({ kind: "warn", name: "Attendance needs attention", meta: data.message || "Ask the organizer to check your Time In." }); return; }
       if (data?.result === "finished") {
-        setResult({
+        showResult({
           kind: "info",
           name: "This event is over",
           meta: "Attendance can no longer be recorded.",
         });
       }
     },
-    [refreshStation]
+    [refreshStation, showResult]
   );
 
   const scanOnce = useCallback(async () => {
@@ -272,7 +273,7 @@ const CheckInKiosk = () => {
       if (detections.length > 1) {
         probeRef.current = null;
         holdUntilRef.current = Date.now() + 1500;
-        setResult({ kind: "warn", name: "One person at a time",
+        showResult({ kind: "warn", name: "One person at a time",
           meta: "Only the student checking in should be visible to the camera." });
         return;
       }
@@ -286,11 +287,10 @@ const CheckInKiosk = () => {
       let brightness = 0;
       for (let i = 0; i < pixels.length; i += 4) brightness += 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
       const issue = faceScanIssue(detections[0], frame.width, frame.height, brightness / 1024);
-      if (issue) { probeRef.current = null; setResult({ kind: "info", name: "Adjust your position", meta: issue }); return; }
+      if (issue) { probeRef.current = null; showResult({ kind: "info", name: "Adjust your position", meta: issue }); return; }
 
       // Reuse the single detected face and run the same full landmark and
       // recognition models as before. Crowded frames need neither model.
-      setChecking(true);
       const landmarks = new faceapi.DetectAllFaceLandmarksTask(
         Promise.resolve([{ detection: detections[0] }]), frame, false
       );
@@ -301,7 +301,7 @@ const CheckInKiosk = () => {
       const previous = probeRef.current;
       probeRef.current = { descriptor, at: Date.now(), token, state: stateRef.current };
       if (!previous || previous.token !== token || previous.state !== stateRef.current || Date.now() - previous.at > 3000) {
-        setResult({ kind: "info", name: "Hold still—confirming your face", meta: "Keep looking at the camera for one more scan." });
+        showResult({ kind: "info", name: "Hold still—confirming your face", meta: "Keep looking at the camera for one more scan." });
         return;
       }
       probeRef.current = null;
@@ -311,24 +311,23 @@ const CheckInKiosk = () => {
       probeRef.current = null;
       if (err.response?.status === 429) {
         holdUntilRef.current = Date.now() + 3000;
-        setResult({
+        showResult({
           kind: "warn",
           name: "Slow down a moment",
           meta: "Too many scans. Try again in a few seconds.",
         });
       } else if (err.response?.status === 400) {
         holdUntilRef.current = Date.now() + 1500;
-        setResult({ kind: "warn", name: "Please retry the scan", meta: err.response?.data?.error || "Hold still and look at the camera." });
+        showResult({ kind: "warn", name: "Please retry the scan", meta: err.response?.data?.error || "Hold still and look at the camera." });
       } else if (!err.response) {
         setError("Connection lost. Reconnecting…");
       } else {
         console.error("Check-in scan failed:", err);
       }
     } finally {
-      setChecking(false);
       busyRef.current = false;
     }
-  }, [applyResult, token]);
+  }, [applyResult, token, showResult]);
 
   useEffect(() => {
     if (boot !== "ready") return undefined;
@@ -357,7 +356,7 @@ const CheckInKiosk = () => {
   // Clear a transient result even when no new face appears.
   useEffect(() => {
     if (!result) return undefined;
-    const timer = setTimeout(() => setResult(null), RESULT_HOLD_MS + 400);
+    const timer = setTimeout(() => setResult(null), RESULT_HOLD_MS);
     return () => clearTimeout(timer);
   }, [result]);
 
@@ -481,23 +480,6 @@ const CheckInKiosk = () => {
             </div>
           )}
 
-          {scanning && !result && !cameraError && (
-            <div
-              role="status"
-              className={`pointer-events-none absolute inset-x-0 bottom-0 px-4 text-center text-sm ${
-                state === "late"
-                  ? "bg-amber-400 px-4 py-3 text-amber-950"
-                  : "bg-gradient-to-t from-black/80 to-transparent pb-4 pt-14 text-white/90"
-              }`}
-            >
-              {state === "late" && <p className="mb-1 font-semibold">You can still check in. Your attendance will be marked late.</p>}
-              <p className="font-medium">
-                {checking
-                  ? "Please wait while we verify your face. Hold still and keep looking at the camera."
-                  : "Look at the camera to check in."}
-              </p>
-            </div>
-          )}
 
           {boot === "error" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#070b12]/95 px-6 text-center">
@@ -515,7 +497,7 @@ const CheckInKiosk = () => {
             </div>
           )}
 
-          {result && (
+          {result?.kind === "warn" && (
             <div
               role="status"
               aria-live="polite"
@@ -544,6 +526,10 @@ const CheckInKiosk = () => {
             </div>
           )}
         </div>
+
+        <p role="status" aria-live="polite" className="min-h-6 text-center text-sm text-white/70">
+          {result && result.kind !== 'warn' ? result.kind === 'info' ? result.meta || result.name : `${result.name} · ${result.meta}` : scanning ? `${station?.mode === 'time_out' ? 'Time Out' : 'Time In'} · Look at the camera` : ''}
+        </p>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">

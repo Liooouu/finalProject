@@ -7,7 +7,7 @@
 //   late Time In + valid Time Out     -> late, completed, 4
 //   on-time Time In + missing Time Out after deadline -> present, incomplete, 2
 //   late Time In + missing Time Out after deadline -> late, incomplete, 6
-//   no valid Time In after final cutoff -> absent, 8 (no incomplete add-on)
+//   no valid Time In when Time Out closes -> absent, 8 (no incomplete add-on)
 // A Time Out alone never establishes attendance.
 
 const HOURS = { present: 0, lateTimeIn: 4, incomplete: 2, absent: 8 };
@@ -20,11 +20,12 @@ function classify({ timeInAt, timeOutAt, session, now = new Date() }) {
   const outClose = new Date(s.timeOutClose);
   const onTimeDeadline = new Date(s.onTimeDeadline);
 
-  // No valid Time In after final cutoff -> absent
+  // Invalid/missing entry is pending until the entire attendance period ends.
   const entry = timeInAt ? new Date(timeInAt) : null;
   if (!entry || !Number.isFinite(+entry) || entry < new Date(s.timeInOpen) || entry > cutoff) {
-    // If cutoff hasn't passed yet, still pending (not absent yet).
-    if (now <= cutoff) return { arrivalStatus: null, completionStatus: "pending", hours: 0, state: "pending" };
+    // Finish the whole attendance period before charging absence. A pending
+    // entry may still be confirmed while the exit desk is open.
+    if (now <= outClose) return { arrivalStatus: null, completionStatus: "pending", hours: 0, state: "pending" };
     return { arrivalStatus: null, completionStatus: "absent", hours: HOURS.absent, state: "absent" };
   }
 

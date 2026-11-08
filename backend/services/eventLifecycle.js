@@ -256,7 +256,7 @@ function eventLiveNotification(event) {
   return {
     type: "info",
     title: "Event is now live",
-    message: `"${event.title}" is now live. Review the event's attendance window in TrackED before visiting an organizer-operated face station.`,
+    message: `"${event.title}" is now live. Review the event's Time In and Time Out schedule in TrackED before visiting an organizer-operated face station.`,
   };
 }
 

@@ -139,9 +139,10 @@ router.post("/sessions", protect, async (req, res) => {
 
     if (selected) await require("../services/sessionAttendance").lockSchedule(event, now);
     const token = newToken();
-    const expiresAt = new Date(
-      Math.min(lastCheckIn.getTime() + SESSION_GRACE_MS, now.getTime() + SESSION_MAX_MS)
-    );
+    // A session station covers BOTH arrival and departure. The old 12-hour
+    // cap could expire a station before its configured Time Out even opened.
+    const expiresAt = new Date(selected ? lastCheckIn.getTime() + SESSION_GRACE_MS
+      : Math.min(lastCheckIn.getTime() + SESSION_GRACE_MS, now.getTime() + SESSION_MAX_MS));
 
     const session = await CheckInSession.create({
       event: event._id,

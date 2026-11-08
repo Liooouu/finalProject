@@ -91,10 +91,13 @@ async function apply({ event, session, student, action, now = new Date(), method
   const pair = { event: event._id, session: session._id, student: student._id || student };
   for (let attempt = 0; attempt < 5; attempt++) {
     const existing = await Attendance.findOne(pair).lean();
+    if (finalizing && +now <= +new Date(session.timeOutClose) &&
+        (!existing || existing.method !== 'auto' || existing.timeInAt || existing.status !== 'absent' ||
+         existing.communityServiceHours !== contribution(existing) || existing.manualAttendanceAudit?.length)) return { ok: false, reason: 'already', attendance: existing };
     if (finalizing && existing?.status === 'excused') return { ok: false, reason: 'already', attendance: existing };
     if (existing?.status === 'excused') fail(409, 'An approved excuse protects this session. Review the excuse before changing attendance.');
     if (review && existing?.manualAttendanceAudit?.some(item => id(item.request) === id(review.request))) return { ok: true, attendance: existing, status: existing.status, hours: existing.communityServiceHours, action };
-    if (finalizing && existing && (existing.timeOutAt || !existing.timeInAt || +now <= +new Date(session.timeOutClose))) return { ok: false, reason: 'already', attendance: existing };
+    if (finalizing && existing && (existing.timeOutAt || (existing.timeInAt && +now <= +new Date(session.timeOutClose)))) return { ok: false, reason: 'already', attendance: existing };
     if (review?.mode === 'correction' && existing?.method === 'face' && !(action === 'time_out' && !existing.timeOutAt)) fail(409, 'Face-verified attendance cannot be overwritten by a correction.');
     if (review?.mode === 'correction' && existing && existing.method !== 'auto' && review.expectedUpdatedAt !== (existing.updatedAt ? new Date(existing.updatedAt).toISOString() : null)) fail(409, 'Attendance changed after this correction was submitted.');
     const field = action === 'time_out' ? 'timeOutAt' : 'timeInAt';
@@ -103,7 +106,7 @@ async function apply({ event, session, student, action, now = new Date(), method
       if (existing.method === 'face') fail(409, 'Face-verified actions cannot be overwritten by an attendance request.');
       if (review.expectedUpdatedAt !== (existing.updatedAt ? new Date(existing.updatedAt).toISOString() : null)) fail(409, 'Attendance changed after this correction was submitted. Refresh and submit a new correction.');
     }
-    if (action === 'time_out' && !existing?.timeInAt) return { ok: false, reason: 'no_time_in', message: 'Time Out is saved for review until its Time In is confirmed.' };
+    if (action === 'time_out' && !existing?.timeInAt) return { ok: false, reason: 'no_time_in', message: 'Time In not confirmed. Ask the organizer to check your arrival record, then scan Time Out again.' };
     const timeInAt = action === 'time_in' && !finalizing ? now : existing?.timeInAt || null;
     const timeOutAt = action === 'time_out' ? now : existing?.timeOutAt || null;
     if (action === 'absent' && existing?.timeInAt && !review && !finalizing) return { ok: false, reason: 'already', attendance: existing };
@@ -112,7 +115,7 @@ async function apply({ event, session, student, action, now = new Date(), method
     const evaluatedAt = review?.reviewedAt || now;
     const result = classify({ timeInAt: effectiveIn, timeOutAt: effectiveOut, session, now: evaluatedAt });
     const changed = existing ? penaltyChange(existing, result) : { delta: result.hours, hours: result.hours };
-    const status = result.completionStatus === 'absent' ? 'absent' : result.arrivalStatus === 'late' ? 'late' : 'present';
+    const status = !result.arrivalStatus && result.completionStatus === 'pending' ? 'pending' : result.completionStatus === 'absent' ? 'absent' : result.arrivalStatus === 'late' ? 'late' : 'present';
     const audit = review ? { request: review.request, requestedBy: review.requestedBy, reviewedBy: review.reviewedBy,
       submittedAt: review.submittedAt, effectiveAt: now, reviewedAt: review.reviewedAt, action,
       reason: review.reason, reviewNote: review.note, previousStatus: existing?.status || 'unrecorded', nextStatus: status,
@@ -128,19 +131,19 @@ async function apply({ event, session, student, action, now = new Date(), method
       ...(review ? { manualAttendanceRequest: review.request } : {}) });
     else if (!existing) changes.method = 'auto';
     const log = changed.delta ? { action: changed.delta > 0 ? 'penalty' : 'removed', hours: Math.abs(changed.delta), at: new Date(),
-      note: `${finalizing ? 'Session finalized' : action === 'time_out' ? 'Time Out recorded' : 'Time In recorded'} (${session.name})` } : null;
+      note: `${finalizing ? result.completionStatus === 'pending' ? 'Premature automatic absence reversed' : 'Session finalized' : action === 'time_out' ? 'Time Out recorded' : 'Time In recorded'} (${session.name})` } : null;
     if (existing) {
       if (finalizing && existing.completionStatus === result.completionStatus && contribution(existing) === result.hours) return { ok: false, reason: 'already', attendance: existing };
       const update = { $set: changes, $inc: { __v: 1 } };
       if (log || audit) update.$push = { ...(log ? { communityServiceLog: log } : {}), ...(audit ? { manualAttendanceAudit: audit } : {}) };
       const saved = await Attendance.findOneAndUpdate(versionFilter(existing), update, { new: true }).lean();
       if (!saved) continue;
-      await notice(event, session, saved, action, finalizing, method);
+      if (result.arrivalStatus || result.completionStatus !== 'pending') await notice(event, session, saved, action, finalizing, method);
       return { ok: true, attendance: saved, status, hours: saved.communityServiceHours, action, completionStatus: result.completionStatus };
     }
     try {
       const saved = await Attendance.create({ ...changes, communityServiceLog: log ? [log] : [], manualAttendanceAudit: audit ? [audit] : [] });
-      await notice(event, session, saved, action, finalizing, method);
+      if (result.arrivalStatus || result.completionStatus !== 'pending') await notice(event, session, saved, action, finalizing, method);
       return { ok: true, attendance: saved, status, hours: saved.communityServiceHours, action, completionStatus: result.completionStatus };
     } catch (error) {
       if (error.code !== 11000) throw error;
@@ -157,13 +160,22 @@ async function finalize(event, now = new Date()) {
     if (+now <= +new Date(session.timeInCutoff)) continue;
     const [removed, rows] = await Promise.all([
       DeletedAttendance.find({ event: event._id, $or: [{ session: session._id }, { 'record.session': session._id }] }).distinct('student'),
-      Attendance.find({ event: event._id, session: session._id }).select('student status timeInAt timeOutAt completionStatus sessionPenaltyHours arrivalStatus').lean(),
+      Attendance.find({ event: event._id, session: session._id }).select('student status method timeInAt timeOutAt completionStatus sessionPenaltyHours arrivalStatus').lean(),
     ]);
     const deleted = new Set(removed.map(id));
     const existing = new Map(rows.map(row => [id(row.student), row]));
     for (const student of session.eligibleStudents || []) {
       const record = existing.get(id(student));
-      if (deleted.has(id(student)) || record?.status === 'excused' || record?.timeOutAt || (record && !record.timeInAt)) continue;
+      if (deleted.has(id(student)) || record?.status === 'excused' || record?.timeOutAt) continue;
+      if (+now <= +new Date(session.timeOutClose)) {
+        // Reconcile only premature automatic absence from the old cutoff rule.
+        // apply() records the delta and preserves existing staff balance changes.
+        if (record?.method === 'auto' && record.status === 'absent' && !record.timeInAt) {
+          await apply({ event, session, student: { _id: student }, action: 'absent', now, finalizing: true });
+        }
+        continue;
+      }
+      if (record && !record.timeInAt && record.status === 'absent' && contribution(record) === 8) continue;
       if (record?.timeInAt && (+now <= +new Date(session.timeOutClose) || (record.completionStatus === 'incomplete' && contribution(record) === (record.arrivalStatus === 'late' ? 6 : 2)))) continue;
       await apply({ event, session, student: { _id: student }, action: 'absent', now, finalizing: true });
     }

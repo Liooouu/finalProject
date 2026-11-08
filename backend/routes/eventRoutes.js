@@ -148,7 +148,7 @@ router.post("/", protect, async (req, res) => {
       await notifyUsers(await eventRecipients(event), {
         type: "info",
         title: "New event scheduled",
-        message: `"${event.title}" is scheduled for ${manilaDateTimeLabel(eventStartsAt(event))} (Philippine time). Open the event to review its venue and attendance window.`,
+        message: `"${event.title}" is scheduled for ${manilaDateTimeLabel(eventStartsAt(event))} (Philippine time). Open the event to review its venue and Time In/Time Out schedule.`,
         relatedEvent: event._id,
         event,
         deferEmail: true,

@@ -461,7 +461,7 @@ connectDB()
               await notifyUsers(students, {
                 type: "info",
                 title: "Upcoming event reminder",
-                message: `"${event.title}" starts at ${manilaDateTimeLabel(startsAt)} (Philippine time)${event.location ? ` at ${event.location}` : ""}. Open the event to check its attendance window before you arrive.`,
+                message: `"${event.title}" starts at ${manilaDateTimeLabel(startsAt)} (Philippine time)${event.location ? ` at ${event.location}` : ""}. Open the event to check its Time In and Time Out schedule before you arrive.`,
                 relatedEvent: event._id,
                 event,
               });

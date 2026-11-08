@@ -46,11 +46,29 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
       await service.finalize(event, at('11:59:00'));
       const early = await Attendance.findOne({ session: event.attendanceSessions[0]._id }).lean();
       if (clock && !complete) assert.equal(early.completionStatus, 'pending');
+      if (!clock) assert.equal(early, null, 'no absence record while Time Out is still open');
       await service.finalize(event, at('12:01:00')); await service.finalize(event, at('12:02:00'));
       const row = await Attendance.findOne({ session: event.attendanceSessions[0]._id }).lean();
       assert.equal(row.communityServiceHours, hours);
       assert.equal(row.sessionPenaltyHours, hours);
     }
+  });
+  test('premature automatic absence is reversed while exit is open, then finalized once at exit close', async () => {
+    const session = event.attendanceSessions[0];
+    await Attendance.create({ event: event._id, session: session._id, student: student._id, method: 'auto', status: 'absent', completionStatus: 'absent', sessionPenaltyHours: 8, communityServiceHours: 8 });
+    await service.finalize(event, at('11:30:00'));
+    let row = await Attendance.findOne().lean();
+    assert.equal(row.status, 'pending'); assert.equal(row.communityServiceHours, 0);
+    assert.match(row.communityServiceLog.at(-1).note, /Premature/);
+    await service.finalize(event, at('11:31:00'));
+    assert.equal((await Attendance.findOne()).communityServiceLog.length, row.communityServiceLog.length);
+    await service.finalize(event, at('12:01:00'));
+    row = await Attendance.findOne().lean(); assert.equal(row.status, 'absent'); assert.equal(row.communityServiceHours, 8);
+  });
+  test('early absence reconciliation does not overwrite a staff-adjusted balance', async () => {
+    await Attendance.create({ event: event._id, session: event.attendanceSessions[0]._id, student: student._id, method: 'auto', status: 'absent', completionStatus: 'absent', sessionPenaltyHours: 8, communityServiceHours: 5 });
+    await service.finalize(event, at('11:30:00'));
+    assert.equal((await Attendance.findOne()).communityServiceHours, 5);
   });
   test('staff hour reductions survive repeat finalization and delayed exit review', async () => {
     await mark('time_in', '08:45:00'); await service.finalize(event, at('12:01:00'));

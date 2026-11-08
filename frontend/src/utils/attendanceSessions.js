@@ -38,7 +38,7 @@ export function attendancePenaltyLabel(record) {
       ? 'Late (4h) + missing Time Out (2h): 6h'
       : 'Missing Time Out: 2 penalty hours';
   }
-  if (record.completionStatus === 'pending') return 'Awaiting Time Out';
+  if (record.completionStatus === 'pending') return record.timeInAt ? 'Awaiting Time Out' : 'Time In not confirmed · no absence penalty yet';
   return record.arrivalStatus === 'late'
     ? 'Late Time In: 4 penalty hours'
     : 'On-time Time In: 0 penalty hours';

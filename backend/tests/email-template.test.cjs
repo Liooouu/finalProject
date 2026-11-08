@@ -27,11 +27,23 @@ test("event emails include Philippine start/end and overnight attendance-window 
   assert.equal(reads, 1);
   assert.match(message.text, /Starts:.*Nov 3, 2026.*10:00 pm/i);
   assert.match(message.text, /Ends:.*Nov 4, 2026.*2:00 am/i);
-  assert.match(message.text, /Attendance window:.*Nov 3, 2026.*11:00 pm.*Nov 4, 2026.*12:30 am/i);
+  assert.match(message.text, /Time In:.*Nov 3, 2026.*11:00 pm.*Nov 4, 2026.*12:30 am/i);
   assert.match(message.text, /Philippine time \(UTC\+8\)/);
   assert.match(message.text, /Venue: Room 101/);
-  assert.match(message.html, /Attendance window/);
+  assert.match(message.html, /Time In/);
   assert.match(message.html, /Nov 4, 2026/);
+});
+
+test('session emails show each actual Time In cutoff and Time Out dates in HTML and text', async () => {
+  const event = { title: 'CCIT', date: '2026-11-08', time: '08:00', attendanceStartTime: '08:00', attendanceEndTime: '08:30', attendanceSessions: [
+    { name: 'Morning', timeInOpen: '2026-11-08T00:00:00Z', timeInCutoff: '2026-11-08T01:00:00Z', timeOutOpen: '2026-11-08T03:00:00Z', timeOutClose: '2026-11-08T04:00:00Z' },
+    { name: 'Evening', timeInOpen: '2026-11-08T12:00:00Z', timeInCutoff: '2026-11-08T13:00:00Z', timeOutOpen: '2026-11-08T15:00:00Z', timeOutClose: '2026-11-08T17:00:00Z' },
+  ] };
+  const email = await renderNotificationEmail({ title: 'Event updated', message: 'Check the schedule.', event });
+  assert.match(email.text, /Morning · Time In:.*9:00 am/i);
+  assert.match(email.text, /Morning · Time Out:.*12:00 pm/i);
+  assert.match(email.text, /Evening · Time Out:.*Nov 9, 2026.*1:00 am/i);
+  assert.match(email.html, /Morning · Time Out/); assert.doesNotMatch(email.text, /Attendance window/);
 });
 
 test("notification placeholders receive the real safe application URL and HTML is escaped", async () => {
