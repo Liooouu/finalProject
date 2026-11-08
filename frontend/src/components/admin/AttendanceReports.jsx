@@ -72,6 +72,7 @@ const AttendanceReports = () => {
   const [attendanceError, setAttendanceError] = useState("");
   const [exporting, setExporting] = useState(false);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [attendancePage, setAttendancePage] = useState(1);
   const attendancePageSize = 5;
   const [eventLedgerPage, setEventLedgerPage] = useState(1);
@@ -107,6 +108,7 @@ const AttendanceReports = () => {
   }, [filters,periodParams]);
 
   const hasActiveFilters = Object.values(filters).some((value) => value !== "all");
+  const moreActiveFilters = ["program", "yearLevel", "section"].filter((key) => filters[key] !== "all").length;
 
   const fetchAttendance = useCallback(
     async (signal) => {
@@ -474,19 +476,64 @@ const AttendanceReports = () => {
                 </ChartCard>
               </div>
 
-              <div className="admin-record-toolbar" role="region" aria-label="Attendance record filters">
-                {[
-                  {key:"program",label:"Program",all:"All programs",options:filterOptions.programs.map(value=>({value,label:value}))},
-                  {key:"yearLevel",label:"Year level",all:"All year levels",options:(filterOptions.yearLevels || [1,2,3,4]).map(value=>({value,label:YEAR_LABELS[value] || `Year ${value}`}))},
-                  {key:"section",label:"Section",all:"All sections",options:filterOptions.sections.map(value=>({value,label:`Section ${value}`}))},
-                  {key:"eventId",label:"Event",all:"All events",options:filterOptions.events.map(event=>({value:event._id,label:`${event.title} — ${formatDate(event.date)}`}))},
-                  {key:"sessionId",label:"Session",all:"All sessions",options:(filterOptions.events.find(event => event._id === filters.eventId)?.attendanceSessions || []).map(row=>({value:row._id,label:row.name}))},
-                  {key:"completionStatus",label:"Completion",all:"All completion states",options:["completed","incomplete","absent","pending","excused"].map(value=>({value,label:value === "pending" ? "Awaiting Time Out" : value[0].toUpperCase()+value.slice(1)}))},
-                ].map(field=><label key={field.key} className={`admin-report-filter admin-report-filter-${field.key}`}><span className="sr-only">{field.label}</span><select aria-label={field.label} className="field-select" value={filters[field.key]} onChange={event=>{setAttendancePage(1);setFilters(previous=>({...previous,[field.key]:event.target.value,...(field.key === "eventId" ? { sessionId: "all" } : {})}));}}><option value="all">{field.all}</option>{field.options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>)}
-                <Button variant="info" size="sm" onClick={()=>{setAttendancePage(1);setFilters(EMPTY_FILTERS);}} disabled={!hasActiveFilters}>Reset filters</Button>
-                <Button variant="primary" size="sm" loading={exporting} title="Export all records matching the current filters" onClick={()=>downloadCSV("attendance")}>Export CSV</Button>
-                <p className="sr-only">Filters apply to both graphs, attendance records and CSV export.</p>
-              </div>
+               <div className="admin-record-toolbar" role="region" aria-label="Attendance record filters">
+                  <div className="admin-report-filter-row">
+                    <label className="admin-report-filter admin-report-filter-eventId">
+                      <span className="sr-only">Event</span>
+                      <select aria-label="Event" className="field-select" value={filters.eventId} onChange={event=>{setAttendancePage(1);setFilters(previous=>({...previous,eventId:event.target.value,sessionId:"all"}));}}>
+                        <option value="all">All events</option>
+                        {filterOptions.events.map(event=><option key={event._id} value={event._id}>{event.title} - {formatDate(event.date)}</option>)}
+                      </select>
+                    </label>
+                    {filters.eventId !== "all" && (
+                      <label className="admin-report-filter admin-report-filter-sessionId">
+                        <span className="sr-only">Session</span>
+                        <select aria-label="Session" className="field-select" value={filters.sessionId} onChange={event=>{setAttendancePage(1);setFilters(previous=>({...previous,sessionId:event.target.value}));}}>
+                          <option value="all">All sessions</option>
+                          {(filterOptions.events.find(event => event._id === filters.eventId)?.attendanceSessions || []).map(row=><option key={row._id} value={row._id}>{row.name}</option>)}
+                        </select>
+                      </label>
+                    )}
+                    <label className="admin-report-filter admin-report-filter-completionStatus">
+                      <span className="sr-only">Completion</span>
+                      <select aria-label="Completion" className="field-select" value={filters.completionStatus} onChange={event=>{setAttendancePage(1);setFilters(previous=>({...previous,completionStatus:event.target.value}));}}>
+                        <option value="all">All completion states</option>
+                        {["completed","incomplete","absent","pending","excused"].map(value=><option key={value} value={value}>{value === "pending" ? "Awaiting Time Out" : value[0].toUpperCase()+value.slice(1)}</option>)}
+                      </select>
+                    </label>
+                    <Button variant="ghost" size="sm" onClick={()=>setShowMoreFilters(value=>!value)} aria-expanded={showMoreFilters}>
+                      More filters{moreActiveFilters ? ` (${moreActiveFilters})` : ""} {showMoreFilters ? "^" : "v"}
+                    </Button>
+                    <Button variant="info" size="sm" onClick={()=>{setAttendancePage(1);setFilters(EMPTY_FILTERS);}} disabled={!hasActiveFilters}>Reset filters</Button>
+                    <Button variant="primary" size="sm" loading={exporting} title="Export all records matching the current filters" onClick={()=>downloadCSV("attendance")}>Export CSV</Button>
+                  </div>
+                  {showMoreFilters && (
+                    <div className="admin-report-filter-more">
+                      <label className="admin-report-filter admin-report-filter-program">
+                        <span className="sr-only">Program</span>
+                        <select aria-label="Program" className="field-select" value={filters.program} onChange={event=>{setAttendancePage(1);setFilters(previous=>({...previous,program:event.target.value}));}}>
+                          <option value="all">All programs</option>
+                          {filterOptions.programs.map(value=><option key={value} value={value}>{value}</option>)}
+                        </select>
+                      </label>
+                      <label className="admin-report-filter admin-report-filter-yearLevel">
+                        <span className="sr-only">Year level</span>
+                        <select aria-label="Year level" className="field-select" value={filters.yearLevel} onChange={event=>{setAttendancePage(1);setFilters(previous=>({...previous,yearLevel:event.target.value}));}}>
+                          <option value="all">All year levels</option>
+                          {(filterOptions.yearLevels || [1,2,3,4]).map(value=><option key={value} value={value}>{YEAR_LABELS[value] || `Year ${value}`}</option>)}
+                        </select>
+                      </label>
+                      <label className="admin-report-filter admin-report-filter-section">
+                        <span className="sr-only">Section</span>
+                        <select aria-label="Section" className="field-select" value={filters.section} onChange={event=>{setAttendancePage(1);setFilters(previous=>({...previous,section:event.target.value}));}}>
+                          <option value="all">All sections</option>
+                          {filterOptions.sections.map(value=><option key={value} value={value}>{`Section ${value}`}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                  )}
+                  <p className="sr-only">Filters apply to both graphs, attendance records and CSV export.</p>
+                </div>
               <FlightPanel
                 level="ledger"
                 glass

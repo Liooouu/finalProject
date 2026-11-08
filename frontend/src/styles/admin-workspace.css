@@ -42,7 +42,9 @@
 .admin-report-chart { min-width:0; display:flex; flex-direction:column; }
 .admin-report-chart>.fd-body { flex:1; }
 .admin-event-plot { height:200px; }
-.admin-record-toolbar { display:grid; grid-template-columns:1fr .9fr .8fr 1.4fr auto auto; align-items:center; gap:8px; }
+.admin-record-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.admin-report-filter-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; flex:1 1 100%; }
+.admin-report-filter-more { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding-top:8px; }
 .admin-report-filter { min-width:0; }
 .admin-record-toolbar .field-select { font-size:12px; padding:9px 30px 9px 10px; min-width:0; border-radius:7px; }
 .admin-record-toolbar button { white-space:nowrap; font-size:12px; }
