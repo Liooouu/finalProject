@@ -86,7 +86,7 @@ function createService(deps) {
     const previous = await Attendance.findOne({ event: payload.eventId, student: payload.studentId, session: selectedSession?._id || null }).lean();
     if (previous?.status === "excused" || (previous?.method === "face" && !selectedSession)) fail(409, "This student already has face-verified attendance or an approved excuse. Review that record separately.");
     const proposal = buildProposal(event, payload, now);
-    if (selectedSession) await require("./sessionAttendance").lockSchedule(event, now);
+    if (selectedSession) await require("./sessionAttendance").lockSchedule(event, now, selectedSession._id, { prepareForMs: 30000 });
     if (!selectedSession && proposal.mode === "checkin" && previous && previous.status !== "absent" && previous.status !== "pending") fail(409, "Attendance is already recorded. Use a documented correction if needed.");
     let request;
     try {

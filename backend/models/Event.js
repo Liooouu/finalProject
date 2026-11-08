@@ -33,6 +33,7 @@ const eventSchema = new mongoose.Schema({
     timeInPolicy: { type: String, enum: ['window_then_late'] },
     activityStart: { type: Date },
     activityEnd: { type: Date },
+    capturePreparedUntil: { type: Date },
     timeInOpen: { type: Date, required: true },
     onTimeDeadline: { type: Date, required: true },
     timeInCutoff: { type: Date, required: true },

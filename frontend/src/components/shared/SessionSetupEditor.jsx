@@ -37,7 +37,7 @@ function ActivitySchedule({ value, row, index, onChange, disabled }) {
   </div>;
 }
 
-export default function SessionSetupEditor({ value, onChange, disabled = false, legacy = false, extrasOnly = false }) {
+export default function SessionSetupEditor({ value, onChange, disabled = false, legacy = false, extrasOnly = false, lockedSessions = [] }) {
   const saved = value.attendanceSessions || [];
   const rows = saved.length ? saved : legacy ? [] : [emptyEventAttendance(0)];
   const set = next => onChange({ target: { name: 'attendanceSessions', value: next.map(row => ({ ...row, _auto: false })) } });
@@ -45,11 +45,15 @@ export default function SessionSetupEditor({ value, onChange, disabled = false, 
   return <div className="min-w-0 space-y-3">
     {!extrasOnly && <h3 className="text-sm font-semibold">Attendance: Time In &amp; Time Out</h3>}
     {!rows.length && <p className="text-sm text-on-muted">This existing event uses Time In only.</p>}
-    {visible.map(({row,index}) => <div key={row._id || index} className="min-w-0 space-y-3 rounded-xl bg-card/60 p-3">
+    {visible.map(({row,index}) => {
+      const reason = lockedSessions.find(lock => lock.sessionId === String(row._id || ''))?.reason || (row.rosterLockedAt ? 'Attendance processing has already started for this day.' : '');
+      const rowDisabled = disabled || !!reason;
+      return <div key={row._id || index} className="min-w-0 space-y-3 rounded-xl bg-card/60 p-3">
       {index > 0 && <h3 className="text-sm font-semibold text-on">Day / activity {index + 1}</h3>}
-      {index > 0 && <div className="flex items-end gap-3"><label className="field-label min-w-0 flex-1">Day or activity name<input className="field mt-1 w-full" required value={row.name} disabled={disabled} maxLength={80} onChange={e => set(rows.map((item,i) => i === index ? {...item,name:e.target.value} : item))} /></label>{!disabled && <Button type="button" variant="ghost" size="sm" onClick={() => set(rows.filter((_,i) => i !== index))}>Remove</Button>}</div>}
-      {index > 0 && ('activityStart' in row || !row._id) ? <ActivitySchedule value={value} row={row} index={index} onChange={onChange} disabled={disabled} /> : <div className="grid min-w-0 gap-4 lg:grid-cols-2">{ATTENDANCE_GROUPS.map(group => <AttendanceTimeGroup key={group.id} value={value} onChange={onChange} groupId={group.id} index={index} disabled={disabled} />)}</div>}
-    </div>)}
+      {reason && <p className="text-xs text-on-muted">Schedule protected: {reason}</p>}
+      {index > 0 && <div className="flex items-end gap-3"><label className="field-label min-w-0 flex-1">Day or activity name<input className="field mt-1 w-full" required value={row.name} disabled={rowDisabled} maxLength={80} onChange={e => set(rows.map((item,i) => i === index ? {...item,name:e.target.value} : item))} /></label>{!rowDisabled && <Button type="button" variant="ghost" size="sm" onClick={() => set(rows.filter((_,i) => i !== index))}>Remove</Button>}</div>}
+      {index > 0 && ('activityStart' in row || !row._id) ? <ActivitySchedule value={value} row={row} index={index} onChange={onChange} disabled={rowDisabled} /> : <div className="grid min-w-0 gap-4 lg:grid-cols-2">{ATTENDANCE_GROUPS.map(group => <AttendanceTimeGroup key={group.id} value={value} onChange={onChange} groupId={group.id} index={index} disabled={rowDisabled} />)}</div>}
+    </div>; })}
     {!disabled && !legacy && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3"><p className="text-xs text-on-muted">Multiple required days or activities? Add another attendance period.</p><Button type="button" size="sm" variant="secondary" disabled={!saved.length || rows.length >= 30} onClick={() => set([...rows, emptyEventAttendance(rows.length)])}>+ Add another day / activity</Button></div>}
     <details className="text-xs text-on-muted"><summary className="cursor-pointer">Penalty rules</summary><p className="mt-2">On time until the displayed on-time deadline. Late: 4 hours. Missing Time Out: 2 hours, or 6 hours if also late. Absent: 8 hours total for each required attendance period.</p></details>
   </div>;

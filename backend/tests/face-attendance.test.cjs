@@ -21,7 +21,13 @@ const identifyMock = { isValidDescriptor: (d) => Array.isArray(d) && d.length ==
 Module._load = function(request, parent, ...rest) {
   const mocks = {
     '../models/User': users, '../models/Attendance': attendance, '../models/Excuse': excuses,
-    './notify': { notifyUsers: async () => {} }, '../models/Event': { findById: async () => event },
+    './notify': { notifyUsers: async () => {} }, '../models/Event': { findById: async () => event, findOneAndUpdate: (filter, update) => ({ lean: async () => {
+      event.sessionScheduleLockedAt = update.$set.sessionScheduleLockedAt;
+      const selected = event.attendanceSessions?.find(row => String(row._id) === String(filter['attendanceSessions._id']));
+      if (selected) selected.capturePreparedUntil = update.$set['attendanceSessions.$.capturePreparedUntil'];
+      event.__v = (event.__v || 0) + 1;
+      return event;
+    } }) },
     '../models/CheckInSession': sessions,
     '../middleware/authMiddleware': { protect: (req, res, next) => { req.user = { role: 'student', _id: studentId }; next(); } },
     '../services/faceIdentify': identifyMock,
@@ -32,6 +38,7 @@ Module._load = function(request, parent, ...rest) {
 const faceIdentify = require(require('node:path').join(__dirname, '../services/faceIdentify.js'));
 const marking = require('../services/attendanceMarking');
 const router = require('../routes/checkinRoutes');
+require('../services/sessionAttendance');
 Module._load = originalLoad;
 const vector = (n = 0) => Array(128).fill(n);
 const enrolled = (id, descriptor) => ({ _id: id, name: 'Test Student', role: 'student', faceEnrolledAt: new Date(), faceConsentAt: new Date(), faceEnrollmentVersion: 1, faceDescriptor: descriptor });

@@ -137,7 +137,7 @@ router.post("/sessions", protect, async (req, res) => {
     const lastCheckIn = selected ? new Date(selected.timeOutClose) : eventLastCheckInAt(event);
     if (!lastCheckIn || now > lastCheckIn) return res.status(400).json({ error: "This attendance period has ended. Choose another session." });
 
-    if (selected) await require("../services/sessionAttendance").lockSchedule(event, now);
+    if (selected) await require("../services/sessionAttendance").lockSchedule(event, now, selected._id, { prepareForMs: 30000 });
     const token = newToken();
     // A session station covers BOTH arrival and departure. The old 12-hour
     // cap could expire a station before its configured Time Out even opened.

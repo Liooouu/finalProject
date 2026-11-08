@@ -63,5 +63,13 @@ try {
   assert.match(extraForm, /Start date/); assert.match(extraForm, /Start time/);
   assert.match(extraForm, /End date/); assert.match(extraForm, /End time/);
   assert.equal((extraForm.match(/type="date"/g) || []).length, 2, 'additional day does not repeat dates inside Time In and Time Out');
+  const protectedForm = renderToStaticMarkup(React.createElement(Editor, {
+    value: { ...twoDays, attendanceSessions: [twoDays.attendanceSessions[0], { ...added, _id: 'used-day' }, { ...added, _id: 'unused-day', name: 'Future day' }] },
+    onChange() {}, extrasOnly: true, lockedSessions: [{ sessionId: 'used-day', reason: 'Attendance records already use this day.' }],
+  }));
+  const dateFields = [...protectedForm.matchAll(/<input[^>]*id="activity-(\d)-startDate"[^>]*>/g)];
+  assert.ok(dateFields.find(field => field[1] === '1')[0].includes('disabled'), 'used day must be read-only');
+  assert.ok(!dateFields.find(field => field[1] === '2')[0].includes('disabled'), 'unused day stays editable in the same event');
+  assert.match(protectedForm, /Schedule protected: Attendance records already use this day/);
   console.log('Arrival-window UI → API → penalty regression and schedule guidance passed.');
 } finally { await server.close(); }

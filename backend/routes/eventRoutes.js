@@ -32,6 +32,7 @@ const ManualAttendanceRequest = require("../models/ManualAttendanceRequest");
 const { projectManualAttendance } = require("../services/manualAttendanceView");
 const { validateSchedule } = require("../services/eventSchedule");
 const { validateSessions, normalizeSessions, sessionConfig } = require("../services/sessionSchedule");
+const { sessionEditLocks, lockedSessionChange } = require('../services/sessionEditing');
 
 // Only explicit human edits stamp the editor; scheduled jobs do not impersonate one.
 const editorStamp = user => ({ lastEditedBy: user._id, lastEditedByName: user.name || "Staff member", lastEditedAt: new Date() });
@@ -355,8 +356,9 @@ router.get("/:id", protect, async (req, res) => {
     // The resolved window travels with the event so the student's QR gate uses
     // the same instants the scan endpoint checks, instead of re-deriving them
     // from the clock strings on the device.
-    const sessionScheduleLocked = !!event.attendanceSessions?.length && (event.sessionScheduleLockedAt || event.attendanceSessions.some(row => row.rosterLockedAt) || !!await Attendance.exists({ event: event._id }) || !!await ManualAttendanceRequest.exists({ event: event._id }) || !!await require("../models/CheckInSession").exists({ event: event._id, closedAt: null, expiresAt: { $gt: new Date() } }));
-    res.json({ ...event.toObject(), sessionScheduleLocked, attendanceWindow: attendanceWindowPayload(event) });
+    const sessionScheduleLocks = await sessionEditLocks(event);
+    const sessionScheduleLocked = !!event.attendanceSessions?.length && sessionScheduleLocks.length === event.attendanceSessions.length;
+    res.json({ ...event.toObject(), sessionScheduleLocked, sessionScheduleLocks, attendanceWindow: attendanceWindowPayload(event) });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
   }
@@ -507,12 +509,18 @@ router.put("/:id", protect, async (req, res) => {
       nextSessions = normalizeSessions(attendanceSessions, existing.attendanceSessions || []);
       sessionChanged = sessionConfig(nextSessions) !== sessionConfig(existing.attendanceSessions);
       if (sessionChanged) {
-        const protectedSchedule = existing.sessionScheduleLockedAt || existing.attendanceSessions?.some(row => row.rosterLockedAt) || await Attendance.exists({ event: existing._id }) || await ManualAttendanceRequest.exists({ event: existing._id }) || await require("../models/CheckInSession").exists({ event: existing._id, closedAt: null, expiresAt: { $gt: new Date() } });
-        if (protectedSchedule) return res.status(409).json({ error: "Attendance already uses this schedule. Its sessions cannot be changed; descriptive event details can still be edited." });
+        const locks = await sessionEditLocks(existing);
+        const locked = lockedSessionChange(existing.attendanceSessions, nextSessions, locks);
+        if (locked) return res.status(409).json({ error: `${locked.name}: this day already has attendance or capture activity. Its schedule is protected; unused days can still be edited.` });
       }
     }
     const sessErr = validateSessions(nextSessions || existing.attendanceSessions || [], eventStartsAt(nextSchedule), eventEndAt(nextSchedule));
     if (sessErr) return res.status(400).json({ error: sessErr });
+    const primaryBoundsChanged = +eventStartsAt(existing) !== +eventStartsAt(nextSchedule) || +eventEndAt(existing) !== +eventEndAt(nextSchedule);
+    if (primaryBoundsChanged && existing.attendanceSessions?.length) {
+      const locks = await sessionEditLocks(existing);
+      if (locks.some(row => row.sessionId === String(existing.attendanceSessions[0]._id))) return res.status(409).json({ error: 'The first day already has attendance or capture activity. Its start and end schedule is protected; unused additional days can still be edited.' });
+    }
 
     const assignment = await academicPeriods.eventAssignment(req.body, { existing, role: req.user.role });
     const update = {

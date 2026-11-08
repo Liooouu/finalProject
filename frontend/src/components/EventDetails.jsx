@@ -64,6 +64,9 @@ const EventDetails = () => {
   const [scheduleIssue, setScheduleIssue] = useState('');
   const [editForm, setEditForm] = useState({});
   const [role, setRole] = useState(null);
+  const scheduleLocks = event?.sessionScheduleLocks || [];
+  const primaryId = String(event?.attendanceSessions?.[0]?._id || '');
+  const primaryLock = scheduleLocks.find(row => row.sessionId === primaryId)?.reason || (event?.attendanceSessions?.[0]?.rosterLockedAt ? 'Attendance processing has already started for this day.' : '');
   useEffect(() => {
     if (role !== 'student' || !id || !event?.attendanceSessions?.length) return;
     let active = true;
@@ -289,7 +292,7 @@ const EventDetails = () => {
     setSaving(true);
     try {
       const res = await api.put(`/events/${id}`, editForm);
-      setEvent(res.data);
+      setEvent(previous => ({ ...previous, ...res.data }));
       setIsEditing(false);
       setMessageType("success");
       setMessage(res.data.notificationWarning || "Event updated successfully!");
@@ -650,6 +653,7 @@ const EventDetails = () => {
 
                 <div className="border-t border-line pt-4">
                   <h3 className="text-sm font-semibold text-on">Event starts</h3>
+                  {primaryLock && <p className="mt-2 text-xs text-on-muted">Schedule protected: {primaryLock} Other unused days remain editable.</p>}
                   <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <label htmlFor="ed-date" className="field-label">
@@ -657,6 +661,7 @@ const EventDetails = () => {
                       </label>
                       <input
                         id="ed-date"
+                        disabled={saving || !!primaryLock}
                         type="date"
                         min="2026-01-01"
                         name="date"
@@ -672,6 +677,7 @@ const EventDetails = () => {
                       </label>
                       <TimePicker
                         id="ed-time"
+                        disabled={saving || !!primaryLock}
                         name="time"
                         value={editForm.time}
                         onChange={handleEditChange}
@@ -682,7 +688,7 @@ const EventDetails = () => {
                   </div>
                 </div>
 
-                {editForm.attendanceSessions?.length ? <AttendanceTimeGroup value={editForm} onChange={handleEditChange} groupId="timeIn" followEventDate disabled={saving || event.sessionScheduleLocked || event.attendanceSessions?.some(row => row.rosterLockedAt)} /> : <>
+                {editForm.attendanceSessions?.length ? <AttendanceTimeGroup value={editForm} onChange={handleEditChange} groupId="timeIn" followEventDate disabled={saving || !!primaryLock} /> : <>
                 <div className="border-t border-line pt-4">
                   <h3 className="text-sm font-semibold text-on">Attendance window (Time In-only event)</h3>
                   <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -725,6 +731,7 @@ const EventDetails = () => {
                       </label>
                       <input
                         id="ed-end-date"
+                        disabled={saving || !!primaryLock}
                         type="date"
                         min={editForm.date >= "2026-01-01" ? editForm.date : "2026-01-01"}
                         name="endDate"
@@ -739,6 +746,7 @@ const EventDetails = () => {
                       </label>
                       <TimePicker
                         id="ed-end-time"
+                        disabled={saving || !!primaryLock}
                         name="endTime"
                         value={editForm.endTime || ""}
                         onChange={handleEditChange}
@@ -751,7 +759,7 @@ const EventDetails = () => {
                   </p>
                 </div>
 
-                {editForm.attendanceSessions?.length > 0 && <><AttendanceTimeGroup value={editForm} onChange={handleEditChange} groupId="timeOut" followEventDate disabled={saving || event.sessionScheduleLocked || event.attendanceSessions?.some(row => row.rosterLockedAt)} /><SessionSetupEditor value={editForm} onChange={handleEditChange} extrasOnly disabled={saving || event.sessionScheduleLocked || event.attendanceSessions?.some(row => row.rosterLockedAt)} /></>}
+                {editForm.attendanceSessions?.length > 0 && <><AttendanceTimeGroup value={editForm} onChange={handleEditChange} groupId="timeOut" followEventDate disabled={saving || !!primaryLock} /><SessionSetupEditor value={editForm} onChange={handleEditChange} extrasOnly disabled={saving} lockedSessions={scheduleLocks} /></>}
 
                 <div>
                   <label htmlFor="ed-status" className="field-label">

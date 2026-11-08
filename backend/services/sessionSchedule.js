@@ -34,7 +34,7 @@ function normalizeSessions(rows, previous = []) {
       }
     }
     if (index > 0 && policy && !old && (!clean.activityStart || !clean.activityEnd)) throw Object.assign(new Error('Set the start and end schedule for each additional day/activity.'), { status: 400 });
-    if (old) Object.assign(clean, { _id: old._id, eligibleStudents: old.eligibleStudents, rosterLockedAt: old.rosterLockedAt });
+    if (old) Object.assign(clean, { _id: old._id, eligibleStudents: old.eligibleStudents, rosterLockedAt: old.rosterLockedAt, capturePreparedUntil: old.capturePreparedUntil });
     return clean;
   });
 }

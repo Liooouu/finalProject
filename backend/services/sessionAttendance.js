@@ -41,24 +41,34 @@ function versionFilter(record) {
     ...(record.updatedAt ? { updatedAt: record.updatedAt } : { updatedAt: { $exists: false } }),
     ...(record.__v === undefined ? {} : { __v: record.__v }) };
 }
-async function lockSchedule(event, now = new Date()) {
-  if (event.sessionScheduleLockedAt) return;
-  const saved = await Event.findOneAndUpdate({ _id: event._id, __v: event.__v === undefined ? { $exists: false } : event.__v },
-    { $set: { sessionScheduleLockedAt: now }, $inc: { __v: 1 } }, { new: true }).lean();
+async function lockSchedule(event, now = new Date(), sessionId = null, { prepareForMs = 48 * 60 * 60 * 1000 } = {}) {
+  if (event.sessionScheduleLockedAt && !sessionId) return;
+  const target = sessionId ? sessionFor(event, sessionId) : null;
+  const until = target ? new Date(Math.max(+new Date(target.capturePreparedUntil || 0), +now + prepareForMs)) : null;
+  const saved = await Event.findOneAndUpdate({ _id: event._id, __v: event.__v === undefined ? { $exists: false } : event.__v,
+    ...(target ? { 'attendanceSessions._id': target._id } : {}) },
+    { $set: { sessionScheduleLockedAt: event.sessionScheduleLockedAt || now, ...(target ? { 'attendanceSessions.$.capturePreparedUntil': until } : {}) }, $inc: { __v: 1 } }, { new: true }).lean();
   const current = saved || await Event.findById(event._id).lean();
-  if (!current?.sessionScheduleLockedAt || require('./sessionSchedule').sessionConfig(current.attendanceSessions) !== require('./sessionSchedule').sessionConfig(event.attendanceSessions)) fail(409, 'The event changed while preparing attendance. Reload before continuing.');
+  const currentTarget = target && current?.attendanceSessions?.find(row => id(row) === id(target));
+  const config = require('./sessionSchedule').sessionConfig;
+  if (!current?.sessionScheduleLockedAt || (target
+    ? !currentTarget || config([currentTarget]) !== config([target]) || +new Date(currentTarget.capturePreparedUntil || 0) < +until
+    : config(current.attendanceSessions) !== config(event.attendanceSessions))) fail(409, 'The event changed while preparing attendance. Reload before continuing.');
   event.sessionScheduleLockedAt = current.sessionScheduleLockedAt;
   event.__v = current.__v;
+  if (target) target.capturePreparedUntil = currentTarget.capturePreparedUntil;
 }
 async function lockRoster(event, session, now = new Date()) {
   if (session.rosterLockedAt) return session;
   if (+now < +new Date(session.timeInOpen)) return session;
-  await lockSchedule(event, now);
+  await lockSchedule(event, now, session._id, { prepareForMs: 30000 });
   const rows = await User.find({ ...activeStudentFilter(), createdAt: { $lte: new Date(session.timeInOpen) } }).select('_id').lean();
-  await Event.updateOne({ _id: event._id, attendanceSessions: { $elemMatch: { _id: session._id, rosterLockedAt: null } } },
-    { $set: { 'attendanceSessions.$.eligibleStudents': rows.map(row => row._id), 'attendanceSessions.$.rosterLockedAt': now } });
+  await Event.updateOne({ _id: event._id, __v: event.__v, attendanceSessions: { $elemMatch: { _id: session._id, rosterLockedAt: null } } },
+    { $set: { 'attendanceSessions.$.eligibleStudents': rows.map(row => row._id), 'attendanceSessions.$.rosterLockedAt': now }, $inc: { __v: 1 } });
   const fresh = await Event.findById(event._id).lean();
   const locked = sessionFor(fresh, session._id);
+  if (!locked.rosterLockedAt || require('./sessionSchedule').sessionConfig([locked]) !== require('./sessionSchedule').sessionConfig([session])) fail(409, 'This day changed while attendance was starting. Refresh and try again.');
+  event.__v = fresh.__v;
   session.eligibleStudents = locked.eligibleStudents;
   session.rosterLockedAt = locked.rosterLockedAt;
   return session;

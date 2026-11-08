@@ -6,6 +6,8 @@ const Event = require('../models/Event');
 const User = require('../models/User');
 const Request = require('../models/ManualAttendanceRequest');
 const Deleted = require('../models/DeletedAttendance');
+const Station = require('../models/CheckInSession');
+const { sessionEditLocks, lockedSessionChange } = require('../services/sessionEditing');
 const service = require('../services/sessionAttendance');
 const manual = require('../services/manualAttendance');
 const uri = process.env.TRACKED_TEST_MONGO_URI;
@@ -21,7 +23,7 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
   });
   after(async () => { await mongoose.disconnect(); });
   beforeEach(async () => {
-    await Promise.all([Attendance.deleteMany({}), Event.deleteMany({}), User.deleteMany({}), Request.deleteMany({}), Deleted.deleteMany({})]);
+    await Promise.all([Attendance.deleteMany({}), Event.deleteMany({}), User.deleteMany({}), Request.deleteMany({}), Deleted.deleteMany({}), Station.deleteMany({})]);
     student = { _id: new mongoose.Types.ObjectId(), role: 'student', emailVerified: true, name: 'Student', email: 'student@test.invalid', createdAt: at('07:00:00') };
     organizer = { _id: new mongoose.Types.ObjectId(), role: 'organizer', name: 'Organizer', email: 'organizer@test.invalid', createdAt: at('07:00:00') };
     admin = { _id: new mongoose.Types.ObjectId(), role: 'admin', name: 'Administrator', email: 'admin@test.invalid', createdAt: at('07:00:00') };
@@ -143,5 +145,51 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
     assert.equal(result.modifiedCount, 0);
     await mark('time_in', '08:10:00');
     assert.equal(await Attendance.countDocuments(), 1);
+  });
+  test('records protect only their own day and leave unused days editable', async () => {
+    await mark('time_in', '08:10:00');
+    const current = await Event.findById(event._id).lean();
+    const locks = await sessionEditLocks(current, at('08:20:00'));
+    assert.deepEqual(locks.map(row => row.sessionId), [String(current.attendanceSessions[0]._id)]);
+    const next = JSON.parse(JSON.stringify(current.attendanceSessions));
+    next[1].timeInOpen = at('12:30:00');
+    assert.equal(lockedSessionChange(current.attendanceSessions, next, locks), undefined);
+    next[0].timeInOpen = at('07:30:00');
+    assert.equal(String(lockedSessionChange(current.attendanceSessions, next, locks)._id), String(current.attendanceSessions[0]._id));
+  });
+  test('ID preparation protects only its selected session without locking future sessions', async () => {
+    const now = at('07:00:00');
+    await service.lockSchedule(event, now, event.attendanceSessions[0]._id);
+    const current = await Event.findById(event._id).lean();
+    assert.equal(current.attendanceSessions[0].capturePreparedUntil.toISOString(), '2026-11-09T23:00:00.000Z');
+    assert.equal(current.attendanceSessions[1].capturePreparedUntil, undefined);
+    assert.deepEqual((await sessionEditLocks(current, now)).map(row => row.sessionId), [String(current.attendanceSessions[0]._id)]);
+    assert.deepEqual(await sessionEditLocks(current, new Date(+now + 49 * 3600000)), []);
+  });
+  test('stale preparation cannot reserve or capture against an edited unused session', async () => {
+    const stale = await Event.findById(event._id);
+    await Event.updateOne({ _id: event._id }, { $set: { 'attendanceSessions.1.timeInOpen': at('12:30:00') }, $inc: { __v: 1 } });
+    await assert.rejects(service.lockSchedule(stale, at('07:00:00'), stale.attendanceSessions[1]._id), /event changed/);
+    assert.equal(await Attendance.countDocuments(), 0);
+  });
+  test('event API saves unused-day edits, rejects protected-day edits and preserves the attendance row', async () => {
+    await mark('time_in', '08:10:00');
+    const before = JSON.stringify(await Attendance.find({}).lean());
+    const router = require('../routes/eventRoutes');
+    const handler = router.stack.find(layer => layer.route?.path === '/:id' && layer.route.methods.put).route.stack.at(-1).handle;
+    const put = async body => {
+      const result = { status: 200 };
+      await handler({ params: { id: String(event._id) }, user: admin, body }, { status(code) { result.status = code; return this; }, json(data) { result.body = data; return this; } });
+      return result;
+    };
+    const rows = JSON.parse(JSON.stringify((await Event.findById(event._id)).attendanceSessions));
+    rows[1].timeInOpen = at('12:30:00');
+    assert.equal((await put({ attendanceSessions: rows })).status, 200);
+    const saved = await Event.findById(event._id);
+    assert.equal(+saved.attendanceSessions[1].timeInOpen, +at('12:30:00'));
+    rows[0].timeInOpen = at('07:30:00');
+    assert.equal((await put({ attendanceSessions: rows })).status, 409);
+    assert.equal((await put({ time: '08:15' })).status, 409);
+    assert.equal(JSON.stringify(await Attendance.find({}).lean()), before);
   });
 });

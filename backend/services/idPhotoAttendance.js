@@ -108,7 +108,7 @@ async function prepare(user, eventId, now = new Date(), sessionId = null) {
   // A valid event with a closed/missing schedule is an expected UI state, not a bad request.
   // Keep the offline upload queue usable, but issue no new ticket or student roster.
   if (!state.available) return details;
-  if (session) await sessionAttendance.lockSchedule(event, now);
+  if (session) await sessionAttendance.lockSchedule(event, now, session._id);
   const students = await User.find({ ...activeStudentFilter(), ...(session ? { createdAt: { $lte: new Date(session.timeInOpen) } } : {}), _id: { $ne: user._id } }).select('name email program yearLevel section').sort({ name: 1 }).lean();
   return { ...details, students, ticket: ticket(user, event, null, now, session?._id, 'time_in'), ...(session ? { tickets: { time_in: ticket(user, event, null, now, session._id, 'time_in'), time_out: ticket(user, event, null, now, session._id, 'time_out') } } : {}) };
 }
