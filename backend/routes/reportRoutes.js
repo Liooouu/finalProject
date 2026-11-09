@@ -5,6 +5,7 @@ const Attendance = require("../models/Attendance");
 const Event = require("../models/Event");
 const User = require("../models/User");
 const academicPeriods = require("../services/academicPeriods");
+const { attendanceRows, exportFormat, sendReport } = require("../services/reportExport");
 const { protect, authorize } = require("../middleware/authMiddleware");
 const { manilaDayRange } = require("../services/eventLifecycle");
 const ManualAttendanceRequest = require("../models/ManualAttendanceRequest");
@@ -191,26 +192,6 @@ function attendanceFilename(studentFilter, event) {
   return `${parts.join("-")}.csv`;
 }
 
-// CSV cell: always quoted, embedded quotes doubled, newlines flattened, and
-// leading =/+/-/@ neutralized so a spreadsheet never evaluates user text.
-function csvCell(value) {
-  let text = value === undefined || value === null ? "" : String(value);
-  text = text.replace(/[\r\n]+/g, " ").trim();
-  if (/^[=+\-@]/.test(text)) text = `'${text}`;
-  return `"${text.replace(/"/g, '""')}"`;
-}
-
-function csvFromRows(rows) {
-  return rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
-}
-
-function sendCsv(res, filename, rows) {
-  res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  // BOM keeps Excel from guessing the wrong encoding for accented names.
-  res.send(`\uFEFF${csvFromRows(rows)}`);
-}
-
 function fail(res, error) {
   const status = error.status || 500;
   res.status(status).json({
@@ -356,101 +337,17 @@ router.get("/attendance", async (req, res) => {
 
 router.get("/attendance/export", async (req, res) => {
   try {
-    const studentFilter = buildStudentFilter(req.query);
-    const match = buildMatch(req.query);
-    const periodMatch = await academicPeriods.attendanceFilter(req.query);
-    if (Object.keys(periodMatch).length) match.$and = [periodMatch];
-
-    const [students, selectedEvent] = await Promise.all([
-      User.find(studentFilter)
-        .select("name email program yearLevel section")
-        .sort({ program: 1, yearLevel: 1, section: 1, name: 1 })
+    const format = exportFormat(req.query);
+    const { match, studentFilter } = await buildAttendanceMatch(req.query);
+    const [records, selectedEvent] = await Promise.all([
+      Attendance.find(match)
+        .populate("student", "name firstName middleName lastName email program yearLevel section enrollmentStatus")
+        .populate("event", "title date time academicYearStart semester attendanceSessions._id attendanceSessions.name attendanceSessions.timeInOpen")
         .lean(),
-      isActiveFilter(req.query.eventId)
-        ? Event.findById(req.query.eventId).select("title date time").lean()
-        : null,
+      isActiveFilter(req.query.eventId) ? Event.findById(req.query.eventId).select("title").lean() : null,
     ]);
-
-    match.student = { $in: students.map((student) => student._id) };
-
-    const attendance = await reviewedRecords(await Attendance.find(match)
-      .populate("event", "title date time academicYearStart semester")
-      .lean());
-
-    const byStudent = new Map();
-    for (const record of attendance) {
-      const key = String(record.student);
-      if (!byStudent.has(key)) byStudent.set(key, []);
-      byStudent.get(key).push(record);
-    }
-
-    for (const records of byStudent.values()) {
-      records.sort((a, b) => {
-        const aDate = new Date(a.event?.date || a.eventDate || 0).getTime() || 0;
-        const bDate = new Date(b.event?.date || b.eventDate || 0).getTime() || 0;
-        if (aDate !== bDate) return aDate - bDate;
-        return String(a.event?.title || a.eventTitle || "").localeCompare(
-          String(b.event?.title || b.eventTitle || "")
-        );
-      });
-    }
-
-    const rows = [
-      [
-        "Student Name",
-        "Student Email",
-        "Program",
-        "Year Level",
-        "Section",
-        "Event Name",
-        "Event Day",
-        "Event Time",
-        "Attendance Status",
-        "Marked At", "Session", "Time In", "Time Out", "Arrival", "Completion", "Service Hours",
-      ],
-    ];
-
-    for (const student of students) {
-      const records = byStudent.get(String(student._id)) || [];
-
-      if (!records.length) {
-        rows.push([
-          student.name,
-          student.email,
-          student.program || "",
-          student.yearLevel ?? "",
-          student.section || "",
-          selectedEvent?.title || "",
-          selectedEvent?.date ? fmtEventDay.format(new Date(selectedEvent.date)) : "",
-          selectedEvent?.time ? formatEventTime(selectedEvent.time) : "",
-          "No attendance",
-          "", "", "", "", "", "", "",
-        ]);
-        continue;
-      }
-
-      for (const record of records) {
-        const eventDate = record.event?.date || record.eventDate;
-        rows.push([
-          student.name,
-          student.email,
-          student.program || "",
-          student.yearLevel ?? "",
-          student.section || "",
-          record.event?.title || record.eventTitle || "",
-          eventDate ? fmtEventDay.format(new Date(eventDate)) : "",
-          record.event?.time ? formatEventTime(record.event.time) : "",
-          record.status || "",
-          record.attendedAt ? fmtDateTime.format(new Date(record.attendedAt)) : "",
-          record.sessionName || "Time In only",
-          record.timeInAt ? fmtDateTime.format(new Date(record.timeInAt)) : "",
-          record.timeOutAt ? fmtDateTime.format(new Date(record.timeOutAt)) : "",
-          record.arrivalStatus || "", record.completionStatus || "Time In only", record.communityServiceHours || 0,
-        ]);
-      }
-    }
-
-    sendCsv(res, attendanceFilename(studentFilter, selectedEvent), rows);
+    const rows = attendanceRows(await reviewedRecords(records));
+    await sendReport(res, attendanceFilename(studentFilter, selectedEvent), rows, format);
   } catch (error) {
     fail(res, error);
   }
@@ -571,7 +468,7 @@ router.get("/events/export", async (req, res) => {
       ]),
     ];
 
-    sendCsv(res, "events-report.csv", rows);
+    await sendReport(res, "events-report.csv", rows, exportFormat(req.query));
   } catch (error) {
     fail(res, error);
   }
@@ -615,7 +512,7 @@ router.get("/users/export", async (req, res) => {
       ]),
     ];
 
-    sendCsv(res, "users-report.csv", rows);
+    await sendReport(res, "users-report.csv", rows, exportFormat(req.query));
   } catch (error) {
     fail(res, error);
   }

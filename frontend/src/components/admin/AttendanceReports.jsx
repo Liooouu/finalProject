@@ -1,3 +1,4 @@
+import ReportExport from "./ReportExport";
 import { attendanceCompletion, attendancePenaltyLabel } from "../../utils/attendanceSessions";
 import { useAcademicPeriods } from "../../utils/useAcademicPeriods";
 import AcademicPeriodFilter from "../organizer/AcademicPeriodFilter";
@@ -71,6 +72,7 @@ const AttendanceReports = () => {
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [attendanceError, setAttendanceError] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [attendancePage, setAttendancePage] = useState(1);
@@ -174,18 +176,20 @@ const AttendanceReports = () => {
   useAutoRefresh(() => fetchAttendance(), { interval: 30000, enabled: activeTab === "attendance" });
   useAutoRefresh(fetchEvents, { interval: 30000, enabled: activeTab === "events" });
 
-  const downloadCSV = async (type) => {
+  const downloadReport = async (type, format) => {
+    if (exporting) return;
+    setExportError("");
     setExporting(true);
     try {
       const params = type === "attendance" ? attendanceParams : type === "events" ? periodParams : undefined;
       const response = await api.get(`/reports/${type}/export`, {
-        params,
+        params: { ...params, format },
         responseType: "blob",
       });
       const disposition = response.headers["content-disposition"] || "";
       const filenameMatch =
         disposition.match(/filename="([^"]+)"/i) || disposition.match(/filename=([^;]+)/i);
-      const filename = filenameMatch ? filenameMatch[1].trim() : `${type}-report.csv`;
+      const filename = filenameMatch ? filenameMatch[1].trim() : `${type}-report.${format}`;
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
       link.href = url;
@@ -196,9 +200,7 @@ const AttendanceReports = () => {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
-      if (type === "attendance") {
-        setAttendanceError("Could not download the filtered attendance CSV.");
-      }
+      setExportError("Could not download the report. Please try again.");
     } finally {
       setExporting(false);
     }
@@ -396,6 +398,7 @@ const AttendanceReports = () => {
 
   return (
     <div className="admin-report-page">
+      {exportError && <p role="alert" className="text-[var(--danger)]">{exportError}</p>}
       <header className="admin-report-heading">
         <div><h1>{activeTab === "attendance" ? "Attendance report" : activeTab === "events" ? "Event report" : "User report"}</h1><p>Monitor and export records.</p></div>
         <Tabs active={activeTab} onChange={setActiveTab} tabs={[{key:"attendance",label:"Attendance"},{key:"events",label:"Events"},{key:"users",label:"Users"}]} />
@@ -507,7 +510,7 @@ const AttendanceReports = () => {
                       More filters{moreActiveFilters ? ` (${moreActiveFilters})` : ""} {showMoreFilters ? "^" : "v"}
                     </Button>
                     <Button variant="info" size="sm" onClick={()=>{setAttendancePage(1);setFilters(EMPTY_FILTERS);}} disabled={!hasActiveFilters}>Reset filters</Button>
-                    <Button variant="primary" size="sm" loading={exporting} title="Export all records matching the current filters" onClick={()=>downloadCSV("attendance")}>Export CSV</Button>
+                    <ReportExport busy={exporting} onExport={format => downloadReport("attendance", format)} />
                   </div>
                   {showMoreFilters && (
                     <div className="admin-report-filter-more">
@@ -534,7 +537,7 @@ const AttendanceReports = () => {
                       </label>
                     </div>
                   )}
-                  <p className="sr-only">Filters apply to both graphs, attendance records and CSV export.</p>
+                  <p className="sr-only">Filters apply to graphs, attendance records, Excel and CSV exports.</p>
                 </div>
               <FlightPanel
                 level="ledger"
@@ -675,9 +678,7 @@ const AttendanceReports = () => {
               eventsData.events.length === 1 ? "" : "s"
             } in this report`}
             actions={
-              <Button onClick={() => downloadCSV("events")} variant="secondary" size="sm">
-                Export CSV
-              </Button>
+              <ReportExport busy={exporting} onExport={format => downloadReport("events", format)} />
             }
           >
             <StablePage pageKey={`Event report pages:${JSON.stringify(periodParams)}`} footer={<div className="px-4 pb-4"><Pagination page={currentEventLedgerPage} pageSize={5} total={eventTotal} onChange={setEventLedgerPage} label="Event report pages" /></div>}><div className="overflow-x-auto">
@@ -769,9 +770,7 @@ const AttendanceReports = () => {
               usersData.users.length === 1 ? "" : "s"
             } listed`}
             actions={
-              <Button onClick={() => downloadCSV("users")} variant="secondary" size="sm">
-                Export CSV
-              </Button>
+              <ReportExport busy={exporting} onExport={format => downloadReport("users", format)} />
             }
           >
             <StablePage pageKey="User report pages" footer={<div className="px-4 pb-4"><Pagination page={currentUserLedgerPage} pageSize={5} total={userTotal} onChange={setUserLedgerPage} label="User report pages" /></div>}><div className="overflow-x-auto">
