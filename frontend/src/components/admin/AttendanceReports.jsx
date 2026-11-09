@@ -18,7 +18,7 @@ import {
   TableSkeleton,
   Tabs,
 } from "../ui";
-import { formatDate, formatTime, formatTime12Hour } from "../../utils/helpers";
+import { formatDate, formatTime } from "../../utils/helpers";
 import Pagination from "../ui/Pagination";
 import StablePage from "../ui/StablePage";
 
@@ -573,8 +573,7 @@ const AttendanceReports = () => {
                         </tr>
                       ) : (
                         attendanceData.records.map((r, i) => {
-                          const eventDate = r.event?.date || r.eventDate;
-                          const checkedInAt = r.attendedAt || r.createdAt;
+                          const checkedInAt = r.timeInAt || (!r.session && r.method !== "auto" && ["present", "late"].includes(r.status) ? r.attendedAt : null);
                           const program = r.student?.program || "";
                           const year = r.student?.yearLevel;
                           const section = r.student?.section || "";
@@ -598,31 +597,20 @@ const AttendanceReports = () => {
                                 <p className="mt-1 text-xs text-on-muted">{r.session ? `${attendanceCompletion(r)} · ` : ""}{attendancePenaltyLabel(r)}</p>
                               </td>
                               <td className="whitespace-nowrap">
-                                {r.timeInAt || checkedInAt ? (
+                                {checkedInAt ? (
                                   <>
                                     <p className="text-on-dim">
-                                      {formatTime(r.timeInAt || checkedInAt, {
+                                      {formatTime(checkedInAt, {
                                         hour: "numeric",
                                         minute: "2-digit",
                                       })}
                                     </p>
                                     <p className="mt-0.5 text-xs text-on-muted">
-                                      {formatDate(r.timeInAt || checkedInAt)}
+                                      {formatDate(checkedInAt)}
                                     </p>
                                   </>
                                 ) : (
-                                  <>
-                                    <p className="text-on-dim">
-                                      {eventDate
-                                        ? formatDate(eventDate)
-                                        : "Date unavailable"}
-                                    </p>
-                                    <p className="mt-0.5 text-xs text-on-muted">
-                                      {r.event?.time
-                                        ? `Scheduled ${formatTime12Hour(r.event.time)}`
-                                        : "No check-in time recorded"}
-                                    </p>
-                                  </>
+                                  <span className="text-on-muted">Not recorded</span>
                                 )}
                               </td>
                               <td className="whitespace-nowrap">

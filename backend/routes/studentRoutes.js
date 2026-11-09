@@ -104,7 +104,7 @@ router.get("/excuses", protect, async (req, res) => {
     }
 
     const excuses = await Excuse.find({ student: req.user._id })
-      .populate("event", "title date time endDate endTime academicYearStart semester attendanceSessions")
+      .populate("event", "title date time endDate endTime academicYearStart semester attendanceSessions._id attendanceSessions.name attendanceSessions.timeOutClose")
       .sort({ createdAt: -1 });
     const absent = await Attendance.find({ student: req.user._id, status: "absent" }).select("event session");
     const absentIds = new Set(absent.map(record => `${String(record.event?._id || record.event)}:${record.session || ""}`));
@@ -192,18 +192,19 @@ router.post("/excuses", protect, upload.array("attachments", 5), async (req, res
     // Notify eligible officers and admins, excluding the student who submitted it.
     let notificationWarning;
     try {
-    const reviewers = await User.find(excuseReviewerFilter(req.user._id)).select("_id name email");
-    if (reviewers.length > 0) {
+      const reviewers = await User.find(excuseReviewerFilter(req.user._id)).select("_id name email");
       await notifyUsers(reviewers, {
         type: "excuse",
         title: "New Excuse Letter",
         message: `${req.user.name} submitted an absence excuse letter for "${event.title}". It awaits your review.`,
         relatedEvent: event._id,
         event,
-      }).catch((e) => console.error("EXCUSE NOTIFY ERROR:", e.message));
+        deferEmail: true,
+      });
+    } catch (error) {
+      console.error("Excuse submission notification failed:", error.message);
+      notificationWarning = "The letter was saved, but the reviewers could not be notified.";
     }
-
-    } catch { notificationWarning = "The letter was saved, but the reviewers could not be notified."; }
     res.status(201).json({ ...(excuse.toObject ? excuse.toObject() : excuse), ...(notificationWarning ? { notificationWarning } : {}) });
   } catch (err) {
     await fileStore.deleteByUrls(savedUrls);
@@ -218,7 +219,7 @@ router.patch("/excuses/:id", protect, upload.array("attachments", 5), async (req
   try {
     if (req.user.role !== "student") return res.status(403).json({ error: "Only students can resubmit excuse letters" });
     if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid excuse letter ID" });
-    const letter = await Excuse.findOne({ _id: req.params.id, student: req.user._id }).populate("event", "title date time endDate endTime organizer academicYearStart semester attendanceSessions");
+    const letter = await Excuse.findOne({ _id: req.params.id, student: req.user._id }).populate("event", "title date time endDate endTime organizer academicYearStart semester attendanceSessions._id attendanceSessions.name attendanceSessions.timeOutClose");
     if (!letter) return res.status(404).json({ error: "Excuse letter not found" });
     const expectedVersion = Number(req.body.expectedVersion);
     if (!Number.isInteger(expectedVersion) || expectedVersion < 1) return res.status(400).json({ error: "Reload the letter before resubmitting" });
@@ -249,7 +250,7 @@ router.patch("/excuses/:id", protect, upload.array("attachments", 5), async (req
       { $set: { excuseText: text, attachments, attachmentUrl: attachments[0], status: "pending", responseNote: "", reviewedBy: null, lastSubmittedAt: new Date(), submissionVersion: expectedVersion + 1 },
         $push: { submissionHistory: { submittedAt: letter.lastSubmittedAt || letter.createdAt, submissionVersion: expectedVersion, excuseText: letter.excuseText, attachments: originalFiles, status: letter.status, responseNote: letter.responseNote || "", reviewedBy: letter.reviewedBy } } },
       { new: true, runValidators: true }
-    ).populate("event", "title date time endDate endTime academicYearStart semester attendanceSessions");
+    ).populate("event", "title date time endDate endTime academicYearStart semester attendanceSessions._id attendanceSessions.name attendanceSessions.timeOutClose");
     if (!revised) {
       await fileStore.deleteByUrls(savedUrls);
       return res.status(409).json({ error: "This letter was changed or reviewed while you were editing. Reload to see the latest status." });
@@ -258,7 +259,7 @@ router.patch("/excuses/:id", protect, upload.array("attachments", 5), async (req
     let notificationWarning;
     try {
       const reviewers = await User.find(excuseReviewerFilter(req.user._id)).select("_id name email");
-      await notifyUsers(reviewers, { type: "excuse", title: "Excuse Letter Resubmitted", message: `${req.user.name} resubmitted the absence letter for "${letter.event.title}". Please review the latest version.`, relatedEvent: eventId, event: letter.event });
+      await notifyUsers(reviewers, { type: "excuse", title: "Excuse Letter Resubmitted", message: `${req.user.name} resubmitted the absence letter for "${letter.event.title}". Please review the latest version.`, relatedEvent: eventId, event: letter.event, deferEmail: true });
     } catch { notificationWarning = "The letter was saved, but the reviewers could not be notified."; }
     res.json({ ...revised.toObject(), canResubmit: true, resubmissionIssue: "", ...(notificationWarning ? { notificationWarning } : {}) });
   } catch (err) {
@@ -276,7 +277,7 @@ router.get("/absent-events", protect, async (req, res) => {
     const attendances = await Attendance.find({ 
       student: req.user._id,
       status: "absent"
-    }).populate("event", "title date time endDate endTime academicYearStart semester attendanceSessions");
+    }).populate("event", "title date time endDate endTime academicYearStart semester attendanceSessions._id attendanceSessions.name attendanceSessions.timeOutClose");
 
     res.json(attendances.map(record => { const data = record.toObject(); const session = record.event?.attendanceSessions?.find(row => String(row._id) === String(record.session)); const window = record.event ? excuseWindow(record.event, new Date(), session) : { allowed: false, deadline: null }; return { ...data, sessionName: session?.name || "", canSubmitExcuse: window.allowed, excuseDeadline: window.deadline }; }));
   } catch (err) {

@@ -31,6 +31,25 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
     event = await Event.create({ title: 'Session test', date: '2026-11-08', time: '08:00', endDate: '2026-11-08', endTime: '17:00', attendanceStartTime: '08:00', attendanceEndTime: '08:30', organizer: organizer._id, status: 'live', attendanceSessions: [{ name: 'Morning', timeInOpen: at('08:00:00'), onTimeDeadline: at('08:30:00'), timeInCutoff: at('09:00:00'), timeOutOpen: at('11:00:00'), timeOutClose: at('12:00:00') }, { name: 'Afternoon', timeInOpen: at('13:00:00'), onTimeDeadline: at('13:30:00'), timeInCutoff: at('14:00:00'), timeOutOpen: at('16:00:00'), timeOutClose: at('17:00:00') }] });
   });
   const mark = (action, clock, extra = {}) => service.apply({ event, session: event.attendanceSessions[0], student, action, now: at(clock), ...extra });
+  test('ID capture and the server agree on session boundaries and event closure', async () => {
+    const { sessionMode } = await import('../../frontend/src/utils/attendanceSessions.js');
+    const legacy = event.attendanceSessions[0].toObject();
+    const current = { ...legacy, timeInPolicy: 'window_then_late' };
+    for (const [status, session, time, expected] of [
+      ['upcoming', current, '07:59:59.999', 'closed'],
+      ['upcoming', current, '08:00:00', 'time_in'],
+      ['finished', current, '09:00:00', 'time_in'],
+      ['finished', current, '09:00:00.001', 'closed'],
+      ['finished', legacy, '08:10:00', 'closed'],
+      ['finished', legacy, '11:00:00', 'time_out'],
+      ['finished', current, '12:00:00', 'time_out'],
+      ['finished', current, '12:00:00.001', 'closed'],
+      ['closed', current, '11:30:00', 'closed'],
+    ]) {
+      assert.equal(service.modeFor({ status }, session, at(time)), expected);
+      assert.equal(sessionMode(session, +at(time), status), expected);
+    }
+  });
   test('concurrent scans produce one entry, one exit and no duplicate hours', async () => {
     const entries = await Promise.all(Array.from({ length: 8 }, () => mark('time_in', '08:10:00')));
     assert.equal(entries.filter(x => x.ok).length, 1);
@@ -117,6 +136,51 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
     await service.finalize(event, at('18:00:00'));
     assert.equal(await Attendance.countDocuments(), 3);
     assert.equal((await Attendance.findOne({ session: null })).communityServiceHours, 3);
+  });
+  test('a submitted excuse removes only the selected session penalty after admin approval', async () => {
+    const Excuse = require('../models/Excuse');
+    const now = Date.now();
+    const day = 86400000;
+    const sessions = event.attendanceSessions.map((row, index) => {
+      const start = now - (2 - index) * day;
+      return { ...row.toObject(), eligibleStudents: [student._id], timeInOpen: new Date(start), onTimeDeadline: new Date(start + 60000),
+        timeInCutoff: new Date(start + 120000), timeOutOpen: new Date(start + 180000), timeOutClose: new Date(start + 240000) };
+    });
+    await Event.updateOne({ _id: event._id }, { $set: { attendanceSessions: sessions } });
+    await User.updateOne({ _id: student._id }, { $set: { createdAt: new Date(now - 3 * day) } }, { timestamps: false, overwriteImmutable: true });
+    for (const session of sessions) {
+      await Attendance.create({ event: event._id, session: session._id, student: student._id,
+        status: 'absent', method: 'auto', completionStatus: 'absent', sessionPenaltyHours: 8, communityServiceHours: 8 });
+    }
+    const submit = require('../routes/studentRoutes').stack.find(layer => layer.route?.path === '/excuses' && layer.route.methods.post).route.stack.at(-1).handle;
+    const approve = require('../routes/organizerRoutes').stack.find(layer => layer.route?.path === '/excuses/:id' && layer.route.methods.patch).route.stack.at(-1).handle;
+    const call = async (handler, req) => {
+      const result = { status: 200 };
+      await handler(req, { status(code) { result.status = code; return this; }, json(body) { result.body = body; } });
+      return result;
+    };
+    const letter = await call(submit, { user: student, body: { eventId: String(event._id), sessionId: String(sessions[0]._id), excuseText: 'Documented absence' },
+      files: [{ buffer: Buffer.from('%PDF-1.4'), mimetype: 'application/pdf', originalname: 'proof.pdf' }] });
+    assert.equal(letter.status, 201, JSON.stringify(letter.body));
+    assert.equal(letter.body.status, 'pending');
+    assert.equal(letter.body.attachments.length, 1);
+    const history = require('../routes/studentRoutes').stack.find(layer => layer.route?.path === '/excuses' && layer.route.methods.get).route.stack.at(-1).handle;
+    const studentHistory = await call(history, { user: student });
+    assert.equal(studentHistory.status, 200);
+    const historySession = JSON.parse(JSON.stringify(studentHistory.body[0].event.attendanceSessions[0]));
+    assert.equal(historySession.name, sessions[0].name);
+    assert.equal(historySession.eligibleStudents, undefined);
+    const reviewRequest = { user: admin, params: { id: String(letter.body._id) }, body: { status: 'approved', expectedVersion: 1 } };
+    const approved = await call(approve, reviewRequest);
+    assert.equal(approved.status, 200, JSON.stringify(approved.body));
+    assert.equal((await Excuse.findById(letter.body._id)).removedHours, 8);
+    assert.equal((await call(approve, reviewRequest)).status, 400);
+    const excused = await Attendance.findOne({ session: sessions[0]._id }).lean();
+    assert.equal(excused.status, 'excused');
+    assert.equal(excused.communityServiceHours, 0);
+    assert.equal(excused.sessionPenaltyHours, 0);
+    assert.equal(excused.communityServiceLog.filter(item => item.action === 'removed').length, 1);
+    assert.equal((await Attendance.findOne({ session: sessions[1]._id })).communityServiceHours, 8);
   });
   test('excuses and face records are protected from corrections and finalizer', async () => {
     const result = await mark('time_in', '08:10:00');

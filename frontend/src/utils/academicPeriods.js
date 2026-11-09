@@ -1,4 +1,4 @@
-import { rebaseEventAttendanceDates, syncAttendanceDeadlines } from "./attendanceSessions";
+import { rebaseEventAttendanceDates, syncAttendanceDeadlines } from "./attendanceSessions.js";
 export function eventTerm(record) {
   const event=record?.event && typeof record.event==="object"?record.event:record;
   const startYear=event?.academicYearStart;

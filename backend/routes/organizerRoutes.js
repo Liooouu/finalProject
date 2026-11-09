@@ -41,7 +41,7 @@ router.get("/excuses", protect, async (req, res) => {
 
     const excuses = await Excuse.find(filter)
       .populate("student", "name email program yearLevel section enrollmentStatus")
-      .populate("event", "title date time endDate endTime organizer academicYearStart semester attendanceSessions")
+      .populate("event", "title date time endDate endTime organizer academicYearStart semester attendanceSessions._id attendanceSessions.name attendanceSessions.timeOutClose attendanceSessions.timeInOpen attendanceSessions.timeInPolicy attendanceSessions.onTimeDeadline attendanceSessions.timeInCutoff attendanceSessions.timeOutOpen")
       .populate("reviewedBy", "name")
       .sort({ createdAt: -1 });
 
@@ -114,7 +114,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
     }
 
     // Check the reviewer identity before any status, penalty or notification change.
-    const loaded = await Excuse.findById(req.params.id).populate("event", "title date time endDate endTime organizer academicYearStart semester attendanceSessions");
+    const loaded = await Excuse.findById(req.params.id).populate("event", "title date time endDate endTime organizer academicYearStart semester attendanceSessions._id attendanceSessions.name attendanceSessions.timeOutClose attendanceSessions.timeInOpen attendanceSessions.timeInPolicy attendanceSessions.onTimeDeadline attendanceSessions.timeInCutoff attendanceSessions.timeOutOpen");
     if (!loaded) return res.status(404).json({ error: "Excuse not found" });
     if (!canReviewExcuse(loaded, req.user)) {
       return res.status(403).json({ error: "You cannot approve or reject your own excuse letter" });
@@ -141,7 +141,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
       { new: true }
     )
       .populate("student", "name email program yearLevel section enrollmentStatus")
-      .populate("event", "title date time endDate endTime organizer academicYearStart semester attendanceSessions")
+      .populate("event", "title date time endDate endTime organizer academicYearStart semester attendanceSessions._id attendanceSessions.name attendanceSessions.timeOutClose attendanceSessions.timeInOpen attendanceSessions.timeInPolicy attendanceSessions.onTimeDeadline attendanceSessions.timeInCutoff attendanceSessions.timeOutOpen")
       .populate("reviewedBy", "name");
 
     if (!excuse) {
@@ -174,6 +174,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
           message,
           relatedEvent: excuse.event._id,
           event: excuse.event,
+          deferEmail: true,
         }).catch(error => {
           console.error("Excuse review notification failed:", error.message);
           excuse.set("notificationWarning", "Review saved, but the student notification could not be delivered.", { strict: false });
@@ -185,6 +186,7 @@ router.patch("/excuses/:id", protect, async (req, res) => {
           message: `Your excuse for "${excuse.event.title}" was rejected.${responseNote ? ` Note: ${responseNote}` : ""}`,
           relatedEvent: excuse.event._id,
           event: excuse.event,
+          deferEmail: true,
         }).catch(error => {
           console.error("Excuse review notification failed:", error.message);
           excuse.set("notificationWarning", "Review saved, but the student notification could not be delivered.", { strict: false });

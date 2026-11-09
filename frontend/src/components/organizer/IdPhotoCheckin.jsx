@@ -18,7 +18,8 @@ export default function IdPhotoCheckin({ event, attendees = [], onRecorded, onVi
   useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(timer); }, []);
   const selectedSession = event?.attendanceSessions?.find(row => row._id === sessionId);
   const actionClock = useRef(null);
-  const action = selectedSession ? sessionMode(selectedSession, actionClock.current ? actionClock.current.server + performance.now() - actionClock.current.monotonic : clock) : "time_in";
+  const sessionNow = actionClock.current ? actionClock.current.server + performance.now() - actionClock.current.monotonic : clock;
+  const action = selectedSession ? sessionMode(selectedSession, sessionNow, event.status) : "time_in";
   const [prepared, setPrepared] = useState(null), [query, setQuery] = useState(''), [student, setStudent] = useState(null);
   const [page, setPage] = useState(1), [queuePage, setQueuePage] = useState(1), [queue, setQueue] = useState([]);
   const [photo, setPhoto] = useState(null), [capture, setCapture] = useState(null), [checked, setChecked] = useState(false);

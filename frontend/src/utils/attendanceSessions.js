@@ -2,8 +2,10 @@ export const sessionIdOf = value => String(value?._id || value || '');
 export const manilaInput = value => value && Number.isFinite(+new Date(value))
   ? new Date(+new Date(value) + 8 * 3600000).toISOString().slice(0, 16) : '';
 export const inputInstant = value => value ? new Date(`${value}:00+08:00`).toISOString() : '';
-export function sessionMode(session, now = Date.now()) {
-  if (now >= +new Date(session.timeInOpen) && now <= +new Date(session.timeInCutoff)) return 'time_in';
+export function sessionMode(session, now = Date.now(), eventStatus) {
+  if (!session || eventStatus === 'closed') return 'closed';
+  if ((eventStatus !== 'finished' || session.timeInPolicy === 'window_then_late')
+    && now >= +new Date(session.timeInOpen) && now <= +new Date(session.timeInCutoff)) return 'time_in';
   if (now >= +new Date(session.timeOutOpen) && now <= +new Date(session.timeOutClose)) return 'time_out';
   return 'closed';
 }

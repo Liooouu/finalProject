@@ -17,6 +17,7 @@ import { formatDate, formatDateTime } from "../../utils/helpers";
 import { BaseCard, Button, FlightPanel, PageHeader, SegmentedControl, StatusChip } from "../ui";
 
 const LETTERS_PER_PAGE = 3;
+const excuseOptionValue = ({ event, session }) => session ? `${event._id}:${session}` : event._id;
 
 const formatSubmissionTime = value => formatDateTime(value, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
 
@@ -129,8 +130,9 @@ const SubmitExcuse = () => {
 
     try {
       const formData = new FormData();
-      formData.append("eventId", selectedEvent.split(":")[0]);
-      if (selectedEvent.includes(":")) formData.append("sessionId", selectedEvent.split(":")[1]);
+      const [eventId, sessionId] = selectedEvent.split(":");
+      formData.append("eventId", eventId);
+      if (sessionId) formData.append("sessionId", sessionId);
       formData.append("excuseText", excuseText);
       formData.append("type", "absence");
       files.forEach((f) => formData.append("attachments", f));
@@ -142,7 +144,7 @@ const SubmitExcuse = () => {
       const response = editingLetter
         ? await api.patch(`/student/excuses/${editingLetter._id}`, formData)
         : await api.post("/student/excuses", formData);
-      const saved = { ...response.data, event: typeof response.data.event === "object" ? response.data.event : eventOptions.find(item => item.event._id === selectedEvent)?.event, canResubmit: true };
+      const saved = { ...response.data, event: typeof response.data.event === "object" ? response.data.event : selectedOption?.event, canResubmit: true };
       setLetters(previous => [saved, ...previous.filter(letter => letter._id !== saved._id)]);
       setMessage(`${editingLetter ? "Excuse resubmitted" : "Excuse submitted"} successfully!${response.data.notificationWarning ? ` ${response.data.notificationWarning}` : ""}`);
       setMessageType("success");
@@ -159,6 +161,7 @@ const SubmitExcuse = () => {
   };
 
   const eventOptions = editingLetter ? [{ event: editingLetter.event, session: editingLetter.sessions?.[0] }] : absentEvents.filter(record => !letters.some(letter => (letter.event?._id || letter.event) === record.event._id && String(letter.sessions?.[0] || "") === String(record.session || "")));
+  const selectedOption = eventOptions.find(item => excuseOptionValue(item) === selectedEvent);
   const letterPages = Math.max(1, Math.ceil(letters.length / LETTERS_PER_PAGE));
   const page = Math.min(historyPage, letterPages);
   const visibleLetters = letters.slice((page - 1) * LETTERS_PER_PAGE, page * LETTERS_PER_PAGE);
@@ -168,7 +171,7 @@ const SubmitExcuse = () => {
   };
   const resetForm = () => { setEditingLetter(null);setRetainedAttachments([]);setSelectedEvent("");setExcuseText("");setFiles([]); };
   const editLetter = letter => {
-    setEditingLetter(letter);setSelectedEvent(`${letter.event._id}${letter.sessions?.[0] ? `:${letter.sessions[0]}` : ""}`);setExcuseText(letter.excuseText);setFiles([]);
+    setEditingLetter(letter);setSelectedEvent(excuseOptionValue({ event: letter.event, session: letter.sessions?.[0] }));setExcuseText(letter.excuseText);setFiles([]);
     setRetainedAttachments([...new Set([...(letter.attachments || []), letter.attachmentUrl].filter(Boolean))]);
     setMessage("");setView("form");
   };
@@ -281,7 +284,7 @@ const SubmitExcuse = () => {
                   eventOptions.map((item) => {
                     const event = item.event;
                     return (
-                      <option key={`${event._id}:${item.session || ""}`} value={item.session ? `${event._id}:${item.session}` : event._id}>
+                      <option key={excuseOptionValue(item)} value={excuseOptionValue(item)}>
                         {event.title}{item.sessionName ? ` · ${item.sessionName}` : ""} - {formatDate(event.date)}
                       </option>
                     );
@@ -296,7 +299,7 @@ const SubmitExcuse = () => {
               )}
             </div>
 
-            {selectedEvent && eventOptions.find(item => item.event._id === selectedEvent)?.excuseDeadline && <p className="alert alert-info text-xs">Submit by {formatSubmissionTime(eventOptions.find(item => item.event._id === selectedEvent).excuseDeadline)}.</p>}
+            {selectedOption?.excuseDeadline && <p className="alert alert-info text-xs">Submit by {formatSubmissionTime(selectedOption.excuseDeadline)}.</p>}
 
             <div>
               <label htmlFor="excuse-text" className="field-label">
