@@ -41,7 +41,7 @@ function canRequestCorrection(record) {
 export default function OrgManageAttendees({ embedded = false, event }) {
   const { id: eventId } = useParams();
   const currentUserId = String(getUserFromToken()?.id || "");
-  const canCapture = (event?.manualAttendanceReviewers || []).some(user => String(user?._id || user) === currentUserId);
+  const canCorrect = (event?.manualAttendanceReviewers || []).some(user => String(user?._id || user) === currentUserId);
   const cacheKey = `attendees:requests-v1:${eventId}`;
   const seed = readScreen(cacheKey);
   const { back: goBack } = usePortalBack(`/organizer/dashboard/events/${eventId}`);
@@ -117,7 +117,7 @@ export default function OrgManageAttendees({ embedded = false, event }) {
   const needsDetails = mode === "correction" || reason === "Other";
 
   const selectStudent = (student, forceCorrection = false) => {
-    if (!canCapture || !student?._id) return;
+    if (!canCorrect || !student?._id) return;
     const record = student._attendance || attendees.find(item => studentIdOf(item) === String(student._id));
     const correction = forceCorrection && canRequestCorrection(record);
     if (forceCorrection && !correction) return;
@@ -133,7 +133,7 @@ export default function OrgManageAttendees({ embedded = false, event }) {
 
   const submit = async e => {
     e.preventDefault();
-    if (!canCapture || submitting || !selectedStudent || isSelf || isPending || isProtected) return;
+    if (!canCorrect || submitting || !selectedStudent || isSelf || isPending || isProtected) return;
     if (mode === "correction" && !canRequestCorrection(selectedRecord)) return;
     if (!reason || !identityChecked || (needsDetails && details.trim().length < 10)) {
       setMessage({ error: true, text: "Choose a reason, complete the required details, and confirm the identity check." }); return;
@@ -172,8 +172,8 @@ export default function OrgManageAttendees({ embedded = false, event }) {
     {loadError && <div role="alert" className="alert alert-danger">Attendance could not be refreshed. <button className="underline" onClick={fetchData}>Try again</button></div>}
     {message && <div role={message.error ? "alert" : "status"} className={`alert ${message.error ? "alert-danger" : "alert-ok"}`}><p className="min-w-0 [overflow-wrap:anywhere]">{message.text}</p></div>}
     <SegmentedControl ariaLabel="Attendance desk views" className="manual-desk-tabs" value={panel === "correction" ? "records" : panel} onChange={value => { if (submitting) return; setPanel(value); setSelectedStudent(null); setIdentityChecked(false); setMode("checkin"); }} options={[{value:"checkin",label:"Check in"},{value:"requests",label:"My requests",shortLabel:"Requests",count:requestTotal},{value:"records",label:"Attendance records",shortLabel:"Records",count:attendees.length}]} />
-    {panel === "checkin" && <IdPhotoCheckin event={event} canCapture={canCapture} attendees={attendees} onRecorded={refresh} onViewRecords={() => setPanel("records")} />}
-    {canCapture && panel === "correction" && <Card className="min-w-0">
+    {panel === "checkin" && <IdPhotoCheckin event={event} canCapture={event?.canCaptureIdAttendance === true} canCorrect={canCorrect} attendees={attendees} onRecorded={refresh} onViewRecords={() => setPanel("records")} />}
+    {canCorrect && panel === "correction" && <Card className="min-w-0">
         <div className="flex items-start gap-3"><FaUserCheck className="mt-1 shrink-0 text-brand" aria-hidden="true" /><div className="min-w-0"><h2 className="panel-heading">{panel === "correction" ? "Correct attendance record" : "Manual check-in"}</h2><p className="mt-1 text-sm text-on-muted">{panel === "correction" ? "Submit corrected information for admin review." : "Find a student, check their ID, then submit for review."}</p></div></div>
         {selectedStudent && <form onSubmit={submit} className="manual-desk-form mt-4 space-y-4">
           <div className="flex items-start justify-between gap-3 border-b border-line pb-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium text-on [overflow-wrap:anywhere]">{selectedStudent.name}</p>{selectedRecord && <StatusChip status={selectedRecord.status} />}</div><p className="mt-1 text-sm text-on-dim [overflow-wrap:anywhere]">{selectedStudent.email}</p></div><Button type="button" variant="secondary" size="sm" disabled={submitting} onClick={() => { setSelectedStudent(null); setIdentityChecked(false); setSearchTerm(""); if (panel === "correction") setPanel("records"); }}>{panel === "correction" ? "Back to records" : "Change student"}</Button></div>
@@ -208,7 +208,7 @@ export default function OrgManageAttendees({ embedded = false, event }) {
         </li>)}</ul> : !requestsError && <EmptyState compact title="No requests here yet" description="Your submitted requests for this event will appear here." />}
         </StablePage>
       </Card>}
-    {(panel === "records" || (!canCapture && panel === "correction")) && <Card className="min-w-0">
+    {(panel === "records" || (!canCorrect && panel === "correction")) && <Card className="min-w-0">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="panel-heading">Attendance records ({matchingAttendees.length})</h2><p className="mt-1 text-sm text-on-muted">Confirmed records stay unchanged until a correction is approved.</p></div></div>
       <label className="field-label mt-4" htmlFor="record-search">Find an attendance record</label><input id="record-search" type="search" className="field w-full" placeholder="Student name or email" value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setRecordPage(1); }} />
       <StablePage pageKey={`manual-records:${eventId}:${query}:${matchingAttendees.length}`} footer={<Pagination page={currentRecordPage} pageSize={PAGE_SIZE} total={matchingAttendees.length} onChange={setRecordPage} label="Attendance record pages" />}>
@@ -216,7 +216,7 @@ export default function OrgManageAttendees({ embedded = false, event }) {
         const student = record.student;
         const self = studentIdOf(record) === currentUserId;
         const pending = pendingIds.has(attendancePair(record));
-        return <li key={record._id} className="flex flex-col justify-between gap-3 rounded-xl bg-card-alt/30 p-3 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="text-sm font-medium text-on [overflow-wrap:anywhere]">{student?.name || "Student"}</p><p className="text-xs text-on-dim [overflow-wrap:anywhere]">{student?.email || ""}</p><p className="mt-1 text-xs text-on-muted">{record.method === "face" ? "Face verified" : record.method === "auto" ? "Automatic record" : record.method === "id_photo" ? "ID-assisted check-in" : "Manual record"}{record.attendedAt ? ` · ${formatDateTime(record.attendedAt)}` : ""}</p>{pending && <p className="mt-1 text-xs text-warn">Manual request pending review; automatic absence is provisional.</p>}{self && <p className="mt-1 text-xs text-on-muted">Another organizer must handle your record.</p>}</div><div className="flex flex-wrap items-center gap-3"><StatusChip status={record.status} /><SessionAttendanceDetails record={record} /><span className="text-xs text-on-muted">{record.communityServiceHours || 0} hrs</span>{canCapture && canRequestCorrection(record) && <Button type="button" variant="secondary" size="sm" disabled={self || pending} onClick={() => { selectStudent({ ...student, _attendance: record }, true); window.requestAnimationFrame(() => document.querySelector(".manual-desk-form")?.scrollIntoView({ behavior: "smooth", block: "start" })); }}>Request correction</Button>}</div></li>;
+        return <li key={record._id} className="flex flex-col justify-between gap-3 rounded-xl bg-card-alt/30 p-3 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="text-sm font-medium text-on [overflow-wrap:anywhere]">{student?.name || "Student"}</p><p className="text-xs text-on-dim [overflow-wrap:anywhere]">{student?.email || ""}</p><p className="mt-1 text-xs text-on-muted">{record.method === "face" ? "Face verified" : record.method === "auto" ? "Automatic record" : record.method === "id_photo" ? "ID-assisted check-in" : "Manual record"}{record.attendedAt ? ` · ${formatDateTime(record.attendedAt)}` : ""}</p>{pending && <p className="mt-1 text-xs text-warn">Manual request pending review; automatic absence is provisional.</p>}{self && <p className="mt-1 text-xs text-on-muted">Another organizer must handle your record.</p>}</div><div className="flex flex-wrap items-center gap-3"><StatusChip status={record.status} /><SessionAttendanceDetails record={record} /><span className="text-xs text-on-muted">{record.communityServiceHours || 0} hrs</span>{canCorrect && canRequestCorrection(record) && <Button type="button" variant="secondary" size="sm" disabled={self || pending} onClick={() => { selectStudent({ ...student, _attendance: record }, true); window.requestAnimationFrame(() => document.querySelector(".manual-desk-form")?.scrollIntoView({ behavior: "smooth", block: "start" })); }}>Request correction</Button>}</div></li>;
       })}</ul> : <EmptyState compact title={query ? "No matching records" : "No attendance records yet"} description="Use the Check in tab to capture a physical school ID." />}
       </StablePage>
     </Card>}

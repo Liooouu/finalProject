@@ -23,6 +23,10 @@ try {
   assert.match(render({ hasIdPhoto: false }), /ID photo expired/);
   const conflict = render({ currentAttendance: { method: 'face', status: 'late' } });
   assert.match(conflict, /Different face attendance/);
+  const missedEntry = render({ session: 'session', action: 'time_in', mode: 'correction',
+    currentAttendance: { method: 'face', status: 'absent', timeInAt: null, timeOutAt: '2026-11-08T03:30:00Z', timeOutMethod: 'face' } });
+  assert.match(missedEntry, /Face Time Out is already recorded/);
+  assert.doesNotMatch(missedEntry, /Different face attendance/);
   const { default: IdPhotoCheckin } = await server.ssrLoadModule('/src/components/organizer/IdPhotoCheckin.jsx');
   const desk = props => renderToString(React.createElement(IdPhotoCheckin, props));
   assert.match(desk({}), /Offline sync/);

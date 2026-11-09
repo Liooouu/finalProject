@@ -198,7 +198,10 @@ router.get("/all", protect, async (req, res) => {
       { $project: { count: { $size: "$students" } } },
     ]);
     const map = Object.fromEntries(counts.map((c) => [c._id.toString(), c.count]));
-    const withCounts = events.map((e) => ({ ...e.toObject(), attendeeCount: map[e._id.toString()] || 0 }));
+    const withCounts = events.map((e) => ({
+      ...e.toObject(), attendeeCount: map[e._id.toString()] || 0,
+      canCaptureIdAttendance: manualAttendance.canCaptureIdAttendance(req.user, e),
+    }));
     res.json(withCounts);
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });

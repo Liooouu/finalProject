@@ -8,7 +8,7 @@ const sessionKey = ({ event, student, session }) => [event, student, session].ma
 const plain = value => value?.toObject ? value.toObject() : value;
 const baseHours = status => status === "absent" ? 8 : status === "late" ? 4 : 0;
 const attendanceSummary = record => record ? { attendance: record._id, status: record.status, method: record.method,
-  attendedAt: record.attendedAt, ...(record.session ? { session: record.session, sessionName: record.sessionName, timeInAt: record.timeInAt, timeOutAt: record.timeOutAt, completionStatus: record.completionStatus } : {}), hours: record.communityServiceHours || 0 } : null;
+  attendedAt: record.attendedAt, ...(record.session ? { session: record.session, sessionName: record.sessionName, timeInAt: record.timeInAt, timeOutAt: record.timeOutAt, timeOutMethod: record.timeOutMethod, completionStatus: record.completionStatus } : {}), hours: record.communityServiceHours || 0 } : null;
 const reviewResult = request => ({ id: idOf(request), status: request.status,
   ...(request.resolution === "existing_face" ? { keptExistingAttendance: true } : {}) });
 function fail(status, message) { const error = new Error(message); error.status = status; throw error; }
@@ -21,8 +21,15 @@ function fingerprint(record) {
 function canSubmitManualAttendance(user, event) {
   return user?.role === "organizer" && (event?.manualAttendanceReviewers || []).some(value => idOf(value) === idOf(user));
 }
+function idAttendanceRestricted(event) {
+  return event.restrictIdAttendance ?? Boolean(event.manualAttendanceReviewers?.length);
+}
+function canCaptureIdAttendance(user, event) {
+  return Boolean(event && user?.role === "organizer" &&
+    (!idAttendanceRestricted(event) || canSubmitManualAttendance(user, event)));
+}
 function requireManualAssignment(user, event) {
-  if (!canSubmitManualAttendance(user, event)) fail(403, "An administrator must assign you to this event before you can submit manual attendance.");
+  if (!canSubmitManualAttendance(user, event)) fail(403, "An administrator must assign you to this event before you can submit an attendance correction.");
 }
 function canReview(user, event, request) {
   if (!user || !event || !request || idOf(user) === idOf(request.requestedBy) || idOf(user) === idOf(request.student)) return false;
@@ -135,7 +142,7 @@ function createService(deps) {
     const pairs = requests.filter(request => request.event && request.student)
       .map(request => ({ event: request.event._id, student: request.student._id, session: request.session || null }));
     const attendance = pairs.length ? await Attendance.find({ $or: pairs })
-      .select("event session student status method attendedAt timeInAt timeOutAt completionStatus arrivalStatus sessionPenaltyHours sessionName communityServiceHours").lean() : [];
+      .select("event session student status method attendedAt timeInAt timeOutAt timeOutMethod completionStatus arrivalStatus sessionPenaltyHours sessionName communityServiceHours").lean() : [];
     const existing = new Map(attendance.map(record => [sessionKey(record), record]));
     return { requests: requests.map(request => {
       const key = sessionKey(request);
@@ -169,15 +176,18 @@ function createService(deps) {
     if (!event) fail(404, "Event not found");
     const candidates = await User.find({ $or: [{ role: "organizer" }, { role: "student", organizerAccess: true }] }).select("name email role organizerAccess").sort({ name: 1 }).lean();
     const assigned = new Set((event.manualAttendanceReviewers || []).map(idOf));
-    return { reviewers: candidates.filter(user => assigned.has(idOf(user))), candidates };
+    return { reviewers: candidates.filter(user => assigned.has(idOf(user))), candidates, restrictIdAttendance: idAttendanceRestricted(event) };
   }
   async function assignReviewers(user, payload) {
     if (user?.role !== "admin") fail(403, "Only administrators assign event reviewers");
     if (!isValidObjectId(payload.eventId) || !Array.isArray(payload.userIds) || payload.userIds.length > 20 || payload.userIds.some(id => !isValidObjectId(id))) fail(400, "Choose up to 20 valid reviewer accounts");
+    if (payload.restrictIdAttendance !== undefined && typeof payload.restrictIdAttendance !== "boolean") fail(400, "Choose a valid ID attendance access setting");
     const ids = [...new Set(payload.userIds.map(idOf))];
     const candidates = await User.find({ _id: { $in: ids }, $or: [{ role: "organizer" }, { role: "student", organizerAccess: true }] }).select("_id").lean();
     if (candidates.length !== ids.length) fail(400, "Reviewers must have current organizer access");
-    const event = await Event.findByIdAndUpdate(payload.eventId, { $set: { manualAttendanceReviewers: ids } }, { new: true, runValidators: true });
+    const event = await Event.findByIdAndUpdate(payload.eventId, { $set: {
+      manualAttendanceReviewers: ids, restrictIdAttendance: payload.restrictIdAttendance ?? true,
+    } }, { new: true, runValidators: true });
     if (!event) fail(404, "Event not found");
     return reviewers(user, payload.eventId);
   }
@@ -335,4 +345,4 @@ function service() {
     Event: require("../models/Event"), User: require("../models/User"), notifyUsers: require("./notify").notifyUsers });
 }
 const names = ["submit", "list", "summary", "reviewEvents", "reviewers", "assignReviewers", "reviewBatch", "pendingManualEventsForStudent"];
-module.exports = { createService, buildProposal, canReview, canSubmitManualAttendance, requireManualAssignment, fingerprint, baseHours, ...Object.fromEntries(names.map(name => [name, (...args) => service()[name](...args)])) };
+module.exports = { createService, buildProposal, canReview, canSubmitManualAttendance, canCaptureIdAttendance, requireManualAssignment, fingerprint, baseHours, ...Object.fromEntries(names.map(name => [name, (...args) => service()[name](...args)])) };

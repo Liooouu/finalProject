@@ -136,7 +136,7 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
     assert.equal(String((await page(1)).records[0]._id), String(first._id));
     assert.equal(String((await page(2)).records[0]._id), String(second._id));
   });
-  test('ID photos require current event assignment and stay pending until admin review', async t => {
+  test('ID fallback works without preassignment and honors admin event restrictions', async t => {
     const idPhoto = require('../services/idPhotoAttendance');
     const { randomUUID } = require('node:crypto');
     const jpeg = require('jpeg-js');
@@ -151,8 +151,7 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
     assert.deepEqual((await roster()).students.map(row => row.name), [student.name]);
     assert.equal((await roster()).students[0].email, undefined);
     await assert.rejects(idPhoto.viewRoster(student, event._id, sessionId), { status: 403 });
-    await assert.rejects(prepare(), { status: 403 });
-    await Event.updateOne({ _id: event._id }, { $set: { manualAttendanceReviewers: [organizer._id] } });
+    await assert.rejects(idPhoto.prepare(student, event._id, at('08:00:00'), sessionId), { status: 403 });
     const prepared = await prepare();
     assert.equal(prepared.students[0].email, student.email);
     const signed = await capture();
@@ -163,7 +162,8 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
     assert.equal(online.status, 'pending');
     assert.equal(await Attendance.countDocuments(), 0);
     await assert.rejects(manual.reviewBatch(organizer, { ids: [online.requestId], decision: 'approved', verifiedPresence: true }), { status: 403 });
-    await Event.updateOne({ _id: event._id }, { $set: { manualAttendanceReviewers: [] } });
+    const restricted = await manual.assignReviewers(admin, { eventId: String(event._id), userIds: [], restrictIdAttendance: true });
+    assert.equal(restricted.restrictIdAttendance, true);
     await assert.rejects(prepare(), { status: 403 });
     await assert.rejects(capture(), { status: 403 });
     assert.deepEqual((await roster()).students.map(row => row.name), [student.name]);
@@ -171,7 +171,7 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
     await assert.rejects(idPhoto.submit(organizer, offline, upload, at('13:00:00')), { status: 403 });
     assert.equal(await Request.countDocuments(), 1);
     assert.equal(String((await idPhoto.submit(organizer, payload, upload, at('13:00:00'))).requestId), String(online.requestId));
-    await Event.updateOne({ _id: event._id }, { $set: { manualAttendanceReviewers: [organizer._id] } });
+    await manual.assignReviewers(admin, { eventId: String(event._id), userIds: [String(organizer._id)], restrictIdAttendance: true });
     const exit = await idPhoto.submit(organizer, offline, upload, at('13:00:00'));
     assert.equal(exit.captureBasis, 'device');
     assert.equal(exit.status, 'pending');
@@ -182,6 +182,38 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
     assert.equal(row.completionStatus, 'completed');
     assert.equal(+row.timeInAt, +at('08:10:00'));
     assert.equal(+row.timeOutAt, +at('11:30:00'));
+  });
+  test('admin can approve ID Time In after the student has a verified face Time Out', async t => {
+    const idPhoto = require('../services/idPhotoAttendance');
+    const jpeg = require('jpeg-js');
+    const previousSecret = process.env.JWT_SECRET;
+    process.env.JWT_SECRET = 'test-only-id-photo-secret';
+    t.after(() => { if (previousSecret === undefined) delete process.env.JWT_SECRET; else process.env.JWT_SECRET = previousSecret; });
+    t.mock.method(Date, 'now', () => +at('08:10:00'));
+    const sessionId = String(event.attendanceSessions[0]._id);
+    const studentId = String(student._id);
+    const signed = await idPhoto.captureTime(organizer, { eventId: event._id, sessionId, studentId }, at('08:10:00'));
+    const upload = { buffer: jpeg.encode({ width: 320, height: 200, data: Buffer.alloc(320 * 200 * 4, 255) }, 85).data, mimetype: 'image/jpeg' };
+    const pending = await idPhoto.submit(organizer, {
+      clientId: require('node:crypto').randomUUID(), studentId, ticket: signed.ticket, identityChecked: true,
+    }, upload, at('08:11:00'));
+    const face = await mark('time_out', '11:30:00');
+    assert.equal(face.ok, true);
+    assert.equal(face.attendance.timeInAt, null);
+
+    const queue = await manual.list(admin, { status: 'pending', eventId: String(event._id) });
+    assert.equal(queue.total, 1);
+    assert.equal(queue.requests[0].hasIdPhoto, true);
+    assert.equal(queue.requests[0].currentAttendance.timeOutMethod, 'face');
+    assert.equal(queue.requests[0].canReview, true);
+    const review = manual.createService({ Request, Attendance, Event, User });
+    await review.reviewOne(admin, String(pending.requestId), 'approved', '', at('12:20:00'));
+    const record = await Attendance.findOne({ session: sessionId }).lean();
+    assert.equal(record.completionStatus, 'completed');
+    assert.equal(record.communityServiceHours, 0);
+    assert.equal(+record.timeInAt, +at('08:10:00'));
+    assert.equal(+record.timeOutAt, +at('11:30:00'));
+    assert.equal(record.timeOutMethod, 'face');
   });
   test('premature automatic absence is reversed while exit is open, then finalized once at exit close', async () => {
     const session = event.attendanceSessions[0];

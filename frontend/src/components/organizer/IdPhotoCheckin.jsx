@@ -11,7 +11,7 @@ import ConfirmDialog from '../ui/ConfirmDialog';
 
 const connectionFailure = e => !e.response || [502, 503, 504].includes(e.response.status);
 const errorText = e => e.response?.data?.error || e.message || 'Please try again.';
-export default function IdPhotoCheckin({ event, canCapture = false, attendees = [], onRecorded, onViewRecords }) {
+export default function IdPhotoCheckin({ event, canCapture = false, canCorrect = false, attendees = [], onRecorded, onViewRecords }) {
   const owner = String(getUserFromToken()?.id || '');
   const eventId = event?._id;
   const [sessionId, setSessionId] = useState(() => {
@@ -211,7 +211,10 @@ export default function IdPhotoCheckin({ event, canCapture = false, attendees = 
       {message && <p role="status" className="alert alert-ok mt-4 [overflow-wrap:anywhere]">{message}</p>}
       {lastReceipt && <p className="mt-2 text-sm text-on-dim">{lastReceipt.name}: {lastReceipt.status === 'approved' ? `Recorded · ${lastReceipt.attendanceStatus}` : lastReceipt.status === 'rejected' ? 'Rejected' : 'Awaiting admin review'} · {formatDateTime(lastReceipt.effectiveAt)}</p>}
       {event?.attendanceSessions?.length > 0 && <div className="mt-4">{event.attendanceSessions.length > 1 && <label className="field-label">Day / activity<select className="field-select w-full" value={sessionId} disabled={(canCapture && !!student) || busy || !online || serverUnavailable} onChange={e => { anchor.current = null; setPrepared(null); setSessionId(e.target.value); setPage(1); }}>{event.attendanceSessions.map(row => <option key={row._id} value={row._id}>{row.name}</option>)}</select></label>}<p className="mt-2 font-semibold">{action === 'time_in' ? 'Time In' : action === 'time_out' ? 'Time Out' : 'Attendance window closed'}</p></div>}
-      {!canCapture && <p role="status" className="mt-4 text-sm text-on-dim">View-only roster. An administrator must assign you to this event before you can submit ID photos.</p>}
+      {!canCapture && <p role="status" className="mt-4 text-sm text-on-dim">View-only roster. This event restricts ID capture to assigned organizers.</p>}
+      {selectedSession && sessionNow > +new Date(selectedSession.timeInCutoff) && <p className="mt-2 text-sm text-on-muted">
+        Missed Time In because the scanner failed? {canCorrect && onViewRecords ? <button type="button" className="font-medium text-brand underline" onClick={onViewRecords}>Open attendance records to request a correction</button> : "Ask an assigned organizer to request a correction for admin review."}
+      </p>}
       {canCapture && !prepared ? <div className="mt-4"><Button type="button" disabled={!eventId || !online} onClick={() => prepare()}>Prepare event</Button><p className="mt-2 text-xs text-on-muted">Connect to load students. Keep this page open if the connection drops.</p></div> : canCapture && prepared?.available === false ? <div role="status" className="mt-4 rounded-xl bg-card-alt/40 p-4"><h3 className="font-semibold text-on">{prepared.state === 'closed' ? 'Attendance closed' : 'Event schedule needs attention'}</h3><p className="mt-2 text-sm text-on-dim">{prepared.message}</p>{onViewRecords && <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={onViewRecords}>View attendance records</Button>}</div> : !canCapture && !roster?.students ? (
         <p role="status" className="mt-4 text-sm text-on-muted">{!online ? 'Connect to load the event roster.' : roster?.error || 'Loading event roster...'}</p>
       ) : !canCapture || !student ? <>

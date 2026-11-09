@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 
-// Evidence/audit ledger: legacy requests and offline exceptions require review.
-// Server-timed ID captures may be applied on the organizer's explicit physical-ID attestation.
+// Evidence and audit ledger for attendance requests that require an administrator decision.
 const schema = new mongoose.Schema({
   event: { type: mongoose.Schema.Types.ObjectId, ref: "Event", required: true, immutable: true },
   session: { type: mongoose.Schema.Types.ObjectId, default: null, immutable: true },
@@ -38,7 +37,7 @@ const schema = new mongoose.Schema({
   confirmedAttendance: {
     attendance: { type: mongoose.Schema.Types.ObjectId, ref: "Attendance" },
     status: String, method: String, attendedAt: Date, hours: Number,
-    session: mongoose.Schema.Types.ObjectId, sessionName: String, timeInAt: Date, timeOutAt: Date, completionStatus: String,
+    session: mongoose.Schema.Types.ObjectId, sessionName: String, timeInAt: Date, timeOutAt: Date, timeOutMethod: String, completionStatus: String,
   },
   reviewLock: { token: String, until: Date },
 }, { timestamps: true });

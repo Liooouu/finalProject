@@ -13,6 +13,7 @@ export default function EventReviewers({ eventId, expanded = false }) {
   const [reviewers, setReviewers] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [selected, setSelected] = useState(new Set());
+  const [restrictIdAttendance, setRestrictIdAttendance] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -32,6 +33,7 @@ export default function EventReviewers({ eventId, expanded = false }) {
       if (current !== sequence.current) return;
       setReviewers(data.reviewers || []);
       setCandidates(data.candidates || []);
+      setRestrictIdAttendance(data.restrictIdAttendance === true);
       setSelected(new Set((data.reviewers || []).map(user => String(user._id))));
       setPage(1);
     }).catch(error => {
@@ -49,12 +51,13 @@ export default function EventReviewers({ eventId, expanded = false }) {
     setSaveError("");
     setMessage("");
     try {
-      const { data } = await api.put("/manual-attendance/reviewers", { eventId, userIds: [...selected] });
+      const { data } = await api.put("/manual-attendance/reviewers", { eventId, userIds: [...selected], restrictIdAttendance });
       if (current !== sequence.current) return;
       const saved = data.reviewers || [];
       setReviewers(saved);
+      setRestrictIdAttendance(data.restrictIdAttendance === true);
       setSelected(new Set(saved.map(user => String(user._id))));
-      setMessage("Reviewers saved for this event.");
+      setMessage("Attendance access saved for this event.");
     } catch (error) {
       if (current === sequence.current) setSaveError(errorMessage(error, "Reviewers could not be saved."));
     } finally {
@@ -69,12 +72,17 @@ export default function EventReviewers({ eventId, expanded = false }) {
   return <Card>
     <details className="group" open={expanded || undefined} onToggle={event => { if (event.currentTarget.open) setEnabled(true); }}>
       <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-medium text-on">
-        <FaUserCheck aria-hidden="true" /><span className="flex-1">Who can submit manual attendance?</span>
+        <FaUserCheck aria-hidden="true" /><span className="flex-1">Manual attendance access</span>
         <FaChevronDown aria-hidden="true" className="shrink-0 transition-transform group-open:rotate-180" />
       </summary>
       {enabled && <div className="mt-3 space-y-3">
-        <p className="text-sm text-on-dim">Assign organizers to capture IDs and submit corrections for this event. Administrators make the final decision.</p>
+        <p className="text-sm text-on-dim">Organizers can submit ID photos for admin review. Select organizers who can request corrections for this event.</p>
         {loading ? <p role="status" className="text-sm text-on-muted">Loading reviewers…</p> : loadError ? <div role="alert" className="space-y-2"><p className="text-sm text-danger">{loadError}</p><Button size="sm" variant="secondary" onClick={() => setReload(value => value + 1)}>Try again</Button></div> : <>
+          <label className="flex items-start gap-2 text-sm text-on">
+            <input type="checkbox" className="mt-1 accent-[var(--brand-solid)]" checked={restrictIdAttendance} disabled={saving}
+              onChange={event => { setRestrictIdAttendance(event.target.checked); setMessage(""); }} />
+            Limit ID capture to the organizers selected below
+          </label>
           <p className="text-sm text-on-muted [overflow-wrap:anywhere]">Assigned: {reviewers.length ? reviewers.map(user => user.name || user.email).join(", ") : "No organizers assigned"}</p>
           {candidates.length > PAGE_SIZE && <div><label className="field-label" htmlFor="event-reviewer-search">Find an organizer</label><input id="event-reviewer-search" type="search" className="field" placeholder="Name or email" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} disabled={saving} /></div>}
           <div className="grid gap-2 sm:grid-cols-2">{visible.map(user => <label key={user._id} className="flex min-w-0 cursor-pointer items-start gap-3 rounded-xl bg-card-alt/50 p-3">
@@ -85,7 +93,7 @@ export default function EventReviewers({ eventId, expanded = false }) {
           <Pagination page={currentPage} pageSize={PAGE_SIZE} total={filtered.length} onChange={setPage} disabled={saving} label="Event reviewer pages" />
           {saveError && <p role="alert" className="text-sm text-danger">{saveError}</p>}
           {message && <p role="status" className="text-sm text-ok">{message}</p>}
-          <Button size="sm" loading={saving} onClick={save}>Save assignments</Button>
+          <Button size="sm" loading={saving} onClick={save}>Save attendance access</Button>
         </>}
       </div>}
     </details>

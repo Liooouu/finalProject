@@ -16,10 +16,12 @@ export default function AttendanceReviewCard({ request, reviewMode, selected, on
   const recorded = request.resolution === "existing_face" ? request.confirmedAttendance : request.currentAttendance;
   const isSessionExit = !!request.session && request.action === "time_out";
   const waitingForTimeIn = selectable && isSessionExit && !recorded?.timeInAt;
-  const protectedRecord = recorded && (recorded.status === "excused" || (recorded.method === "face" && !(request.session && request.action === "time_out" && !recorded.timeOutAt)) );
-  const matchingFace = recorded?.method === "face" && (isSessionExit
-    ? request.mode === "checkin" && !!recorded.timeOutAt
-    : ["present", "late"].includes(recorded.status) && recorded.status === request.proposedStatus);
+  const faceEntry = recorded?.method === "face" && (!request.session || !!recorded.timeInAt);
+  const faceExit = !!recorded?.timeOutAt && (recorded.timeOutMethod === "face" || recorded.method === "face");
+  const faceProtected = request.proposedStatus === "absent" ? faceEntry || faceExit : isSessionExit ? faceExit : faceEntry;
+  const protectedRecord = recorded?.status === "excused" || faceProtected;
+  const matchingFace = faceProtected && recorded.status !== "excused" && request.mode !== "correction" &&
+    (isSessionExit || (["present", "late"].includes(recorded.status) && recorded.status === request.proposedStatus));
   const conflict = protectedRecord && !matchingFace;
   const decide = async decision => {
     const saved = await onReview(decision, { id: request._id, verified, note });
@@ -42,6 +44,7 @@ export default function AttendanceReviewCard({ request, reviewMode, selected, on
           <div><dt>Result</dt><dd className="flex flex-wrap items-center gap-2">{request.action === "time_out" ? <span>Time Out</span> : <StatusChip status={request.proposedStatus} />}<span className="text-xs text-on-muted">{request.proposedHours ?? 0} penalty hrs</span></dd></div>
         </dl>
         {request.source === "id_photo" && <p className="text-xs text-info">{request.captureBasis === "device" ? "Offline capture · Verify time" : "ID checked by organizer"}</p>}
+        {request.session && !isSessionExit && faceExit && !recorded.timeInAt && <p className="text-xs text-info">Face Time Out is already recorded. This request is for the missing Time In.</p>}
         {waitingForTimeIn && <p className="text-xs text-warn">Approval records Time Out. If Time In remains missing when the session closes, the absence penalty is 8 service hours.</p>}
         {protectedRecord && <div className="rounded-lg bg-card-alt/60 p-2 text-xs text-on-dim"><p className="font-medium text-on">{request.resolution === "existing_face" ? "Confirmed using existing face attendance" : "Attendance already recorded"}</p><p className="mt-1">{recorded.status === "excused" ? "Approved excuse kept. Reject this duplicate with a note." : matchingFace ? "Matching face attendance: approval keeps its original time and hours." : "Different face attendance: approval cannot replace it. Review or reject this request."}</p></div>}
         <details className="text-xs text-on-muted"><summary className="cursor-pointer font-medium text-on-dim">Review details</summary>

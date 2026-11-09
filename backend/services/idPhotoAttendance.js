@@ -37,6 +37,12 @@ function signature(event, session = null, action = 'time_in') {
 function organizer(user) {
   if (user?.role !== 'organizer') fail(403, 'Only organizers can capture ID-assisted attendance.');
 }
+function requireCaptureAccess(user, event) {
+  if (!event) fail(404, 'Event not found.');
+  if (!manual.canCaptureIdAttendance(user, event)) {
+    fail(403, 'ID attendance is restricted for this event. Ask an administrator to assign you.');
+  }
+}
 async function loadEvent(eventId) {
   if (!isValidObjectId(eventId)) fail(400, 'Choose a valid event.');
   const event = await Event.findById(eventId);
@@ -114,7 +120,7 @@ async function viewRoster(user, eventId, sessionId = null) {
 async function prepare(user, eventId, now = new Date(), sessionId = null) {
   organizer(user);
   const event = await loadEvent(eventId);
-  manual.requireManualAssignment(user, event);
+  requireCaptureAccess(user, event);
   const session = findSession(event, sessionId);
   const state = preparationState(event, now, session);
   const details = { event: { _id: event._id, title: event.title, date: event.date, status: event.status, time: event.time, attendanceStartTime: event.attendanceStartTime, attendanceEndTime: event.attendanceEndTime },
@@ -129,7 +135,7 @@ async function prepare(user, eventId, now = new Date(), sessionId = null) {
 async function captureTime(user, payload, now = new Date()) {
   organizer(user);
   const event = await loadEvent(payload.eventId);
-  manual.requireManualAssignment(user, event);
+  requireCaptureAccess(user, event);
   if (!isValidObjectId(payload.studentId) || id(user) === id(payload.studentId)) fail(400, 'Choose another student.');
   const student = await User.findById(payload.studentId).select('role enrollmentStatus emailVerified');
   if (!isActiveStudent(student)) fail(400, 'Choose an active, verified student account.');
@@ -158,7 +164,7 @@ async function submit(user, payload, file, now = new Date()) {
   const data = verifyTicket(payload.ticket, user, now);
   if (data.kind === 'capture' && data.studentId !== payload.studentId) fail(403, 'The capture belongs to another student.');
   const event = await loadEvent(data.eventId);
-  manual.requireManualAssignment(user, event);
+  requireCaptureAccess(user, event);
   const student = await User.findById(payload.studentId).select('role enrollmentStatus emailVerified');
   if (!isActiveStudent(student)) fail(400, 'This student is no longer eligible for new attendance.');
   const selected = findSession(event, data.sessionId);
@@ -184,7 +190,7 @@ async function submit(user, payload, file, now = new Date()) {
   const saved = await fileStore.saveBuffer(buffer, { private: true, originalName: 'attendance-id.jpg', contentType: 'image/jpeg' });
   let request;
   try {
-    manual.requireManualAssignment(user, await Event.findById(event._id).select('manualAttendanceReviewers'));
+    requireCaptureAccess(user, await Event.findById(event._id).select('manualAttendanceReviewers restrictIdAttendance'));
     request = await Request.create({ ...proposal, event: event._id, student: student._id, requestedBy: user._id,
       source: 'id_photo', mode: 'checkin', clientId: payload.clientId, idPhotoUrl: saved.url,
       photoDigest: digest, photoScheduleSignature: data.signature,

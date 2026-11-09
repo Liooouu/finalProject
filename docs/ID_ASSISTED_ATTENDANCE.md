@@ -1,9 +1,11 @@
 # ID-assisted attendance fallback
 
-Face verification remains primary. Event-assigned organizers open Manual Attendance, choose an
+Face verification remains primary. Organizers open Manual Attendance, choose an
 event, select a registered student by name/email, and capture a JPEG of the physical
 school ID with the rear camera. They must compare the person, ID and account in
-person, then attest and submit. There is no gallery upload or OCR in this version.
+person, then attest and submit. Administrators can limit ID capture to assigned
+organizers per event. Documented corrections require an event assignment.
+There is no gallery upload or OCR in this version.
 ID capture is not biometric verification, proof of ID authenticity, or proof against
 organizer collusion. OCR is deferred until actual IDs/low-end cameras are evaluated.
 
@@ -26,7 +28,7 @@ Closed events use documented corrections; this is not a backdating bypass.
 
 The signed capture/prepare ticket is valid for 48 hours and tied to the issuing account,
 session version and organizer-grant version. Expired captures remain on device for
-attention rather than being falsely marked recorded. Revoking the event assignment or organizer grant blocks new uploads. An existing upload receipt can still be recovered by a current organizer.
+attention rather than being falsely marked recorded. Revoking the organizer grant or removing an assignment on a restricted event blocks new uploads. An existing upload receipt can still be recovered by a current organizer.
 A failed upload may need a documented correction; do not discard its only copy until
 the existing record has been checked.
 
