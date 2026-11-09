@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import api from "../../api/axios";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import { FlightPanel } from "../ui";
 import { FaGraduationCap } from "react-icons/fa";
 
@@ -7,26 +8,44 @@ const yearLabel = (year) => ({ 1: "1st year", 2: "2nd year", 3: "3rd year", 4: "
 const AcademicStanding = () => {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    api.get("/student/academic-status").then(({ data: value }) => {
-      if (active && value?.student) setData(value);
-    }).catch(() => { if (active) setError("Academic standing is unavailable. Refresh to try again."); });
-    return () => { active = false; };
+  const request = useRef(0);
+  const mounted = useRef(false);
+  const refresh = useCallback(async () => {
+    const current = ++request.current;
+    try {
+      const { data: value } = await api.get("/student/academic-status");
+      if (mounted.current && current === request.current && value?.student) {
+        setData(value);
+        setError("");
+      }
+    } catch {
+      if (mounted.current && current === request.current) setError("Could not refresh academic standing. It will retry automatically.");
+    }
   }, []);
+  useEffect(() => {
+    mounted.current = true;
+    Promise.resolve().then(() => { if (mounted.current) refresh(); });
+    return () => { mounted.current = false; };
+  }, [refresh]);
+  useAutoRefresh(refresh, { interval: 30000 });
   if (!data) return <p role="status" className={error ? "alert alert-warn" : "p-4 text-sm text-on-muted"}>{error || "Loading academic record…"}</p>;
   const student = data.student;
   const graduated = student.enrollmentStatus === "graduated";
-  const displayedYear=student.academicYearStart!=null?`${student.academicYearStart}–${student.academicYearStart+1}`:"Not assigned";
+  const standingYear=student.academicYearStart;
+  const currentYear=data.configured?data.current?.startYear:null;
+  const displayedYear=graduated?standingYear:(currentYear??standingYear);
+  const yearText=displayedYear!=null?`${displayedYear}–${Number(displayedYear)+1}`:"Not set by the administrator";
   return <FlightPanel level="ledger" glass title="Academic standing" subtitle="Your enrollment details and the current department term." icon={<FaGraduationCap />}>
+    {error&&<p role="status" className="mb-3 text-xs text-on-muted">{error}</p>}
     <p className="mb-4 text-sm text-on-dim">Current department term: <strong className="text-on">{data.configured?`${data.current.label} · ${data.currentSemester.label}`:"Not set by the administrator"}</strong></p>
     <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {[
         { label: "Year level", value: graduated ? "Graduated" : yearLabel(student.yearLevel) },
         { label: graduated ? "Last section" : "Section", value: data.student.section || "—" },
-        { label: "School year", value: displayedYear },
-      ].map(field => <div key={field.label} className={`student-card rounded-xl border border-line bg-card-alt/30 p-4 ${field.label === "School year" ? "col-span-2 sm:col-span-1" : ""}`}><dt className="text-xs text-on-muted">{field.label}</dt><dd className="mt-2 font-display text-xl font-semibold text-on">{field.value}</dd></div>)}
+        { label: graduated ? "Last recorded school year" : "School year", value: yearText },
+      ].map((field,index) => <div key={field.label} className={`student-card rounded-xl border border-line bg-card-alt/30 p-4 ${index === 2 ? "col-span-2 sm:col-span-1" : ""}`}><dt className="text-xs text-on-muted">{field.label}</dt><dd className="mt-2 font-display text-xl font-semibold text-on">{field.value}</dd></div>)}
     </dl>
+    {!graduated&&standingYear!=null&&currentYear!=null&&standingYear!==currentYear&&<p className="mt-3 text-xs text-on-muted">Your year-level record is for S.Y. {standingYear}–{Number(standingYear)+1}. The department term shown above is separate.</p>}
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
       <p className="text-xs text-on-muted">{data.student.program} · {data.currentSemester?.label || "Current semester not set"}</p>
     </div>

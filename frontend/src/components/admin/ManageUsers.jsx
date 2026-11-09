@@ -73,6 +73,8 @@ const ManageUsers = () => {
     try {
       const response = await api.patch(`/admin/users/${selectedUser._id}`, { ...academicDraft, yearLevel: Number(academicDraft.yearLevel) });
       mergeStudent(response.data);
+      setAcademicDraft({ program: response.data.program || "", yearLevel: String(response.data.yearLevel || ""), section: response.data.section || "" });
+      fetchUsers({ silent: true });
       setDetailNotice({ type: "success", text: "Student academic details updated." });
     } catch (error) {
       setDetailNotice({ type: "error", text: error.response?.data?.message || "Could not update academic details. Please try again." });
