@@ -149,7 +149,7 @@ async function captureTime(user, payload, now = new Date()) {
 function receipt(request) {
   return { requestId: request._id, status: request.status, attendanceStatus: request.proposedStatus, action: request.action || 'time_in', sessionName: request.sessionName,
     effectiveAt: request.effectiveAt, captureBasis: request.captureBasis,
-    message: request.status === 'approved' ? 'ID-assisted attendance recorded.' : request.status === 'rejected' ? 'This submission was rejected. No new attendance was recorded.' : request.action === 'time_out' ? 'Time Out photo sent for admin review.' : 'Time In photo sent for admin review.' };
+    message: request.status === 'approved' ? 'ID-assisted attendance recorded.' : request.status === 'rejected' ? 'This submission was rejected. No new attendance was recorded.' : request.action === 'time_out' ? 'Time Out photo sent for review.' : 'Time In photo sent for review.' };
 }
 async function submit(user, payload, file, now = new Date()) {
   organizer(user);

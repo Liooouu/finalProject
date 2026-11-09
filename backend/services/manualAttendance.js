@@ -33,7 +33,7 @@ function requireManualAssignment(user, event) {
 }
 function canReview(user, event, request) {
   if (!user || !event || !request || idOf(user) === idOf(request.requestedBy) || idOf(user) === idOf(request.student)) return false;
-  return user.role === "admin";
+  return user.role === "admin" || canSubmitManualAttendance(user, event);
 }
 function buildProposal(event, payload, now = new Date()) {
   const mode = payload.mode || "checkin";
@@ -197,7 +197,7 @@ function createService(deps) {
     let request = await Request.findById(id).lean();
     if (!request) fail(404, "Request not found");
     const event = await Event.findById(request.event);
-    if (!canReview(user, event, request)) fail(403, "An independent administrator must review this request");
+    if (!canReview(user, event, request)) fail(403, "An independent administrator or assigned organizer must review this request");
     const reviewerId = user._id;
     if (request.status !== "pending") {
       if (request.status !== decision) fail(409, "This request has already been reviewed");
@@ -315,7 +315,7 @@ function createService(deps) {
     }
   }
   async function reviewBatch(user, payload) {
-    if (user?.role !== "admin") fail(403, "Only administrators can approve or reject manual attendance");
+    if (!["admin", "organizer"].includes(user?.role)) fail(403, "Manual attendance review access is required");
     if (!Array.isArray(payload.ids) || !payload.ids.length || payload.ids.length > 50) fail(400, "Select between 1 and 50 requests");
     const decision = payload.decision, note = typeof payload.note === "string" ? payload.note.trim() : "";
     if (!["approved", "rejected"].includes(decision)) fail(400, "Choose approve or reject");

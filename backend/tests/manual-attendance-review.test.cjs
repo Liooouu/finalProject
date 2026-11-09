@@ -137,13 +137,21 @@ test('older requests without an attendance fingerprint can approve missing or ne
     }
   }
 });
-test('manual submissions need an independent administrator, including when an organizer is assigned',async()=>{
+test('assigned organizers can approve another organizer’s ID request but cannot review their own submission or attendance',async()=>{
   const f=fixture();f.data.Event[0].manualAttendanceReviewers.push(ids.requester,ids.student);
   const request=await f.api.submit(requester,payload(),at('08:20:00'));
-  for(const user of [requester,{_id:ids.student,role:'organizer'},{_id:ids.other,role:'organizer'},{_id:ids.other,role:'student'}])await assert.rejects(f.api.reviewOne(user,request._id,'approved','',at('22:00:00')),/independent/);
-  assert.equal(canReview(reviewer,f.data.Event[0],f.data.Request[0]),false);
-  await assert.rejects(f.api.reviewBatch(reviewer,{ids:[request._id],decision:'approved',verifiedPresence:true}),{status:403});
-  await f.api.reviewOne(admin,request._id,'approved','',at('22:00:00'));assert.equal(f.writes,1);
+  f.data.Request[0].source='id_photo';
+  const approve={ids:[request._id],decision:'approved',verifiedPresence:true};
+  for(const user of [requester,{_id:ids.student,role:'organizer'},{_id:ids.other,role:'organizer'}]) {
+    const result=await f.api.reviewBatch(user,approve);
+    assert.equal(result.results[0].code,403);
+  }
+  await assert.rejects(f.api.reviewBatch({_id:ids.other,role:'student'},approve),{status:403});
+  assert.equal(f.writes,0);
+  assert.equal(canReview(reviewer,f.data.Event[0],f.data.Request[0]),true);
+  assert.equal((await f.api.reviewBatch(reviewer,approve)).results[0].status,'approved');
+  assert.equal(f.data.Attendance[0].manualAttendanceAudit[0].reviewedBy,ids.reviewer);
+  assert.equal(f.writes,1);
 });
 test('delegation revocation immediately prevents submission and only admin assigns current organizers',async()=>{
   const f=fixture();const request=await f.api.submit(requester,payload(),at('08:20:00'));
@@ -247,7 +255,7 @@ test('list scopes student data, organizer submissions and delegated review event
   assert.equal((await f.api.list({...requester,_id:ids.other},{view:'mine'})).total,0);
   assert.equal((await f.api.list({_id:ids.student,role:'student'})).total,1);
   assert.equal((await f.api.list({_id:ids.other,role:'student'})).total,0);
-  const review=await f.api.list(reviewer,{view:'review',search:'student@test.invalid'});assert.equal(review.total,1);assert.equal(review.requests[0].canReview,false);assert.equal(review.requests[0].previousAttendance,undefined);
+  const review=await f.api.list(reviewer,{view:'review',search:'student@test.invalid'});assert.equal(review.total,1);assert.equal(review.requests[0].canReview,true);assert.equal(review.requests[0].previousAttendance,undefined);
   const ownInAssigned = await f.api.list(requester,{view:'review'});
   assert.equal(ownInAssigned.total,1);assert.equal(ownInAssigned.requests[0].canReview,false);
   assert.deepEqual(await f.api.summary(reviewer),{pendingReview:1,pendingMine:0});

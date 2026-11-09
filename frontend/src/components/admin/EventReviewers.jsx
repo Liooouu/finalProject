@@ -76,7 +76,7 @@ export default function EventReviewers({ eventId, expanded = false }) {
         <FaChevronDown aria-hidden="true" className="shrink-0 transition-transform group-open:rotate-180" />
       </summary>
       {enabled && <div className="mt-3 space-y-3">
-        <p className="text-sm text-on-dim">Organizers can submit ID photos for admin review. Select organizers who can request corrections for this event.</p>
+        <p className="text-sm text-on-dim">Select organizers who can review requests and request corrections for this event. They cannot review requests they submitted or requests for their own attendance.</p>
         {loading ? <p role="status" className="text-sm text-on-muted">Loading reviewers…</p> : loadError ? <div role="alert" className="space-y-2"><p className="text-sm text-danger">{loadError}</p><Button size="sm" variant="secondary" onClick={() => setReload(value => value + 1)}>Try again</Button></div> : <>
           <label className="flex items-start gap-2 text-sm text-on">
             <input type="checkbox" className="mt-1 accent-[var(--brand-solid)]" checked={restrictIdAttendance} disabled={saving}

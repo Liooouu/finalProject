@@ -65,7 +65,7 @@ export default function AttendanceReviewCard({ request, reviewMode, selected, on
           {rejecting && <div><label className="field-label" htmlFor={noteId}>Rejection reason</label><textarea id={noteId} className="field min-h-20 w-full resize-y text-sm" placeholder="At least 5 characters" maxLength={1000} value={note} disabled={busy} onChange={event => setNote(event.target.value)} /></div>}
           <div className="grid grid-cols-2 gap-2"><Button type="button" size="sm" variant="success" disabled={busy || !verified || conflict} onClick={() => decide("approved")}>Approve</Button><Button type="button" size="sm" variant="danger" disabled={busy || (rejecting && note.trim().length < 5)} onClick={() => rejecting ? decide("rejected") : setRejecting(true)}>{rejecting ? "Confirm reject" : "Reject"}</Button></div>
           {rejecting && <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setRejecting(false)}>Cancel rejection</Button>}
-        </div> : request.status === "pending" && <p className="text-xs text-on-muted">Awaiting admin review.</p>}
+        </div> : request.status === "pending" && <p className="text-xs text-on-muted">Awaiting review by an administrator or another assigned organizer.</p>}
       </div>
     </div>
   </Card>;
