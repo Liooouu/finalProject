@@ -85,7 +85,7 @@ export default function IdPhotoCheckin({ event, attendees = [], onRecorded, onVi
           if (!e.response || [401,403,503].includes(e.response.status)) break;
         }
       }
-      if (synced && active.current) onRecorded?.();
+      if (synced && active.current) await onRecorded?.();
     } finally { syncingRef.current = false; if (active.current) { setSyncing(false); await refreshQueue(); } }
   }, [onRecorded, owner, refreshQueue]);
   useEffect(() => {
@@ -140,14 +140,29 @@ export default function IdPhotoCheckin({ event, attendees = [], onRecorded, onVi
       if (existing.some(row => row.eventId === eventId && (row.sessionId || "") === sessionId && (row.action || "time_in") === capture.action && row.studentId === student._id)) throw new Error('A photo for this student and event is already waiting on this device. Sync that capture first.');
       await saveCapture(owner, { clientId: crypto.randomUUID(), eventId, sessionId, sessionName: selectedSession?.name || "", action: capture.action, eventTitle: event.title, studentId: student._id, studentName: student.name, ticket: capture.ticket, capturedAt: capture.capturedAt, basis: capture.basis }, photo);
       setPhoto(null); setCapture(null); setChecked(false); setStudent(null); setQuery(''); setPage(1);
-      setMessage('Saved on device. Waiting to sync—keep this page open.');
+      setMessage(navigator.onLine ? 'Sending photo. Keep this page open until TrackED confirms it.' : 'Saved on this device. Attendance will be sent when you reconnect.');
       await refreshQueue(); if (navigator.onLine) await sync();
     } catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
   };
   const matches = (prepared?.students || []).filter(row => [row.name,row.email].some(value => String(value || '').toLowerCase().includes(query.toLowerCase().trim())));
-  const recordedIds = new Set(attendees.filter(row => String(row.session?._id || row.session || '') === sessionId && (row.status === 'excused' || (sessionId ? !!row[action === 'time_out' ? 'timeOutAt' : 'timeInAt'] : ['present','late'].includes(row.status)))).map(row => String(row.student?._id || row.student)));
-  for (const row of queue) if (row.eventId === eventId && (row.sessionId || '') === sessionId && (row.action || 'time_in') === action) recordedIds.add(row.studentId);
+  const studentStatus = new Map();
+  for (const row of attendees) {
+    if (String(row.session?._id || row.session || '') !== sessionId) continue;
+    const studentId = String(row.student?._id || row.student);
+    const pendingActions = row.pendingManualActions || [row.manualAttendanceRequest?.action];
+    const recorded = sessionId
+      ? !!row[action === 'time_out' ? 'timeOutAt' : 'timeInAt']
+      : ['present', 'late'].includes(row.status);
+    if (row.status === 'excused') studentStatus.set(studentId, 'Excused');
+    else if (recorded) studentStatus.set(studentId, 'Recorded');
+    else if (pendingActions.includes(action)) studentStatus.set(studentId, 'Awaiting review');
+  }
+  for (const row of queue) {
+    if (row.eventId === eventId && (row.sessionId || '') === sessionId && (row.action || 'time_in') === action && !studentStatus.has(row.studentId)) {
+      studentStatus.set(row.studentId, 'Pending sync');
+    }
+  }
   const currentPage = Math.min(page, Math.max(1, Math.ceil(matches.length / 5)));
   const currentQueuePage = Math.min(queuePage, Math.max(1, Math.ceil(queue.length / 5)));
   return <div className="min-w-0 space-y-4">
@@ -159,7 +174,7 @@ export default function IdPhotoCheckin({ event, attendees = [], onRecorded, onVi
       {event?.attendanceSessions?.length > 0 && <div className="mt-4">{event.attendanceSessions.length > 1 && <label className="field-label">Day / activity<select className="field-select w-full" value={sessionId} disabled={!!student || busy} onChange={e => { setPrepared(null); setSessionId(e.target.value); setPage(1); }}>{event.attendanceSessions.map(row => <option key={row._id} value={row._id}>{row.name}</option>)}</select></label>}<p className="mt-2 font-semibold">{action === 'time_in' ? 'Time In' : action === 'time_out' ? 'Time Out' : 'Attendance window closed'}</p></div>}
       {!prepared ? <div className="mt-4"><Button type="button" disabled={!eventId} onClick={() => prepare()}>Prepare event</Button><p className="mt-2 text-xs text-on-muted">Connect to load students. Keep this page open if the connection drops.</p></div> : prepared.available === false ? <div role="status" className="mt-4 rounded-xl bg-card-alt/40 p-4"><h3 className="font-semibold text-on">{prepared.state === 'closed' ? 'Attendance closed' : 'Event schedule needs attention'}</h3><p className="mt-2 text-sm text-on-dim">{prepared.message}</p>{onViewRecords && <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={onViewRecords}>View attendance records</Button>}</div> : !student ? <>
         <label htmlFor="id-photo-student-search" className="field-label mt-4">Find student</label><input id="id-photo-student-search" type="search" className="field w-full" placeholder="Student name or email" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} />
-        <StablePage pageKey={`id-students:${eventId}:${query}`} footer={<Pagination page={currentPage} pageSize={5} total={matches.length} onChange={setPage} label="ID check-in student pages" />}><ul className="mt-4 space-y-2">{matches.slice((currentPage-1)*5,currentPage*5).map(row => <li key={row._id} className="flex items-center justify-between gap-3 rounded-xl bg-card-alt/40 p-3"><div className="min-w-0"><p className="text-sm font-medium text-on [overflow-wrap:anywhere]">{row.name}</p><p className="text-xs text-on-muted [overflow-wrap:anywhere]">{row.email}</p><p className="mt-1 text-xs text-on-dim">{row.program} · Year {row.yearLevel} · {row.section}</p></div><Button size="sm" variant="secondary" disabled={opening || action === "closed" || recordedIds.has(row._id)} onClick={() => { setStudent(row); setError(''); setMessage(''); startCamera(); }}>{recordedIds.has(row._id) ? "Recorded / pending" : "Take ID photo"}</Button></li>)}</ul>{!matches.length && <p className="py-6 text-sm text-on-muted">No matching eligible students.</p>}</StablePage>
+        <StablePage pageKey={`id-students:${eventId}:${query}`} footer={<Pagination page={currentPage} pageSize={5} total={matches.length} onChange={setPage} label="ID check-in student pages" />}><ul className="mt-4 space-y-2">{matches.slice((currentPage-1)*5,currentPage*5).map(row => <li key={row._id} className="flex items-center justify-between gap-3 rounded-xl bg-card-alt/40 p-3"><div className="min-w-0"><p className="text-sm font-medium text-on [overflow-wrap:anywhere]">{row.name}</p><p className="text-xs text-on-muted [overflow-wrap:anywhere]">{row.email}</p><p className="mt-1 text-xs text-on-dim">{row.program} · Year {row.yearLevel} · {row.section}</p></div><Button size="sm" variant="secondary" disabled={opening || action === "closed" || studentStatus.has(row._id)} onClick={() => { setStudent(row); setError(''); setMessage(''); startCamera(); }}>{studentStatus.get(row._id) || "Take ID photo"}</Button></li>)}</ul>{!matches.length && <p className="py-6 text-sm text-on-muted">No matching eligible students.</p>}</StablePage>
       </> : <form onSubmit={save} className="mt-4 space-y-4">
         <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="font-semibold text-on [overflow-wrap:anywhere]">{student.name}</h3><p className="text-sm text-on-muted [overflow-wrap:anywhere]">{student.email}</p></div><Button type="button" size="sm" variant="secondary" disabled={busy || opening} onClick={() => { stopCamera(); setStudent(null); setPhoto(null); setCapture(null); setChecked(false); }}>Change student</Button></div>
         {opening ? <p role="status" className="py-4 text-sm text-on-muted">Opening camera… Please allow camera access.</p> : camera ? <div className="rounded-xl bg-black p-2"><video ref={video} autoPlay playsInline muted className="block max-h-80 w-full rounded-lg object-contain" style={{ transform: 'none' }} /><p className="px-2 py-3 text-center text-sm text-white">Keep the ID name and photo clear.</p><div className="flex justify-center gap-2 pb-2"><Button type="button" disabled={busy} onClick={takePhoto}>{busy ? 'Capturing…' : 'Take ID photo'}</Button><Button type="button" variant="secondary" disabled={busy} onClick={stopCamera}>Cancel camera</Button></div></div> : photo ? <div><img src={preview} alt="Captured school ID — check readability before submitting" className="max-h-80 w-full rounded-xl bg-black object-contain" /><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-on-muted">Captured: {formatDateTime(capture?.capturedAt)} · {capture?.basis === 'server' ? 'Server time' : 'Device estimate — needs review'}</p><Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => { setPhoto(null); setCapture(null); setChecked(false); startCamera(); }}>Retake</Button></div></div> : <Button type="button" onClick={startCamera}>Open ID camera</Button>}

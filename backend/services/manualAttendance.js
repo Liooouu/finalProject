@@ -228,7 +228,8 @@ function createService(deps) {
           review: { request: request._id, requestedBy: request.requestedBy, reviewedBy: reviewerId,
             submittedAt: request.submittedAt, reviewedAt: now, reason: request.reason, note, mode: request.mode,
             expectedUpdatedAt: request.previousAttendance?.updatedAt ?? null } });
-        if (!outcome.ok && outcome.reason !== "already") fail(409, outcome.message || "This action cannot be applied yet. Confirm the session Time In first, then retry.");
+        if (outcome.reason === "no_time_in") fail(409, "Time Out is still pending. Approve the student's Time In for this day first, then approve this saved Time Out. No new photo is needed.");
+        if (!outcome.ok && outcome.reason !== "already") fail(409, outcome.message || "This attendance action cannot be applied yet.");
         const existing = outcome.attendance;
         if (outcome.reason === "already" && action === "time_in" && existing.status !== request.proposedStatus) fail(409, "The existing session arrival differs from this request. No attendance was changed.");
         const resolution = outcome.reason === "already" && existing.method === "face" ? "existing_face" : request.source === "id_photo" ? "id_photo" : "manual";

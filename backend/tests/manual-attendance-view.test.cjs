@@ -48,3 +48,14 @@ test('a pending request for another session cannot suppress this absence', () =>
   const [row] = projectManualAttendance([source], [{ ...request, session: 'afternoon' }]);
   assert.equal(row.status, 'absent'); assert.equal(row.communityServiceHours, 8);
 });
+
+test('both pending actions stay visible to the capture list without appearing recorded', () => {
+  const [row] = projectManualAttendance([], [
+    { ...request, session: 'morning', action: 'time_in' },
+    { ...request, session: 'morning', action: 'time_out', _id: 'request-b' },
+  ]);
+  assert.deepEqual(row.pendingManualActions, ['time_in', 'time_out']);
+  assert.equal(row.status, 'pending');
+  assert.equal(row.timeInAt, undefined);
+  assert.equal(row.timeOutAt, undefined);
+});

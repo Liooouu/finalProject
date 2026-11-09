@@ -14,8 +14,12 @@ export default function AttendanceReviewCard({ request, reviewMode, selected, on
   const noteId = useId();
   const selectable = reviewMode && request.status === "pending" && request.canReview === true;
   const recorded = request.resolution === "existing_face" ? request.confirmedAttendance : request.currentAttendance;
+  const isSessionExit = !!request.session && request.action === "time_out";
+  const waitingForTimeIn = selectable && isSessionExit && !recorded?.timeInAt;
   const protectedRecord = recorded && (recorded.status === "excused" || (recorded.method === "face" && !(request.session && request.action === "time_out" && !recorded.timeOutAt)) );
-  const matchingFace = recorded?.method === "face" && ["present", "late"].includes(recorded.status) && recorded.status === request.proposedStatus;
+  const matchingFace = recorded?.method === "face" && (isSessionExit
+    ? request.mode === "checkin" && !!recorded.timeOutAt
+    : ["present", "late"].includes(recorded.status) && recorded.status === request.proposedStatus);
   const conflict = protectedRecord && !matchingFace;
   const decide = async decision => {
     const saved = await onReview(decision, { id: request._id, verified, note });
@@ -38,6 +42,7 @@ export default function AttendanceReviewCard({ request, reviewMode, selected, on
           <div><dt>Result</dt><dd className="flex flex-wrap items-center gap-2">{request.action === "time_out" ? <span>Time Out</span> : <StatusChip status={request.proposedStatus} />}<span className="text-xs text-on-muted">{request.proposedHours ?? 0} penalty hrs</span></dd></div>
         </dl>
         {request.source === "id_photo" && <p className="text-xs text-info">{request.captureBasis === "device" ? "Offline capture · Verify time" : "ID checked by organizer"}</p>}
+        {waitingForTimeIn && <p className="text-xs text-warn">Approve Time In for this day first. This Time Out is saved. If reviewing both together, select both requests.</p>}
         {protectedRecord && <div className="rounded-lg bg-card-alt/60 p-2 text-xs text-on-dim"><p className="font-medium text-on">{request.resolution === "existing_face" ? "Confirmed using existing face attendance" : "Attendance already recorded"}</p><p className="mt-1">{recorded.status === "excused" ? "Approved excuse kept. Reject this duplicate with a note." : matchingFace ? "Matching face attendance: approval keeps its original time and hours." : "Different face attendance: approval cannot replace it. Review or reject this request."}</p></div>}
         <details className="text-xs text-on-muted"><summary className="cursor-pointer font-medium text-on-dim">Review details</summary>
           <p className="mt-2 whitespace-pre-wrap [overflow-wrap:anywhere]"><strong>Reason: </strong>{request.reason}</p>
@@ -55,7 +60,7 @@ export default function AttendanceReviewCard({ request, reviewMode, selected, on
         {selectable ? <div className="attendance-review-card-actions">
           <label className="flex cursor-pointer items-start gap-2 text-xs text-on-dim"><input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--brand-solid)]" checked={verified} disabled={busy} onChange={event => setVerified(event.target.checked)} /><span>I checked the evidence and time.</span></label>
           {rejecting && <div><label className="field-label" htmlFor={noteId}>Rejection reason</label><textarea id={noteId} className="field min-h-20 w-full resize-y text-sm" placeholder="At least 5 characters" maxLength={1000} value={note} disabled={busy} onChange={event => setNote(event.target.value)} /></div>}
-          <div className="grid grid-cols-2 gap-2"><Button type="button" size="sm" variant="success" disabled={busy || !verified || conflict} onClick={() => decide("approved")}>Approve</Button><Button type="button" size="sm" variant="danger" disabled={busy || (rejecting && note.trim().length < 5)} onClick={() => rejecting ? decide("rejected") : setRejecting(true)}>{rejecting ? "Confirm reject" : "Reject"}</Button></div>
+          <div className="grid grid-cols-2 gap-2"><Button type="button" size="sm" variant="success" disabled={busy || !verified || conflict || waitingForTimeIn} onClick={() => decide("approved")}>Approve</Button><Button type="button" size="sm" variant="danger" disabled={busy || (rejecting && note.trim().length < 5)} onClick={() => rejecting ? decide("rejected") : setRejecting(true)}>{rejecting ? "Confirm reject" : "Reject"}</Button></div>
           {rejecting && <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setRejecting(false)}>Cancel rejection</Button>}
         </div> : request.status === "pending" && <p className="text-xs text-on-muted">{reviewMode ? "Another authorized reviewer must handle this request." : "Awaiting another reviewer."}</p>}
       </div>

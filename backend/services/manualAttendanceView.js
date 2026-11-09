@@ -5,9 +5,12 @@ const plain = value => value?.toObject ? value.toObject() : { ...value };
 
 function projectManualAttendance(records, requests, { studentId, includeUnrecorded = true } = {}) {
   const pending = new Map();
+  const pendingActions = new Map();
   for (const value of requests || []) {
     if (value.status !== "pending") continue;
     const requestKey = key(value.student || studentId, value.event, value.session);
+    if (!pendingActions.has(requestKey)) pendingActions.set(requestKey, new Set());
+    pendingActions.get(requestKey).add(value.action || "time_in");
     if (!pending.has(requestKey) || value.action === "time_in") pending.set(requestKey, value);
   }
   const seen = new Set();
@@ -23,6 +26,7 @@ function projectManualAttendance(records, requests, { studentId, includeUnrecord
     return {
       ...record,
       manualReviewPending: true,
+      pendingManualActions: [...pendingActions.get(recordKey)],
       manualReviewProvisional: automaticAbsence || pendingExit,
       manualAttendanceRequest: requestInfo(request),
       ...(pendingExit ? { completionStatus: "pending", provisionalHours: provisionalExitHours, communityServiceHours: Math.max(0, (record.communityServiceHours || 0) - provisionalExitHours) } : {}),
@@ -41,6 +45,7 @@ function projectManualAttendance(records, requests, { studentId, includeUnrecord
       attendedAt: request.effectiveAt, createdAt: request.submittedAt,
       verifiedAt: null, communityServiceHours: 0, communityServiceLog: [],
       manualReviewPending: true, manualReviewProvisional: true, provisionalHours: 0,
+      pendingManualActions: [...pendingActions.get(recordKey)],
       manualAttendanceRequest: requestInfo(request),
     });
   }

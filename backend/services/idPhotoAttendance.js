@@ -127,7 +127,7 @@ async function captureTime(user, payload, now = new Date()) {
 }
 async function receipt(request, user, now) {
   // A retry after a successful write must not apply attendance twice.
-  if (request.status === 'pending' && request.captureBasis === 'server') {
+  if (request.status === 'pending' && request.captureBasis === 'server' && id(request.attestedBy) === id(user)) {
     const event = await Event.findById(request.event);
     if (event && signature(event, findSession(event, request.session), request.action || 'time_in') === request.photoScheduleSignature) {
       try { await manual.applyPhoto(user, request._id, now); }
@@ -137,7 +137,7 @@ async function receipt(request, user, now) {
   }
   return { requestId: request._id, status: request.status, attendanceStatus: request.proposedStatus, action: request.action || 'time_in', sessionName: request.sessionName,
     effectiveAt: request.effectiveAt, captureBasis: request.captureBasis,
-    message: request.status === 'approved' ? 'ID-assisted attendance recorded.' : request.status === 'rejected' ? 'This submission was rejected. No new attendance was recorded.' : 'Photo received. Independent review is needed for the capture time, changed event, or conflicting attendance.' };
+    message: request.status === 'approved' ? 'ID-assisted attendance recorded.' : request.status === 'rejected' ? 'This submission was rejected. No new attendance was recorded.' : request.action === 'time_out' ? 'Time Out photo received. If Time In is pending, it must be approved first.' : 'Time In photo received and awaiting review.' };
 }
 async function submit(user, payload, file, now = new Date()) {
   organizer(user);
@@ -160,9 +160,17 @@ async function submit(user, payload, file, now = new Date()) {
   const previous = await Attendance.findOne({ event: event._id, student: student._id, ...(selected ? { session: selected._id } : { session: null }) }).lean();
   if (selected && previous?.status !== 'excused' && previous?.[data.action === 'time_out' ? 'timeOutAt' : 'timeInAt']) {
     if (data.action !== 'time_out' && previous.status !== proposal.proposedStatus) fail(409, 'The existing arrival differs. Use a documented correction.');
-    return { status: 'approved', alreadyRecorded: true, attendanceStatus: previous.status, effectiveAt: previous[data.action === 'time_out' ? 'timeOutAt' : 'timeInAt'], message: 'This session action is already recorded.' };
+    return { status: 'approved', alreadyRecorded: true, action: proposal.action, attendanceStatus: previous.status, effectiveAt: previous[data.action === 'time_out' ? 'timeOutAt' : 'timeInAt'], message: 'This session action is already recorded.' };
   }
   if (selected ? previous?.status === 'excused' : previous?.method === 'face' || ['present', 'late', 'excused'].includes(previous?.status)) fail(409, 'Attendance is already recorded. No photo or duplicate attendance was saved.');
+  const pendingKey = { event: event._id, student: student._id, session: selected?._id || null, status: 'pending',
+    ...(proposal.action === 'time_out' ? { action: 'time_out' } : { $or: [{ action: 'time_in' }, { action: { $exists: false } }] }) };
+  const pendingConflict = () => fail(409, `A ${proposal.action === 'time_out' ? 'Time Out' : 'Time In'} request already awaits review for this student and attendance period.`);
+  if (await Request.exists(pendingKey)) {
+    previousUpload = await Request.findOne({ requestedBy: user._id, clientId: payload.clientId, student: student._id });
+    if (previousUpload) return receipt(previousUpload, user, now);
+    pendingConflict();
+  }
   const buffer = safePhoto(file);
   const digest = crypto.createHash('sha256').update(buffer).digest('hex');
   const reusedPhoto = await Request.exists({ event: event._id, source: 'id_photo', photoDigest: digest, student: { $ne: student._id } });
@@ -179,8 +187,14 @@ async function submit(user, payload, file, now = new Date()) {
     await fileStore.deleteByUrl(saved.url).catch(() => {});
     if (error.code === 11000) {
       previousUpload = await Request.findOne({ requestedBy: user._id, clientId: payload.clientId });
-      if (previousUpload) return receipt(previousUpload, user, now);
-      fail(409, 'A request already awaits review for this student and event.');
+      if (previousUpload) {
+        if (id(previousUpload.student) !== id(student)) fail(409, 'This capture was already used for another student.');
+        return receipt(previousUpload, user, now);
+      }
+      if (await Request.exists(pendingKey)) pendingConflict();
+      if (error.keyPattern?.event && error.keyPattern?.student && !error.keyPattern.session) {
+        fail(503, 'An old database index blocks separate Time In and Time Out requests. Contact the administrator to run the session attendance migration.');
+      }
     }
     throw error;
   }
