@@ -80,6 +80,9 @@ const CheckInKiosk = () => {
   }, [report]);
 
   const [boot, setBoot] = useState("loading"); // loading | ready | error
+  const [startupDetail, setStartupDetail] = useState("Starting face processing…");
+  const [startupError, setStartupError] = useState("");
+  const [slowStartup, setSlowStartup] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [error, setError] = useState("");
   const [station, setStation] = useState(null);
@@ -91,7 +94,7 @@ const CheckInKiosk = () => {
   // ── Station status ─────────────────────────────────────────────────────────
   const refreshStation = useCallback(async () => {
     try {
-      const { data } = await api.get(`/checkin/${token}`);
+      const { data } = await api.get(`/checkin/${token}`, { timeout: 15000 });
       setStation(data);
       stateRef.current = data.state;
       modeRef.current = data.mode;
@@ -115,6 +118,18 @@ const CheckInKiosk = () => {
   // ── Models ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
+    const slowTimer = setTimeout(() => {
+      if (!cancelled) setSlowStartup(true);
+    }, 20000);
+    // Model fetches and backend initialization can remain pending indefinitely.
+    // A late completion must not silently activate a scanner after this deadline.
+    const deadline = setTimeout(() => {
+      if (cancelled) return;
+      cancelled = true;
+      setStartupError("Scanner setup timed out. Check your connection, then reload. If it still cannot start, use manual attendance.");
+      report({ stage: "Scanner startup timed out" });
+      setBoot("error");
+    }, 90000);
     (async () => {
       try {
         try {
@@ -125,6 +140,8 @@ const CheckInKiosk = () => {
           await faceapi.tf.setBackend("cpu");
         }
         await faceapi.tf.ready();
+        if (cancelled) return;
+        setStartupDetail("Downloading face models. The first visit needs about 7 MB.");
         report({ backend: faceapi.tf.getBackend(), stage: "Loading face models" });
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
@@ -132,6 +149,8 @@ const CheckInKiosk = () => {
           faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
         ]);
         if (cancelled) return;
+        clearTimeout(deadline);
+        clearTimeout(slowTimer);
         detectorRef.current = new faceapi.TinyFaceDetectorOptions({
           inputSize: 320,
           scoreThreshold: 0.5,
@@ -142,6 +161,9 @@ const CheckInKiosk = () => {
       } catch (err) {
         console.error("Face models failed to load:", err);
         if (!cancelled) {
+          clearTimeout(deadline);
+          clearTimeout(slowTimer);
+          setStartupError("Face models could not load. Check your connection and reload, or use manual attendance.");
           setBoot("error");
           setError("The face scanner could not start on this device.");
         }
@@ -149,6 +171,8 @@ const CheckInKiosk = () => {
     })();
     return () => {
       cancelled = true;
+      clearTimeout(deadline);
+      clearTimeout(slowTimer);
     };
   }, [report]);
 
@@ -196,6 +220,13 @@ const CheckInKiosk = () => {
       streamRef.current = null;
     };
   }, [cameraNonce]);
+
+  // Permission prompts and camera playback may never resolve on some devices.
+  useEffect(() => {
+    if (cameraReady || cameraError) return undefined;
+    const timer = setTimeout(() => setCameraError("Camera is still not ready. Allow camera access in your browser, close other apps using it, then try again."), 45000);
+    return () => clearTimeout(timer);
+  }, [cameraReady, cameraError, cameraNonce]);
 
   // ── Scan loop ──────────────────────────────────────────────────────────────
   const applyResult = useCallback(
@@ -484,7 +515,7 @@ const CheckInKiosk = () => {
             autoPlay
             playsInline
             muted
-            onPlaying={() => setCameraReady(true)}
+            onPlaying={() => { setCameraReady(true); setCameraError(""); }}
             onWaiting={() => setCameraReady(false)}
             className="aspect-[4/3] w-full scale-x-[-1] object-contain"
           />
@@ -544,7 +575,7 @@ const CheckInKiosk = () => {
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#070b12]/95 px-6 text-center">
               <FaExclamationTriangle className="text-3xl text-amber-400" />
               <p className="text-xl font-semibold">Face scanner unavailable</p>
-              <p className="text-sm text-white/65">Reload to retry, or ask the organizer for manual attendance.</p>
+              <p className="max-w-md text-sm text-white/65">{startupError}</p>
               <button type="button" onClick={() => window.location.reload()} className="rounded-xl bg-brand px-4 py-2">Reload scanner</button>
             </div>
           )}
@@ -552,7 +583,8 @@ const CheckInKiosk = () => {
             <div role="status" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#070b12]/90 px-5 text-center">
               <TrackMark className="h-10 w-10 animate-pulse text-brand" />
               <p className="text-base font-semibold">Please wait while the face scanner gets ready.</p>
-              <p className="text-sm text-white/70">This may take a moment.</p>
+              <p className="max-w-md text-sm text-white/70">{boot === "loading" ? startupDetail : !station ? "Connecting to the attendance station…" : "Waiting for the camera. Allow camera access in your browser."}</p>
+              {slowStartup && <p className="max-w-md text-sm text-amber-200">Taking longer than usual. Keep this tab open and check your internet connection.</p>}
             </div>
           )}
 
