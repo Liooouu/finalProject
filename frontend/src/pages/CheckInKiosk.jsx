@@ -13,6 +13,7 @@ import {
 import api from "../api/axios";
 import { formatDateTime } from "../utils/helpers";
 import TrackMark from "../components/shared/TrackMark";
+import ScannerDiagnostics from "../components/shared/ScannerDiagnostics";
 import { faceScanIssue } from "../utils/faceScanQuality";
 import { canPairFaceScans, faceScanSize, MAX_SCAN_PAIR_AGE_MS } from "../utils/faceScanPair";
 
@@ -57,6 +58,26 @@ const CheckInKiosk = () => {
   const frameRef = useRef(null);
   const probeRef = useRef(null);
   const qualityRef = useRef(null);
+  const diagnosticsRef = useRef({ stage: "Starting scanner" });
+  const unknownCountRef = useRef(0);
+  const compatibilityRef = useRef(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const report = useCallback(value => { diagnosticsRef.current = { ...diagnosticsRef.current, ...value }; }, []);
+  const tryCompatibility = useCallback(async () => {
+    if (compatibilityRef.current || faceapi.tf.getBackend() === "cpu") return false;
+    compatibilityRef.current = true;
+    probeRef.current = null;
+    report({ stage: "Switching to CPU compatibility mode" });
+    try {
+      if (!await faceapi.tf.setBackend("cpu")) throw new Error("CPU backend unavailable");
+      await faceapi.tf.ready();
+      report({ backend: "cpu", stage: "Compatibility mode ready; waiting for two new scans" });
+      return true;
+    } catch {
+      report({ stage: "Compatibility mode unavailable" });
+      return false;
+    }
+  }, [report]);
 
   const [boot, setBoot] = useState("loading"); // loading | ready | error
   const [cameraError, setCameraError] = useState("");
@@ -104,6 +125,7 @@ const CheckInKiosk = () => {
           await faceapi.tf.setBackend("cpu");
         }
         await faceapi.tf.ready();
+        report({ backend: faceapi.tf.getBackend(), stage: "Loading face models" });
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
           faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
@@ -116,6 +138,7 @@ const CheckInKiosk = () => {
         });
         modelsRef.current = true;
         setBoot("ready");
+        report({ stage: "Waiting for a clear face" });
       } catch (err) {
         console.error("Face models failed to load:", err);
         if (!cancelled) {
@@ -127,7 +150,7 @@ const CheckInKiosk = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [report]);
 
   // ── Camera ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -176,10 +199,12 @@ const CheckInKiosk = () => {
 
   // ── Scan loop ──────────────────────────────────────────────────────────────
   const applyResult = useCallback(
-    (data) => {
+    async (data) => {
       holdUntilRef.current = Date.now() + SCAN_RESULT_PAUSE_MS;
+      report({ stage: "Face-match response received", serverResult: data?.result || "No result", reason: "", serverReason: "" });
 
       if (data?.ok && data.result === "marked") {
+        unknownCountRef.current = 0;
         showResult({
           kind: data.status === "late" ? "late" : "ok",
           name: data.student?.name || "Student",
@@ -203,6 +228,11 @@ const CheckInKiosk = () => {
       }
 
       if (data?.result === "unknown" || data?.result === "not-enrolled") {
+        report({ serverReason: data.result === "unknown" ? "The scans did not meet the enrolled-face matching threshold." : "The enrollment is no longer active or has changed." });
+        if (data.result === "unknown" && ++unknownCountRef.current >= 3 && await tryCompatibility()) {
+          showResult({ kind: "info", name: "Compatibility mode", meta: "Trying a different processing mode. Look straight at the camera." });
+          return;
+        }
         showResult({
           kind: "warn",
           name: "Face not recognised",
@@ -252,7 +282,7 @@ const CheckInKiosk = () => {
         });
       }
     },
-    [refreshStation, showResult]
+    [refreshStation, showResult, report, tryCompatibility]
   );
 
   const scanOnce = useCallback(async () => {
@@ -266,11 +296,13 @@ const CheckInKiosk = () => {
     busyRef.current = true;
     const capturedAt = Date.now();
     const capturedState = stateRef.current, capturedMode = modeRef.current;
+    let submitting = false;
     let input;
     try {
       // Keep detection and face alignment on the same frame as the student moves.
       const frame = (frameRef.current ??= document.createElement("canvas"));
       const size = faceScanSize(video.videoWidth, video.videoHeight);
+      report({ stage: "Detecting face", frame: `${size.width} × ${size.height}` });
       if (frame.width !== size.width || frame.height !== size.height) {
         frame.width = size.width;
         frame.height = size.height;
@@ -290,7 +322,7 @@ const CheckInKiosk = () => {
           meta: "Only the student checking in should be visible to the camera." });
         return;
       }
-      if (!detections.length) { probeRef.current = null; return; }
+      if (!detections.length) { probeRef.current = null; report({ stage: "No face detected", reason: "Face the camera in even lighting." }); return; }
       const quality = (qualityRef.current ??= document.createElement("canvas"));
       quality.width = 32; quality.height = 32;
       const context = quality.getContext("2d", { willReadFrequently: true });
@@ -300,13 +332,14 @@ const CheckInKiosk = () => {
       let brightness = 0;
       for (let i = 0; i < pixels.length; i += 4) brightness += 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
       const issue = faceScanIssue(detections[0], frame.width, frame.height, brightness / 1024);
-      if (issue) { probeRef.current = null; showResult({ kind: "info", name: "Adjust your position", meta: issue }); return; }
+      if (issue) { probeRef.current = null; report({ stage: "Image-quality check stopped the scan", reason: issue }); showResult({ kind: "info", name: "Adjust your position", meta: issue }); return; }
 
       // Reuse the single detected face and run the same full landmark and
       // recognition models as before. Crowded frames need neither model.
       const landmarks = new faceapi.DetectAllFaceLandmarksTask(
         Promise.resolve([{ detection: detections[0] }]), input, false
       );
+      report({ stage: "Processing face signature", reason: "" });
       const [match] = await landmarks.withFaceDescriptors();
       if (!match?.descriptor || capturedState !== stateRef.current || capturedMode !== modeRef.current || !["open", "late"].includes(stateRef.current)) { probeRef.current = null; return; }
 
@@ -315,15 +348,22 @@ const CheckInKiosk = () => {
       const current = { descriptor, at: capturedAt, token, state: capturedState, mode: capturedMode };
       probeRef.current = current;
       if (!canPairFaceScans(previous, current) || Date.now() - capturedAt > MAX_SCAN_PAIR_AGE_MS) {
+        report({ stage: "Waiting for a second fresh scan" });
         showResult({ kind: "info", name: "Hold still—confirming your face", meta: "Keep looking at the camera for one more scan." });
         return;
       }
       probeRef.current = null;
+      submitting = true;
+      report({ stage: "Sending face-match POST" });
       const { data } = await api.post(`/checkin/${token}`, { descriptors: [previous.descriptor, descriptor] });
-      applyResult(data);
+      await applyResult(data);
     } catch (err) {
       probeRef.current = null;
-      if (err.response?.status === 429) {
+      if (!submitting) {
+        report({ stage: "Local face processing failed", reason: "The camera/model processing failed before a request could be sent." });
+        if (await tryCompatibility()) showResult({ kind: "info", name: "Compatibility mode", meta: "Look at the camera while the scanner retries." });
+        else showResult({ kind: "warn", name: "Scanner processing failed", meta: "Reload this station or use supervised manual attendance." });
+      } else if (err.response?.status === 429) {
         holdUntilRef.current = Date.now() + 3000;
         showResult({
           kind: "warn",
@@ -334,6 +374,7 @@ const CheckInKiosk = () => {
         holdUntilRef.current = Date.now() + 1500;
         showResult({ kind: "warn", name: "Please retry the scan", meta: err.response?.data?.error || "Hold still and look at the camera." });
       } else if (!err.response) {
+        report({ stage: "Face-match request could not reach the server", reason: "Connection failure after sending the request." });
         setError("Connection lost. Reconnecting…");
       } else {
         console.error("Check-in scan failed:", err);
@@ -342,7 +383,7 @@ const CheckInKiosk = () => {
       input?.dispose();
       busyRef.current = false;
     }
-  }, [applyResult, token, showResult]);
+  }, [applyResult, token, showResult, report, tryCompatibility]);
 
   useEffect(() => {
     if (boot !== "ready") return undefined;
@@ -584,6 +625,10 @@ const CheckInKiosk = () => {
           Only a mathematical face signature is sent to TrackED — no photo leaves this device.
           If the scanner cannot recognise you, ask the organizer to mark you manually.
         </p>
+        <details className="rounded-xl border border-white/10 px-4 py-3" onToggle={event => setDiagnosticsOpen(event.currentTarget.open)}>
+          <summary className="cursor-pointer text-xs font-medium text-white/60">Scanner status</summary>
+          {diagnosticsOpen && <ScannerDiagnostics statusRef={diagnosticsRef} />}
+        </details>
       </main>
     </div>
   );

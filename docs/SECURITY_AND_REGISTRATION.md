@@ -122,6 +122,16 @@ None of these changes raises the identification threshold or resolves an
 ambiguous/lookalike identity by guessing. Local controlled checks do not prove
 that every venue face or device will be recognized.
 
+After three unknown results on WebGL, the kiosk tries CPU compatibility mode
+once and discards the previous probe. Local inference exceptions can trigger
+the same fallback. This is an alternate computation backend, not a relaxed
+identity decision: both new probes must still pass unchanged server checks.
+An inference exception is reported separately from an HTTP connection failure.
+The collapsed Scanner status panel shows operational stages and the last
+server result. Its copy action contains no image, descriptor, student identity,
+URL, station token or credential. It does not prove the underlying cause of a
+live unknown match; use the affected enrollment and venue device to validate.
+
 ## Eligibility and deletion
 
 Graduated and explicitly unverified students are excluded from new automatic
