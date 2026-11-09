@@ -108,16 +108,18 @@ async function apply({ event, session, student, action, now = new Date(), method
     if (finalizing && existing?.status === 'excused') return { ok: false, reason: 'already', attendance: existing };
     if (existing?.status === 'excused') fail(409, 'An approved excuse protects this session. Review the excuse before changing attendance.');
     if (review && existing?.manualAttendanceAudit?.some(item => id(item.request) === id(review.request))) return { ok: true, attendance: existing, status: existing.status, hours: existing.communityServiceHours, action };
-    if (finalizing && existing && (existing.timeOutAt || (existing.timeInAt && +now <= +new Date(session.timeOutClose)))) return { ok: false, reason: 'already', attendance: existing };
+    if (finalizing && existing?.timeInAt && (existing.timeOutAt || +now <= +new Date(session.timeOutClose))) return { ok: false, reason: 'already', attendance: existing };
     if (review?.mode === 'correction' && existing?.method === 'face' && !(action === 'time_out' && !existing.timeOutAt)) fail(409, 'Face-verified attendance cannot be overwritten by a correction.');
-    if (review?.mode === 'correction' && existing && existing.method !== 'auto' && review.expectedUpdatedAt !== (existing.updatedAt ? new Date(existing.updatedAt).toISOString() : null)) fail(409, 'Attendance changed after this correction was submitted.');
+    // An approved exit can arrive while a correction for the missing entry is pending.
+    const fillsMissingEntry = action === 'time_in' && !existing?.timeInAt && !!existing?.timeOutAt;
+    if (review?.mode === 'correction' && existing && existing.method !== 'auto' && !fillsMissingEntry && review.expectedUpdatedAt !== (existing.updatedAt ? new Date(existing.updatedAt).toISOString() : null)) fail(409, 'Attendance changed after this correction was submitted.');
     const field = action === 'time_out' ? 'timeOutAt' : 'timeInAt';
     if (!finalizing && action !== 'absent' && existing?.[field]) {
       if (!review || review.mode !== 'correction') return { ok: false, reason: 'already', attendance: existing };
       if (existing.method === 'face') fail(409, 'Face-verified actions cannot be overwritten by an attendance request.');
       if (review.expectedUpdatedAt !== (existing.updatedAt ? new Date(existing.updatedAt).toISOString() : null)) fail(409, 'Attendance changed after this correction was submitted. Refresh and submit a new correction.');
     }
-    if (action === 'time_out' && !existing?.timeInAt) return { ok: false, reason: 'no_time_in', message: 'Time In not confirmed. Ask the organizer to check your arrival record, then scan Time Out again.' };
+    if (action === 'time_out' && !existing?.timeInAt && !review?.allowExitOnly) return { ok: false, reason: 'no_time_in', message: 'Time In not confirmed. This Time Out needs independent review.' };
     const timeInAt = action === 'time_in' && !finalizing ? now : existing?.timeInAt || null;
     const timeOutAt = action === 'time_out' ? now : existing?.timeOutAt || null;
     if (action === 'absent' && existing?.timeInAt && !review && !finalizing) return { ok: false, reason: 'already', attendance: existing };
@@ -179,7 +181,7 @@ async function finalize(event, now = new Date()) {
     const existing = new Map(rows.map(row => [id(row.student), row]));
     for (const student of session.eligibleStudents || []) {
       const record = existing.get(id(student));
-      if (deleted.has(id(student)) || record?.status === 'excused' || record?.timeOutAt) continue;
+      if (deleted.has(id(student)) || record?.status === 'excused' || (record?.timeInAt && record.timeOutAt)) continue;
       if (+now <= +new Date(session.timeOutClose)) {
         // Reconcile only premature automatic absence from the old cutoff rule.
         // apply() records the delta and preserves existing staff balance changes.

@@ -53,6 +53,8 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
       const row = await Attendance.findOne({ session: event.attendanceSessions[0]._id }).lean();
       assert.equal(row.communityServiceHours, hours);
       assert.equal(row.sessionPenaltyHours, hours);
+      assert.equal(row.communityServiceLog.filter(item => item.action === 'penalty')
+        .reduce((total, item) => total + item.hours, 0), hours);
     }
   });
   test('premature automatic absence is reversed while exit is open, then finalized once at exit close', async () => {
@@ -81,18 +83,23 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
     assert.equal(reviewed.hours, 1); assert.equal(reviewed.attendance.completionStatus, 'completed');
     assert.equal(+reviewed.attendance.timeInAt, +at('08:45:00'));
   });
-  test('an offline exit stays pending until its entry is confirmed, including next-day review', async () => {
+  test('an independent reviewer can confirm an exit alone, and a later entry reconciles its absence', async () => {
     const base = { event: event._id, session: event.attendanceSessions[0]._id, sessionName: 'Morning', student: student._id, requestedBy: organizer._id, source: 'id_photo', mode: 'checkin', reason: 'Offline ID capture', identityChecked: true, captureBasis: 'device', submittedAt: at('12:10:00'), proposedHours: 0, status: 'pending', schedule: { start: at('08:00:00'), deadline: at('08:30:00'), cutoff: at('12:00:00') } };
-    const exit = await Request.create({ ...base, action: 'time_out', proposedStatus: 'time_out', effectiveAt: at('11:30:00') });
+    const exit = await Request.create({ ...base, submittedAt: at('11:35:00'), action: 'time_out', proposedStatus: 'time_out', effectiveAt: at('11:30:00') });
     const later = new Date('2026-11-09T20:00:00+08:00');
     const review = manual.createService({ Request, Attendance, Event, User, notifyUsers: async () => {} });
-    const listedExit = async () => (await review.list(admin, { limit: 1 })).requests[0];
-    assert.equal((await listedExit()).timeInReviewState, 'missing');
-    await assert.rejects(review.reviewOne(admin, String(exit._id), 'approved', '', later), /no confirmed Time In or pending Time In/);
-    const entry = await Request.create({ ...base, submittedAt: at('12:09:00'), action: 'time_in', proposedStatus: 'present', effectiveAt: at('08:10:00') });
-    assert.equal((await listedExit()).timeInReviewState, 'pending');
-    await assert.rejects(review.reviewOne(admin, String(exit._id), 'approved', '', later), /Time In awaits review/);
-    assert.equal((await Request.findById(exit._id)).status, 'pending');
+    assert.equal((await mark('time_out', '11:30:00')).reason, 'no_time_in');
+    await review.reviewOne(admin, String(exit._id), 'approved', '', at('11:45:00'));
+    const pair = { session: base.session, student: base.student };
+    const open = await Attendance.findOne(pair).lean();
+    assert.equal(open.status, 'pending'); assert.equal(open.communityServiceHours, 0);
+    assert.equal(open.timeInAt, null); assert.equal(+open.timeOutAt, +at('11:30:00'));
+    await service.finalize(event, at('12:01:00'));
+    await service.finalize(event, at('12:02:00'));
+    const closed = await Attendance.findOne(pair).lean();
+    assert.equal(closed.status, 'absent'); assert.equal(closed.communityServiceHours, 8);
+    assert.equal(+closed.timeOutAt, +at('11:30:00'));
+    const entry = await Request.create({ ...base, mode: 'correction', action: 'time_in', proposedStatus: 'present', effectiveAt: at('08:10:00') });
     await review.reviewOne(admin, String(entry._id), 'approved', '', later);
     await review.reviewOne(admin, String(exit._id), 'approved', '', later);
     const row = await Attendance.findOne().lean();

@@ -30,7 +30,7 @@ export function attendanceCompletion(record) {
 export function attendancePenaltyLabel(record) {
   if (!record) return 'No attendance recorded yet.';
   if (record.status === 'excused') return 'Approved excuse: 0 penalty hours';
-  if (record.status === 'absent') return 'Absent: 8 penalty hours';
+  if (record.status === 'absent') return record.session ? 'No valid Time In: 8 penalty hours' : 'Absent: 8 penalty hours';
   // Legacy Time In-only records predate arrival/completion fields.
   if (!record.session) return record.status === 'late' ? 'Late check-in: 4 penalty hours' : record.status === 'present' ? 'Present: 0 penalty hours' : '';
   if (record.completionStatus === 'incomplete') {

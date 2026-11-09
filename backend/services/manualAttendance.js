@@ -5,7 +5,6 @@ const { isActiveStudent } = require("./studentEligibility");
 
 const idOf = value => String(value?._id || value || "");
 const sessionKey = ({ event, student, session }) => [event, student, session].map(idOf).join(":");
-const pendingArrival = { status: "pending", action: "time_in", proposedStatus: { $in: ["present", "late"] } };
 const plain = value => value?.toObject ? value.toObject() : value;
 const baseHours = status => status === "absent" ? 8 : status === "late" ? 4 : 0;
 const attendanceSummary = record => record ? { attendance: record._id, status: record.status, method: record.method,
@@ -130,23 +129,15 @@ function createService(deps) {
     const attendance = pairs.length ? await Attendance.find({ $or: pairs })
       .select("event session student status method attendedAt timeInAt timeOutAt completionStatus arrivalStatus sessionPenaltyHours sessionName communityServiceHours").lean() : [];
     const existing = new Map(attendance.map(record => [sessionKey(record), record]));
-    const missingArrivals = requests.filter(row => row.status === "pending" && row.session && row.action === "time_out" &&
-      row.event && row.student && !existing.get(sessionKey(row))?.timeInAt);
-    const arrivals = missingArrivals.length ? await Request.find({ ...pendingArrival, $or: missingArrivals.map(row => ({
-      event: row.event._id, student: row.student._id, session: row.session,
-    })) }).select("event student session").lean() : [];
-    const arrivalKeys = new Set(arrivals.map(sessionKey));
     return { requests: requests.map(request => {
       const key = sessionKey(request);
       const current = existing.get(key);
-      const timeInNeeded = request.status === "pending" && request.session && request.action === "time_out" && !current?.timeInAt;
       const session = request.event?.attendanceSessions?.find(row => idOf(row) === idOf(request.session));
       const forecast = session && request.status === 'pending' ? require('./penaltyCalc').classify({ session,
         timeInAt: request.proposedStatus === 'absent' ? null : request.action === 'time_out' ? current?.timeInAt : request.effectiveAt,
         timeOutAt: request.proposedStatus === 'absent' ? null : request.action === 'time_out' ? request.effectiveAt : current?.timeOutAt,
         now: new Date() }) : null;
-      return { ...publicRow(request, user), ...(forecast ? { proposedHours: forecast.hours, projectedCompletion: forecast.completionStatus } : {}), currentAttendance: attendanceSummary(current),
-        ...(timeInNeeded ? { timeInReviewState: arrivalKeys.has(key) ? "pending" : "missing" } : {}) };
+      return { ...publicRow(request, user), ...(forecast ? { proposedHours: forecast.hours, projectedCompletion: forecast.completionStatus } : {}), currentAttendance: attendanceSummary(current) };
     }), total, page, pageSize };
 
   }
@@ -238,13 +229,7 @@ function createService(deps) {
           method: request.source === "id_photo" ? "id_photo" : "manual",
           review: { request: request._id, requestedBy: request.requestedBy, reviewedBy: reviewerId,
             submittedAt: request.submittedAt, reviewedAt: now, reason: request.reason, note, mode: request.mode,
-            expectedUpdatedAt: request.previousAttendance?.updatedAt ?? null } });
-        if (outcome.reason === "no_time_in") {
-          const entry = await Request.exists({ ...pendingArrival, event: request.event, student: request.student, session: request.session });
-          fail(409, entry
-            ? "Time In awaits review for this day. Approve it first, then approve the saved Time Out."
-            : "There is no confirmed Time In or pending Time In request for this day. Ask the organizer to submit a documented Time In correction if there is arrival evidence.");
-        }
+            expectedUpdatedAt: request.previousAttendance?.updatedAt ?? null, allowExitOnly: !directPhoto } });
         if (!outcome.ok && outcome.reason !== "already") fail(409, outcome.message || "This attendance action cannot be applied yet.");
         const existing = outcome.attendance;
         if (outcome.reason === "already" && action === "time_in" && existing.status !== request.proposedStatus) fail(409, "The existing session arrival differs from this request. No attendance was changed.");

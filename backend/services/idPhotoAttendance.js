@@ -137,7 +137,7 @@ async function receipt(request, user, now) {
   }
   return { requestId: request._id, status: request.status, attendanceStatus: request.proposedStatus, action: request.action || 'time_in', sessionName: request.sessionName,
     effectiveAt: request.effectiveAt, captureBasis: request.captureBasis,
-    message: request.status === 'approved' ? 'ID-assisted attendance recorded.' : request.status === 'rejected' ? 'This submission was rejected. No new attendance was recorded.' : request.action === 'time_out' ? 'Time Out photo received. If Time In is pending, it must be approved first.' : 'Time In photo received and awaiting review.' };
+    message: request.status === 'approved' ? 'ID-assisted attendance recorded.' : request.status === 'rejected' ? 'This submission was rejected. No new attendance was recorded.' : request.action === 'time_out' ? 'Time Out photo received and awaiting independent review.' : 'Time In photo received and awaiting review.' };
 }
 async function submit(user, payload, file, now = new Date()) {
   organizer(user);

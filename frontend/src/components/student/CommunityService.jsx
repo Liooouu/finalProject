@@ -14,7 +14,7 @@ import Pagination from "../ui/Pagination";
 import StablePage from "../ui/StablePage";
 import { usePageMeta } from "../../context/PageMetaContext";
 
-import { BaseCard, Card, FlightPanel, PageHeader, StatusChip } from "../ui";
+import { BaseCard, Card, FlightPanel, PageHeader } from "../ui";
 import { readScreen, writeScreen } from "../../utils/queryCache";
 import ManualAttendanceHistory from "./ManualAttendanceHistory";
 
@@ -154,27 +154,27 @@ const CommunityService = () => {
 
       <BaseCard
         title="Penalty guide"
-        description="How each attendance status affects your hours."
+        description="Community service hours for each required attendance session."
         icon={<FaBook />}
       >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <dl className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {[
-            { status: "present", hours: "0 hours", copy: "No adjustment" },
-            { status: "late", hours: "4 hours", copy: "Added to your total" },
-            { status: "absent", hours: "8 hours", copy: "Added to your total" },
+            { label: "On-time Time In and valid Time Out", hours: 0 },
+            { label: "Late Time In and valid Time Out", hours: 4 },
+            { label: "On-time Time In and missing Time Out", hours: 2 },
+            { label: "Late Time In and missing Time Out", hours: 6 },
+            { label: "No valid Time In, even with an approved Time Out", hours: 8 },
           ].map((item) => (
             <div
-              key={item.status}
+              key={item.label}
               className="student-card flex items-center justify-between gap-3 rounded-xl border border-line bg-card-alt/40 p-3.5"
             >
-              <StatusChip status={item.status} />
-              <div className="text-right">
-                <p className="num text-sm font-semibold text-on">{item.hours}</p>
-                <p className="text-[11px] text-on-muted">{item.copy}</p>
-              </div>
+              <dt className="text-sm text-on">{item.label}</dt>
+              <dd className="num shrink-0 text-sm font-semibold text-on">{item.hours} hours</dd>
             </div>
           ))}
-        </div>
+        </dl>
+        <p className="mt-3 text-xs text-on-muted">Missing attendance is finalized after the Time Out window closes. Older events marked “Time In only” use 0 hours for Present, 4 for Late, and 8 for Absent.</p>
       </BaseCard>
     </div>
   );
