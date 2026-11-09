@@ -17,6 +17,7 @@ const { activeStudentFilter, isActiveStudent } = require("./studentEligibility")
 
 const DESCRIPTOR_LENGTH = 128;
 const INDEX_MAX_AGE_MS = 5 * 60 * 1000;
+const MISS_REFRESH_MS = 10000;
 
 // Two probes captured a few hundred milliseconds apart are only required to be
 // the same face, not a bit-identical frame. Consecutive webcam frames of one
@@ -37,6 +38,9 @@ const margin = () => safeSetting("FACE_IDENTIFY_MARGIN", 0.10, 0.10, 1);
 let index = new Map();
 let loadedAt = 0;
 let refreshPromise = null;
+let pendingChanges = null;
+let lastMissRefresh = 0;
+let generation = 0;
 
 function toEntry(user) {
   return {
@@ -51,27 +55,42 @@ function toEntry(user) {
 }
 
 async function refresh() {
-  const users = await User.find({
-    ...activeStudentFilter(),
-    faceEnrolledAt: { $ne: null },
-    faceConsentAt: { $ne: null },
-    "faceDescriptor.127": { $exists: true },
-  })
-    .select("_id name program yearLevel section faceDescriptor faceEnrollmentVersion")
-    .lean();
+  if (refreshPromise) return refreshPromise;
+  const changes = new Map();
+  const startedGeneration = generation;
+  pendingChanges = changes;
+  refreshPromise = (async () => {
+    const users = await User.find({
+      ...activeStudentFilter(),
+      faceEnrolledAt: { $ne: null },
+      faceConsentAt: { $ne: null },
+      "faceDescriptor.127": { $exists: true },
+    })
+      .select("_id name program yearLevel section faceDescriptor faceEnrollmentVersion")
+      .lean();
 
-  const next = new Map();
-  for (const user of users) {
-    if (!Array.isArray(user.faceDescriptor) || user.faceDescriptor.length !== DESCRIPTOR_LENGTH) {
-      continue;
+    const next = new Map();
+    for (const user of users) {
+      if (!Array.isArray(user.faceDescriptor) || user.faceDescriptor.length !== DESCRIPTOR_LENGTH) {
+        continue;
+      }
+      if (!user.faceDescriptor.every((n) => Number.isFinite(n))) continue;
+      next.set(String(user._id), toEntry(user));
     }
-    if (!user.faceDescriptor.every((n) => Number.isFinite(n))) continue;
-    next.set(String(user._id), toEntry(user));
-  }
 
-  index = next;
-  loadedAt = Date.now();
-  return index.size;
+    // An enrollment/reset can finish while this database read is in flight.
+    // Never replace that newer local state with the older query snapshot.
+    for (const [id, entry] of changes) {
+      if (entry) {
+        if (entry.enrollmentVersion >= (next.get(id)?.enrollmentVersion || 0)) next.set(id, entry);
+      } else next.delete(id);
+    }
+    if (startedGeneration !== generation) return index.size;
+    index = next;
+    loadedAt = Date.now();
+    return index.size;
+  })().finally(() => { pendingChanges = null; refreshPromise = null; });
+  return refreshPromise;
 }
 
 // Reload when the cache is older than five minutes. Enrollments also call
@@ -79,10 +98,7 @@ async function refresh() {
 async function ensureFresh() {
   if (loadedAt && Date.now() - loadedAt < INDEX_MAX_AGE_MS) return index.size;
   if (refreshPromise) return refreshPromise;
-  refreshPromise = refresh().finally(() => {
-    refreshPromise = null;
-  });
-  return refreshPromise;
+  return refresh();
 }
 
 function upsert(user) {
@@ -90,12 +106,15 @@ function upsert(user) {
   if (!isActiveStudent(user) || !user.faceEnrolledAt || !user.faceConsentAt) return remove(user._id);
   if (user.faceDescriptor.length !== DESCRIPTOR_LENGTH) return remove(user._id);
   if (!user.faceDescriptor.every((n) => Number.isFinite(n))) return remove(user._id);
-  index.set(String(user._id), toEntry(user));
+  const id = String(user._id), entry = toEntry(user);
+  index.set(id, entry);
+  pendingChanges?.set(id, entry);
 }
 
 function remove(userId) {
   if (!userId) return;
   index.delete(String(userId));
+  pendingChanges?.set(String(userId), null);
 }
 
 function distance(a, b) {
@@ -125,7 +144,10 @@ async function identify(descriptor) {
     return { result: "invalid" };
   }
   await ensureFresh();
+  return identifyCurrent(descriptor);
+}
 
+function identifyCurrent(descriptor) {
   if (index.size === 0) return { result: "empty" };
 
   const probe = Float64Array.from(descriptor);
@@ -176,9 +198,22 @@ async function identify(descriptor) {
 async function identifyBatch(descriptors) {
   if (!Array.isArray(descriptors) || descriptors.length !== 2 || !descriptors.every(isValidDescriptor)) return { result: "invalid" };
   if (distance(descriptors[0], descriptors[1]) > MAX_PROBE_DRIFT) return { result: "unstable" };
-  const first = await identify(descriptors[0]);
+  await ensureFresh();
+  let result = identifyPair(descriptors);
+  // Another API process may have saved a new enrollment. Refresh on a miss,
+  // with a shared cooldown so a busy camera cannot trigger a query per frame.
+  if (["unknown", "empty"].includes(result.result) && (!lastMissRefresh || Date.now() - lastMissRefresh >= MISS_REFRESH_MS)) {
+    lastMissRefresh = Date.now();
+    await refresh();
+    result = identifyPair(descriptors);
+  }
+  return result;
+}
+
+function identifyPair(descriptors) {
+  const first = identifyCurrent(descriptors[0]);
   if (first.result !== "match") return first;
-  const second = await identify(descriptors[1]);
+  const second = identifyCurrent(descriptors[1]);
   if (second.result !== "match") return second;
   if (first.student.id !== second.student.id || first.student.enrollmentVersion !== second.student.enrollmentVersion) return { result: "ambiguous" };
   return { ...second, distance: Math.max(first.distance, second.distance) };
@@ -189,8 +224,10 @@ function size() {
 }
 
 function clear() {
+  generation++;
   index = new Map();
   loadedAt = 0;
+  lastMissRefresh = 0;
 }
 
 module.exports = {

@@ -106,6 +106,22 @@ automatic matches. Check that each account has the correct enrolled identity;
 a face enrolled under the wrong account cannot be reliably repaired by changing
 distance limits. Existing incorrect attendance is not automatically reassigned.
 
+The kiosk now requests the same 640×480 camera size as camera enrollment and
+bounds inference frames to a 640-pixel longest edge without stretching. Its
+contained preview shows the whole camera frame rather than cropping a 16:9
+camera into a 4:3 view. Two distinct captures can pair within 15 seconds to allow
+slower inference, but never across station, window-state or Time In/Out mode
+changes. Both descriptors still pass all server identity and drift checks.
+
+The face index keeps its periodic refresh and additionally reloads on an
+unknown/empty batch result, with a shared 10-second miss-refresh cooldown.
+This discovers enrollments saved by another API process without querying the
+directory on every camera frame. An in-flight index read preserves newer local
+enrollments and resets instead of overwriting them with its earlier snapshot.
+None of these changes raises the identification threshold or resolves an
+ambiguous/lookalike identity by guessing. Local controlled checks do not prove
+that every venue face or device will be recognized.
+
 ## Eligibility and deletion
 
 Graduated and explicitly unverified students are excluded from new automatic

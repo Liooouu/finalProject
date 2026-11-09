@@ -14,6 +14,7 @@ import api from "../api/axios";
 import { formatDateTime } from "../utils/helpers";
 import TrackMark from "../components/shared/TrackMark";
 import { faceScanIssue } from "../utils/faceScanQuality";
+import { canPairFaceScans, faceScanSize, MAX_SCAN_PAIR_AGE_MS } from "../utils/faceScanPair";
 
 // Same face-recognition models used for enrollment, served as static assets so the
 // kiosk works on the venue's LAN without hitting the API for model files.
@@ -51,6 +52,7 @@ const CheckInKiosk = () => {
   const busyRef = useRef(false);
   const holdUntilRef = useRef(0);
   const stateRef = useRef("before");
+  const modeRef = useRef(null);
   const detectorRef = useRef(null);
   const frameRef = useRef(null);
   const probeRef = useRef(null);
@@ -71,6 +73,7 @@ const CheckInKiosk = () => {
       const { data } = await api.get(`/checkin/${token}`);
       setStation(data);
       stateRef.current = data.state;
+      modeRef.current = data.mode;
       setError("");
     } catch (err) {
       stateRef.current = "unavailable";
@@ -138,8 +141,8 @@ const CheckInKiosk = () => {
         const media = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: "user",
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            width: { ideal: 640 },
+            height: { ideal: 480 },
           },
           audio: false,
         });
@@ -261,15 +264,18 @@ const CheckInKiosk = () => {
     if (!video || video.readyState < 2 || !video.videoWidth) return;
 
     busyRef.current = true;
+    const capturedAt = Date.now();
+    const capturedState = stateRef.current, capturedMode = modeRef.current;
     let input;
     try {
       // Keep detection and face alignment on the same frame as the student moves.
       const frame = (frameRef.current ??= document.createElement("canvas"));
-      if (frame.width !== video.videoWidth || frame.height !== video.videoHeight) {
-        frame.width = video.videoWidth;
-        frame.height = video.videoHeight;
+      const size = faceScanSize(video.videoWidth, video.videoHeight);
+      if (frame.width !== size.width || frame.height !== size.height) {
+        frame.width = size.width;
+        frame.height = size.height;
       }
-      frame.getContext("2d").drawImage(video, 0, 0);
+      frame.getContext("2d").drawImage(video, 0, 0, frame.width, frame.height);
       // Enrollment descriptors are built on the server from a pixel tensor
       // (float face box + cropAndResize). A canvas input takes a different
       // extraction path (integer box + drawImage) and lands ~0.06 away from the
@@ -302,12 +308,13 @@ const CheckInKiosk = () => {
         Promise.resolve([{ detection: detections[0] }]), input, false
       );
       const [match] = await landmarks.withFaceDescriptors();
-      if (!match?.descriptor || !["open", "late"].includes(stateRef.current)) return;
+      if (!match?.descriptor || capturedState !== stateRef.current || capturedMode !== modeRef.current || !["open", "late"].includes(stateRef.current)) { probeRef.current = null; return; }
 
       const descriptor = Array.from(match.descriptor);
       const previous = probeRef.current;
-      probeRef.current = { descriptor, at: Date.now(), token, state: stateRef.current };
-      if (!previous || previous.token !== token || previous.state !== stateRef.current || Date.now() - previous.at > 3000) {
+      const current = { descriptor, at: capturedAt, token, state: capturedState, mode: capturedMode };
+      probeRef.current = current;
+      if (!canPairFaceScans(previous, current) || Date.now() - capturedAt > MAX_SCAN_PAIR_AGE_MS) {
         showResult({ kind: "info", name: "Hold still—confirming your face", meta: "Keep looking at the camera for one more scan." });
         return;
       }
@@ -438,7 +445,7 @@ const CheckInKiosk = () => {
             muted
             onPlaying={() => setCameraReady(true)}
             onWaiting={() => setCameraReady(false)}
-            className="aspect-[4/3] w-full scale-x-[-1] object-cover"
+            className="aspect-[4/3] w-full scale-x-[-1] object-contain"
           />
 
           {/* Corner brackets make the framing obvious on a kiosk screen. */}

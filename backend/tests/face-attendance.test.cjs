@@ -96,8 +96,12 @@ test('individually acceptable scans of different students cannot form one confir
   assert.equal((await faceIdentify.identifyBatch([vector(0.014), vector(0.026)])).result, 'ambiguous');
 });
 test('a good first scan cannot compensate for an unknown second scan', async () => {
-  await faceIdentify.refresh(); faceIdentify.upsert(enrolled(studentId, vector()));
-  assert.equal((await faceIdentify.identifyBatch([vector(0.035), vector(0.036)])).result, 'unknown');
+  const find = users.find;
+  users.find = () => chain([enrolled(studentId, vector())]);
+  try {
+    await faceIdentify.refresh();
+    assert.equal((await faceIdentify.identifyBatch([vector(0.035), vector(0.036)])).result, 'unknown');
+  } finally { users.find = find; }
 });
 test('removed faces cannot be matched', async () => { await faceIdentify.refresh(); faceIdentify.upsert(enrolled(studentId, vector())); faceIdentify.remove(studentId); assert.notEqual((await faceIdentify.identify(vector())).result, 'match'); });
 test('attendance enrollment requires consent', async () => { await faceIdentify.refresh(); faceIdentify.upsert({ ...enrolled(studentId, vector()), faceConsentAt: null }); assert.notEqual((await faceIdentify.identify(vector())).result, 'match'); });
