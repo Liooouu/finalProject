@@ -15,9 +15,9 @@ try {
   assert.match(eligible, />Approve<\/button>/);
   assert.match(eligible, /I checked the evidence and time/);
   assert.doesNotMatch(eligible, /<img[^>]+src="https?:/);
-  const own = render({ canReview: false });
+  const own = render({ canReview: false, reviewBlockedReason: "You submitted this request." });
   assert.doesNotMatch(own, />Approve<\/button>|Select request for/);
-  assert.match(own, /Awaiting admin review/);
+  assert.match(own, /You submitted this request/);
   assert.doesNotMatch(render({}, false), />Approve<\/button>|Select request for/);
   assert.doesNotMatch(render({ status: 'approved' }), />Approve<\/button>|Select request for/);
   assert.match(render({ hasIdPhoto: false }), /ID photo expired/);

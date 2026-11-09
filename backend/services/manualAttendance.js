@@ -31,9 +31,20 @@ function canCaptureIdAttendance(user, event) {
 function requireManualAssignment(user, event) {
   if (!canSubmitManualAttendance(user, event)) fail(403, "An administrator must assign you to this event before you can submit an attendance correction.");
 }
+function reviewRestriction(user, event, request) {
+  if (!user || !event || !request || (user.role !== "admin" && !canSubmitManualAttendance(user, event))) {
+    return "An independent administrator or assigned organizer must review this request";
+  }
+  if (idOf(user) === idOf(request.requestedBy)) {
+    return "You submitted this request. An independent assigned organizer or administrator must review it.";
+  }
+  if (idOf(user) === idOf(request.student)) {
+    return "This request is for your attendance. An independent assigned organizer or administrator must review it.";
+  }
+  return null;
+}
 function canReview(user, event, request) {
-  if (!user || !event || !request || idOf(user) === idOf(request.requestedBy) || idOf(user) === idOf(request.student)) return false;
-  return user.role === "admin" || canSubmitManualAttendance(user, event);
+  return reviewRestriction(user, event, request) === null;
 }
 function buildProposal(event, payload, now = new Date()) {
   const mode = payload.mode || "checkin";
@@ -77,7 +88,9 @@ function createService(deps) {
     .populate("student", "name email program yearLevel section").populate("requestedBy", "name email").populate("reviewedBy", "name email");
   function publicRow(value, user) {
     const row = plain(value);
-    const result = { ...row, canReview: row.status === "pending" && canReview(user, row.event, row) };
+    const pending = row.status === "pending";
+    const reviewBlockedReason = pending ? reviewRestriction(user, row.event, row) : null;
+    const result = { ...row, canReview: pending && !reviewBlockedReason, reviewBlockedReason };
     delete result.reviewLock;
     delete result.previousAttendance;
     result.hasIdPhoto = !!row.idPhotoUrl && new Date(row.photoExpiresAt) > new Date();
@@ -197,7 +210,8 @@ function createService(deps) {
     let request = await Request.findById(id).lean();
     if (!request) fail(404, "Request not found");
     const event = await Event.findById(request.event);
-    if (!canReview(user, event, request)) fail(403, "An independent administrator or assigned organizer must review this request");
+    const restriction = reviewRestriction(user, event, request);
+    if (restriction) fail(403, restriction);
     const reviewerId = user._id;
     if (request.status !== "pending") {
       if (request.status !== decision) fail(409, "This request has already been reviewed");

@@ -258,6 +258,8 @@ test('list scopes student data, organizer submissions and delegated review event
   const review=await f.api.list(reviewer,{view:'review',search:'student@test.invalid'});assert.equal(review.total,1);assert.equal(review.requests[0].canReview,true);assert.equal(review.requests[0].previousAttendance,undefined);
   const ownInAssigned = await f.api.list(requester,{view:'review'});
   assert.equal(ownInAssigned.total,1);assert.equal(ownInAssigned.requests[0].canReview,false);
+  assert.match(ownInAssigned.requests[0].reviewBlockedReason,/You submitted this request/);
+  assert.equal(review.requests[0].reviewBlockedReason,null);
   assert.deepEqual(await f.api.summary(reviewer),{pendingReview:1,pendingMine:0});
   assert.equal((await f.api.pendingManualEventsForStudent(ids.student))[0]._id,request._id);
 });
