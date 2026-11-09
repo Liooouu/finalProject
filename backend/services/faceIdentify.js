@@ -18,6 +18,14 @@ const { activeStudentFilter, isActiveStudent } = require("./studentEligibility")
 const DESCRIPTOR_LENGTH = 128;
 const INDEX_MAX_AGE_MS = 5 * 60 * 1000;
 
+// Two probes captured a few hundred milliseconds apart are only required to be
+// the same face, not a bit-identical frame. Consecutive webcam frames of one
+// student drift 0.06-0.16 from head movement, lighting and JPEG re-encoding, so
+// the old 0.18 gate rejected real students. This is a same-session sanity
+// bound, not the identity bar: each probe must still clear identify() on its
+// own and resolve to the same student.
+const MAX_PROBE_DRIFT = 0.35;
+
 // Invalid or permissive deployment values must never disable rejection.
 function safeSetting(name, fallback, minimum, maximum) {
   const value = Number(process.env[name]);
@@ -167,7 +175,7 @@ async function identify(descriptor) {
 
 async function identifyBatch(descriptors) {
   if (!Array.isArray(descriptors) || descriptors.length !== 2 || !descriptors.every(isValidDescriptor)) return { result: "invalid" };
-  if (distance(descriptors[0], descriptors[1]) > 0.18) return { result: "unstable" };
+  if (distance(descriptors[0], descriptors[1]) > MAX_PROBE_DRIFT) return { result: "unstable" };
   const first = await identify(descriptors[0]);
   if (first.result !== "match") return first;
   const second = await identify(descriptors[1]);

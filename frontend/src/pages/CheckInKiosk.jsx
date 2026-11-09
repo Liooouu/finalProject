@@ -261,6 +261,7 @@ const CheckInKiosk = () => {
     if (!video || video.readyState < 2 || !video.videoWidth) return;
 
     busyRef.current = true;
+    let input;
     try {
       // Keep detection and face alignment on the same frame as the student moves.
       const frame = (frameRef.current ??= document.createElement("canvas"));
@@ -269,7 +270,13 @@ const CheckInKiosk = () => {
         frame.height = video.videoHeight;
       }
       frame.getContext("2d").drawImage(video, 0, 0);
-      const detections = await faceapi.detectAllFaces(frame, detectorRef.current);
+      // Enrollment descriptors are built on the server from a pixel tensor
+      // (float face box + cropAndResize). A canvas input takes a different
+      // extraction path (integer box + drawImage) and lands ~0.06 away from the
+      // enrolled descriptor for the very same pixels. Feed the network the same
+      // kind of tensor so a live scan is compared against a like-for-like probe.
+      input = faceapi.tf.browser.fromPixels(frame);
+      const detections = await faceapi.detectAllFaces(input, detectorRef.current);
       if (detections.length > 1) {
         probeRef.current = null;
         holdUntilRef.current = Date.now() + 1500;
@@ -292,7 +299,7 @@ const CheckInKiosk = () => {
       // Reuse the single detected face and run the same full landmark and
       // recognition models as before. Crowded frames need neither model.
       const landmarks = new faceapi.DetectAllFaceLandmarksTask(
-        Promise.resolve([{ detection: detections[0] }]), frame, false
+        Promise.resolve([{ detection: detections[0] }]), input, false
       );
       const [match] = await landmarks.withFaceDescriptors();
       if (!match?.descriptor || !["open", "late"].includes(stateRef.current)) return;
@@ -325,6 +332,7 @@ const CheckInKiosk = () => {
         console.error("Check-in scan failed:", err);
       }
     } finally {
+      input?.dispose();
       busyRef.current = false;
     }
   }, [applyResult, token, showResult]);

@@ -59,12 +59,25 @@ head-turn challenge is used.
 
 The kiosk requires two consecutive clear frames, not one immediate nearest-face
 decision. Both probes must independently identify the same account/enrollment
-version and stay within 0.18 descriptor distance. The default/maximum identity
-distance is 0.40; the runner-up gap is at least 0.10 with a maximum best/second
-ratio of 0.80. Enrolled references closer than 0.35 are treated as ambiguous even
-when a probe favors one of them. Invalid/permissive identification environment
-values fall back to these conservative settings. These are operational safety
-limits, not calibrated accuracy percentages or a guarantee against lookalikes.
+version and sit within 0.35 descriptor distance of each other. That drift bound
+is only a same-session sanity check, not the identity bar: consecutive live
+frames of one student legitimately differ by 0.06-0.16 through head movement,
+lighting and JPEG re-encoding, so an earlier 0.18 bound rejected real students.
+The default/maximum identity distance is 0.40; the runner-up gap is at least 0.10
+with a maximum best/second ratio of 0.80. Enrolled references closer than 0.35 are
+treated as ambiguous even when a probe favors one of them.
+Invalid/permissive identification environment values fall back to these
+conservative settings. These are operational safety limits, not calibrated
+accuracy percentages or a guarantee against lookalikes.
+
+Kiosk probes and server enrollment must share one preprocessing path. Enrollment
+descriptors are computed from a pixel tensor (float face box + `cropAndResize`);
+a live probe therefore also feeds `tf.browser.fromPixels` output into the
+detector and landmark/recognition nets, never a raw canvas. Mixing the two paths
+put the same pixels about 0.06 apart on its own, which is enough to push a
+genuine student past the 0.40 threshold. Enrollment JPEGs are captured at 0.97
+quality for the same reason. Never widen the identity threshold to compensate for
+a preprocessing mismatch.
 
 The camera rejects low-confidence, small, clipped or very dark/bright face
 captures and displays corrective guidance. This is not liveness detection.

@@ -99,7 +99,9 @@ const FaceCapture = ({
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0);
-    setPreview(canvas.toDataURL("image/jpeg", 0.92));
+    // Enrollment descriptors are computed on the server from the uploaded JPEG,
+    // so keep the JPEG round trip as clean as the encoder allows (92 -> 97).
+    setPreview(canvas.toDataURL("image/jpeg", 0.97));
     stopCamera();
   };
 

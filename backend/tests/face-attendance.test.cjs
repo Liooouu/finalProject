@@ -79,7 +79,9 @@ test('invalid or permissive threshold settings cannot turn unknown probes into m
 test('two stable clear probes confirm one identity, while unstable or missing probes cannot', async () => {
   await faceIdentify.refresh(); faceIdentify.upsert(enrolled(studentId, vector()));
   assert.equal((await faceIdentify.identifyBatch([vector(0.005), vector(0.006)])).result, 'match');
-  assert.equal((await faceIdentify.identifyBatch([vector(), vector(0.02)])).result, 'unstable');
+  // Consecutive live frames realistically drift ~0.2; that must still confirm.
+  assert.equal((await faceIdentify.identifyBatch([vector(0.01), vector(0.03)])).result, 'match');
+  assert.equal((await faceIdentify.identifyBatch([vector(), vector(0.035)])).result, 'unstable');
   assert.equal((await faceIdentify.identifyBatch([vector()])).result, 'invalid');
   assert.equal((await faceIdentify.identifyBatch([vector(), vector(NaN)])).result, 'invalid');
 });
