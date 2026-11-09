@@ -244,8 +244,10 @@ router.post("/face-enrollment-upload", protect, (req, res, next) => {
     const student = await User.findById(req.user._id).select("faceEnrollmentVersion");
     if (!student) return res.status(404).json({ error: "Student account unavailable." });
     let face;
-    try { face = await faceMatcher.detectFaceDescriptorFromBuffer(req.file.buffer); }
-    catch { return res.status(400).json({ error: "Upload a clear photo with exactly one face, looking straight ahead." }); }
+    try { face = await faceMatcher.detectFaceDescriptorFromBuffer(req.file.buffer, { requireQuality: true }); }
+    catch (err) {
+      return res.status(400).json({ error: (typeof faceMatcher.qualityMessage === "function" ? faceMatcher.qualityMessage(err.code) : "") || "Upload a clear photo with exactly one face, looking straight ahead." });
+    }
     saved = await fileStore.saveBuffer(req.file.buffer, { private: true, originalName: req.file.originalname, contentType: req.file.mimetype });
     const appeal = await FaceAppeal.create({ student: req.user._id, enrollmentUpload: true,
       enrollmentVersion: student.faceEnrollmentVersion || 0, enrollmentDescriptor: face.descriptor,
@@ -276,11 +278,14 @@ router.post(
 
     let detected = null;
     try {
-      detected = await faceMatcher.detectFaceDescriptorFromBuffer(req.file.buffer);
+      detected = await faceMatcher.detectFaceDescriptorFromBuffer(req.file.buffer, { requireQuality: true });
     } catch (err) {
-      return res.status(400).json({ error: err.code === "MULTIPLE_FACES"
-        ? "Only one face may be visible. Please retake the photo."
-        : "No face detected in the photo. Please look directly at the camera and retake." });
+      if (err.code === "MULTIPLE_FACES") {
+        return res.status(400).json({ error: "Only one face may be visible. Please retake the photo." });
+      }
+      const message = typeof faceMatcher.qualityMessage === "function" ? faceMatcher.qualityMessage(err.code) : "";
+      if (message) return res.status(400).json({ error: message, code: err.code });
+      return res.status(400).json({ error: "No face detected in the photo. Please look directly at the camera and retake." });
     }
 
     let saved = null;

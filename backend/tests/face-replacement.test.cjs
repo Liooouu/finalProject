@@ -8,7 +8,7 @@ const users={ findById:async id=>{assert.equal(id,'student-self');return user;} 
 const store={saveBuffer:async(buffer,options)=>{calls.push('store');assert.equal(options.private,true);if(storageError)throw new Error('storage unavailable');return{url:'/uploads/new-face'};},deleteByUrl:async url=>{calls.push('delete');deleted.push(url);} };
 const identify={upsert:u=>{calls.push('cache');cacheUser={...u};}};
 Module._load=function(request,parent,...rest){
- const mocks={ '../models/User':users,'../models/FaceAppeal':{findOne:()=>({select(){return this;},sort:async()=>null})},'../services/faceMatcher':{descriptorsMatch:()=>matchIdentity,detectFaceDescriptorFromBuffer:async()=>{if(detectedError)throw detectedError;return{descriptor};}},'../services/fileStore':store,'../services/faceIdentify':identify,'../services/mailer':{isMailEnabled:async()=>false} };
+ const mocks={ '../models/User':users,'../models/FaceAppeal':{findOne:()=>({select(){return this;},sort:async()=>null})},'../services/faceMatcher':{descriptorsMatch:()=>matchIdentity,detectFaceDescriptorFromBuffer:async()=>{if(detectedError)throw detectedError;return{descriptor};},qualityMessage:()=>''},'../services/fileStore':store,'../services/faceIdentify':identify,'../services/mailer':{isMailEnabled:async()=>false} };
  return mocks[request]||originalLoad.call(this,request,parent,...rest);
 };
 const router=require('../routes/accountRoutes');Module._load=originalLoad;

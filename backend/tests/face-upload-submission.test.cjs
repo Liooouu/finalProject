@@ -9,7 +9,7 @@ Module._load = function(request, parent, main) {
   if (parent?.filename.endsWith('accountRoutes.js')) {
     if (request === '../models/User') return User;
     if (request === '../models/FaceAppeal') return FaceAppeal;
-    if (request === '../services/faceMatcher') return { detectFaceDescriptorFromBuffer: async () => { if (detectionError) throw new Error('Face detection rejected'); return { descriptor: Array(128).fill(.3) }; } };
+    if (request === '../services/faceMatcher') return { detectFaceDescriptorFromBuffer: async () => { if (detectionError) throw new Error('Face detection rejected'); return { descriptor: Array(128).fill(.3) }; }, qualityMessage: () => "" };
     if (request === '../services/fileStore') return { saveBuffer: async (_buffer, options) => { assert.equal(options.private, true); files++; return { url: '/uploads/private-faces/pending.jpg' }; }, deleteByUrl: async () => { files--; } };
     if (request === '../services/faceIdentify') return { upsert() { throw new Error('Pending uploads must never activate attendance'); } };
     if (request === '../services/notifyAdmins') return { notifyAdmins: async () => {} };

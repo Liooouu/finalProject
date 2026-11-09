@@ -98,7 +98,75 @@ function decodeImageTensor(imagePath) {
 }
 
 // Detect the largest face in raw image bytes and return its 128-d descriptor.
-async function detectFaceDescriptorFromBuffer(buf) {
+//
+// `requireQuality` turns on the enrollment quality gate. An enrolled capture is
+// the reference that every later probe is measured against, so a weak one (too
+// dark, too flat, too small, or clipped by the frame) makes a correct student
+// read as a stranger at the station. These checks describe image quality only —
+// they say nothing about liveness or identity — and they stay opt-in because
+// appeal proof photos may legitimately be dimmer, smaller or printed.
+const ENROLLMENT_QUALITY = {
+  minScore: 0.65,
+  minFaceBox: 110,
+  minBrightness: 80, // mean luminance inside the face box, 0-255
+  maxBrightness: 200,
+  minContrast: 22, // luminance standard deviation inside the face box
+  edgeMargin: 4,
+};
+
+const QUALITY_MESSAGES = {
+  FACE_UNCLEAR:
+    "The camera could not see your face clearly. Look straight at the camera in even light and retake the photo.",
+  FACE_TOO_SMALL: "Move closer to the camera so your face fills more of the frame.",
+  FACE_CLIPPED: "Keep your whole face inside the frame, with some space around your head.",
+  FACE_TOO_DARK: "This photo is too dark to use. Face a light source so your face is evenly lit, then retake.",
+  FACE_TOO_BRIGHT: "This photo is too bright. Move away from direct light or a bright window, then retake.",
+  FACE_TOO_FLAT: "This photo has too little detail. Use even lighting without a strong backlight, then retake.",
+};
+
+// Message for a quality rejection code; empty when the code is not one of ours.
+function qualityMessage(code) {
+  return QUALITY_MESSAGES[code] || "";
+}
+
+// Brightness/contrast of the detected face itself, not the background. A dark
+// room with a bright wall averages fine across the whole frame while the face
+// stays unreadable, so the box is what gets measured.
+function faceRegionStats(input, box) {
+  const [height, width] = input.shape;
+  const x = Math.max(0, Math.floor(box.x));
+  const y = Math.max(0, Math.floor(box.y));
+  const w = Math.max(1, Math.min(width - x, Math.ceil(box.width)));
+  const h = Math.max(1, Math.min(height - y, Math.ceil(box.height)));
+  return tf.tidy(() => {
+    const region = input.slice([y, x, 0], [h, w, 3]).toFloat();
+    const luminance = region.mul(tf.tensor1d([0.299, 0.587, 0.114])).sum(-1);
+    const { mean, variance } = tf.moments(luminance);
+    return { brightness: mean.dataSync()[0], contrast: Math.sqrt(variance.dataSync()[0]) };
+  });
+}
+
+function enrollmentQualityIssue(input, detection) {
+  const box = detection.box;
+  const [height, width] = input.shape;
+  if (detection.score < ENROLLMENT_QUALITY.minScore) return "FACE_UNCLEAR";
+  if (Math.min(box.width, box.height) < ENROLLMENT_QUALITY.minFaceBox) return "FACE_TOO_SMALL";
+  if (
+    box.x < ENROLLMENT_QUALITY.edgeMargin ||
+    box.y < ENROLLMENT_QUALITY.edgeMargin ||
+    box.x + box.width > width - ENROLLMENT_QUALITY.edgeMargin ||
+    box.y + box.height > height - ENROLLMENT_QUALITY.edgeMargin
+  ) {
+    return "FACE_CLIPPED";
+  }
+  const { brightness, contrast } = faceRegionStats(input, box);
+  if (brightness < ENROLLMENT_QUALITY.minBrightness) return "FACE_TOO_DARK";
+  if (brightness > ENROLLMENT_QUALITY.maxBrightness) return "FACE_TOO_BRIGHT";
+  if (contrast < ENROLLMENT_QUALITY.minContrast) return "FACE_TOO_FLAT";
+  return null;
+}
+
+async function detectFaceDescriptorFromBuffer(buf, { requireQuality = false } = {}) {
   const fa = await loadModels();
   const input = decodeImageTensorFromBuffer(buf);
   try {
@@ -122,6 +190,10 @@ async function detectFaceDescriptorFromBuffer(buf) {
       throw Object.assign(new Error("No face detected in the image. Please look directly at the camera."), {
         code: "NO_FACE",
       });
+    }
+    if (requireQuality) {
+      const code = enrollmentQualityIssue(input, result.detection);
+      if (code) throw Object.assign(new Error(QUALITY_MESSAGES[code]), { code });
     }
     return {
       descriptor: Array.from(result.descriptor),
@@ -209,4 +281,5 @@ module.exports = {
   clearDescriptorCache,
   descriptorsMatch,
   distance: faceEuclideanDistance,
+  qualityMessage,
 };

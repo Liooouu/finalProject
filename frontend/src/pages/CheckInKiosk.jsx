@@ -427,6 +427,8 @@ const CheckInKiosk = () => {
         )}
 
         <div className="relative overflow-hidden rounded-3xl border border-white/12 bg-black shadow-[0_30px_80px_-30px_rgba(0,0,0,0.9)]">
+          {/* Unmirrored on purpose: the scanner reads this same frame, and the
+              enrolled photo the student captured shows the same unflipped view. */}
           <video
             key={cameraNonce}
             ref={videoRef}
@@ -435,7 +437,7 @@ const CheckInKiosk = () => {
             muted
             onPlaying={() => setCameraReady(true)}
             onWaiting={() => setCameraReady(false)}
-            className="aspect-[4/3] w-full scale-x-[-1] object-cover"
+            className="aspect-[4/3] w-full object-cover"
           />
 
           {/* Corner brackets make the framing obvious on a kiosk screen. */}
