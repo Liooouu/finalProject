@@ -20,7 +20,7 @@ function projectManualAttendance(records, requests, { studentId, includeUnrecord
     seen.add(recordKey);
     const request = pending.get(recordKey);
     if (!request) return record;
-    const pendingExit = !!record.session && request.action === "time_out" && record.completionStatus === "incomplete";
+    const pendingExit = !!record.session && pendingActions.get(recordKey).has("time_out") && record.completionStatus === "incomplete";
     const provisionalExitHours = pendingExit ? Math.min(2, record.communityServiceHours || 0) : 0;
     const automaticAbsence = record.status === "absent" && record.method === "auto";
     return {

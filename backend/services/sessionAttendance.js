@@ -5,6 +5,7 @@ const Attendance = require('../models/Attendance');
 const Event = require('../models/Event');
 const User = require('../models/User');
 const DeletedAttendance = require('../models/DeletedAttendance');
+const ManualAttendanceRequest = require('../models/ManualAttendanceRequest');
 const { activeStudentFilter } = require('./studentEligibility');
 const { classify } = require('./penaltyCalc');
 const { publishRecordChange } = require('./recordUpdates');
@@ -37,7 +38,7 @@ function penaltyChange(record, result) {
   return { delta, hours: Math.max(0, (record?.communityServiceHours || 0) + delta) };
 }
 function versionFilter(record) {
-  return { _id: record._id, communityServiceHours: record.communityServiceHours || 0,
+  return { _id: record._id, communityServiceHours: record.communityServiceHours ?? null,
     ...(record.updatedAt ? { updatedAt: record.updatedAt } : { updatedAt: { $exists: false } }),
     ...(record.__v === undefined ? {} : { __v: record.__v }) };
 }
@@ -77,6 +78,10 @@ async function notice(event, session, record, action, finalizing, method) {
   // Manual/ID reviews send their own confirmation after the request receipt.
   if (!finalizing && method !== 'face') return;
   if (!finalizing && action === 'time_in' && record.arrivalStatus !== 'late') return;
+  if (finalizing && await ManualAttendanceRequest.exists({
+    event: event._id, session: session._id, student: record.student, status: 'pending',
+    ...(record.completionStatus === 'incomplete' ? { action: 'time_out' } : { action: { $ne: 'time_out' } }),
+  })) return;
   const label = finalizing ? record.completionStatus === 'absent' ? 'Absence recorded' : 'Time Out missing' : action === 'time_out' ? 'Time Out recorded' : 'Late Time In recorded';
   await require('./notify').notifyUsers([record.student], { type: 'attendance', title: label,
     message: `${event.title} · ${session.name}: ${label}. Automatic session penalty: ${record.sessionPenaltyHours} hours. Your ledger shows any approved adjustments.`,
@@ -95,13 +100,18 @@ async function apply({ event, session, student, action, now = new Date(), method
     if (action !== 'absent' && (+now < +new Date(low) || +now > +new Date(high))) fail(400, 'The effective capture time is outside this session window.');
   }
   // Review time must not replace effective capture time, or decide eligibility.
-  const roster = await lockRoster(event, session, review?.reviewedAt || now);
-  if (roster.rosterLockedAt && !(roster.eligibleStudents || []).some(value => id(value) === id(student))) {
-    return { ok: false, reason: 'ineligible', message: 'This account is not on the session attendance roster.' };
-  }
+  const roster = finalizing && event.status === 'closed' && !session.rosterLockedAt
+    ? session : await lockRoster(event, session, review?.reviewedAt || now);
+  const eligible = roster.rosterLockedAt
+    ? (roster.eligibleStudents || []).some(value => id(value) === id(student))
+    : !(finalizing && event.status === 'closed');
   const pair = { event: event._id, session: session._id, student: student._id || student };
   for (let attempt = 0; attempt < 5; attempt++) {
     const existing = await Attendance.findOne(pair).lean();
+    // Preserve confirmed evidence even if an older roster omitted the student.
+    if (!eligible && !(finalizing && existing?.timeInAt)) {
+      return { ok: false, reason: 'ineligible', message: 'This account is not on the session attendance roster.' };
+    }
     if (finalizing && +now <= +new Date(session.timeOutClose) &&
         (!existing || existing.method !== 'auto' || existing.timeInAt || existing.status !== 'absent' ||
          existing.communityServiceHours !== contribution(existing) || existing.manualAttendanceAudit?.length)) return { ok: false, reason: 'already', attendance: existing };
@@ -169,9 +179,9 @@ async function apply({ event, session, student, action, now = new Date(), method
 }
 async function finalize(event, now = new Date()) {
   for (let session of event.attendanceSessions || []) {
-    if (event.status === 'closed' && !session.rosterLockedAt) continue;
     if (+now < +new Date(session.timeInOpen)) continue;
-    session = await lockRoster(event, session, now);
+    const manuallyClosedWithoutRoster = event.status === 'closed' && !session.rosterLockedAt;
+    if (!manuallyClosedWithoutRoster) session = await lockRoster(event, session, now);
     if (+now <= +new Date(session.timeInCutoff)) continue;
     const [removed, rows] = await Promise.all([
       DeletedAttendance.find({ event: event._id, $or: [{ session: session._id }, { 'record.session': session._id }] }).distinct('student'),
@@ -179,7 +189,9 @@ async function finalize(event, now = new Date()) {
     ]);
     const deleted = new Set(removed.map(id));
     const existing = new Map(rows.map(row => [id(row.student), row]));
-    for (const student of session.eligibleStudents || []) {
+    const candidates = new Set((session.eligibleStudents || []).map(id));
+    for (const row of rows) if (row.timeInAt) candidates.add(id(row.student));
+    for (const student of candidates) {
       const record = existing.get(id(student));
       if (deleted.has(id(student)) || record?.reportDeletedAt || record?.status === 'excused' || (record?.timeInAt && record.timeOutAt)) continue;
       if (+now <= +new Date(session.timeOutClose)) {

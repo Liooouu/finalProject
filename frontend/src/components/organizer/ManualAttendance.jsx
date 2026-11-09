@@ -6,6 +6,7 @@ import { Card, PageHeader, StatusChip } from "../ui";
 import Loading from "../shared/Loading";
 import EmptyState from "../shared/EmptyState";
 import OrgManageAttendees from "./OrgManageAttendees";
+import IdPhotoCheckin from "./IdPhotoCheckin";
 import { formatDate, formatDateTime, formatTime12Hour } from "../../utils/helpers";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
 
@@ -46,7 +47,8 @@ export default function ManualAttendance() {
         <select id="manual-event" aria-label="Manual attendance event" className="field-select w-full" value={selected?._id || ""} onChange={e => navigate(`/organizer/dashboard/manual-attendance/${e.target.value}`)}><option value="" disabled>Choose an event</option>{events.map(event => <option key={event._id} value={event._id}>{event.title} · {formatDate(event.date)}</option>)}</select>
         {selected && !selected.attendanceSessions?.length && <p className="mt-2 text-xs text-on-muted">Attendance: {selected.attendanceWindow?.start ? formatDateTime(selected.attendanceWindow.start) : `${formatDate(selected.date)} at ${formatTime12Hour(selected.attendanceStartTime)}`} – {selected.attendanceWindow?.end ? formatDateTime(selected.attendanceWindow.end) : formatTime12Hour(selected.attendanceEndTime)} · Philippine time</p>}
       </Card>
-      {selected ? <OrgManageAttendees key={selected._id} event={selected} embedded /> : id ? <div role="alert" className="alert alert-danger">This event is unavailable or you do not have permission to manage it.</div> : <EmptyState compact title="Choose an event to begin" description="Photograph the physical ID during attendance. Corrections and offline timing exceptions remain independently reviewed." />}
+      {selected ? <OrgManageAttendees key={selected._id} event={selected} embedded /> : id ? <div role="alert" className="alert alert-danger">This event is unavailable or you do not have permission to manage it.</div> : <EmptyState compact title="Choose an event to begin" description="Assigned organizers can capture IDs and submit corrections for admin review." />}
     </>}
+    {!selected && <IdPhotoCheckin />}
   </div>;
 }

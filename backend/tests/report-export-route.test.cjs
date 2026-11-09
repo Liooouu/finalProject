@@ -24,7 +24,7 @@ async function exportReport(query={}){
 test('all events export includes all 215 records regardless of current report page and ignores directory placeholders',async()=>{
  const result=await exportReport({page:2,limit:5});assert.equal(result.status,200);
  assert.equal(result.data.split('\r\n').length,216);assert.doesNotMatch(result.data,/No attendance|Marked At/);
- assert.equal(studentReads,0);assert.deepEqual(seenMatch,{});
+ assert.equal(studentReads,0);assert.deepEqual(seenMatch,{reportDeletedAt:null});
 });
 test('export shares student, demographic, event, session, date, term and completion filters with the report',async()=>{
  const q={studentId,program:'BSIT',yearLevel:'1',section:'A',eventId,sessionId,completionStatus:'completed',academicYearStart:'2026',semester:'first',startDate:'2026-11-09',endDate:'2026-11-10'};

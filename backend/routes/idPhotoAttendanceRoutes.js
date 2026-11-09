@@ -4,7 +4,7 @@ const { protect, authorize } = require('../middleware/authMiddleware');
 const service = require('../services/idPhotoAttendance');
 const Request = require('../models/ManualAttendanceRequest');
 const Event = require('../models/Event');
-const { canReview } = require('../services/manualAttendance');
+const { canSubmitManualAttendance } = require('../services/manualAttendance');
 const fileStore = require('../services/fileStore');
 router.use(protect);
 const handle = action => async (req, res) => {
@@ -21,7 +21,7 @@ router.get('/requests/:id/photo', async (req, res) => {
     const row = await Request.findById(req.params.id).lean();
     const event = row && await Event.findById(row.event).lean();
     const owner = row && (String(row.student) === String(req.user._id) || (req.user.role === 'organizer' && String(row.requestedBy) === String(req.user._id)));
-    if (!row || !row.idPhotoUrl || new Date(row.photoExpiresAt) <= new Date() || !(owner || req.user.role === 'admin' || canReview(req.user, event, row))) return res.status(404).end();
+    if (!row || !row.idPhotoUrl || new Date(row.photoExpiresAt) <= new Date() || !(owner || req.user.role === 'admin' || canSubmitManualAttendance(req.user, event))) return res.status(404).end();
     res.set('Content-Disposition', 'inline; filename="school-id.jpg"');
     await fileStore.sendFile(res, row.idPhotoUrl, { cacheControl: 'private, no-store' });
   } catch (error) { if (res.headersSent) return res.destroy(error); res.status(error.code === 'FILE_NOT_FOUND' ? 404 : 503).json({ error: 'ID evidence is unavailable or its retention period has ended.' }); }

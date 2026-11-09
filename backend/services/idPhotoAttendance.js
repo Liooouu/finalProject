@@ -101,6 +101,7 @@ function preparationState(event, now = new Date(), session = null) {
 async function prepare(user, eventId, now = new Date(), sessionId = null) {
   organizer(user);
   const event = await loadEvent(eventId);
+  manual.requireManualAssignment(user, event);
   const session = findSession(event, sessionId);
   const state = preparationState(event, now, session);
   const details = { event: { _id: event._id, title: event.title, date: event.date, status: event.status, time: event.time, attendanceStartTime: event.attendanceStartTime, attendanceEndTime: event.attendanceEndTime },
@@ -115,6 +116,7 @@ async function prepare(user, eventId, now = new Date(), sessionId = null) {
 async function captureTime(user, payload, now = new Date()) {
   organizer(user);
   const event = await loadEvent(payload.eventId);
+  manual.requireManualAssignment(user, event);
   if (!isValidObjectId(payload.studentId) || id(user) === id(payload.studentId)) fail(400, 'Choose another student.');
   const student = await User.findById(payload.studentId).select('role enrollmentStatus emailVerified');
   if (!isActiveStudent(student)) fail(400, 'Choose an active, verified student account.');
@@ -125,19 +127,10 @@ async function captureTime(user, payload, now = new Date()) {
   if ((session ? sessionAttendance.modeFor(event, session, now) !== action : isTerminal(event.status)) || +now < schedule.start || +now > schedule.cutoff) fail(400, 'The attendance period is not open.');
   return { ticket: ticket(user, event, payload.studentId, now, session?._id, action), serverTime: now.toISOString() };
 }
-async function receipt(request, user, now) {
-  // A retry after a successful write must not apply attendance twice.
-  if (request.status === 'pending' && request.captureBasis === 'server' && id(request.attestedBy) === id(user)) {
-    const event = await Event.findById(request.event);
-    if (event && signature(event, findSession(event, request.session), request.action || 'time_in') === request.photoScheduleSignature) {
-      try { await manual.applyPhoto(user, request._id, now); }
-      catch (error) { if (!error.status || error.status >= 500) throw error; }
-      request = await Request.findById(request._id);
-    }
-  }
+function receipt(request) {
   return { requestId: request._id, status: request.status, attendanceStatus: request.proposedStatus, action: request.action || 'time_in', sessionName: request.sessionName,
     effectiveAt: request.effectiveAt, captureBasis: request.captureBasis,
-    message: request.status === 'approved' ? 'ID-assisted attendance recorded.' : request.status === 'rejected' ? 'This submission was rejected. No new attendance was recorded.' : request.action === 'time_out' ? 'Time Out photo received and awaiting independent review.' : 'Time In photo received and awaiting review.' };
+    message: request.status === 'approved' ? 'ID-assisted attendance recorded.' : request.status === 'rejected' ? 'This submission was rejected. No new attendance was recorded.' : request.action === 'time_out' ? 'Time Out photo sent for admin review.' : 'Time In photo sent for admin review.' };
 }
 async function submit(user, payload, file, now = new Date()) {
   organizer(user);
@@ -147,11 +140,12 @@ async function submit(user, payload, file, now = new Date()) {
   let previousUpload = await Request.findOne({ requestedBy: user._id, clientId: payload.clientId });
   if (previousUpload) {
     if (id(previousUpload.student) !== id(payload.studentId)) fail(409, 'This capture was already used for another student.');
-    return receipt(previousUpload, user, now);
+    return receipt(previousUpload);
   }
   const data = verifyTicket(payload.ticket, user, now);
   if (data.kind === 'capture' && data.studentId !== payload.studentId) fail(403, 'The capture belongs to another student.');
   const event = await loadEvent(data.eventId);
+  manual.requireManualAssignment(user, event);
   const student = await User.findById(payload.studentId).select('role enrollmentStatus emailVerified');
   if (!isActiveStudent(student)) fail(400, 'This student is no longer eligible for new attendance.');
   const selected = findSession(event, data.sessionId);
@@ -168,7 +162,7 @@ async function submit(user, payload, file, now = new Date()) {
   const pendingConflict = () => fail(409, `A ${proposal.action === 'time_out' ? 'Time Out' : 'Time In'} request already awaits review for this student and attendance period.`);
   if (await Request.exists(pendingKey)) {
     previousUpload = await Request.findOne({ requestedBy: user._id, clientId: payload.clientId, student: student._id });
-    if (previousUpload) return receipt(previousUpload, user, now);
+    if (previousUpload) return receipt(previousUpload);
     pendingConflict();
   }
   const buffer = safePhoto(file);
@@ -177,19 +171,20 @@ async function submit(user, payload, file, now = new Date()) {
   const saved = await fileStore.saveBuffer(buffer, { private: true, originalName: 'attendance-id.jpg', contentType: 'image/jpeg' });
   let request;
   try {
+    manual.requireManualAssignment(user, await Event.findById(event._id).select('manualAttendanceReviewers'));
     request = await Request.create({ ...proposal, event: event._id, student: student._id, requestedBy: user._id,
       source: 'id_photo', mode: 'checkin', clientId: payload.clientId, idPhotoUrl: saved.url,
       photoDigest: digest, photoScheduleSignature: data.signature,
       photoExpiresAt: new Date(+now + RETENTION), receivedAt: now, submittedAt: now, identityChecked: true,
       reason: reusedPhoto ? 'ID image reused for another student; independent confirmation required.' : proposal.captureBasis === 'device' ? 'Physical school ID checked; offline capture time needs independent confirmation.' : 'Physical school ID checked; face scanner fallback.',
-      previousAttendance: manual.fingerprint(previous), attestedBy: !reusedPhoto && proposal.captureBasis === 'server' && (selected || !previous || previous.method === 'auto' || previous.status === 'pending') ? user._id : null, status: 'pending' });
+      previousAttendance: manual.fingerprint(previous), status: 'pending' });
   } catch (error) {
     await fileStore.deleteByUrl(saved.url).catch(() => {});
     if (error.code === 11000) {
       previousUpload = await Request.findOne({ requestedBy: user._id, clientId: payload.clientId });
       if (previousUpload) {
         if (id(previousUpload.student) !== id(student)) fail(409, 'This capture was already used for another student.');
-        return receipt(previousUpload, user, now);
+        return receipt(previousUpload);
       }
       if (await Request.exists(pendingKey)) pendingConflict();
       if (error.keyPattern?.event && error.keyPattern?.student && !error.keyPattern.session) {
@@ -198,7 +193,7 @@ async function submit(user, payload, file, now = new Date()) {
     }
     throw error;
   }
-  return receipt(request, user, now);
+  return receipt(request);
 }
 async function cleanup(now = new Date()) {
   const expired = await Request.find({ idPhotoUrl: { $ne: '' }, photoExpiresAt: { $lte: now } }).select('idPhotoUrl').limit(100).lean();

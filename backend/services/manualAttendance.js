@@ -18,9 +18,15 @@ function fingerprint(record) {
     updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString() : null,
     attendedAt: record.attendedAt ? new Date(record.attendedAt).toISOString() : null };
 }
+function canSubmitManualAttendance(user, event) {
+  return user?.role === "organizer" && (event?.manualAttendanceReviewers || []).some(value => idOf(value) === idOf(user));
+}
+function requireManualAssignment(user, event) {
+  if (!canSubmitManualAttendance(user, event)) fail(403, "An administrator must assign you to this event before you can submit manual attendance.");
+}
 function canReview(user, event, request) {
   if (!user || !event || !request || idOf(user) === idOf(request.requestedBy) || idOf(user) === idOf(request.student)) return false;
-  return user.role === "admin" || (user.role === "organizer" && (event.manualAttendanceReviewers || []).some(value => idOf(value) === idOf(user)));
+  return user.role === "admin";
 }
 function buildProposal(event, payload, now = new Date()) {
   const mode = payload.mode || "checkin";
@@ -81,6 +87,7 @@ function createService(deps) {
       Event.findById(payload.eventId), User.findById(payload.studentId).select("role enrollmentStatus emailVerified"),
     ]);
     if (!event) fail(404, "Event not found");
+    requireManualAssignment(user, event);
     if (!student || student.role !== "student") fail(400, "Choose a student account");
     if ((payload.mode || "checkin") === "checkin" && !isActiveStudent(student)) fail(400, "Only active, verified students may check in. Historical corrections remain available for existing records.");
     const selectedSession = event.attendanceSessions?.length ? require("./sessionAttendance").sessionFor(event, payload.sessionId) : null;
@@ -88,6 +95,7 @@ function createService(deps) {
     if (previous?.status === "excused" || (previous?.method === "face" && !selectedSession)) fail(409, "This student already has face-verified attendance or an approved excuse. Review that record separately.");
     const proposal = buildProposal(event, payload, now);
     if (selectedSession) await require("./sessionAttendance").lockSchedule(event, now, selectedSession._id, { prepareForMs: 30000 });
+    requireManualAssignment(user, await Event.findById(payload.eventId));
     if (!selectedSession && proposal.mode === "checkin" && previous && previous.status !== "absent" && previous.status !== "pending") fail(409, "Attendance is already recorded. Use a documented correction if needed.");
     let request;
     try {
@@ -174,16 +182,13 @@ function createService(deps) {
     return reviewers(user, payload.eventId);
   }
 
-  async function reviewOne(user, id, decision, note, now = new Date(), photoAttestation = false) {
+  async function reviewOne(user, id, decision, note, now = new Date()) {
     if (!isValidObjectId(id)) fail(400, "Invalid request ID");
     let request = await Request.findById(id).lean();
     if (!request) fail(404, "Request not found");
     const event = await Event.findById(request.event);
-    const directPhoto = photoAttestation && user?.role === "organizer" && request.source === "id_photo"
-      && request.captureBasis === "server" && idOf(request.attestedBy) === idOf(user)
-      && idOf(request.requestedBy) === idOf(user) && idOf(request.student) !== idOf(user);
-    const reviewerId = directPhoto ? null : user._id;
-    if (!directPhoto && !canReview(user, event, request)) fail(403, "An independent administrator or assigned event reviewer must review this request");
+    if (!canReview(user, event, request)) fail(403, "An independent administrator must review this request");
+    const reviewerId = user._id;
     if (request.status !== "pending") {
       if (request.status !== decision) fail(409, "This request has already been reviewed");
       return reviewResult(request);
@@ -194,7 +199,7 @@ function createService(deps) {
     if (!request) fail(409, "Another reviewer is processing this request. Refresh and try again.");
     try {
       // Recover if attendance was committed but the request finalization failed.
-      const alreadyApplied = await Attendance.findOne({ event: request.event, student: request.student, ...(request.session ? { session: request.session } : {}), "manualAttendanceAudit.request": request._id }).lean();
+      const alreadyApplied = await Attendance.findOne({ event: request.event, student: request.student, session: request.session || null, "manualAttendanceAudit.request": request._id }).lean();
       const priorAudit = alreadyApplied?.manualAttendanceAudit?.find(item => idOf(item.request) === idOf(request));
       if (priorAudit) {
         await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, { $set: { status: "approved", reviewedBy: priorAudit.reviewedBy, reviewedAt: priorAudit.reviewedAt, reviewNote: priorAudit.reviewNote }, $unset: { reviewLock: 1 } });
@@ -206,7 +211,7 @@ function createService(deps) {
         // exemption just because no Attendance row was created yet.
         if (!request.session && now > new Date(request.schedule.cutoff)) {
           try {
-            await Attendance.updateOne({ event: request.event, student: request.student }, { $setOnInsert: {
+            await Attendance.updateOne({ event: request.event, student: request.student, session: null }, { $setOnInsert: {
               event: request.event, student: request.student, attendedAt: request.schedule.cutoff,
               status: "absent", method: "auto", communityServiceHours: 8,
               createdAt: now, updatedAt: now,
@@ -229,7 +234,7 @@ function createService(deps) {
           method: request.source === "id_photo" ? "id_photo" : "manual",
           review: { request: request._id, requestedBy: request.requestedBy, reviewedBy: reviewerId,
             submittedAt: request.submittedAt, reviewedAt: now, reason: request.reason, note, mode: request.mode,
-            expectedUpdatedAt: request.previousAttendance?.updatedAt ?? null, allowExitOnly: !directPhoto } });
+            expectedUpdatedAt: request.previousAttendance?.updatedAt ?? null, allowExitOnly: true } });
         if (!outcome.ok && outcome.reason !== "already") fail(409, outcome.message || "This attendance action cannot be applied yet.");
         const existing = outcome.attendance;
         if (outcome.reason === "already" && action === "time_in" && existing.status !== request.proposedStatus) fail(409, "The existing session arrival differs from this request. No attendance was changed.");
@@ -241,7 +246,7 @@ function createService(deps) {
         await notifyUsers([request.student], { type: "attendance", title: "Session attendance recorded", message: `${event.title} · ${selected.name}: ${action === "time_out" ? "Time Out" : "Time In"} confirmed using the recorded capture time.`, relatedEvent: event._id, event, deferEmail: true }).catch(() => {});
         return { id: idOf(request), status: "approved", ...(resolution === "existing_face" ? { keptExistingAttendance: true } : {}) };
       }
-      const current = await Attendance.findOne({ event: request.event, student: request.student }).lean();
+      const current = await Attendance.findOne({ event: request.event, student: request.student, session: null }).lean();
       if (current?.status === "excused") fail(409, "Attendance is already Excused by an approved excuse letter. Reject this duplicate manual request with a note to keep the approved excuse.");
       if (current?.method === "face") {
         // A successful face scan can follow a fallback manual request. When
@@ -292,14 +297,14 @@ function createService(deps) {
       }
       const finalized = await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, { $set: { status: "approved", reviewedBy: reviewerId, reviewedAt: now, reviewNote: note, resolution: request.source === "id_photo" ? "id_photo" : "manual" }, $unset: { reviewLock: 1 } });
       if (!finalized.modifiedCount) fail(409, "Attendance was applied; refresh the request to recover its review status.");
-      await notifyUsers([request.student], { type: "attendance", title: directPhoto ? "ID-assisted attendance recorded" : "Manual attendance approved", message: directPhoto ? `An organizer recorded ID-assisted attendance for "${event.title}" as ${request.proposedStatus}. Contact your department if this is incorrect.` : `Your attendance for "${event.title}" was approved as ${request.proposedStatus}. It uses your recorded check-in time, not the approval time.`, relatedEvent: event._id, event, deferEmail: true }).catch(() => {});
+      await notifyUsers([request.student], { type: "attendance", title: "Manual attendance approved", message: `Your attendance for "${event.title}" was approved as ${request.proposedStatus}. It uses your recorded check-in time, not the approval time.`, relatedEvent: event._id, event, deferEmail: true }).catch(() => {});
       return { id: idOf(request), status: "approved" };
     } finally {
       await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, { $unset: { reviewLock: 1 } }).catch(() => {});
     }
   }
   async function reviewBatch(user, payload) {
-    if (!["admin", "organizer"].includes(user?.role)) fail(403, "Review access is required");
+    if (user?.role !== "admin") fail(403, "Only administrators can approve or reject manual attendance");
     if (!Array.isArray(payload.ids) || !payload.ids.length || payload.ids.length > 50) fail(400, "Select between 1 and 50 requests");
     const decision = payload.decision, note = typeof payload.note === "string" ? payload.note.trim() : "";
     if (!["approved", "rejected"].includes(decision)) fail(400, "Choose approve or reject");
@@ -320,8 +325,7 @@ function createService(deps) {
     return Request.find({ student: studentId, status: "pending" }).populate("event", "title date time academicYearStart semester endDate endTime status attendanceStartTime attendanceEndTime")
       .populate("requestedBy", "name email").select("event session sessionName action student requestedBy proposedStatus proposedHours effectiveAt submittedAt status").lean();
   }
-  const applyPhoto = (user, id, now = new Date()) => reviewOne(user, id, "approved", "Organizer-attested physical ID check; not independent or biometric verification.", now, true);
-  return { submit, list, summary, reviewEvents, reviewers, assignReviewers, reviewBatch, reviewOne, applyPhoto, pendingManualEventsForStudent };
+  return { submit, list, summary, reviewEvents, reviewers, assignReviewers, reviewBatch, reviewOne, pendingManualEventsForStudent };
 }
 
 let defaultService;
@@ -329,5 +333,5 @@ function service() {
   return defaultService ||= createService({ Request: require("../models/ManualAttendanceRequest"), Attendance: require("../models/Attendance"),
     Event: require("../models/Event"), User: require("../models/User"), notifyUsers: require("./notify").notifyUsers });
 }
-const names = ["submit", "list", "summary", "reviewEvents", "reviewers", "assignReviewers", "reviewBatch", "pendingManualEventsForStudent", "applyPhoto"];
-module.exports = { createService, buildProposal, canReview, fingerprint, baseHours, ...Object.fromEntries(names.map(name => [name, (...args) => service()[name](...args)])) };
+const names = ["submit", "list", "summary", "reviewEvents", "reviewers", "assignReviewers", "reviewBatch", "pendingManualEventsForStudent"];
+module.exports = { createService, buildProposal, canReview, canSubmitManualAttendance, requireManualAssignment, fingerprint, baseHours, ...Object.fromEntries(names.map(name => [name, (...args) => service()[name](...args)])) };

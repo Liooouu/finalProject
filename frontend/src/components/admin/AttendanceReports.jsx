@@ -1,9 +1,9 @@
 import ReportExport from "./ReportExport";
-import { attendanceCompletion, attendancePenaltyLabel } from "../../utils/attendanceSessions";
+import { attendancePenaltyLabel } from "../../utils/attendanceSessions";
 import { useAcademicPeriods } from "../../utils/useAcademicPeriods";
 import AcademicPeriodFilter from "../organizer/AcademicPeriodFilter";
 import AttendanceRecordActions from "./AttendanceRecordActions";
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import { useTheme } from "../../context/ThemeContext";
@@ -70,6 +70,7 @@ const AttendanceReports = () => {
   const [usersData, setUsersData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const attendanceRequest = useRef(0);
   const [attendanceError, setAttendanceError] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
@@ -113,22 +114,24 @@ const AttendanceReports = () => {
   const moreActiveFilters = ["program", "yearLevel", "section"].filter((key) => filters[key] !== "all").length;
 
   const fetchAttendance = useCallback(
-    async (signal) => {
-      setAttendanceLoading(true);
+    async ({ signal, silent = false } = {}) => {
+      const request = ++attendanceRequest.current;
+      if (!silent) setAttendanceLoading(true);
       setAttendanceError("");
       try {
         const res = await api.get("/reports/attendance", { params: { ...attendanceParams, page: attendancePage, limit: attendancePageSize }, signal });
+        if (signal?.aborted || request !== attendanceRequest.current) return;
         setAttendanceData(res.data);
         const lastPage = Math.max(1, Math.ceil(res.data.stats.total / attendancePageSize));
         if (attendancePage > lastPage) setAttendancePage(lastPage);
         if (res.data.filters) setFilterOptions(res.data.filters);
       } catch (err) {
-        if (err.code === "ERR_CANCELED") return;
+        if (err.code === "ERR_CANCELED" || request !== attendanceRequest.current) return;
         setAttendanceError(
           err.response?.data?.message || err.message || "Could not load attendance report"
         );
       } finally {
-        if (!signal?.aborted) setAttendanceLoading(false);
+        if (!signal?.aborted && request === attendanceRequest.current) setAttendanceLoading(false);
       }
     },
     [attendanceParams, attendancePage]
@@ -161,7 +164,7 @@ const AttendanceReports = () => {
   useEffect(() => {
     if (activeTab !== "attendance") return undefined;
     const controller = new AbortController();
-    fetchAttendance(controller.signal);
+    fetchAttendance({ signal: controller.signal });
     return () => controller.abort();
   }, [activeTab, fetchAttendance]);
 
@@ -173,7 +176,7 @@ const AttendanceReports = () => {
     if (activeTab === "users") fetchUsers();
   }, [activeTab, fetchUsers]);
   useAutoRefresh(fetchUsers, { interval: 30000, enabled: activeTab === "users" });
-  useAutoRefresh(() => fetchAttendance(), { interval: 30000, enabled: activeTab === "attendance" });
+  useAutoRefresh(fetchAttendance, { interval: 10000, enabled: activeTab === "attendance" });
   useAutoRefresh(fetchEvents, { interval: 30000, enabled: activeTab === "events" });
 
   const downloadReport = async (type, format) => {
@@ -546,7 +549,7 @@ const AttendanceReports = () => {
                 title="Recent attendance records"
                 actions={<span role="status" aria-live="polite" className="attendance-refresh-status">{attendanceLoading ? "Updating…" : ""}</span>}
                 className="admin-records-panel"
-                subtitle={`${attendanceData.stats.total} matching records · ${attendancePageSize} per page`}
+                subtitle={`${attendanceData.stats.total} matching records · Latest updates first`}
 
               >
                 <AttendanceRecordActions scopeKey={`${JSON.stringify(periodParams)}:${JSON.stringify(filters)}:${attendancePage}`} records={attendanceData.records} loading={attendanceLoading} onDeleted={() => Promise.all([fetchAttendance(), fetchEvents()])}>{({ selecting, checkbox, busy }) => <StablePage loading={attendanceLoading || busy} pageKey={`${JSON.stringify(periodParams)}:${JSON.stringify(filters)}:${attendanceData.stats.total}`} footer={<div className="admin-table-pager"><Pagination page={attendancePage} pageSize={attendancePageSize} total={attendanceData.stats.total} disabled={attendanceLoading || busy} onChange={setAttendancePage} label="Attendance report pages" /></div>}>
@@ -594,7 +597,7 @@ const AttendanceReports = () => {
                               </td>
                               <td>
                                 <StatusChip status={r.status} />
-                                <p className="mt-1 text-xs text-on-muted">{r.session ? `${attendanceCompletion(r)} · ` : ""}{attendancePenaltyLabel(r)}</p>
+                                <p className="mt-1 text-xs text-on-muted">{r.completionStatus === "completed" && "Completed · "}{r.completionStatus === "incomplete" && "Incomplete · "}{attendancePenaltyLabel(r)}</p>
                               </td>
                               <td className="whitespace-nowrap">
                                 {checkedInAt ? (

@@ -28,6 +28,7 @@ export function attendanceCompletion(record) {
   if (record.status === 'excused') return 'Excused';
   if (record.completionStatus === 'completed') return 'Completed';
   if (record.completionStatus === 'incomplete') return 'Incomplete';
+  if (record.timeInAt && !record.timeOutAt && record.pendingManualActions?.includes('time_out')) return 'Time Out under review';
   if (record.status === 'absent') return 'Absent';
   return record.timeInAt ? 'Awaiting time out' : 'Not checked in';
 }
@@ -45,7 +46,9 @@ export function attendancePenaltyLabel(record) {
       ? 'Late (4h) + missing Time Out (2h): 6h'
       : 'Missing Time Out: 2 penalty hours';
   }
-  if (record.completionStatus === 'pending') return record.timeInAt ? 'Awaiting Time Out' : 'Time In not confirmed · no absence penalty yet';
+  if (record.completionStatus === 'pending') return record.timeInAt
+    ? (record.pendingManualActions?.includes('time_out') ? 'Time Out under admin review' : 'Awaiting Time Out')
+    : 'Time In not confirmed · no absence penalty yet';
   return record.arrivalStatus === 'late'
     ? 'Late Time In: 4 penalty hours'
     : 'On-time Time In: 0 penalty hours';

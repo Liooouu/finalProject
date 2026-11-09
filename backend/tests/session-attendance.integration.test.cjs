@@ -99,6 +99,84 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
         .reduce((total, item) => total + item.hours, 0), hours);
     }
   });
+  test('an older saved Time In omitted from the roster finalizes as incomplete exactly once', async () => {
+    const session = event.attendanceSessions[0];
+    await Event.updateOne({ _id: event._id, 'attendanceSessions._id': session._id },
+      { $set: { 'attendanceSessions.$.rosterLockedAt': at('08:00:00'), 'attendanceSessions.$.eligibleStudents': [] } });
+    await Attendance.collection.insertOne({ event: event._id, session: session._id, student: student._id,
+      method: 'face', status: 'present', completionStatus: 'pending', arrivalStatus: 'on_time',
+      timeInAt: at('08:10:00'), attendedAt: at('08:10:00') });
+    const savedEvent = await Event.findById(event._id);
+    await service.finalize(savedEvent, at('12:00:00'));
+    assert.equal((await Attendance.findOne().lean()).completionStatus, 'pending');
+    await service.finalize(savedEvent, at('12:00:00.001'));
+    await service.finalize(savedEvent, at('12:01:00'));
+    const row = await Attendance.findOne().lean();
+    assert.equal(row.completionStatus, 'incomplete');
+    assert.equal(row.communityServiceHours, 2);
+    assert.equal(row.timeOutAt, null);
+    assert.equal(row.communityServiceLog.length, 1);
+  });
+  test('recent report sorts by latest attendance change before pagination', async () => {
+    const [morning, afternoon] = event.attendanceSessions;
+    const first = await Attendance.create({ event: event._id, session: morning._id, student: student._id,
+      status: 'present', timeInAt: at('08:10:00'), timeOutAt: at('11:30:00'), attendedAt: at('08:10:00') });
+    const second = await Attendance.create({ event: event._id, session: afternoon._id, student: student._id,
+      status: 'present', timeInAt: at('13:10:00'), attendedAt: at('13:10:00') });
+    await Attendance.collection.updateOne({ _id: first._id }, { $set: { updatedAt: at('18:00:00') } });
+    await Attendance.collection.updateOne({ _id: second._id }, { $unset: { updatedAt: '' } });
+    const report = require('../routes/reportRoutes');
+    const handler = report.stack.find(layer => layer.route?.path === '/attendance' && layer.route.methods.get).route.stack.at(-1).handle;
+    const page = async page => {
+      const result = {};
+      await handler({ user: admin, query: { page, limit: 1 } }, { status(code) { result.status = code; return this; }, json(body) { result.body = body; } });
+      assert.equal(result.status, undefined, JSON.stringify(result.body));
+      return result.body;
+    };
+    assert.equal(String((await page(1)).records[0]._id), String(first._id));
+    assert.equal(String((await page(2)).records[0]._id), String(second._id));
+  });
+  test('ID photos require current event assignment and stay pending until admin review', async t => {
+    const idPhoto = require('../services/idPhotoAttendance');
+    const { randomUUID } = require('node:crypto');
+    const jpeg = require('jpeg-js');
+    const secret = process.env.JWT_SECRET;
+    process.env.JWT_SECRET = 'test-only-id-photo-secret';
+    t.after(() => { if (secret === undefined) delete process.env.JWT_SECRET; else process.env.JWT_SECRET = secret; });
+    t.mock.method(Date, 'now', () => +at('08:00:00'));
+    const sessionId = String(event.attendanceSessions[0]._id);
+    const prepare = () => idPhoto.prepare(organizer, event._id, at('08:00:00'), sessionId);
+    const capture = () => idPhoto.captureTime(organizer, { eventId: event._id, sessionId, studentId: String(student._id) }, at('08:10:00'));
+    await assert.rejects(prepare(), { status: 403 });
+    await Event.updateOne({ _id: event._id }, { $set: { manualAttendanceReviewers: [organizer._id] } });
+    const prepared = await prepare();
+    const signed = await capture();
+    const payload = { clientId: randomUUID(), ticket: signed.ticket, capturedAt: signed.serverTime,
+      studentId: String(student._id), identityChecked: true };
+    const upload = { buffer: jpeg.encode({ width: 320, height: 200, data: Buffer.alloc(320 * 200 * 4, 255) }, 85).data, mimetype: 'image/jpeg' };
+    const online = await idPhoto.submit(organizer, payload, upload, at('08:11:00'));
+    assert.equal(online.status, 'pending');
+    assert.equal(await Attendance.countDocuments(), 0);
+    await assert.rejects(manual.reviewBatch(organizer, { ids: [online.requestId], decision: 'approved', verifiedPresence: true }), { status: 403 });
+    await Event.updateOne({ _id: event._id }, { $set: { manualAttendanceReviewers: [] } });
+    await assert.rejects(prepare(), { status: 403 });
+    await assert.rejects(capture(), { status: 403 });
+    const offline = { ...payload, clientId: randomUUID(), ticket: prepared.tickets.time_out, capturedAt: at('11:30:00').toISOString() };
+    await assert.rejects(idPhoto.submit(organizer, offline, upload, at('13:00:00')), { status: 403 });
+    assert.equal(await Request.countDocuments(), 1);
+    assert.equal(String((await idPhoto.submit(organizer, payload, upload, at('13:00:00'))).requestId), String(online.requestId));
+    await Event.updateOne({ _id: event._id }, { $set: { manualAttendanceReviewers: [organizer._id] } });
+    const exit = await idPhoto.submit(organizer, offline, upload, at('13:00:00'));
+    assert.equal(exit.captureBasis, 'device');
+    assert.equal(exit.status, 'pending');
+    assert.equal(await Attendance.countDocuments(), 0);
+    const reviewed = await manual.reviewBatch(admin, { ids: [exit.requestId, online.requestId].map(String), decision: 'approved', verifiedPresence: true });
+    assert.deepEqual(reviewed.results.map(row => row.status), ['approved', 'approved']);
+    const row = await Attendance.findOne({ session: sessionId }).lean();
+    assert.equal(row.completionStatus, 'completed');
+    assert.equal(+row.timeInAt, +at('08:10:00'));
+    assert.equal(+row.timeOutAt, +at('11:30:00'));
+  });
   test('premature automatic absence is reversed while exit is open, then finalized once at exit close', async () => {
     const session = event.attendanceSessions[0];
     await Attendance.create({ event: event._id, session: session._id, student: student._id, method: 'auto', status: 'absent', completionStatus: 'absent', sessionPenaltyHours: 8, communityServiceHours: 8 });

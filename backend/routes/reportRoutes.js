@@ -254,12 +254,16 @@ router.get("/attendance", async (req, res) => {
 
     const [attendance, totalRecords, statusStats, byEvent, students, matchedStudents, filters, events] =
       await Promise.all([
-        Attendance.find(match)
-          .populate("event", "title date time academicYearStart semester")
-          .populate("student", "name email program yearLevel section")
-          .sort({ attendedAt: -1, _id: -1 })
-          .skip((requestedPage - 1) * limit)
-          .limit(limit),
+        Attendance.aggregate([
+          { $match: match },
+          { $set: { activityAt: { $ifNull: ["$updatedAt", "$attendedAt"] } } },
+          { $sort: { activityAt: -1, _id: -1 } },
+          { $skip: (requestedPage - 1) * limit },
+          { $limit: limit },
+        ]).then(records => Attendance.populate(records, [
+          { path: "event", select: "title date time academicYearStart semester" },
+          { path: "student", select: "name email program yearLevel section" },
+        ])),
         Attendance.countDocuments(match),
         Attendance.aggregate([
           { $match: match },

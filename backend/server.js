@@ -244,6 +244,13 @@ connectDB()
           }
         }
 
+        // Session finalization is retry-safe and keeps staff balance adjustments.
+        const sessionEvents = await Event.find({ "attendanceSessions.timeInOpen": { $lte: now } });
+        for (const event of sessionEvents) {
+          try { await require("./services/sessionAttendance").finalize(event, now); }
+          catch (error) { console.error("[lifecycle] session finalization:", error.message); }
+        }
+
         // ── STEP 2: absence marking for events that are over ─────────────
         // Reconcile every run so students registered after an earlier pass
         // still get their absent record + hours.
@@ -302,6 +309,7 @@ connectDB()
                     message: `No attendance was recorded for "${event.title}" before check-in closed. You were marked absent, and an 8-hour penalty has been added to your required community service balance. Open TrackED to review the record or submit an eligible excuse letter.`,
                     relatedEvent: event._id,
                     event,
+                    deferEmail: true,
                   });
                 }
               } catch (err) {
@@ -318,13 +326,6 @@ connectDB()
           } catch (err) {
             console.error(`[lifecycle] absence pass failed for "${event.title}":`, err.message);
           }
-        }
-
-        // Session finalization is retry-safe and keeps staff balance adjustments.
-        const sessionEvents = await Event.find({ attendanceSessions: { $exists: true, $ne: [] } });
-        for (const event of sessionEvents) {
-          try { await require("./services/sessionAttendance").finalize(event, now); }
-          catch (error) { console.error("[lifecycle] session finalization:", error.message); }
         }
 
         // ✅ EVENT DAY REMINDERS — attendance-window notices for events dated
@@ -383,6 +384,7 @@ connectDB()
               message,
               relatedEvent: event._id,
               event,
+              deferEmail: true,
             });
           };
 
@@ -395,6 +397,7 @@ connectDB()
                 message: `Check-in for "${event.title}" opens at ${manilaDateTimeLabel(notice.window.start)} (Philippine time). Visit an organizer-operated face station to record your attendance.`,
                 relatedEvent: event._id,
                 event,
+                deferEmail: true,
               });
             }
             event.attendanceUpcomingNotified = true;
@@ -413,6 +416,7 @@ connectDB()
                 message: `Check-in is now open for "${event.title}". Visit an organizer-operated face station by ${manilaDateTimeLabel(notice.window.end)} (Philippine time) to be marked present.`,
                 relatedEvent: event._id,
                 event,
+                deferEmail: true,
               });
             }
             event.openNotified = true;
@@ -475,6 +479,7 @@ connectDB()
                 message: `"${event.title}" starts at ${manilaDateTimeLabel(startsAt)} (Philippine time)${event.location ? ` at ${event.location}` : ""}. Open the event to check its Time In and Time Out schedule before you arrive.`,
                 relatedEvent: event._id,
                 event,
+                deferEmail: true,
               });
             }
             event.upcomingNotified = true;

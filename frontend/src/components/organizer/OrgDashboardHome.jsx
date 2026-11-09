@@ -124,7 +124,7 @@ export default function OrganizerHome() {
         </Link>
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-xs">
           <Link to="/organizer/dashboard/reviews/manual?view=mine" className="font-medium text-on-dim hover:text-on">{manualSummary ? `${manualSummary.pendingMine || 0} submitted · pending` : "My submitted requests"}</Link>
-          <Link to="/organizer/dashboard/reviews/manual?view=review" className="font-medium text-brand">{manualSummary?.pendingReview ? `${manualSummary.pendingReview} to review →` : "Assigned reviews →"}</Link>
+          <Link to="/organizer/dashboard/reviews/manual?view=review" className="font-medium text-brand">{manualSummary?.pendingReview ? `${manualSummary.pendingReview} awaiting admin →` : "Assigned events →"}</Link>
         </div>
         {manualError && <p className="text-xs text-on-muted">Request counts could not refresh. <button onClick={() => refresh()} className="underline">Retry</button></p>}
       </BaseCard>
