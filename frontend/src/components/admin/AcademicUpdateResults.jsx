@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import api from "../../api/axios";
 import { Button, Card } from "../ui";
 import Pagination from "../ui/Pagination";
@@ -10,6 +10,7 @@ const labels = { advanced: "Advanced", retained: "Kept year", unchanged: "Unchan
 const statuses = { completed: "Academic update completed", partial: "Some records need another attempt", running: "Update in progress", undone: "Update undone", reverting: "Undo in progress", undo_partial: "Undo needs attention" };
 
 export default function AcademicUpdateResults({ batchId, revision, fallback, disabled, onUndo, containerRef }) {
+  const resultId=useId(),searchId=useId();
   const [data,setData]=useState(null),[page,setPage]=useState(1),[search,setSearch]=useState("");
   const [loading,setLoading]=useState(true),[error,setError]=useState(""),[attempt,setAttempt]=useState(0);
   useEffect(()=>{
@@ -28,7 +29,7 @@ export default function AcademicUpdateResults({ batchId, revision, fallback, dis
   const scope=batch?.classScope;
   const canUndo=batch&&["completed","partial","reverting","undo_partial"].includes(batch.status);
   const undoAttempt=batch&&["undone","undo_partial","reverting"].includes(batch.status);
-  return <Card as="section" id="academic-saved-results" ref={containerRef} tabIndex={-1} aria-label="Saved academic update results" className="space-y-3">
+  return <Card as="section" id={resultId} ref={containerRef} tabIndex={-1} aria-label="Saved academic update results" className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
         {batch&&<><p className="mt-1 text-sm font-medium text-on">{scope?`${scope.program} · Year ${scope.yearLevel} · Section ${scope.section}`:"All classes (earlier update)"}</p>
@@ -39,7 +40,7 @@ export default function AcademicUpdateResults({ batchId, revision, fallback, dis
     {batch&&<><p role="status" className="text-sm font-medium text-on">{statuses[batch.status]||batch.status}</p>
       <p className="text-sm text-on-dim">{undoAttempt?`${batch.undo.counts.restored} restored · ${batch.undo.counts.skipped+batch.undo.counts.failed} need review`:<>{batch.counts.advanced} advanced · {batch.unchangedCount||batch.counts.retained} unchanged · {batch.counts.graduated} graduated{batch.counts.skipped>0&&` · ${batch.counts.skipped} skipped`}{batch.counts.failed>0&&` · ${batch.counts.failed} failed`}</>}</p>
       <p className="text-xs text-on-muted">{undoAttempt?"Restored rows show the year returned by Undo. Rows needing review have not been restored by this action.":"Previous and updated year levels are shown for this batch."}</p></>}
-    {data?.batchSize>5&&<div><label htmlFor="academic-results-search" className="field-label">Search saved results</label><input id="academic-results-search" type="search" className="field" value={search} placeholder="Student name or email" onChange={event=>{setSearch(event.target.value);setPage(1);}} /></div>}
+    {data?.batchSize>5&&<div><label htmlFor={searchId} className="field-label">Search saved results</label><input id={searchId} type="search" className="field" value={search} placeholder="Student name or email" onChange={event=>{setSearch(event.target.value);setPage(1);}} /></div>}
     {error&&<div role="alert" className="text-sm text-danger">{error}<Button size="sm" variant="ghost" onClick={()=>setAttempt(value=>value+1)}>Retry results</Button></div>}
     {loading&&<p role="status" className="text-xs text-on-muted">Loading saved results...</p>}
     <StablePage pageKey={`${batchId}:${search}`} loading={loading} footer={data&&<Pagination page={data.page} pageSize={5} total={data.total} onChange={setPage} disabled={loading} label="Saved result pages" />}>
