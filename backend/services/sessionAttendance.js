@@ -84,7 +84,9 @@ async function notice(event, session, record, action, finalizing, method) {
   })) return;
   const label = finalizing ? record.completionStatus === 'absent' ? 'Absence recorded' : 'Time Out missing' : action === 'time_out' ? 'Time Out recorded' : 'Late Time In recorded';
   await require('./notify').notifyUsers([record.student], { type: 'attendance', title: label,
-    message: `${event.title} · ${session.name}: ${label}. Automatic session penalty: ${record.sessionPenaltyHours} hours. Your ledger shows any approved adjustments.`,
+    message: !finalizing && action === 'time_out' && !record.arrivalStatus
+      ? `${event.title} · ${session.name}: Time Out recorded. No Time In on record.`
+      : `${event.title} · ${session.name}: ${label}. Automatic session penalty: ${record.sessionPenaltyHours} hours. Your ledger shows any approved adjustments.`,
     relatedEvent: event._id, event, deferEmail: true }).catch(() => {});
 }
 async function apply({ event, session, student, action, now = new Date(), method = 'face', matchDistance = null,
@@ -119,17 +121,18 @@ async function apply({ event, session, student, action, now = new Date(), method
     if (existing?.status === 'excused') fail(409, 'An approved excuse protects this session. Review the excuse before changing attendance.');
     if (review && existing?.manualAttendanceAudit?.some(item => id(item.request) === id(review.request))) return { ok: true, attendance: existing, status: existing.status, hours: existing.communityServiceHours, action };
     if (finalizing && existing?.timeInAt && (existing.timeOutAt || +now <= +new Date(session.timeOutClose))) return { ok: false, reason: 'already', attendance: existing };
-    if (review?.mode === 'correction' && existing?.method === 'face' && !(action === 'time_out' && !existing.timeOutAt)) fail(409, 'Face-verified attendance cannot be overwritten by a correction.');
-    // An approved exit can arrive while a correction for the missing entry is pending.
+    // A verified exit does not prevent an independent correction for a missing entry.
     const fillsMissingEntry = action === 'time_in' && !existing?.timeInAt && !!existing?.timeOutAt;
+    const verifiedExit = existing?.timeOutAt && (existing.timeOutMethod === 'face' || existing.method === 'face');
+    const protectedAction = action === 'time_out' ? verifiedExit
+      : (existing?.method === 'face' && !fillsMissingEntry) || (action === 'absent' && verifiedExit);
+    if (review?.mode === 'correction' && protectedAction) fail(409, 'Face-verified attendance cannot be overwritten by a correction.');
     if (review?.mode === 'correction' && existing && existing.method !== 'auto' && !fillsMissingEntry && review.expectedUpdatedAt !== (existing.updatedAt ? new Date(existing.updatedAt).toISOString() : null)) fail(409, 'Attendance changed after this correction was submitted.');
     const field = action === 'time_out' ? 'timeOutAt' : 'timeInAt';
     if (!finalizing && action !== 'absent' && existing?.[field]) {
       if (!review || review.mode !== 'correction') return { ok: false, reason: 'already', attendance: existing };
-      if (existing.method === 'face') fail(409, 'Face-verified actions cannot be overwritten by an attendance request.');
       if (review.expectedUpdatedAt !== (existing.updatedAt ? new Date(existing.updatedAt).toISOString() : null)) fail(409, 'Attendance changed after this correction was submitted. Refresh and submit a new correction.');
     }
-    if (action === 'time_out' && !existing?.timeInAt && !review?.allowExitOnly) return { ok: false, reason: 'no_time_in', message: 'Time In not confirmed. This Time Out needs independent review.' };
     const timeInAt = action === 'time_in' && !finalizing ? now : existing?.timeInAt || null;
     const timeOutAt = action === 'time_out' ? now : existing?.timeOutAt || null;
     if (action === 'absent' && existing?.timeInAt && !review && !finalizing) return { ok: false, reason: 'already', attendance: existing };
@@ -203,7 +206,7 @@ async function finalize(event, now = new Date()) {
         continue;
       }
       if (record && !record.timeInAt && record.status === 'absent' && contribution(record) === 8) continue;
-      if (record?.timeInAt && (+now <= +new Date(session.timeOutClose) || (record.completionStatus === 'incomplete' && contribution(record) === (record.arrivalStatus === 'late' ? 6 : 2)))) continue;
+      if (record?.timeInAt && record.completionStatus === 'incomplete' && contribution(record) === (record.arrivalStatus === 'late' ? 6 : 2)) continue;
       await apply({ event, session, student: { _id: student }, action: 'absent', now, finalizing: true });
     }
   }

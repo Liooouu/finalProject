@@ -22,7 +22,9 @@ function projectManualAttendance(records, requests, { studentId, includeUnrecord
     if (!request) return record;
     const pendingExit = !!record.session && pendingActions.get(recordKey).has("time_out") && record.completionStatus === "incomplete";
     const provisionalExitHours = pendingExit ? Math.min(2, record.communityServiceHours || 0) : 0;
-    const automaticAbsence = record.status === "absent" && record.method === "auto";
+    const exitOnly = record.session && record.timeOutAt && !record.timeInAt;
+    const automaticAbsence = record.status === "absent" &&
+      (record.method === "auto" || (exitOnly && pendingActions.get(recordKey).has("time_in")));
     return {
       ...record,
       manualReviewPending: true,
@@ -67,10 +69,21 @@ module.exports = { projectManualAttendance };
 function manualPendingStatusStages() {
   return [
     { $lookup: {
-      from: "manualattendancerequests", let: { eventId: "$event", studentId: "$student", recordStatus: "$status", recordMethod: "$method", recordCompletion: "$completionStatus", sessionId: { $ifNull: ["$session", null] } },
+      from: "manualattendancerequests", let: { eventId: "$event", studentId: "$student", recordStatus: "$status", recordMethod: "$method", recordCompletion: "$completionStatus",
+        exitOnly: { $and: [
+          { $ne: [{ $ifNull: ["$session", null] }, null] },
+          { $ne: [{ $ifNull: ["$timeOutAt", null] }, null] },
+          { $eq: [{ $ifNull: ["$timeInAt", null] }, null] },
+        ] }, sessionId: { $ifNull: ["$session", null] } },
       pipeline: [{ $match: { status: "pending", $expr: { $and: [
         { $eq: ["$event", "$$eventId"] }, { $eq: ["$student", "$$studentId"] }, { $eq: [{ $ifNull: ["$session", null] }, "$$sessionId"] },
-        { $or: [{ $and: [{ $eq: ["$$recordStatus", "absent"] }, { $eq: ["$$recordMethod", "auto"] }] }, { $and: [{ $eq: ["$$recordCompletion", "incomplete"] }, { $eq: ["$action", "time_out"] }] }] },
+        { $or: [
+          { $and: [{ $eq: ["$$recordStatus", "absent"] }, { $or: [
+            { $eq: ["$$recordMethod", "auto"] },
+            { $and: ["$$exitOnly", { $eq: ["$action", "time_in"] }] },
+          ] }] },
+          { $and: [{ $eq: ["$$recordCompletion", "incomplete"] }, { $eq: ["$action", "time_out"] }] },
+        ] },
       ] } } }, { $limit: 1 }, { $project: { _id: 1 } }], as: "_pendingManualReview",
     } },
     { $set: { status: { $cond: [{ $and: [{ $eq: ["$status", "absent"] }, { $gt: [{ $size: "$_pendingManualReview" }, 0] }] }, "pending", "$status"] }, completionStatus: { $cond: [{ $and: [{ $eq: ["$completionStatus", "incomplete"] }, { $gt: [{ $size: "$_pendingManualReview" }, 0] }] }, "pending", "$completionStatus"] } } },

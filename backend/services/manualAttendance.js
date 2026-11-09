@@ -234,11 +234,12 @@ function createService(deps) {
           method: request.source === "id_photo" ? "id_photo" : "manual",
           review: { request: request._id, requestedBy: request.requestedBy, reviewedBy: reviewerId,
             submittedAt: request.submittedAt, reviewedAt: now, reason: request.reason, note, mode: request.mode,
-            expectedUpdatedAt: request.previousAttendance?.updatedAt ?? null, allowExitOnly: true } });
+            expectedUpdatedAt: request.previousAttendance?.updatedAt ?? null } });
         if (!outcome.ok && outcome.reason !== "already") fail(409, outcome.message || "This attendance action cannot be applied yet.");
         const existing = outcome.attendance;
         if (outcome.reason === "already" && action === "time_in" && existing.status !== request.proposedStatus) fail(409, "The existing session arrival differs from this request. No attendance was changed.");
-        const resolution = outcome.reason === "already" && existing.method === "face" ? "existing_face" : request.source === "id_photo" ? "id_photo" : "manual";
+        const recordedMethod = action === "time_out" ? (existing.timeOutMethod || existing.method) : existing.method;
+        const resolution = outcome.reason === "already" && recordedMethod === "face" ? "existing_face" : request.source === "id_photo" ? "id_photo" : "manual";
         const saved = await Request.updateOne({ _id: request._id, status: "pending", "reviewLock.token": token }, {
           $set: { status: "approved", reviewedBy: reviewerId, reviewedAt: now, reviewNote: note, resolution,
             confirmedAttendance: attendanceSummary(existing) }, $unset: { reviewLock: 1 } });

@@ -24,6 +24,19 @@ const manilaInput = value => value && Number.isFinite(new Date(value).getTime())
   ? new Date(new Date(value).getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16) : "";
 const attendancePair = value => `${studentIdOf(value)}:${value?.session?._id || value?.session || ""}`;
 const PAGE_SIZE = 5;
+function correctionActions(record) {
+  if (!record || record.status === "excused") return [];
+  const face = record.method === "face";
+  if (!record.session) return face ? [] : ["time_in"];
+  const actions = [];
+  if (!face || !record.timeInAt) actions.push("time_in");
+  if (!record.timeOutAt || (!face && record.timeOutMethod !== "face")) actions.push("time_out");
+  return actions;
+}
+function canRequestCorrection(record) {
+  return correctionActions(record).length > 0 && (["absent", "present", "late"].includes(record.status) ||
+    (record.status === "pending" && record.timeOutAt && !record.timeInAt));
+}
 
 export default function OrgManageAttendees({ embedded = false, event }) {
   const { id: eventId } = useParams();
@@ -97,21 +110,23 @@ export default function OrgManageAttendees({ embedded = false, event }) {
   ]);
   const selectedRecord = selectedStudent?._attendance || attendees.find(record => studentIdOf(record) === String(selectedStudent?._id));
   const isSelf = String(selectedStudent?._id) === currentUserId;
-  const canChangeRecordedStatus = ["manual", "id_photo"].includes(selectedRecord?.method) && ["absent", "present", "late"].includes(selectedRecord?.status);
-  const isProtected = selectedRecord?.status === "excused" || (selectedRecord?.method === "face" && !(selectedRecord.session && selectedRecord.timeInAt && !selectedRecord.timeOutAt && correctionAction === "time_out"));
+  const canChangeRecordedStatus = selectedRecord?.timeOutMethod !== "face" && ["manual", "id_photo"].includes(selectedRecord?.method) && ["absent", "present", "late"].includes(selectedRecord?.status);
+  const allowedCorrections = correctionActions(selectedRecord);
+  const isProtected = selectedRecord && !allowedCorrections.includes(correctionAction);
   const isPending = pendingIds.has(attendancePair({ student: selectedStudent?._id, session: selectedRecord?.session }));
   const needsDetails = mode === "correction" || reason === "Other";
 
   const selectStudent = (student, forceCorrection = false) => {
     if (!canCapture || !student?._id) return;
     const record = student._attendance || attendees.find(item => studentIdOf(item) === String(student._id));
-    const correction = forceCorrection && record && ["absent", "present", "late"].includes(record.status) && (record.method !== "face" || (record.session && record.timeInAt && !record.timeOutAt));
+    const correction = forceCorrection && canRequestCorrection(record);
     if (forceCorrection && !correction) return;
     if (!correction && (isTerminalStatus(event?.status) || ["present", "late", "excused"].includes(record?.status) || record?.method === "face")) return;
-    setCorrectionAction(record?.method === "face" && record?.session ? "time_out" : "time_in");
+    const action = correctionActions(record)[0] || "time_in";
+    setCorrectionAction(action);
     setPanel(correction ? "correction" : "checkin");
     setSelectedStudent(student); setMode(correction ? "correction" : "checkin");
-    setCorrectionStatus("auto"); setEffectiveAt(record?.status !== "absent" ? manilaInput(record?.method === "face" && record?.session ? record.timeOutAt : record?.attendedAt) : "");
+    setCorrectionStatus("auto"); setEffectiveAt(record?.status !== "absent" ? manilaInput(record?.session ? (action === "time_out" ? record.timeOutAt : record.timeInAt) : record?.attendedAt) : "");
     setReason(correction ? "Attendance correction" : "");
     setDetails(""); setIdentityChecked(false); setMessage(null);
   };
@@ -119,7 +134,7 @@ export default function OrgManageAttendees({ embedded = false, event }) {
   const submit = async e => {
     e.preventDefault();
     if (!canCapture || submitting || !selectedStudent || isSelf || isPending || isProtected) return;
-    if (mode === "correction" && !["absent", "present", "late"].includes(selectedRecord?.status)) return;
+    if (mode === "correction" && !canRequestCorrection(selectedRecord)) return;
     if (!reason || !identityChecked || (needsDetails && details.trim().length < 10)) {
       setMessage({ error: true, text: "Choose a reason, complete the required details, and confirm the identity check." }); return;
     }
@@ -167,7 +182,7 @@ export default function OrgManageAttendees({ embedded = false, event }) {
               <div><label htmlFor="manual-reason" className="field-label">Reason for manual attendance</label><select id="manual-reason" className="field-select w-full" required value={reason} onChange={e => setReason(e.target.value)} disabled={submitting}><option value="">Choose a reason</option>{REASONS.filter(value => mode === "correction" || value !== "Attendance correction").map(value => <option key={value}>{value}</option>)}</select></div>
             </div>
             {mode === "correction" && <div className="grid items-start gap-4 rounded-xl bg-card-alt/30 p-4 sm:grid-cols-2">
-              {selectedRecord?.session && <label className="field-label">Action<select className="field-select w-full" value={correctionAction} onChange={e => setCorrectionAction(e.target.value)}>{selectedRecord.method !== "face" && <option value="time_in">Time In correction</option>}<option value="time_out">Time Out correction</option></select></label>}
+              {selectedRecord?.session && <label className="field-label">Action<select className="field-select w-full" value={correctionAction} onChange={e => setCorrectionAction(e.target.value)}>{allowedCorrections.map(action => <option key={action} value={action}>{action === "time_in" ? "Time In correction" : "Time Out correction"}</option>)}</select></label>}
               {canChangeRecordedStatus && <div><label className="field-label" htmlFor="manual-correction-result">Correct attendance to</label><select id="manual-correction-result" className="field-select w-full" value={correctionStatus} onChange={e => setCorrectionStatus(e.target.value)} disabled={submitting}><option value="auto">Attended - calculate Present or Late</option><option value="absent">Absent</option></select></div>}
               {correctionStatus === "auto" && <div><label htmlFor="manual-effective-at" className="field-label">Actual attendance time (Philippine time)</label><input id="manual-effective-at" type="datetime-local" className="field w-full min-w-0" value={effectiveAt} max={manilaInput(new Date())} onChange={e => setEffectiveAt(e.target.value)} required disabled={submitting} /></div>}
             </div>}
@@ -201,8 +216,7 @@ export default function OrgManageAttendees({ embedded = false, event }) {
         const student = record.student;
         const self = studentIdOf(record) === currentUserId;
         const pending = pendingIds.has(attendancePair(record));
-        const protectedRecord = record.status === "excused" || (record.method === "face" && !(record.session && record.timeInAt && !record.timeOutAt));
-        return <li key={record._id} className="flex flex-col justify-between gap-3 rounded-xl bg-card-alt/30 p-3 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="text-sm font-medium text-on [overflow-wrap:anywhere]">{student?.name || "Student"}</p><p className="text-xs text-on-dim [overflow-wrap:anywhere]">{student?.email || ""}</p><p className="mt-1 text-xs text-on-muted">{record.method === "face" ? "Face verified" : record.method === "auto" ? "Automatic record" : record.method === "id_photo" ? "ID-assisted check-in" : "Manual record"}{record.attendedAt ? ` · ${formatDateTime(record.attendedAt)}` : ""}</p>{pending && <p className="mt-1 text-xs text-warn">Manual request pending review; automatic absence is provisional.</p>}{self && <p className="mt-1 text-xs text-on-muted">Another organizer must handle your record.</p>}</div><div className="flex flex-wrap items-center gap-3"><StatusChip status={record.status} /><SessionAttendanceDetails record={record} /><span className="text-xs text-on-muted">{record.communityServiceHours || 0} hrs</span>{canCapture && !protectedRecord && ["absent", "present", "late"].includes(record.status) && <Button type="button" variant="secondary" size="sm" disabled={self || pending} onClick={() => { selectStudent({ ...student, _attendance: record }, true); window.requestAnimationFrame(() => document.querySelector(".manual-desk-form")?.scrollIntoView({ behavior: "smooth", block: "start" })); }}>Request correction</Button>}</div></li>;
+        return <li key={record._id} className="flex flex-col justify-between gap-3 rounded-xl bg-card-alt/30 p-3 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="text-sm font-medium text-on [overflow-wrap:anywhere]">{student?.name || "Student"}</p><p className="text-xs text-on-dim [overflow-wrap:anywhere]">{student?.email || ""}</p><p className="mt-1 text-xs text-on-muted">{record.method === "face" ? "Face verified" : record.method === "auto" ? "Automatic record" : record.method === "id_photo" ? "ID-assisted check-in" : "Manual record"}{record.attendedAt ? ` · ${formatDateTime(record.attendedAt)}` : ""}</p>{pending && <p className="mt-1 text-xs text-warn">Manual request pending review; automatic absence is provisional.</p>}{self && <p className="mt-1 text-xs text-on-muted">Another organizer must handle your record.</p>}</div><div className="flex flex-wrap items-center gap-3"><StatusChip status={record.status} /><SessionAttendanceDetails record={record} /><span className="text-xs text-on-muted">{record.communityServiceHours || 0} hrs</span>{canCapture && canRequestCorrection(record) && <Button type="button" variant="secondary" size="sm" disabled={self || pending} onClick={() => { selectStudent({ ...student, _attendance: record }, true); window.requestAnimationFrame(() => document.querySelector(".manual-desk-form")?.scrollIntoView({ behavior: "smooth", block: "start" })); }}>Request correction</Button>}</div></li>;
       })}</ul> : <EmptyState compact title={query ? "No matching records" : "No attendance records yet"} description="Use the Check in tab to capture a physical school ID." />}
       </StablePage>
     </Card>}

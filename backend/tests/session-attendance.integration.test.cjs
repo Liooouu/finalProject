@@ -147,9 +147,14 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
     const sessionId = String(event.attendanceSessions[0]._id);
     const prepare = () => idPhoto.prepare(organizer, event._id, at('08:00:00'), sessionId);
     const capture = () => idPhoto.captureTime(organizer, { eventId: event._id, sessionId, studentId: String(student._id) }, at('08:10:00'));
+    const roster = () => idPhoto.viewRoster(organizer, event._id, sessionId);
+    assert.deepEqual((await roster()).students.map(row => row.name), [student.name]);
+    assert.equal((await roster()).students[0].email, undefined);
+    await assert.rejects(idPhoto.viewRoster(student, event._id, sessionId), { status: 403 });
     await assert.rejects(prepare(), { status: 403 });
     await Event.updateOne({ _id: event._id }, { $set: { manualAttendanceReviewers: [organizer._id] } });
     const prepared = await prepare();
+    assert.equal(prepared.students[0].email, student.email);
     const signed = await capture();
     const payload = { clientId: randomUUID(), ticket: signed.ticket, capturedAt: signed.serverTime,
       studentId: String(student._id), identityChecked: true };
@@ -161,6 +166,7 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
     await Event.updateOne({ _id: event._id }, { $set: { manualAttendanceReviewers: [] } });
     await assert.rejects(prepare(), { status: 403 });
     await assert.rejects(capture(), { status: 403 });
+    assert.deepEqual((await roster()).students.map(row => row.name), [student.name]);
     const offline = { ...payload, clientId: randomUUID(), ticket: prepared.tickets.time_out, capturedAt: at('11:30:00').toISOString() };
     await assert.rejects(idPhoto.submit(organizer, offline, upload, at('13:00:00')), { status: 403 });
     assert.equal(await Request.countDocuments(), 1);
@@ -203,19 +209,59 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
     assert.equal(reviewed.hours, 1); assert.equal(reviewed.attendance.completionStatus, 'completed');
     assert.equal(+reviewed.attendance.timeInAt, +at('08:45:00'));
   });
+  test('a face Time Out without Time In is saved once and stays absent until a valid entry is approved', async () => {
+    const pair = { event: event._id, session: event.attendanceSessions[0]._id, student: student._id };
+    const exit = await mark('time_out', '11:30:00', { checkInSession: new mongoose.Types.ObjectId(), matchDistance: 0.2 });
+    assert.equal(exit.ok, true);
+    assert.equal(exit.status, 'pending');
+    assert.equal(exit.hours, 0);
+    assert.equal(exit.attendance.timeInAt, null);
+    assert.equal(exit.attendance.timeOutMethod, 'face');
+    assert.equal((await mark('time_out', '11:31:00')).reason, 'already');
+    await service.finalize(event, at('12:00:00'));
+    assert.equal((await Attendance.findOne(pair)).status, 'pending');
+    await service.finalize(event, at('12:00:00.001'));
+    await service.finalize(event, at('12:01:00'));
+    const absent = await Attendance.findOne(pair).lean();
+    assert.equal(absent.status, 'absent');
+    assert.equal(absent.communityServiceHours, 8);
+    assert.equal(absent.communityServiceLog.length, 1);
+    assert.equal(+absent.timeOutAt, +at('11:30:00'));
+
+    const request = await Request.create({ ...pair, requestedBy: organizer._id, action: 'time_in',
+      source: 'manual', mode: 'correction', reason: 'Verified paper roster entry', identityChecked: true,
+      status: 'pending', submittedAt: at('12:05:00'), effectiveAt: at('08:15:00'), proposedStatus: 'present', proposedHours: 0,
+      schedule: { start: at('08:00:00'), deadline: at('08:30:00'), cutoff: at('09:00:00') } });
+    const { projectManualAttendance } = require('../services/manualAttendanceView');
+    const [provisional] = projectManualAttendance([absent], [request]);
+    assert.equal(provisional.status, 'pending');
+    assert.equal(provisional.provisionalHours, 8);
+    const review = manual.createService({ Request, Attendance, Event, User });
+    await review.reviewOne(admin, String(request._id), 'approved', '', at('12:10:00'));
+    const completed = await Attendance.findOne(pair).lean();
+    assert.equal(completed.completionStatus, 'completed');
+    assert.equal(completed.communityServiceHours, 0);
+    assert.equal(+completed.timeInAt, +at('08:15:00'));
+    assert.equal(+completed.timeOutAt, +at('11:30:00'));
+    assert.equal(completed.timeOutMethod, 'face');
+    assert.equal(String(completed.timeOutStation), String(exit.attendance.timeOutStation));
+    await assert.rejects(mark('time_out', '11:40:00', { method: 'manual', review: {
+      request: new mongoose.Types.ObjectId(), reviewedAt: at('12:15:00'), mode: 'correction',
+    } }), { status: 409 });
+  });
   test('an independent reviewer can confirm an exit alone, and a later entry reconciles its absence', async () => {
     const base = { event: event._id, session: event.attendanceSessions[0]._id, sessionName: 'Morning', student: student._id, requestedBy: organizer._id, source: 'id_photo', mode: 'checkin', reason: 'Offline ID capture', identityChecked: true, captureBasis: 'device', submittedAt: at('12:10:00'), proposedHours: 0, status: 'pending', schedule: { start: at('08:00:00'), deadline: at('08:30:00'), cutoff: at('12:00:00') } };
     const exit = await Request.create({ ...base, submittedAt: at('11:35:00'), action: 'time_out', proposedStatus: 'time_out', effectiveAt: at('11:30:00') });
     const later = new Date('2026-11-09T20:00:00+08:00');
     const review = manual.createService({ Request, Attendance, Event, User, notifyUsers: async () => {} });
-    assert.equal((await mark('time_out', '11:30:00')).reason, 'no_time_in');
     await review.reviewOne(admin, String(exit._id), 'approved', '', at('11:45:00'));
     const pair = { session: base.session, student: base.student };
     const open = await Attendance.findOne(pair).lean();
     assert.equal(open.status, 'pending'); assert.equal(open.communityServiceHours, 0);
     assert.equal(open.timeInAt, null); assert.equal(+open.timeOutAt, +at('11:30:00'));
-    await service.finalize(event, at('12:01:00'));
-    await service.finalize(event, at('12:02:00'));
+    const refreshedEvent = await Event.findById(event._id);
+    await service.finalize(refreshedEvent, at('12:01:00'));
+    await service.finalize(refreshedEvent, at('12:02:00'));
     const closed = await Attendance.findOne(pair).lean();
     assert.equal(closed.status, 'absent'); assert.equal(closed.communityServiceHours, 8);
     assert.equal(+closed.timeOutAt, +at('11:30:00'));

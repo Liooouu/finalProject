@@ -98,6 +98,19 @@ function preparationState(event, now = new Date(), session = null) {
     message: 'Attendance is closed for this event. View attendance records to request a documented correction, or choose another event.' };
   return { available: true, state: +now < schedule.start ? 'before' : 'open', schedule };
 }
+function studentRoster(user, session, includeEmail = false) {
+  const eligibleIds = { $ne: user._id };
+  if (session?.rosterLockedAt) eligibleIds.$in = session.eligibleStudents || [];
+  const cutoff = session && !session.rosterLockedAt ? { createdAt: { $lte: new Date(session.timeInOpen) } } : {};
+  return User.find({ ...activeStudentFilter(), ...cutoff, _id: eligibleIds })
+    .select(includeEmail ? 'name email program yearLevel section' : 'name program yearLevel section')
+    .sort({ name: 1, _id: 1 }).lean();
+}
+async function viewRoster(user, eventId, sessionId = null) {
+  organizer(user);
+  const event = await loadEvent(eventId);
+  return { students: await studentRoster(user, findSession(event, sessionId)) };
+}
 async function prepare(user, eventId, now = new Date(), sessionId = null) {
   organizer(user);
   const event = await loadEvent(eventId);
@@ -110,7 +123,7 @@ async function prepare(user, eventId, now = new Date(), sessionId = null) {
   // Keep the offline upload queue usable, but issue no new ticket or student roster.
   if (!state.available) return details;
   if (session) await sessionAttendance.lockSchedule(event, now, session._id);
-  const students = await User.find({ ...activeStudentFilter(), ...(session ? { createdAt: { $lte: new Date(session.timeInOpen) } } : {}), _id: { $ne: user._id } }).select('name email program yearLevel section').sort({ name: 1 }).lean();
+  const students = await studentRoster(user, session, true);
   return { ...details, students, ticket: ticket(user, event, null, now, session?._id, 'time_in'), ...(session ? { tickets: { time_in: ticket(user, event, null, now, session._id, 'time_in'), time_out: ticket(user, event, null, now, session._id, 'time_out') } } : {}) };
 }
 async function captureTime(user, payload, now = new Date()) {
@@ -202,4 +215,4 @@ async function cleanup(now = new Date()) {
     await Request.updateOne({ _id: row._id, idPhotoUrl: row.idPhotoUrl }, { $set: { idPhotoUrl: '', photoDeletedAt: now } });
   }
 }
-module.exports = { prepare, captureTime, submit, cleanup, proposalFromTicket, safePhoto, verifyTicket, preparationState };
+module.exports = { viewRoster, prepare, captureTime, submit, cleanup, proposalFromTicket, safePhoto, verifyTicket, preparationState };

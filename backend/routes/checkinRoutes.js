@@ -396,7 +396,9 @@ router.post("/:token", async (req, res) => {
         status: outcome.attendance?.status || "present",
         action: info.mode,
         completionStatus: outcome.attendance?.completionStatus,
-        message: info.mode === "time_out" ? "Time Out already recorded" : "Time In already recorded",
+        message: info.mode === "time_out"
+          ? (outcome.attendance?.completionStatus === "completed" ? "Time Out already recorded" : "Time Out already recorded. No valid Time In on record.")
+          : "Time In already recorded",
       });
     }
 
@@ -407,8 +409,6 @@ router.post("/:token", async (req, res) => {
         message: outcome.message || (
           outcome.reason === "before"
             ? "Attendance is not open yet."
-            : outcome.reason === "no_time_in"
-            ? "Time In required before Time Out."
             : "Attendance is closed for this event."),
       });
     }
@@ -425,7 +425,7 @@ router.post("/:token", async (req, res) => {
       replacedExcuse: outcome.replacedExcuse,
       message:
         outcome.action === "time_out"
-          ? `Time Out recorded (${outcome.completionStatus || "completed"})`
+          ? (outcome.completionStatus === "completed" ? "Time Out recorded. Session completed." : "Time Out recorded. No valid Time In on record.")
           : outcome.status === "late"
           ? "Checked in late — 4 community service hours recorded."
           : "Attendance recorded",

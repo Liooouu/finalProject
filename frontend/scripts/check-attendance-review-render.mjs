@@ -29,8 +29,9 @@ try {
   assert.match(desk({}), /No photos waiting on this device/);
   const event = { _id: '111111111111111111111111', status: 'live' };
   const revoked = desk({ event });
-  assert.match(revoked, /Ask an administrator to assign you/);
-  assert.doesNotMatch(revoked, /Prepare event/);
+  assert.match(revoked, /View-only roster/);
+  assert.match(revoked, /Check who still needs attendance/);
+  assert.doesNotMatch(revoked, /Prepare event|Take ID photo/);
   assert.match(revoked, /Offline sync/);
   assert.match(desk({ event, canCapture: true }), /Prepare event/);
   console.log('PASS: eligible review, self-review exclusion, mine/completed views, private evidence, expired evidence, attendance conflicts, assignment gate and visible offline queue.');

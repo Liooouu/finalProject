@@ -30,6 +30,7 @@ export function attendanceCompletion(record) {
   if (record.completionStatus === 'incomplete') return 'Incomplete';
   if (record.timeInAt && !record.timeOutAt && record.pendingManualActions?.includes('time_out')) return 'Time Out under review';
   if (record.status === 'absent') return 'Absent';
+  if (record.timeOutAt && !record.timeInAt) return 'No Time In';
   return record.timeInAt ? 'Awaiting time out' : 'Not checked in';
 }
 

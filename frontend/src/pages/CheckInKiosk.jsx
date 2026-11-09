@@ -249,7 +249,7 @@ const CheckInKiosk = () => {
           kind: data.status === "late" ? "late" : "ok",
           name: data.student?.name || "Student",
           meta:
-            data.action === "time_out" ? "Time Out recorded · Session completed" : data.status === "late"
+            data.action === "time_out" ? (data.message || "Time Out recorded") : data.status === "late"
               ? "Time In recorded · Late · 4 penalty hours"
               : "Time In recorded · Present",
           note: data.replacedExcuse ? "Your approved excuse was replaced." : "",
