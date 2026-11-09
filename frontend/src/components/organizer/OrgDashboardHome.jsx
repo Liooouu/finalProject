@@ -9,7 +9,7 @@ import StablePage from "../ui/StablePage";
 import { BaseCard, Button, StatusChip } from "../ui";
 import EmptyState from "../shared/EmptyState";
 import Loading from "../shared/Loading";
-import { formatDate, formatTime12Hour, isTerminalStatus } from "../../utils/helpers";
+import { dashboardEvents, formatDate, formatTime12Hour } from "../../utils/helpers";
 import { FaCamera, FaClipboardList, FaCalendarAlt, FaEnvelopeOpenText } from "react-icons/fa";
 import OpenFaceStationButton from "./OpenFaceStationButton";
 import { readScreen, writeScreen } from "../../utils/queryCache";
@@ -64,7 +64,7 @@ export default function OrganizerHome() {
   useEffect(() => { refresh(); }, [refresh]);
   useAutoRefresh(refresh, { interval: 30000 });
   if (loading) return <Loading label="Loading organizer dashboard..." />;
-  const active = events.filter(event => !isTerminalStatus(event.status) || (event.status !== "closed" && event.attendanceSessions?.some(row => +new Date(row.timeOutClose) >= Date.now()))).sort((a, b) => (a.status === "live" ? 0 : 1) - (b.status === "live" ? 0 : 1) || new Date(a.date) - new Date(b.date));
+  const active = dashboardEvents(events);
   const next = active[0];
   const eventPageSize = 2;
   const currentEventPage = Math.min(eventPage, Math.max(1, Math.ceil(active.length / eventPageSize)));

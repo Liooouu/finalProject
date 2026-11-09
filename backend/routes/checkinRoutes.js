@@ -135,7 +135,7 @@ router.post("/sessions", protect, async (req, res) => {
     const sessionRef = selected?._id || null;
     if ((!selected && isTerminal(event.status)) || event.status === "closed") return res.status(400).json({ error: "This event is closed." });
     const lastCheckIn = selected ? new Date(selected.timeOutClose) : eventLastCheckInAt(event);
-    if (!lastCheckIn || now > lastCheckIn) return res.status(400).json({ error: "This attendance period has ended. Choose another session." });
+    if (!lastCheckIn || !Number.isFinite(+lastCheckIn) || now > lastCheckIn) return res.status(400).json({ error: "This attendance period has ended or has no valid closing time. Choose another session." });
 
     if (selected) await require("../services/sessionAttendance").lockSchedule(event, now, selected._id, { prepareForMs: 30000 });
     const token = newToken();

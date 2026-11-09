@@ -231,6 +231,7 @@ function attendanceWindowPayload(event) {
 // Flip to live once the event's start time has arrived but it has not ended.
 function shouldAutoGoLive(event, now = new Date()) {
   if (event.status !== STATUS.UPCOMING || !isAutomated(event)) return false;
+  if (event.attendanceSessions?.length > 1) return multiSessionStatus(event, now) === STATUS.LIVE;
   const startsAt = eventStartsAt(event);
   const last = eventLastCheckInAt(event);
   if (!startsAt || !last) return false;
@@ -241,16 +242,27 @@ function shouldAutoGoLive(event, now = new Date()) {
 // Flip to finished once the last moment a check-in could count has passed.
 function shouldAutoFinish(event, now = new Date()) {
   if (isTerminal(event.status) || !isAutomated(event)) return false;
+  if (event.attendanceSessions?.length > 1) return multiSessionStatus(event, now) === STATUS.FINISHED;
   const last = eventLastCheckInAt(event);
   // Session Time Out accepts its exact closing instant. Legacy events keep
   // their existing cutoff semantics.
   return !!last && (event.attendanceSessions?.length ? now > last : now >= last);
 }
 
-function shouldAutoReopen(event, now = new Date()) {
-  if (event.status !== STATUS.FINISHED || !isAutomated(event) || (event.attendanceSessions?.length || 0) < 2) return false;
-  const last = sessionLastCheckInAt(event);
-  return !!last && now <= last;
+function multiSessionStatus(event, now = new Date()) {
+  if (!isAutomated(event) || event.status === STATUS.CLOSED || (event.attendanceSessions?.length || 0) < 2) return null;
+  let upcoming = false;
+  let valid = false;
+  for (const session of event.attendanceSessions) {
+    if (!session.timeInOpen || !session.timeOutClose) continue;
+    const start = +new Date(session.timeInOpen);
+    const end = +new Date(session.timeOutClose);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) continue;
+    valid = true;
+    if (+now >= start && +now <= end) return STATUS.LIVE;
+    if (+now < start) upcoming = true;
+  }
+  return valid ? (upcoming ? STATUS.UPCOMING : STATUS.FINISHED) : null;
 }
 
 // Decide whether the background job should keep running on an event.
@@ -307,7 +319,7 @@ module.exports = {
   attendanceWindowPayload,
   shouldAutoGoLive,
   shouldAutoFinish,
-  shouldAutoReopen,
+  multiSessionStatus,
   resolveAutomation,
   eventLiveNotification,
 };

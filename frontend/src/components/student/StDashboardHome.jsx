@@ -6,7 +6,7 @@ import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import { FaArrowRight, FaCalendarAlt, FaClock, FaMinus, FaPlus, FaUserCheck } from "react-icons/fa";
 import { MdLocalActivity } from "react-icons/md";
 import { usePageMeta } from "../../context/PageMetaContext";
-import { splitEventsByLifecycle, formatDate } from "../../utils/helpers";
+import { dashboardEvents, formatDate } from "../../utils/helpers";
 import { BaseCard, Button, FlightPanel, StatusPill } from "../ui";
 import Loading from "../shared/Loading";
 import Pagination from "../ui/Pagination";
@@ -72,7 +72,7 @@ const DashboardHome = () => {
         next = { ...next, serviceError: message };
       }
       if (eventsResult.status === "fulfilled") {
-        const active = splitEventsByLifecycle(eventsResult.value.data).active.filter(
+        const active = dashboardEvents(eventsResult.value.data).filter(
           (event) => event.date
         );
         setUpcoming(active.length);

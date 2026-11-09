@@ -31,7 +31,7 @@ const {
   ATTENDANCE_NOTICES_VERSION,
   shouldAutoGoLive,
   shouldAutoFinish,
-  shouldAutoReopen,
+  multiSessionStatus,
   eventLiveNotification,
 } = require("./services/eventLifecycle");
 
@@ -495,23 +495,23 @@ connectDB()
           console.log(`[lifecycle] "${event.title}" finished (auto)`);
         }
 
-        // Recovery is a separate pass: it must also run when no other event
-        // was just finished. Never revive a human-closed or concurrently edited event.
+        // Reconcile days independently, including the gap before the next day.
         const toReopen = await Event.find({
-          status: STATUS.FINISHED,
+          status: { $nin: [STATUS.CLOSED] },
           manualOverride: { $ne: true },
           'attendanceSessions.1': { $exists: true },
         });
         for (const event of toReopen) {
           try {
-            if (!shouldAutoReopen(event, now)) continue;
+            const status = multiSessionStatus(event, now);
+            if (!status || status === event.status) continue;
             const reopened = await Event.findOneAndUpdate({
               _id: event._id, __v: event.__v,
-              status: STATUS.FINISHED, manualOverride: { $ne: true },
-            }, { $set: { status: STATUS.LIVE, autoFinishedAt: null } });
+              status: event.status, manualOverride: { $ne: true },
+            }, { $set: { status, autoFinishedAt: status === STATUS.FINISHED ? now : null } });
             if (!reopened) continue;
             require('./services/recordUpdates').publishRecordChange();
-            console.log(`[lifecycle] "${event.title}" reopened for the next day (auto)`);
+            console.log(`[lifecycle] "${event.title}" is now ${status} (session schedule)`);
           } catch (err) {
             console.error(`[lifecycle] reopen failed for "${event.title}":`, err.message);
           }

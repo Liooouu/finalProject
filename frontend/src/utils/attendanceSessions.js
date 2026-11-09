@@ -1,4 +1,9 @@
 export const sessionIdOf = value => String(value?._id || value || '');
+export function sessionDayStatus(session, now = Date.now()) {
+  if (now < +new Date(session.timeInOpen)) return 'upcoming';
+  if (now <= +new Date(session.timeOutClose)) return 'live';
+  return 'finished';
+}
 export const manilaInput = value => value && Number.isFinite(+new Date(value))
   ? new Date(+new Date(value) + 8 * 3600000).toISOString().slice(0, 16) : '';
 export const inputInstant = value => value ? new Date(`${value}:00+08:00`).toISOString() : '';

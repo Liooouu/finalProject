@@ -92,6 +92,14 @@ export const splitEventsByLifecycle = (events = [], now = Date.now()) => {
   };
 };
 
+export const dashboardEvents = (events, now = Date.now()) => {
+  const rank = event => event.status === "live" ? 0 : event.status === "finished" ? 2 : 1;
+  const createdAt = event => Date.parse(event.createdAt) || 0;
+  return splitEventsByLifecycle(events, now).active.sort((a, b) =>
+    rank(a) - rank(b) || createdAt(b) - createdAt(a)
+  );
+};
+
 // Why an event is in the state it is in — shown to organizers and admins so the
 // automation never looks arbitrary.
 export const describeEventLifecycle = (event) => {

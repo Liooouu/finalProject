@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
-import { formatDate, formatTime12Hour, splitEventsByLifecycle } from "../../utils/helpers";
+import { dashboardEvents, formatDate, formatTime12Hour } from "../../utils/helpers";
 import { Card, Button, StatusChip } from "../ui";
 import Loading from "../shared/Loading";
 import EmptyState from "../shared/EmptyState";
@@ -59,9 +59,7 @@ export default function DashboardHome() {
   const attended = (stats?.present ?? 0) + (stats?.late ?? 0);
   const rate = total ? Math.round(attended / total * 100) : null;
   const events = state.events?.events || [];
-  const active = splitEventsByLifecycle(events)
-    .active.sort((a, b) => (a.status === "live" ? 0 : 1) - (b.status === "live" ? 0 : 1) || new Date(a.date) - new Date(b.date))
-    .slice(0, EVENT_PREVIEW);
+  const active = dashboardEvents(events).slice(0, EVENT_PREVIEW);
   const reviews = [
     { label: "ID Attendance", description: "Approve pending requests or assign event reviewers", count: state.manual?.pendingReview ?? null, path: "/admin/dashboard/reviews/manual", icon: <FaClipboardList /> },
     { label: "Face appeals", description: "Review student identity requests", count: state.appeals?.filter(item => item.status === "pending").length ?? null, path: "/admin/dashboard/reviews/face-appeals", icon: <FaShieldAlt /> },

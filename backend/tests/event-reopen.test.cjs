@@ -8,7 +8,7 @@ const at = (day, clock) => new Date(`2026-11-${String(day).padStart(2, '0')}T${c
 const event = changes => ({ _id: 'multi', __v: 0, title: 'CCIT multi-day', status: 'finished', manualOverride: false,
   date: '2026-11-09', time: '09:00', endDate: '2026-11-09', endTime: '17:00',
   attendanceStartTime: '07:00', attendanceEndTime: '09:00',
-  attendanceSessions: [9, 10].map(day => ({ activityEnd: at(day, '17:00:00'), timeOutClose: at(day, '18:00:00') })),
+  attendanceSessions: [9, 10].map(day => ({ timeInOpen: at(day, '07:00:00'), activityEnd: at(day, '17:00:00'), timeOutClose: at(day, '18:00:00') })),
   ...changes });
 
 // Execute the actual scheduled status pass without starting the server, connecting
@@ -58,10 +58,19 @@ test('last session departure grace is included even when activityEnd is earlier'
   assert.equal(lifecycle.shouldAutoFinish(e, new Date(+at(10, '18:00:00') + 1)), true);
 });
 
-test('Day 1 closing never finishes the whole event while Day 2 remains scheduled', async () => {
+test('the event returns to upcoming between days and goes live at the next Time In', async () => {
   const e = event({ status: 'live' });
   await runStatusPass([e], at(9, '18:01:00'));
+  assert.equal(e.status, 'upcoming');
+  assert.equal(lifecycle.shouldAutoGoLive(e, at(10, '06:59:59')), false);
+  await runStatusPass([e], at(10, '07:00:00'));
   assert.equal(e.status, 'live');
+});
+
+test('an incorrectly finished multi-day event recovers as upcoming before the next day', async () => {
+  const e = event();
+  await runStatusPass([e], at(10, '06:59:59'));
+  assert.equal(e.status, 'upcoming');
 });
 
 test('recovery retains the last session Time Out window and finishes only after it closes', async () => {

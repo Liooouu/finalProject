@@ -130,6 +130,18 @@ test('a new session station remains valid through a departure more than twelve h
   const response = await request('sessions', { eventId, sessionId: 'period' }, 'POST', 'organizer');
   assert.equal(response.status, 201); assert.ok(+new Date(response.body.expiresAt) > +close);
 });
+test('a station can be prepared for upcoming Day 2 after Day 1 ends', async () => {
+  const now = Date.now();
+  event.status = 'upcoming';
+  event.attendanceSessions = [
+    { _id: 'day-one', timeInOpen: new Date(now - 7200000), timeOutClose: new Date(now - 3600000) },
+    { _id: 'day-two', timeInOpen: new Date(now + 3600000), timeOutClose: new Date(now + 7200000) },
+  ];
+  assert.equal((await request('sessions', { eventId, sessionId: 'day-one' }, 'POST', 'organizer')).status, 400);
+  const future = await request('sessions', { eventId, sessionId: 'day-two' }, 'POST', 'organizer');
+  assert.equal(future.status, 201);
+  assert.ok(+new Date(future.body.expiresAt) > +event.attendanceSessions[1].timeOutClose);
+});
 test('malformed event IDs return a client error', async () => { assert.equal((await request('sessions',{eventId:'wrong'})).status,400); });
 
 

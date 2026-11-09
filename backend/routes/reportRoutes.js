@@ -421,6 +421,7 @@ router.get("/events", async (req, res) => {
         semester: event.semester ?? null,
         date: event.date,
         time: event.time,
+        createdAt: event.createdAt,
         location: event.location,
         status: event.status,
         organizer: event.organizer,
