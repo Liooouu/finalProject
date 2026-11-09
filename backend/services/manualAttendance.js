@@ -35,9 +35,6 @@ function reviewRestriction(user, event, request) {
   if (!user || !event || !request || (user.role !== "admin" && !canSubmitManualAttendance(user, event))) {
     return "An independent administrator or assigned organizer must review this request";
   }
-  if (idOf(user) === idOf(request.requestedBy)) {
-    return "You submitted this request. An independent assigned organizer or administrator must review it.";
-  }
   if (idOf(user) === idOf(request.student)) {
     return "This request is for your attendance. An independent assigned organizer or administrator must review it.";
   }
@@ -172,7 +169,7 @@ function createService(deps) {
   async function summary(user) {
     const scope = await reviewScope(user, "review");
     const [pendingReview, pendingMine] = await Promise.all([
-      user.role === "student" ? 0 : Request.countDocuments({ $and: [scope, { status: "pending", requestedBy: { $ne: user._id }, student: { $ne: user._id } }] }),
+      user.role === "student" ? 0 : Request.countDocuments({ $and: [scope, { status: "pending", student: { $ne: user._id } }] }),
       Request.countDocuments({ status: "pending", ...(user.role === "student" ? { student: user._id } : { requestedBy: user._id }) }),
     ]);
     return { pendingReview, pendingMine };
@@ -333,7 +330,7 @@ function createService(deps) {
     if (!Array.isArray(payload.ids) || !payload.ids.length || payload.ids.length > 50) fail(400, "Select between 1 and 50 requests");
     const decision = payload.decision, note = typeof payload.note === "string" ? payload.note.trim() : "";
     if (!["approved", "rejected"].includes(decision)) fail(400, "Choose approve or reject");
-    if (decision === "approved" && payload.verifiedPresence !== true) fail(400, "Confirm independent verification before approving selected requests");
+    if (decision === "approved" && payload.verifiedPresence !== true) fail(400, "Confirm that you checked the attendance evidence before approving selected requests");
     if (note.length > 1000 || (decision === "rejected" && note.length < 5)) fail(400, "Give a rejection reason between 5 and 1000 characters");
     const results = [];
     const ordered = await Request.find({ _id: { $in: [...new Set(payload.ids.map(String))] } }).select("_id action effectiveAt").lean();

@@ -110,7 +110,7 @@ export default function ManualAttendanceReviews({ defaultView = "mine" }) {
     const confirmed = individual ? individual.verified : verified;
     const reviewNote = (individual ? individual.note : note).trim();
     if (reviewInFlight.current || !selectedIds.length) return false;
-    if (decision === "approved" && !confirmed) { setActionError("Confirm that you independently checked the attendance evidence for every selected student."); return false; }
+    if (decision === "approved" && !confirmed) { setActionError("Confirm that you checked the attendance evidence for every selected student."); return false; }
     if (decision === "rejected" && reviewNote.length < 5) { setActionError("Add a review note of at least 5 characters explaining why these requests are rejected."); return false; }
     reviewInFlight.current = true;
     setBusy(decision); setActionError(""); setMessage(""); setOutcomeErrors([]);
@@ -155,7 +155,7 @@ export default function ManualAttendanceReviews({ defaultView = "mine" }) {
 
   return <div className="manual-review-page space-y-4">
     <PageHeader eyebrow="Attendance exceptions" title={view === "mine" ? "My attendance requests" : "ID attendance & corrections"} subtitle={view === "review" ? "Check the evidence, then approve or reject. Capture time determines attendance." : "Track your submissions and review decisions."} actions={<div className="flex flex-wrap gap-2">{isAdmin && <Button size="sm" onClick={() => { setAssignmentEvent(eventId); setAssigning(value => !value); }} aria-expanded={assigning} aria-controls="attendance-reviewer-assignment">{assigning ? "Close assignment" : "Assign reviewers"}</Button>}<Button variant="secondary" size="sm" onClick={() => { loadRequests(); loadEvents(); }} disabled={refreshing || busy}>Refresh</Button></div>} />
-    {isAdmin && <p className="text-sm text-on-muted">Assign organizers to review requests for this event. The submitter and the student on the request cannot review it.</p>}
+    {isAdmin && <p className="text-sm text-on-muted">Assign organizers to review requests for this event. Reviewers can decide requests for other students, including requests they submitted.</p>}
     {isAdmin && assigning && <section id="attendance-reviewer-assignment" aria-label="Assign attendance reviewers" className="space-y-3">
       <Card><label className="field-label" htmlFor="assignment-event">Event</label><select id="assignment-event" className="field-select w-full" value={assignmentEvent} onChange={event => setAssignmentEvent(event.target.value)}><option value="">Select an event</option>{events.map(event => <option key={event._id} value={event._id}>{event.title}</option>)}</select><p className="mt-2 text-xs text-on-muted">Organizer access applies to this event only.</p>{eventError && <p role="alert" className="mt-2 text-sm text-danger">{eventError}</p>}</Card>
       {assignmentEvent && <EventReviewers key={assignmentEvent} eventId={assignmentEvent} expanded />}
