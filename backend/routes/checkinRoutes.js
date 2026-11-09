@@ -21,6 +21,7 @@ const {
   eventWindow,
   eventLastCheckInAt,
   attendanceWindowPayload,
+  manilaDateTimeLabel,
 } = require("../services/eventLifecycle");
 const faceIdentify = require("../services/faceIdentify");
 const { recordAttendance, recordSessionAction } = require("../services/attendanceMarking");
@@ -135,7 +136,12 @@ router.post("/sessions", protect, async (req, res) => {
     const sessionRef = selected?._id || null;
     if ((!selected && isTerminal(event.status)) || event.status === "closed") return res.status(400).json({ error: "This event is closed." });
     const lastCheckIn = selected ? new Date(selected.timeOutClose) : eventLastCheckInAt(event);
-    if (!lastCheckIn || !Number.isFinite(+lastCheckIn) || now > lastCheckIn) return res.status(400).json({ error: "This attendance period has ended or has no valid closing time. Choose another session." });
+    if (!lastCheckIn || !Number.isFinite(+lastCheckIn)) {
+      return res.status(400).json({ error: `${selected?.name || "Attendance"} has no valid closing time. Check its schedule in Manage Events.` });
+    }
+    if (now > lastCheckIn) {
+      return res.status(400).json({ error: `${selected?.name || "Attendance"} closed on ${manilaDateTimeLabel(lastCheckIn)} (Philippine time). Choose another day if one is scheduled.` });
+    }
 
     if (selected) await require("../services/sessionAttendance").lockSchedule(event, now, selected._id, { prepareForMs: 30000 });
     const token = newToken();

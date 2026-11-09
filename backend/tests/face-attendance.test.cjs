@@ -137,7 +137,9 @@ test('a station can be prepared for upcoming Day 2 after Day 1 ends', async () =
     { _id: 'day-one', timeInOpen: new Date(now - 7200000), timeOutClose: new Date(now - 3600000) },
     { _id: 'day-two', timeInOpen: new Date(now + 3600000), timeOutClose: new Date(now + 7200000) },
   ];
-  assert.equal((await request('sessions', { eventId, sessionId: 'day-one' }, 'POST', 'organizer')).status, 400);
+  const ended = await request('sessions', { eventId, sessionId: 'day-one' }, 'POST', 'organizer');
+  assert.equal(ended.status, 400);
+  assert.match(ended.body.error, /closed on .+Philippine time/);
   const future = await request('sessions', { eventId, sessionId: 'day-two' }, 'POST', 'organizer');
   assert.equal(future.status, 201);
   assert.ok(+new Date(future.body.expiresAt) > +event.attendanceSessions[1].timeOutClose);
