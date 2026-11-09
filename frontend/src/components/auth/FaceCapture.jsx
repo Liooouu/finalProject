@@ -134,12 +134,10 @@ const FaceCapture = ({
 
       {preview ? (
         <div className="overflow-hidden rounded-xl border border-line">
-          {/* Nothing here is mirrored. The capture is drawn from the raw video
-              frame, so a flipped preview would show the student the opposite of
-              the photo that becomes their enrolled reference. Mirroring the
-              saved capture instead is worse: existing unmirrored enrollments
-              sit ~0.2 away from a mirrored one, which is half the match budget. */}
-          <img src={preview} alt="Captured face preview" className={`w-full ${compact ? "max-h-[min(42vh,20rem)] bg-black object-contain" : "object-cover"}`} />
+          {/* Selfie mirror on the preview only. The saved capture is still drawn
+              from the raw video frame, so the enrolled reference stays
+              unmirrored and matches the scanner's unmirrored probe. */}
+          <img src={preview} alt="Captured face preview" className={`w-full scale-x-[-1] ${compact ? "max-h-[min(42vh,20rem)] bg-black object-contain" : "object-cover"}`} />
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-line bg-black">
@@ -153,7 +151,7 @@ const FaceCapture = ({
               autoPlay
               playsInline
               muted
-              className={`aspect-[4/3] w-full ${compact ? "max-h-[min(42vh,20rem)] object-contain" : "object-cover"}`}
+              className={`aspect-[4/3] w-full scale-x-[-1] ${compact ? "max-h-[min(42vh,20rem)] object-contain" : "object-cover"}`}
             />
           )}
         </div>

@@ -92,12 +92,14 @@ path, not by appeal proof photos). A capture that is too dark, too bright, too
 flat, too small, clipped by the frame, or low-confidence is rejected with a
 specific code and message, and nothing is stored. The enrollment quality bar is
 stricter than the kiosk's live-capture bar because the enrolled reference is
-matched against every later probe. Camera previews are unmirrored on both the
-enrollment screen and the kiosk: the saved capture is drawn from the raw video
-frame, so mirroring only the preview would show the student the opposite of
-their enrolled reference, and mirroring the saved capture instead would put it
-about 0.2 away from every existing unmirrored enrollment. Never widen the
-identity threshold to compensate for a stored mirror flip.
+matched against every later probe. Camera previews use a selfie mirror on the
+display only: the live video and the captured preview are flipped with
+`scale-x-[-1]` so the student sees themselves the way they expect, but the saved
+capture is drawn from the raw video frame, so the enrolled reference stays
+unmirrored and matches the scanner's unmirrored probe. Mirroring the saved
+capture instead would put it about 0.2 away from every existing unmirrored
+enrollment. Never widen the identity threshold to compensate for a stored mirror
+flip.
 
 Verify on the actual venue devices with the affected students before relying on
 automatic matches. Check that each account has the correct enrolled identity;
