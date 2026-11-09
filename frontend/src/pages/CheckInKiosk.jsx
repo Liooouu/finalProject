@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import * as faceapi from "@vladmandic/face-api";
 import {
   FaCheck,
   FaCamera,
   FaExpand,
+  FaTimes,
   FaExclamationTriangle,
   FaRedo,
   FaUserCheck,
@@ -46,6 +47,14 @@ function statusWord(status) {
 
 const CheckInKiosk = () => {
   const { token } = useParams();
+  const navigate = useNavigate();
+  const exitStation = () => {
+    if (window.opener && !window.opener.closed) {
+      window.close();
+      if (window.closed) return;
+    }
+    navigate("/organizer/dashboard", { replace: true });
+  };
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -490,6 +499,10 @@ const CheckInKiosk = () => {
             aria-label="Toggle full screen"
           >
             <FaExpand />
+          </button>
+          <button type="button" onClick={exitStation} aria-label="Exit face station"
+            className="rounded-full border border-white/15 bg-white/5 p-2.5 text-white/70 hover:bg-white/10 hover:text-white">
+            <FaTimes />
           </button>
         </div>
       </header>

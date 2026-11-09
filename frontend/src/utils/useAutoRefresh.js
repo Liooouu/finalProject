@@ -52,6 +52,7 @@ export const useAutoRefresh = (
     };
 
     window.addEventListener("focus", onFocus);
+    window.addEventListener("online", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
     const timer = setInterval(run, interval);
 
@@ -60,6 +61,7 @@ export const useAutoRefresh = (
       clearInterval(timer);
       unsubscribe();
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [interval, enabled]);

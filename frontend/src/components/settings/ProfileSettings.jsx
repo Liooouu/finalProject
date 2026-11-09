@@ -1,11 +1,12 @@
 import { useTransientState } from "../../utils/useTransientState";
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import api from "../../api/axios";
 import { useSearchParams } from "react-router-dom";
 import SecuritySettings from "./SecuritySettings";
 import AcademicStanding from "../student/AcademicStanding";
 import { getUserFromToken, logout, setPendingVerificationEmail } from "../../utils/auth";
 import { isStrongPassword, PASSWORD_MESSAGE, PASSWORD_HINT } from "../../utils/password";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import { FaUser, FaLock, FaCheck, FaTimes, FaDoorOpen, FaCamera, FaTrashAlt } from "react-icons/fa";
 import { usePageMeta } from "../../context/PageMetaContext";
 import { Button, Card, FlightPanel, PageHeader, SegmentedControl } from "../ui";
@@ -17,6 +18,7 @@ const ProfileSettings = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSection = searchParams.get("section");
   const [profile, setProfile] = useState(null);
+  const profileRequest = useRef(0);
   const hasStudentProfile = (profile?.accountRole || profile?.role || user.role) === "student";
   const section = hasStudentProfile && ["security", "academic"].includes(requestedSection) ? requestedSection : "profile";
   const profileRole = hasStudentProfile && profile?.organizerAccess ? "Student/Organizer" : profile?.role || user.role;
@@ -36,21 +38,23 @@ const ProfileSettings = () => {
 
   usePageMeta("Profile Settings", "Manage your account information.");
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const profileRes = await api.get("/account");
-        setProfile(profileRes.data);
-        setForm({ name: profileRes.data.name, email: profileRes.data.email });
+  const refreshProfile = useCallback(async () => {
+    const request = ++profileRequest.current;
+    try {
+      const { data } = await api.get("/account");
+      if (request === profileRequest.current) setProfile(data);
+    } catch (err) {
+      if (request === profileRequest.current) console.error(err.response?.data || err.message);
+    } finally {
+      if (request === profileRequest.current) setLoading(false);
+    }
+  }, []);
 
-      } catch (err) {
-        console.error(err.response?.data || err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [user.role]);
+  useEffect(() => {
+    refreshProfile();
+    return () => { profileRequest.current += 1; };
+  }, [refreshProfile, user.id, user.role]);
+  useAutoRefresh(refreshProfile, { interval: 30000, enabled: !loading });
 
   const showMessage = (text, type = "success") => {
     setMessage(text);
@@ -68,6 +72,7 @@ const ProfileSettings = () => {
     try {
       const res = await api.patch("/account", form);
       if (res.data.emailVerificationRequired) { setPendingVerificationEmail(form.email); logout(); return; }
+      profileRequest.current += 1;
       setProfile(res.data);
       setEditing(false);
       showMessage("Profile updated successfully!");
@@ -118,6 +123,7 @@ const ProfileSettings = () => {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
+      profileRequest.current += 1;
       setProfile(res.data.user);
       showMessage("Profile picture updated!");
     } catch (err) {
@@ -132,6 +138,7 @@ const ProfileSettings = () => {
     setRemovingPic(true);
     try {
       const { data } = await api.delete("/account/picture");
+      profileRequest.current += 1;
       setProfile(data.user);
       showMessage("Profile photo removed.");
     } catch (error) {
@@ -298,7 +305,10 @@ const ProfileSettings = () => {
                   ))}
                 </dl>
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => setEditing(true)}>
+                  <Button onClick={() => {
+                    setForm({ name: profile?.name || "", email: profile?.email || "" });
+                    setEditing(true);
+                  }}>
                     <FaUser /> Edit profile
                   </Button>
 

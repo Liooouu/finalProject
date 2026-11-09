@@ -111,7 +111,7 @@ export default function OrganizerHome() {
         {faceEvent ? <>
           <div className="portal-inset organizer-event-box"><label className="text-xs text-on-muted">Event<select aria-label="Face station event" value={faceEvent._id} onChange={e => { setFaceEventId(e.target.value); }} className="field-select mt-1 w-full">{active.map(event => <option key={event._id} value={event._id}>{event.title}</option>)}</select></label>
           <div className="organizer-station-actions mt-3 flex flex-wrap items-start gap-2">
-            <OpenFaceStationButton key={faceEvent._id} eventId={faceEvent._id} />
+            <OpenFaceStationButton key={faceEvent._id} eventId={faceEvent._id} sessions={faceEvent.attendanceSessions} />
           </div>
           </div>
         </> : <EmptyState compact title={eventsError ? "Events unavailable" : "No event ready for face attendance"} description={eventsError ? "Try loading your events again." : "Create or reopen an event to use the face station."} />}
