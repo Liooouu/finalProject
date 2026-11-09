@@ -62,8 +62,8 @@ const ManageUsers = () => {
   const listLoaded = useRef(seed !== undefined);
 
   const mergeStudent = (student) => {
-    setUsers(previous => previous.map(user => user._id === student._id ? { ...user, ...student } : user));
-    setSelectedUser(previous => previous?._id === student._id ? { ...previous, ...student } : previous);
+    setUsers(previous => previous.map(user => String(user._id) === String(student._id) ? { ...user, ...student } : user));
+    setSelectedUser(previous => (previous && String(previous._id) === String(student._id)) ? { ...previous, ...student } : previous);
   };
   const saveAcademic = async (event) => {
     event.preventDefault();
@@ -72,9 +72,11 @@ const ManageUsers = () => {
     setDetailNotice(null);
     try {
       const response = await api.patch(`/admin/users/${selectedUser._id}`, { ...academicDraft, yearLevel: Number(academicDraft.yearLevel) });
-      mergeStudent(response.data);
-      setAcademicDraft({ program: response.data.program || "", yearLevel: String(response.data.yearLevel || ""), section: response.data.section || "" });
-      fetchUsers({ silent: true });
+      const updated = { ...selectedUser, ...response.data };
+      mergeStudent(updated);
+      setSelectedUser(updated);
+      setAcademicDraft({ program: updated.program || "", yearLevel: String(updated.yearLevel || ""), section: updated.section || "" });
+      await fetchUsers({ silent: true });
       setDetailNotice({ type: "success", text: "Student academic details updated." });
     } catch (error) {
       setDetailNotice({ type: "error", text: error.response?.data?.message || "Could not update academic details. Please try again." });
