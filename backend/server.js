@@ -218,7 +218,12 @@ connectDB()
           try {
             if (!shouldAutoGoLive(event, now)) continue;
 
-            await Event.findByIdAndUpdate(event._id, { status: STATUS.LIVE });
+            const started = await Event.findOneAndUpdate({
+              _id: event._id, __v: event.__v, status: STATUS.UPCOMING,
+              manualOverride: { $ne: true },
+            }, { $set: { status: STATUS.LIVE } });
+            if (!started) continue;
+            require('./services/recordUpdates').publishRecordChange();
 
             const recipients = await eventRecipients(event);
             if (recipients.length > 0) {
@@ -229,6 +234,7 @@ connectDB()
                 message,
                 relatedEvent: event._id,
                 event,
+                deferEmail: true,
               });
             }
             console.log(`[lifecycle] "${event.title}" is now live (auto)`);
@@ -487,33 +493,41 @@ connectDB()
         });
 
         for (const event of toFinish) {
+          // Multi-day events can go Upcoming between sessions. Let the
+          // session pass below handle all of their closing transitions.
+          if (event.attendanceSessions?.length > 1) continue;
           if (!shouldAutoFinish(event, now)) continue;
-          await Event.findByIdAndUpdate(event._id, {
+          const finished = await Event.findOneAndUpdate({
+            _id: event._id, __v: event.__v, status: event.status,
+            manualOverride: { $ne: true },
+          }, { $set: {
             status: STATUS.FINISHED,
             autoFinishedAt: now,
-          });
+          } });
+          if (!finished) continue;
+          require('./services/recordUpdates').publishRecordChange();
           console.log(`[lifecycle] "${event.title}" finished (auto)`);
         }
 
         // Reconcile days independently, including the gap before the next day.
-        const toReopen = await Event.find({
+        const multiDayEvents = await Event.find({
           status: { $nin: [STATUS.CLOSED] },
           manualOverride: { $ne: true },
           'attendanceSessions.1': { $exists: true },
         });
-        for (const event of toReopen) {
+        for (const event of multiDayEvents) {
           try {
             const status = multiSessionStatus(event, now);
             if (!status || status === event.status) continue;
-            const reopened = await Event.findOneAndUpdate({
+            const updated = await Event.findOneAndUpdate({
               _id: event._id, __v: event.__v,
               status: event.status, manualOverride: { $ne: true },
             }, { $set: { status, autoFinishedAt: status === STATUS.FINISHED ? now : null } });
-            if (!reopened) continue;
+            if (!updated) continue;
             require('./services/recordUpdates').publishRecordChange();
             console.log(`[lifecycle] "${event.title}" is now ${status} (session schedule)`);
           } catch (err) {
-            console.error(`[lifecycle] reopen failed for "${event.title}":`, err.message);
+            console.error(`[lifecycle] session status update failed for "${event.title}":`, err.message);
           }
         }
       } catch (err) {
