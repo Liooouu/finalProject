@@ -105,11 +105,17 @@ export default function ManualAttendanceReviews({ defaultView = "mine" }) {
     setSelected(previous => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next; });
     setVerified(false); setActionError("");
   };
+  const blockedTimeOuts = requests.filter(row => selected.has(row._id) && row.status === "pending" &&
+    row.session && row.action === "time_out" && !row.currentAttendance?.timeInAt &&
+    !requests.some(entry => selected.has(entry._id) && entry.canReview && entry.status === "pending" &&
+      entry.action === "time_in" && ["present", "late"].includes(entry.proposedStatus) &&
+      entry.session === row.session && entry.event?._id === row.event?._id && entry.student?._id === row.student?._id));
   const reviewSelected = async (decision, individual) => {
     const selectedIds = individual ? [individual.id] : [...selected];
     const confirmed = individual ? individual.verified : verified;
     const reviewNote = (individual ? individual.note : note).trim();
     if (reviewInFlight.current || !selectedIds.length) return false;
+    if (decision === "approved" && !individual && blockedTimeOuts.length) return false;
     if (decision === "approved" && !confirmed) { setActionError("Confirm that you independently checked the attendance evidence for every selected student."); return false; }
     if (decision === "rejected" && reviewNote.length < 5) { setActionError("Add a review note of at least 5 characters explaining why these requests are rejected."); return false; }
     reviewInFlight.current = true;
@@ -148,9 +154,12 @@ export default function ManualAttendanceReviews({ defaultView = "mine" }) {
   const reviewActions = <Card as="section" aria-label="Review selected requests" className="manual-review-actions space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-medium text-on">Review {selected.size === 1 ? "attendance request" : `${selected.size} selected requests`}</h3><Button variant="ghost" size="sm" onClick={resetSelection} disabled={busy}>Clear selection</Button></div>
       <p className="text-xs text-on-dim">{selectedRows.map(row => row.student?.name || row.student?.email || "Student").join(", ")}</p>
+      {blockedTimeOuts.length > 0 && <p role="status" className="text-sm text-warn">
+        {blockedTimeOuts.length} selected Time Out {blockedTimeOuts.length === 1 ? "request needs" : "requests need"} a Time In for the same day. Select the matching Time In requests or deselect the blocked Time Out requests to approve the rest.
+      </p>}
       <label className="flex items-start gap-3 rounded-xl bg-card-alt/40 p-3 text-sm text-on-dim"><input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-solid)]" checked={verified} onChange={event => setVerified(event.target.checked)} disabled={busy} /><span>I checked the evidence and attendance time for all selected students.</span></label>
       <div><label htmlFor="manual-review-note" className="field-label">Review note <span className="font-normal text-on-muted">(at least 5 characters when rejecting)</span></label><textarea id="manual-review-note" className="field min-h-20 resize-y" maxLength={1000} placeholder="Reason for rejection, or an optional note." value={note} onChange={event => setNote(event.target.value)} disabled={busy} /></div>
-      <div className="flex flex-col gap-2 sm:flex-row"><Button variant="success" onClick={() => reviewSelected("approved")} disabled={!!busy || !verified} loading={busy === "approved"}>{busy === "approved" ? "Approving..." : selected.size === 1 ? "Approve attendance" : "Approve selected"}</Button><Button variant="danger" onClick={() => reviewSelected("rejected")} disabled={!!busy || note.trim().length < 5} loading={busy === "rejected"}>{busy === "rejected" ? "Rejecting..." : selected.size === 1 ? "Reject request" : "Reject selected"}</Button></div>
+      <div className="flex flex-col gap-2 sm:flex-row"><Button variant="success" onClick={() => reviewSelected("approved")} disabled={!!busy || !verified || blockedTimeOuts.length > 0} loading={busy === "approved"}>{busy === "approved" ? "Approving..." : selected.size === 1 ? "Approve attendance" : "Approve selected"}</Button><Button variant="danger" onClick={() => reviewSelected("rejected")} disabled={!!busy || note.trim().length < 5} loading={busy === "rejected"}>{busy === "rejected" ? "Rejecting..." : selected.size === 1 ? "Reject request" : "Reject selected"}</Button></div>
     </Card>;
 
   return <div className="manual-review-page space-y-4">

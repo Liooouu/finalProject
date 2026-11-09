@@ -83,12 +83,16 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
   });
   test('an offline exit stays pending until its entry is confirmed, including next-day review', async () => {
     const base = { event: event._id, session: event.attendanceSessions[0]._id, sessionName: 'Morning', student: student._id, requestedBy: organizer._id, source: 'id_photo', mode: 'checkin', reason: 'Offline ID capture', identityChecked: true, captureBasis: 'device', submittedAt: at('12:10:00'), proposedHours: 0, status: 'pending', schedule: { start: at('08:00:00'), deadline: at('08:30:00'), cutoff: at('12:00:00') } };
-    const entry = await Request.create({ ...base, action: 'time_in', proposedStatus: 'present', effectiveAt: at('08:10:00') });
     const exit = await Request.create({ ...base, action: 'time_out', proposedStatus: 'time_out', effectiveAt: at('11:30:00') });
     const later = new Date('2026-11-09T20:00:00+08:00');
-    await assert.rejects(manual.createService({ Request, Attendance, Event, User, notifyUsers: async () => {} }).reviewOne(admin, String(exit._id), 'approved', '', later), /Time In/);
-    assert.equal((await Request.findById(exit._id)).status, 'pending');
     const review = manual.createService({ Request, Attendance, Event, User, notifyUsers: async () => {} });
+    const listedExit = async () => (await review.list(admin, { limit: 1 })).requests[0];
+    assert.equal((await listedExit()).timeInReviewState, 'missing');
+    await assert.rejects(review.reviewOne(admin, String(exit._id), 'approved', '', later), /no confirmed Time In or pending Time In/);
+    const entry = await Request.create({ ...base, submittedAt: at('12:09:00'), action: 'time_in', proposedStatus: 'present', effectiveAt: at('08:10:00') });
+    assert.equal((await listedExit()).timeInReviewState, 'pending');
+    await assert.rejects(review.reviewOne(admin, String(exit._id), 'approved', '', later), /Time In awaits review/);
+    assert.equal((await Request.findById(exit._id)).status, 'pending');
     await review.reviewOne(admin, String(entry._id), 'approved', '', later);
     await review.reviewOne(admin, String(exit._id), 'approved', '', later);
     const row = await Attendance.findOne().lean();

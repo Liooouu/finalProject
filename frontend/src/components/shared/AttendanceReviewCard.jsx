@@ -42,7 +42,9 @@ export default function AttendanceReviewCard({ request, reviewMode, selected, on
           <div><dt>Result</dt><dd className="flex flex-wrap items-center gap-2">{request.action === "time_out" ? <span>Time Out</span> : <StatusChip status={request.proposedStatus} />}<span className="text-xs text-on-muted">{request.proposedHours ?? 0} penalty hrs</span></dd></div>
         </dl>
         {request.source === "id_photo" && <p className="text-xs text-info">{request.captureBasis === "device" ? "Offline capture · Verify time" : "ID checked by organizer"}</p>}
-        {waitingForTimeIn && <p className="text-xs text-warn">Approve Time In for this day first. This Time Out is saved. If reviewing both together, select both requests.</p>}
+        {waitingForTimeIn && <p className="text-xs text-warn">{request.timeInReviewState === "missing"
+          ? "No Time In is on file for this day. If there is proof of arrival, ask the organizer for a documented Time In correction."
+          : "Time In awaits review for this day. Approve it first or select both requests together."}</p>}
         {protectedRecord && <div className="rounded-lg bg-card-alt/60 p-2 text-xs text-on-dim"><p className="font-medium text-on">{request.resolution === "existing_face" ? "Confirmed using existing face attendance" : "Attendance already recorded"}</p><p className="mt-1">{recorded.status === "excused" ? "Approved excuse kept. Reject this duplicate with a note." : matchingFace ? "Matching face attendance: approval keeps its original time and hours." : "Different face attendance: approval cannot replace it. Review or reject this request."}</p></div>}
         <details className="text-xs text-on-muted"><summary className="cursor-pointer font-medium text-on-dim">Review details</summary>
           <p className="mt-2 whitespace-pre-wrap [overflow-wrap:anywhere]"><strong>Reason: </strong>{request.reason}</p>
