@@ -78,7 +78,7 @@ router.get("/community-service", protect, async (req, res) => {
 
     const totalHours = attendances.reduce((sum, a) => sum + (a.communityServiceHours || 0), 0);
     // Only real attendance counts; pending (never marked) and excused do not.
-    const totalAttended = new Set(attendances.filter(a => a.status === "present" || a.status === "late").map(a => String(a.event?._id || a.event))).size;
+    const totalAttended = new Set(attendances.filter(a => !a.reportDeletedAt && (a.status === "present" || a.status === "late")).map(a => String(a.event?._id || a.event))).size;
     // Penalties (late=4, absent=8) add to totalHours (the student's community
     // service hours); excuses/removals take them off. completedHours stays 0
     // here — it only moves when the student genuinely finishes service.

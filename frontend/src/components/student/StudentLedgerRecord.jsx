@@ -29,6 +29,7 @@ export default function StudentLedgerRecord({ record }) {
       {record.manualReviewPending && <p className="text-xs text-info">{record.status === "pending" ? "Awaiting independent review" : "Attendance correction awaiting review"}{record.manualAttendanceRequest?.effectiveAt && <> · Captured {formatDateTime(record.manualAttendanceRequest.effectiveAt)}</>}</p>}
     </div>
     <footer className={`student-ledger-hours ${hours > 0 ? "student-ledger-hours-due" : "student-ledger-hours-clear"}`}>
+      {record.reportDeletedAt && <p className="text-xs text-on-muted">Removed from attendance reports. Kept here for service-hour history.</p>}
       <p className="text-xs text-on-dim">Service hours</p>
       <p className="num text-xl font-semibold">{hours} hours</p>
       {record.provisionalHours > 0 && <p className="mt-1 text-xs text-on-muted">{record.provisionalHours} provisional hours on hold</p>}

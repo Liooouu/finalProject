@@ -62,6 +62,8 @@ const attendanceSchema = new mongoose.Schema({
     nextHours: Number,
   }],
   communityServiceHours: { type: Number, default: 0, min: 0 },
+  reportDeletedAt: Date,
+  reportDeletedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   communityServiceLog: [communityServiceLogSchema],
   eventTitle: { type: String },
   eventDate: { type: Date },

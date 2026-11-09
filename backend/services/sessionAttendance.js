@@ -175,13 +175,13 @@ async function finalize(event, now = new Date()) {
     if (+now <= +new Date(session.timeInCutoff)) continue;
     const [removed, rows] = await Promise.all([
       DeletedAttendance.find({ event: event._id, $or: [{ session: session._id }, { 'record.session': session._id }] }).distinct('student'),
-      Attendance.find({ event: event._id, session: session._id }).select('student status method timeInAt timeOutAt completionStatus sessionPenaltyHours arrivalStatus').lean(),
+      Attendance.find({ event: event._id, session: session._id }).select('student status method timeInAt timeOutAt completionStatus sessionPenaltyHours arrivalStatus reportDeletedAt').lean(),
     ]);
     const deleted = new Set(removed.map(id));
     const existing = new Map(rows.map(row => [id(row.student), row]));
     for (const student of session.eligibleStudents || []) {
       const record = existing.get(id(student));
-      if (deleted.has(id(student)) || record?.status === 'excused' || (record?.timeInAt && record.timeOutAt)) continue;
+      if (deleted.has(id(student)) || record?.reportDeletedAt || record?.status === 'excused' || (record?.timeInAt && record.timeOutAt)) continue;
       if (+now <= +new Date(session.timeOutClose)) {
         // Reconcile only premature automatic absence from the old cutoff rule.
         // apply() records the delta and preserves existing staff balance changes.

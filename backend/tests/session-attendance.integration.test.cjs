@@ -59,6 +59,29 @@ describe('real MongoDB session attendance integration', { skip: !uri }, () => {
     const row = await Attendance.findOne().lean();
     assert.equal(row.completionStatus, 'completed'); assert.equal(row.communityServiceHours, 0);
   });
+  test('deleting a penalized attendance removes it from reports but keeps it in both service ledgers', async () => {
+    const session = event.attendanceSessions[0];
+    const record = await Attendance.create({ event: event._id, session: session._id, student: student._id,
+      status: 'absent', method: 'auto', completionStatus: 'absent', sessionPenaltyHours: 8, communityServiceHours: 8 });
+    const reports = require('../routes/reportRoutes');
+    const students = require('../routes/studentRoutes');
+    const invoke = async (router, method, path, req) => {
+      const handler = router.stack.find(layer => layer.route?.path === path && layer.route.methods[method]).route.stack.at(-1).handle;
+      const result = { status: 200 };
+      await handler(req, { status(code) { result.status = code; return this; }, json(body) { result.body = body; } });
+      assert.equal(result.status, 200, JSON.stringify(result.body));
+      return result.body;
+    };
+    await invoke(reports, 'delete', '/attendance/:id', { user: admin, params: { id: String(record._id) } });
+    await service.finalize(event, at('11:30:00'));
+    const report = await invoke(reports, 'get', '/attendance', { user: admin, query: { studentId: String(student._id) } });
+    assert.equal(report.records.length, 0);
+    const studentLedger = await invoke(students, 'get', '/community-service', { user: student });
+    assert.equal(studentLedger.totalHours, 8);
+    assert.ok(studentLedger.breakdown[0].reportDeletedAt);
+    const adminLedger = await invoke(reports, 'get', '/attendance/service-ledger/:studentId', { user: admin, params: { studentId: String(student._id) } });
+    assert.equal(adminLedger.records[0].communityServiceHours, 8);
+  });
   test('completion matrix and finalization are idempotent; no early incomplete charge', async () => {
     for (const [clock, complete, hours] of [['08:10:00', true, 0], ['08:45:00', true, 4], ['08:10:00', false, 2], ['08:45:00', false, 6], [null, false, 8]]) {
       await Attendance.deleteMany({});

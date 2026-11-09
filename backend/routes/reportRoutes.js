@@ -165,7 +165,7 @@ async function buildAttendanceMatch(query = {}) {
     }
   }
 
-  return { match, studentFilter };
+  return { match: { ...match, reportDeletedAt: null }, studentFilter };
 }
 
 function loadFilterOptions() {
@@ -204,18 +204,38 @@ router.delete("/attendance/:id", async (req, res) => {
  try {
   if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ message: "Invalid attendance record." });
   const record = await Attendance.findById(req.params.id).lean();
-  if (!record) return res.status(404).json({ message: "This attendance record no longer exists. Refresh the list." });
+  if (!record || record.reportDeletedAt) return res.status(404).json({ message: "This attendance record no longer exists in the report. Refresh the list." });
   if (await ManualAttendanceRequest.exists({ event: record.event, student: record.student, status: "pending" }))
    return res.status(409).json({ message: "Review the pending manual attendance request before deleting this record." });
+  if (record.communityServiceHours > 0) {
+    const result = await Attendance.updateOne({ _id: record._id, updatedAt: record.updatedAt,
+      reportDeletedAt: null, communityServiceHours: record.communityServiceHours }, {
+      $set: { reportDeletedAt: new Date(), reportDeletedBy: req.user._id || req.user.id },
+      $inc: { __v: 1 },
+    });
+    if (!result.modifiedCount) return res.status(409).json({ message: "Attendance changed. Refresh and review it before deleting." });
+    return res.json({ message: "Attendance removed from reports. The student's service hours were kept." });
+  }
   const DeletedAttendance = require("../models/DeletedAttendance");
   // Archive first so a storage failure cannot lose the original record.
   await DeletedAttendance.updateOne({ attendanceId: record._id }, { $set: {
    event: record.event, student: record.student, deletedBy: req.user._id || req.user.id, record,
   } }, { upsert: true });
-  const result = await Attendance.deleteOne({ _id: record._id, updatedAt: record.updatedAt });
+  const result = await Attendance.deleteOne({ _id: record._id, updatedAt: record.updatedAt, reportDeletedAt: null,
+    ...(record.communityServiceHours == null ? { communityServiceHours: null } : { communityServiceHours: record.communityServiceHours }) });
   if (!result.deletedCount) return res.status(409).json({ message: "Attendance changed. Refresh and review it before deleting." });
   res.json({ message: "Attendance record deleted. Reports and service hours have been updated." });
  } catch (error) { fail(res, error); }
+});
+
+router.get("/attendance/service-ledger/:studentId", async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.studentId)) throw badRequest("Invalid student id");
+    const records = await Attendance.find({ student: req.params.studentId })
+      .populate("event", "title date time academicYearStart semester")
+      .sort({ attendedAt: -1, _id: -1 });
+    res.json({ records });
+  } catch (error) { fail(res, error); }
 });
 
 router.get("/attendance", async (req, res) => {
@@ -358,6 +378,7 @@ router.get("/attendance/export", async (req, res) => {
 // in the list, which is what made this report slow once the term filled up.
 async function attendanceCountsByEvent() {
   const rows = await Attendance.aggregate([
+    { $match: { reportDeletedAt: null } },
     ...manualPendingStatusStages(),
     {
       $group: {

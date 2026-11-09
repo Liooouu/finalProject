@@ -59,7 +59,7 @@ const DashboardHome = () => {
           provisionalHours: data.provisionalHours || 0,
           breakdown,
         };
-        const nextActivity = [...breakdown].sort(
+        const nextActivity = breakdown.filter(record => !record.reportDeletedAt).sort(
           (a, b) => new Date(b.attendedAt || 0) - new Date(a.attendedAt || 0)
         );
         setStats(nextStats);

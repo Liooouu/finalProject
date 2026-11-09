@@ -238,11 +238,7 @@ const ManageUsers = () => {
   };
 
   const loadAttendance = async (user) => {
-    // The report endpoint returns a window, so ask for this student's ledger
-    // instead of pulling the institution-wide list and filtering it here.
-    const res = await api.get("/reports/attendance", {
-      params: { studentId: user._id, limit: 200 },
-    });
+    const res = await api.get(`/reports/attendance/service-ledger/${user._id}`);
     const userRecords = res.data.records;
     setUserAttendance(userRecords);
     setServiceDraft(String(userRecords.reduce((total, record) => total + (record.communityServiceHours || 0), 0)));

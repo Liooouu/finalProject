@@ -66,7 +66,7 @@ router.get("/stats", protect, async (req, res) => {
 
     const eventIds = events.map(e => e._id);
     const counts = await Attendance.aggregate([
-      { $match: { event: { $in: eventIds }, status: { $in: ["present", "late"] } } },
+      { $match: { event: { $in: eventIds }, reportDeletedAt: null, status: { $in: ["present", "late"] } } },
       { $group: { _id: "$event", count: { $sum: 1 } } },
     ]);
     const countMap = Object.fromEntries(

@@ -170,7 +170,7 @@ router.get("/my-events", protect, async (req, res) => {
     const events = await Event.find({ organizer: req.user._id }).populate("organizer", "name email role");
     const eventIds = events.map((e) => e._id);
     const counts = await Attendance.aggregate([
-      { $match: { event: { $in: eventIds }, status: { $in: ["present", "late"] } } },
+      { $match: { event: { $in: eventIds }, reportDeletedAt: null, status: { $in: ["present", "late"] } } },
       { $group: { _id: "$event", students: { $addToSet: "$student" } } },
       { $project: { count: { $size: "$students" } } },
     ]);
@@ -193,7 +193,7 @@ router.get("/all", protect, async (req, res) => {
       .sort({ createdAt: -1 });
     const eventIds = events.map((e) => e._id);
     const counts = await Attendance.aggregate([
-      { $match: { event: { $in: eventIds }, status: { $in: ["present", "late"] } } },
+      { $match: { event: { $in: eventIds }, reportDeletedAt: null, status: { $in: ["present", "late"] } } },
       { $group: { _id: "$event", students: { $addToSet: "$student" } } },
       { $project: { count: { $size: "$students" } } },
     ]);
@@ -247,6 +247,7 @@ router.patch("/:id/status", protect, async (req, res) => {
       await Attendance.deleteMany({
         event: oldEvent._id,
         status: "absent",
+        reportDeletedAt: null,
         communityServiceLog: {
           $elemMatch: { action: "penalty", note: "Marked absent (auto)" },
         },
@@ -338,7 +339,7 @@ router.get("/", protect, async (req, res) => {
 // GET MY ATTENDANCE (students)
 router.get("/my-attendance", protect, async (req, res) => {
   try {
-    const attendance = await Attendance.find({ student: req.user._id })
+    const attendance = await Attendance.find({ student: req.user._id, reportDeletedAt: null })
       .populate("event", "title date time location academicYearStart semester")
       .sort({ attendedAt: -1 });
     const pending = await manualAttendance.pendingManualEventsForStudent(req.user._id);
@@ -374,7 +375,7 @@ router.get("/:id/attendees", protect, async (req, res) => {
       return res.status(403).json({ error: "You are not allowed to manage attendance for this event" });
     }
 
-    const attendees = await Attendance.find({ event: req.params.id })
+    const attendees = await Attendance.find({ event: req.params.id, reportDeletedAt: null })
       // The log is an audit trail nobody reads on this screen, and it is the
       // only unbounded field per record — a full event would carry thousands.
       .select("-communityServiceLog")
@@ -402,7 +403,7 @@ router.get("/:id/attendees/groups", protect, async (req, res) => {
     }
 
     const groups = await Attendance.aggregate([
-      { $match: { event: new mongoose.Types.ObjectId(req.params.id) } },
+      { $match: { event: new mongoose.Types.ObjectId(req.params.id), reportDeletedAt: null } },
       { $lookup: { from: "users", localField: "student", foreignField: "_id", as: "student" } },
       { $unwind: "$student" },
       {
