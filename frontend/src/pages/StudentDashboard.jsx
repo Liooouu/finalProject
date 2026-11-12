@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useState, useEffect } from "react";
 import "../styles/portal-workspace.css";
 import "../styles/portal-neumorphism.css";
 import "../styles/responsive-workspace.css";
+import "../styles/portal-spacing.css";
 import { Routes, Route, Navigate, useLocation, useNavigate, Link } from "react-router-dom";
 import { FaCheck, FaCamera } from "react-icons/fa";
 import Sidebar from "../components/Sidebar";

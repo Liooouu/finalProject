@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Internal pages return X-Robots-Tag: noindex. Crawlers must be allowed
+# to read that instruction; blocking them here can leave URLs in search.

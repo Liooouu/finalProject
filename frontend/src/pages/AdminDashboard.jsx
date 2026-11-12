@@ -12,6 +12,7 @@ import { prefetchIdle } from "../utils/prefetchRoutes";
 import "../styles/admin-workspace.css";
 import "../styles/portal-neumorphism.css";
 import "../styles/responsive-workspace.css";
+import "../styles/portal-spacing.css";
 
 // Per-page chunks: the dashboard, event details and the
 // reports table are only fetched when that page is actually opened.

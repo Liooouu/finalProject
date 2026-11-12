@@ -96,6 +96,7 @@ const Sidebar = ({ role }) => {
                         type="button"
                         title={collapsed ? item.name : undefined}
                         aria-current={active ? "page" : undefined}
+                        data-guide-nav={item.path}
                         onClick={() => navigate(item.path)}
                         onMouseEnter={() => prefetchRoute(item.path)}
                         onFocus={() => prefetchRoute(item.path)}

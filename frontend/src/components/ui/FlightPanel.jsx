@@ -54,6 +54,7 @@ const FlightPanel = ({
 
   return (
     <Comp
+      data-guide-card={typeof title === "string" ? title : undefined}
       className={`fd-surface ${levelClass[level] || levelClass.instrument} ${
         glass ? "fd-glass" : ""
       } ${className}`}

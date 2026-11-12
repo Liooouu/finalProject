@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { FaArrowLeft } from "react-icons/fa";
 import TrackMark from "../components/shared/TrackMark";
 import ThemeToggle from "../components/ui/ThemeToggle";
+import TutorialGuide from "../components/shared/TutorialGuide";
 import "../styles/terms.css";
 
 const sections = [
@@ -80,6 +81,7 @@ export default function TermsPage() {
             <TrackMark className="h-7 w-7" /> TrackED
           </Link>
           <div className="flex items-center gap-3">
+            <TutorialGuide />
             <ThemeToggle />
             <button
               onClick={() =>

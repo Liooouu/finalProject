@@ -2,23 +2,23 @@
    consistently across student, organizer and admin cards. */
 .portal-refined {
   min-height:100dvh;
-  --portal-card:#e5e2df;
-  --portal-card-tint:#dcd4e5;
-  --portal-card-line:#9c93a7;
+  --portal-card:#f0eeeb;
+  --portal-card-tint:#e5e0e9;
+  --portal-card-line:#827b8b;
   --portal-card-shadow:0 1px 2px rgba(48,41,52,.08),0 4px 12px -6px rgba(48,41,52,.18);
-  --portal-card-text:#30303b;
-  --portal-card-dim:#575763;
-  --portal-card-muted:#656573;
+  --portal-card-text:#252b3b;
+  --portal-card-dim:#50596a;
+  --portal-card-muted:#596170;
   --portal-card-accent:#6443c4;
 }
 .dark .portal-refined {
-  --portal-card:#1a1d28;
-  --portal-card-tint:#2c2440;
-  --portal-card-line:#303342;
+  --portal-card:#242333;
+  --portal-card-tint:#302c42;
+  --portal-card-line:#777588;
   --portal-card-shadow:0 3px 12px -10px rgba(15,23,42,.18);
-  --portal-card-text:#f0eff6;
-  --portal-card-dim:#cbc8d8;
-  --portal-card-muted:#a5a5b7;
+  --portal-card-text:#f4f2fa;
+  --portal-card-dim:#c1c5d3;
+  --portal-card-muted:#b0b7c9;
   --portal-card-accent:#b6a2f2;
 }
 .portal-refined main .font-display,

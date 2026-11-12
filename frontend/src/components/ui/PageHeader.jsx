@@ -8,6 +8,7 @@ import React from "react";
 const PageHeader = ({ title, subtitle, actions, eyebrow, className = "" }) => {
   return (
     <div
+      data-guide="page-header"
       className={`flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between ${className}`}
     >
       <div className="min-w-0">

@@ -1,0 +1,46 @@
+/* Shared breathing room across the three portals. Keep compact summaries and
+   table pagination intact; spacing follows content rather than fixed heights. */
+.portal-refined .flight-page {
+  --workspace-gap:24px;
+  --workspace-inset:24px;
+  padding:28px 32px 40px;
+}
+.portal-refined .flight-page>:is(.space-y-3,.space-y-4,.space-y-5,.space-y-6)>:not(:last-child) {
+  margin-block-end:var(--workspace-gap);
+}
+.portal-refined main :is(.organizer-home-grid,.admin-bento-grid,.managed-events-grid-admin,.managed-events-grid-organizer,.excuse-grid,[data-testid="dashboard-panels"]) {
+  gap:var(--workspace-gap);
+}
+.portal-refined main .fd-surface>.fd-rail {
+  padding:20px var(--workspace-inset) 0;
+  gap:16px;
+}
+.portal-refined main .fd-surface>.fd-body:not(.fd-body-flush):not(.p-0) {
+  padding:20px var(--workspace-inset) var(--workspace-inset);
+}
+.portal-refined main :is(.admin-bento-grid>.fd-surface,.managed-event-card,.excuse-letter-card,.event-create-form) {
+  padding:var(--workspace-inset);
+}
+.portal-refined main :is(.organizer-event-box,.admin-next-list>li) { padding:20px; }
+.portal-refined main .excuse-workspace { gap:var(--workspace-gap); }
+.portal-refined main .excuse-card-header { gap:16px; }
+.portal-refined main .excuse-submission-meta { gap:10px; margin-top:20px; }
+.portal-refined main .excuse-review-controls { margin-top:20px; }
+.portal-refined main :is(.excuse-review-fields,.event-create-details,.event-create-schedule) { gap:20px; }
+.portal-refined main .event-create-layout { gap:32px; }
+.portal-refined main .event-create-field { display:flex; flex-direction:column; gap:8px; }
+.portal-refined main .record-pagination { padding-block:20px 4px; }
+@media(max-width:767px) {
+  .portal-refined .flight-page {
+    --workspace-gap:20px;
+    --workspace-inset:18px;
+    padding:20px 16px calc(32px + env(safe-area-inset-bottom));
+  }
+  .portal-refined main .fd-surface>.fd-rail { padding-top:18px; gap:12px; }
+  .portal-refined main .fd-surface>.fd-body:not(.fd-body-flush):not(.p-0) { padding-top:16px; }
+  .portal-refined main .event-create-layout { gap:24px; }
+  .portal-refined main .organizer-event-box { padding:16px; }
+  /* These three numbers stay side by side on small screens. */
+  .portal-refined main .student-service-summary>.service-summary-card { padding:6px; }
+  .portal-refined main .student-service-summary .fd-body { padding:8px; }
+}

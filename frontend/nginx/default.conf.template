@@ -4,12 +4,24 @@
 #
 # BACKEND_URL must have no trailing slash; proxy_pass passes the original URI
 # through unchanged, so /api/... and /uploads/... arrive at the API intact.
+map $uri $tracked_search_policy {
+  default "noindex, nofollow, nosnippet";
+  / "index, follow";
+  /terms "index, follow";
+  /terms/ "index, follow";
+}
 server {
   listen 80;
   server_name _;
 
   root /usr/share/nginx/html;
   index index.html;
+  autoindex off;
+  add_header X-Robots-Tag $tracked_search_policy always;
+
+  # Never turn source/config probes into a successful SPA response.
+  location ~* ^/(?:\.env(?:[./]|$)|\.git(?:/|$)|backend(?:/|$)|src(?:/|$)|node_modules(?:/|$)) { return 404; }
+  location ~* \.map$ { return 404; }
 
   # multer rejects single files over 5 MB (see the route files); leave headroom
   # for multipart framing so the API's own error is what the user sees.
@@ -23,6 +35,7 @@ server {
   # Vite emits content-hashed filenames here, so they can be cached forever.
   location /assets/ {
     add_header Cache-Control "public, immutable, max-age=31536000";
+    add_header X-Robots-Tag "noindex, nofollow, nosnippet" always;
   }
 
   location /api/ {
@@ -53,5 +66,6 @@ server {
   location / {
     try_files $uri $uri/ /index.html;
     add_header Cache-Control "no-cache";
+    add_header X-Robots-Tag $tracked_search_policy always;
   }
 }

@@ -39,7 +39,7 @@
 :root {
   --on: #0f172a;
   --on-dim: #475569;
-  --on-muted: #64748b;
+  --on-muted: #b0b7c9;
   --card-bg: #ffffff;
   --card-alt-bg: #f1f5f9;
   --surface-bg: #f8fafc;
@@ -53,12 +53,12 @@
   --brand: #4f46e5;
   --brand-2: #7c3aed;
   --brand-3: #0891b2;
-  --brand-solid: #4f46e5;
-  --ok: #047857;
-  --warn: #b45309;
-  --danger: #be123c;
-  --info: #1d4ed8;
-  --excused: #0369a1;
+  --brand-solid: #6536cc;
+  --ok: #116439;
+  --warn: #874100;
+  --danger: #a81d3e;
+  --info: #254ba5;
+  --excused: #116078;
 
   --panel-bg: #ffffff;
   --panel-2-bg: #f6f8fc;
@@ -212,11 +212,11 @@
 
 /* A muted warm-gray light theme avoids large, bright white surfaces. */
 :root:not(.dark) {
-  --on:#30313b; --on-dim:#555765; --on-muted:#60616d;
-  --card-bg:#e5e2df; --card-alt-bg:#dad6d4; --surface-bg:#dcd8d5;
-  --panel-bg:#e5e2df; --panel-2-bg:#ddd8d4;
-  --line-color:#aaa2ad; --line-dim-color:#d6d0cb;
-  --app-base:#d2cecb;
+  --on:#252b3b; --on-dim:#50596a; --on-muted:#596170;
+  --card-bg:#f0eeeb; --card-alt-bg:#e5e0e9; --surface-bg:#e2dfdc;
+  --panel-bg:#f0eeeb; --panel-2-bg:#e5e0e9;
+  --line-color:#827b8b; --line-dim-color:#c2bcc7;
+  --app-base:#e2dfdc;
   --orb-1:radial-gradient(65% 65% at 50% 50%,rgba(79,70,229,.07) 0%,transparent 70%);
   --orb-2:radial-gradient(65% 65% at 50% 50%,rgba(14,165,233,.04) 0%,transparent 70%);
   --orb-3:radial-gradient(65% 65% at 50% 50%,rgba(139,92,246,.04) 0%,transparent 70%);
@@ -245,14 +245,14 @@
 
 .dark {
   color-scheme: dark;
-  --on: #f1f5f9;
-  --on-dim: #94a3b8;
-  --on-muted: #64748b;
-  --card-bg: #141a29;
-  --card-alt-bg: #1b2234;
-  --surface-bg: #0b0f1a;
-  --line-color: rgba(148, 163, 184, 0.16);
-  --line-dim-color: rgba(148, 163, 184, 0.08);
+  --on: #f4f2fa;
+  --on-dim: #c1c5d3;
+  --on-muted: #b0b7c9;
+  --card-bg: #242333;
+  --card-alt-bg: #302c42;
+  --surface-bg: #151722;
+  --line-color: #777588;
+  --line-dim-color: #494759;
 
   --skeleton-bg: rgba(148, 163, 184, 0.16);
   --skeleton-shine: rgba(148, 163, 184, 0.22);
@@ -260,7 +260,7 @@
   --brand: #a5b4fc;
   --brand-2: #c4b5fd;
   --brand-3: #67e8f9;
-  --brand-solid: #4f46e5;
+  --brand-solid: #6536cc;
   --ok: #6ee7b7;
   --warn: #fcd34d;
   --danger: #fda4af;
@@ -1363,3 +1363,22 @@ textarea.field {
   .event-filter-row > .field { flex: 1 1 0%; width: 0; }
   .event-filter-row > .field-select { width: 180px; margin-left: auto; }
 }
+
+/* Shared readable status surfaces and controls in both themes. */
+:root {
+  --status-ok-bg:#dcf4e4;
+  --status-ok-text:#116439;
+  --status-neutral-bg:#ddd9e6;
+  --status-neutral-text:#3b3850;
+}
+.dark {
+  --status-ok-bg:#174f32;
+  --status-ok-text:#b4ffd0;
+  --status-neutral-bg:#4b465e;
+  --status-neutral-text:#ede9f7;
+}
+:where(button,a,input,select,textarea):focus-visible {
+  outline:2px solid var(--brand);
+  outline-offset:3px;
+}
+.field::placeholder { opacity:1; }

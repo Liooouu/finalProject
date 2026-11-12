@@ -30,7 +30,11 @@ router.get("/academic-calendar", protect, async (req, res) => {
   try { res.json(await academicPeriods.read()); } catch { res.status(503).json({ error: "School terms unavailable. Please try again." }); }
 });
 
-router.get("/excuses", protect, async (req, res) => {
+// Review queues are private, changing records, never reusable CDN/browser data.
+router.get("/excuses", protect, (req, res, next) => {
+  res.set("Cache-Control", "private, no-store");
+  next();
+}, async (req, res) => {
   try {
     if (req.user.role !== "organizer" && req.user.role !== "admin") {
       return res.status(403).json({ error: "Not authorized" });

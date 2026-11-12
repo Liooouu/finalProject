@@ -45,7 +45,7 @@ const faceUpload = multer({
 // Fields the client is allowed to see about an account: never the password, the
 // legacy authentication fields or the email/reset code hashes.
 const ACCOUNT_FIELDS =
-  "name email role organizerAccess organizerPromotedAt profilePicture program yearLevel section academicYearStart academicHistory enrollmentStatus facePhoto faceEnrolledAt faceConsentAt createdAt updatedAt";
+  "name email role organizerAccess organizerPromotedAt profilePicture program yearLevel section academicYearStart academicHistory enrollmentStatus facePhoto faceEnrolledAt faceConsentAt tutorialProgress tutorialPages createdAt updatedAt";
 
 // =======================
 // GET ACCOUNT INFO
@@ -62,6 +62,25 @@ router.get("/", protect, async (req, res) => {
 // =======================
 // UPDATE ACCOUNT INFO
 // =======================
+// Completion belongs to the signed-in account and active role, never a body ID.
+router.patch("/tutorial", protect, async (req, res) => {
+  const { version, page } = req.body || {};
+  const roots = new Set(["dashboard", "events", "events-create", "community-service", "submit-excuse", "profile", "notifications", "reviews-manual", "reviews-excuses", "reviews-face-appeals", "manual-attendance", "users", "reports"]);
+  const sections = new Set(["users", "advancement", "terms", "profile", "academic", "security", "attendance", "events", "manual", "face-appeals", "excuses", "checkin", "requests", "records", "review", "mine", "form", "history"]);
+  const parts = typeof page === "string" ? page.split(":") : [];
+  const validPage = parts.length >= 1 && parts.length <= 2 && roots.has(parts[0]) && (parts.length === 1 || sections.has(parts[1]));
+  if (!["student", "organizer", "admin"].includes(req.user.role) || (version !== 1 && !(version === 2 && validPage))) return res.status(400).json({ error: "Invalid tutorial version, page or role" });
+  try {
+    const user = await User.findByIdAndUpdate(req.user._id,
+      version === 1 ? { $max: { [`tutorialProgress.${req.user.role}`]: 1 } } : { $addToSet: { [`tutorialPages.${req.user.role}`]: `2:${page}` } },
+      { new: true }).select("tutorialProgress tutorialPages");
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json({ tutorialProgress: user.tutorialProgress, tutorialPages: user.tutorialPages });
+  } catch {
+    res.status(503).json({ error: "Tutorial progress could not be saved. Please try again." });
+  }
+});
+
 router.patch("/", protect, async (req, res) => {
   try {
     const { name, email } = req.body;

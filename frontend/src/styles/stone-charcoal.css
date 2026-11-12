@@ -1,0 +1,259 @@
+/* Shared Stone / Charcoal material system. Root tokens also cover portaled
+   dialogs. Portal selectors intentionally outrank legacy role-specific themes. */
+:root:not(.dark), :root.dark,
+:root .portal-refined.portal-neumorphic:is(.portal-refined) {
+  --forest-plane:#deddd4;
+  --forest-surface:#e0dfd6;
+  --forest-low:rgba(114,119,102,.36);
+  --forest-high:rgba(255,255,244,.85);
+  --forest-raised:8px 8px 18px var(--forest-low),-7px -7px 17px var(--forest-high),inset 1px 1px 1px rgba(255,255,255,.45);
+  --forest-small:4px 4px 9px var(--forest-low),-4px -4px 9px var(--forest-high);
+  --forest-inset:inset 4px 4px 8px var(--forest-low),inset -4px -4px 8px var(--forest-high);
+  --forest-button:linear-gradient(145deg,#357052,#24563f);
+  --neo-plane:var(--forest-plane);
+  --neo-surface:var(--forest-surface);
+  --neo-inner:#d7d9cf;
+  --neo-raised:var(--forest-raised);
+  --neo-small:var(--forest-small);
+  --neo-well:var(--forest-inset);
+  --neo-pressed:var(--forest-inset);
+  --portal-card:var(--forest-surface);
+  --portal-card-tint:#d3d8cc;
+  --portal-card-text:#20382c;
+  --portal-card-dim:#425749;
+  --portal-card-muted:#4d6053;
+  --portal-card-line:#91a08e;
+  --portal-card-accent:#245d40;
+  --portal-card-shadow:var(--forest-raised);
+  --app-base:var(--forest-plane);
+  --surface-bg:var(--forest-plane);
+  --panel-bg:var(--forest-surface);
+  --card-bg:var(--forest-surface);
+  --card-alt-bg:var(--portal-card-tint);
+  --on:var(--portal-card-text);
+  --on-dim:var(--portal-card-dim);
+  --on-muted:var(--portal-card-muted);
+  --brand:var(--portal-card-accent);
+  --brand-2:#3c7655;
+  --brand-3:#567f63;
+  --brand-solid:#285f43;
+  --line-color:var(--portal-card-line);
+  --line-dim-color:#bbc4b5;
+  --ok:#20603b;
+  --warn:#80500b;
+  --danger:#a52e36;
+  --info:#2d5e75;
+  --excused:#485e72;
+  --panel-from:var(--forest-surface);
+  --panel-to:var(--forest-surface);
+  --panel-border:transparent;
+  --panel-highlight:inset 1px 1px 1px rgba(255,255,255,.3);
+  --panel-shadow:var(--forest-small);
+  --elev-1:var(--forest-small);
+  --elev-2:var(--forest-raised);
+  --elev-3:12px 12px 38px rgba(18,34,23,.32);
+  --glow-brand:var(--forest-small);
+  --fd-panel:var(--forest-surface);
+  --fd-panel-2:var(--portal-card-tint);
+  --fd-line:var(--line-dim-color);
+  --fd-rail:var(--forest-surface);
+  --fd-glass-sheen:none;
+  --color-on:var(--on);
+  --color-on-dim:var(--on-dim);
+  --color-on-muted:var(--on-muted);
+  --color-brand:var(--brand);
+  --color-brand-2:var(--brand-2);
+  --color-brand-3:var(--brand-3);
+  --color-card:var(--card-bg);
+  --color-card-alt:var(--card-alt-bg);
+  --color-line:var(--line-color);
+  --color-ok:var(--ok);
+  --color-warn:var(--warn);
+  --color-danger:var(--danger);
+  --color-info:var(--info);
+  --color-excused:var(--excused);
+  --status-ok-bg:#c6ddcb;
+  --status-ok-text:#205238;
+  --status-neutral-bg:#cbd0c6;
+  --status-neutral-text:#3f5144;
+  --panel-2-bg:var(--portal-card-tint);
+  --panel-sheen:none;
+  --panel-glow:none;
+}
+:root.dark,
+:root.dark .portal-refined.portal-neumorphic:is(.portal-refined) {
+  --forest-plane:#262729;
+  --forest-surface:#2c2d30;
+  --forest-low:rgba(8,9,10,.72);
+  --forest-high:rgba(105,108,111,.28);
+  --forest-raised:9px 9px 19px var(--forest-low),-6px -6px 16px var(--forest-high),inset 1px 1px 1px rgba(222,225,226,.08);
+  --forest-button:linear-gradient(145deg,#397c53,#255c3d);
+  --neo-inner:#242527;
+  --portal-card-tint:#343639;
+  --portal-card-text:#f0f0eb;
+  --portal-card-dim:#d0d2ce;
+  --portal-card-muted:#bfc3c0;
+  --portal-card-line:#757c77;
+  --portal-card-accent:#a5c7ab;
+  --brand-2:#bed5ae;
+  --brand-3:#88b99e;
+  --brand-solid:#306c47;
+  --line-dim-color:#4c514e;
+  --status-ok-bg:#2c4938;
+  --status-ok-text:#b5e1bf;
+  --status-neutral-bg:#424744;
+  --status-neutral-text:#e1e7df;
+  --ok:#9fddb0;
+  --warn:#f1cc87;
+  --danger:#ffabb0;
+  --info:#a3ccdc;
+  --excused:#c1cde2;
+  --panel-highlight:inset 1px 1px 1px rgba(225,227,225,.1);
+  --elev-3:12px 12px 38px rgba(3,4,5,.65);
+}
+:root .portal-refined.portal-neumorphic { background:var(--forest-plane); }
+:root .portal-refined.portal-neumorphic .app-aurora { background:var(--forest-plane); }
+:root .portal-refined.portal-neumorphic :is(.app-orb,.app-grid,.app-noise) { display:none; }
+:root .portal-refined.portal-neumorphic main :is(.fd-surface.fd-glass,.fd-surface,.panel-surface,.portal-card,.student-card) {
+  border:1px solid transparent;
+  border-radius:22px;
+  background:var(--forest-surface);
+  box-shadow:var(--forest-raised);
+}
+:root .portal-refined.portal-neumorphic main .fd-surface>.fd-rail {
+  border-bottom:0;
+  background:transparent;
+}
+:root .portal-refined.portal-neumorphic main :is(.fd-title,.font-display,h1,h2) { font-weight:600; }
+:root .portal-refined.portal-neumorphic :is(.admin-bento-icon,.admin-users-arrow),
+:root .portal-refined.portal-neumorphic main .fd-rail-icon {
+  border:0;
+  background:var(--forest-surface);
+  box-shadow:var(--forest-small);
+  color:var(--brand);
+}
+:root .portal-refined.portal-neumorphic main :is(.portal-inset,.admin-rate-box,.excuse-event-box) {
+  border:1px solid transparent;
+  background:var(--forest-surface);
+  box-shadow:var(--forest-inset);
+}
+:root .portal-refined.portal-neumorphic main :is(.admin-review-box,.portal-action-box,.admin-event-preview) {
+  border:1px solid transparent;
+  border-radius:16px;
+  background:var(--forest-surface);
+  box-shadow:var(--forest-small);
+}
+:root .portal-refined.portal-neumorphic main .admin-event-preview>a { background:transparent; }
+:root .portal-refined.portal-neumorphic .admin-bento-grid .admin-rate-value {
+  display:grid; place-items:center; align-self:center;
+  width:168px; min-height:168px; border-radius:50%;
+  font-size:60px; color:var(--brand);
+  background:var(--forest-plane); box-shadow:var(--forest-inset);
+}
+:root .portal-refined.portal-neumorphic main :is(input.field,textarea.field,select.field-select,input[type="search"]) {
+  background:var(--forest-plane);
+  border:1px solid color-mix(in srgb,var(--line-color) 65%,transparent);
+  border-radius:12px;
+  box-shadow:var(--forest-inset);
+  color:var(--on);
+}
+:root .portal-refined.portal-neumorphic :is(input,textarea)::placeholder { color:var(--on-muted); opacity:1; }
+:root .portal-refined.portal-neumorphic :is(input,textarea,select):focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
+:root .portal-refined.portal-neumorphic :is([role="tablist"],[data-guide="view-options"]) {
+  padding:6px; gap:6px; border:0; border-radius:14px;
+  background:var(--forest-plane); box-shadow:var(--forest-inset);
+}
+:root .portal-refined.portal-neumorphic :is([role="tab"],[data-guide-option]) {
+  border-radius:10px; color:var(--on-dim); min-height:38px;
+}
+:root .portal-refined.portal-neumorphic :is([role="tab"][aria-selected="true"],[data-guide-option][aria-pressed="true"]) {
+  background:var(--forest-button); color:#fff; box-shadow:var(--forest-small);
+}
+:root .portal-refined.portal-neumorphic [role="tab"]>span.absolute { display:none; }
+:root .portal-refined.portal-neumorphic :is([data-ui-variant="primary"], [data-ui-variant="secondary"], [data-ui-variant="success"], [data-ui-variant="danger"], [data-ui-variant="warning"], [data-ui-variant="info"]) {
+  border:1px solid transparent; border-radius:12px;
+  background:var(--forest-surface); box-shadow:var(--forest-small); transform:none;
+}
+:root .portal-refined.portal-neumorphic [data-ui-variant="primary"] { background:var(--forest-button); color:#fff; }
+:root .portal-refined.portal-neumorphic :is([data-ui-variant],.admin-review-box):active:not(:disabled) { transform:none; box-shadow:var(--forest-inset); }
+:root .portal-refined.portal-neumorphic :is([data-ui-variant],aside button,.admin-home-users,.admin-review-box):focus-visible { outline:2px solid var(--brand); outline-offset:4px; }
+:root .portal-refined.portal-neumorphic :is(.admin-review-box,.admin-home-users):hover { transform:none; box-shadow:var(--forest-raised); }
+:root .portal-refined.portal-neumorphic :is(.admin-bento-eyebrow,.eyebrow) { letter-spacing:.11em; }
+:root .portal-refined.portal-neumorphic aside {
+  margin:18px 0 18px 18px; border:0; border-radius:24px;
+  background:var(--forest-surface); box-shadow:var(--forest-raised);
+}
+:root .portal-refined.portal-neumorphic aside[data-collapsed="false"] { width:224px; }
+:root .portal-refined.portal-neumorphic aside nav { padding:22px 14px; }
+:root .portal-refined.portal-neumorphic aside nav button { min-height:46px; padding:10px 12px; border-radius:13px; gap:12px; font-size:13px; }
+:root .portal-refined.portal-neumorphic aside nav button>span.flex { width:28px; height:28px; border-radius:9px; background:var(--forest-surface); box-shadow:var(--forest-small); }
+:root .portal-refined.portal-neumorphic aside nav button[aria-current="page"] { background:var(--forest-plane); color:var(--brand); box-shadow:var(--forest-inset); font-weight:600; }
+:root .portal-refined.portal-neumorphic aside>div:first-child>span { background:var(--forest-button); color:white; box-shadow:var(--forest-small); }
+:root .portal-refined.portal-neumorphic aside>div:last-child { border-color:transparent; }
+:root .portal-refined.portal-neumorphic header.sticky {
+  margin:18px 26px 8px; top:0; border:0; border-radius:20px;
+  background:var(--forest-surface); box-shadow:var(--forest-small);
+}
+:root .portal-refined.portal-neumorphic header.sticky>div { height:62px; }
+:root .portal-refined.portal-neumorphic header.sticky button:not([role="menuitem"]) { border-color:transparent; background:var(--forest-surface); box-shadow:var(--forest-small); }
+:root .portal-refined.portal-neumorphic header.sticky [aria-label="Account menu"] { border-radius:14px; }
+:root .portal-refined.portal-neumorphic header.sticky [aria-label="Account menu"]>span:first-child { background:var(--forest-button); color:#fff; }
+:root .portal-refined.portal-neumorphic main table { background:transparent; }
+:root .portal-refined.portal-neumorphic main th { background:var(--forest-plane); color:var(--on-dim); }
+:root .portal-refined.portal-neumorphic main :is(td,th) { border-color:var(--line-dim-color); }
+:root .portal-refined.portal-neumorphic main tbody tr:nth-child(even) { background:color-mix(in srgb,var(--forest-plane) 60%,var(--forest-surface)); }
+:root .portal-refined.portal-neumorphic [role="dialog"] .portal-card { background:var(--forest-surface); }
+:root .tutorial-coach { box-shadow:var(--forest-raised); border-color:var(--line-dim-color); }
+:root .tutorial-primary { background:var(--forest-button); }
+@media(max-width:767px) {
+  :root:not(.dark), :root.dark, :root .portal-refined.portal-neumorphic:is(.portal-refined) { --forest-raised:6px 6px 13px var(--forest-low),-4px -4px 11px var(--forest-high); }
+  :root .portal-refined.portal-neumorphic header.sticky { margin:12px 14px 8px; border-radius:17px; }
+  :root .portal-refined.portal-neumorphic header.sticky>div { padding-inline:12px; }
+  :root .portal-refined.portal-neumorphic .flight-page { padding:22px 18px 32px; }
+  :root .portal-refined.portal-neumorphic main :is(.fd-surface.fd-glass,.fd-surface,.panel-surface,.portal-card) { border-radius:18px; }
+  :root .portal-refined.portal-neumorphic .admin-bento-grid .admin-rate-value { width:144px; min-height:144px; font-size:52px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  :root .portal-refined.portal-neumorphic :is(button,a) { transition:none; }
+}
+
+/* Shared authentication, enrollment, public pages and portaled UI. */
+:root body { background:var(--forest-plane); color:var(--on); }
+:root .app-aurora { background:var(--forest-plane); }
+:root :is(.auth-clean,.tracked-landing) :is(.app-grid,.app-orb,.app-noise) { display:none; }
+:root .auth-clean .auth-shell { border-color:transparent; background:var(--forest-surface); box-shadow:var(--forest-raised); }
+:root .auth-clean .auth-brand-panel { background:var(--forest-plane); box-shadow:var(--forest-inset); color:var(--on); }
+:root .auth-clean .auth-brand-panel::after { display:none; }
+:root .auth-clean .auth-brand-panel :is(h2,p,[class*="text-white"]) { color:var(--on); }
+:root .auth-clean .auth-brand-panel h2+p,
+:root .auth-clean .auth-brand-panel>div>p,
+:root .auth-clean .auth-feature p+p { color:var(--on-dim); }
+:root .auth-clean .auth-feature { border-color:transparent; background:var(--forest-surface); box-shadow:var(--forest-small); }
+:root .auth-clean .auth-feature>span { background:var(--forest-surface); color:var(--brand); box-shadow:var(--forest-small); --tw-ring-color:transparent; }
+:root .auth-clean .auth-form-column { background:var(--forest-surface); }
+:root .auth-clean .auth-field { background:var(--forest-plane); border-color:var(--line-color); box-shadow:var(--forest-inset); color:var(--on); }
+:root .auth-clean .auth-panel [type="submit"] { background:var(--forest-button); color:#fff; box-shadow:var(--forest-small); }
+:root .portal-refined.portal-neumorphic :is(.bg-gradient-to-br.from-indigo-600,.bg-gradient-to-br.from-brand) { background:var(--forest-button); }
+:root .portal-refined.portal-neumorphic :is([aria-label="Profile sections"],.portal-inset) { background:var(--forest-surface); }
+:root .portal-refined.portal-neumorphic :is(.fd-rail-icon,.portal-action-box) { box-shadow:var(--forest-small); }
+:root :is(.tutorial-help,.tutorial-secondary,.tutorial-close,.terms-back,.landing-theme,.landing-brand-icon,.landing-note-icon,.landing-feature-icon) { border-color:transparent; background:var(--forest-surface); color:var(--brand); box-shadow:var(--forest-small); }
+:root :is(.landing-feature,.landing-role,.landing-final-inner,.terms-layout>nav) { border-color:transparent; background:var(--forest-surface); box-shadow:var(--forest-raised); }
+:root .landing-button { box-shadow:var(--forest-small); }
+:root .landing-button-primary { background:var(--forest-button); color:#fff; }
+:root .landing-button-quiet { background:var(--forest-surface); border-color:transparent; color:var(--on); }
+:root .landing-caption-line { background:var(--brand); }
+:root .landing-header { background:var(--forest-plane); }
+:root :is([role="alertdialog"],.tutorial-coach) { background:var(--forest-surface); color:var(--on); box-shadow:var(--forest-raised); }
+:root .tutorial-example { background:var(--forest-plane); box-shadow:var(--forest-inset); }
+/* Keep camera pixels/overlays dark and untouched; theme only station chrome. */
+:root .station-theme>header { background:var(--forest-surface); border-color:var(--line-dim-color); box-shadow:var(--forest-small); }
+:root .station-theme>header p { color:var(--on-muted); }
+:root .station-theme>header :is(button,span.rounded-full) { color:var(--on); background:var(--forest-surface); border-color:var(--line-dim-color); box-shadow:var(--forest-small); }
+:root .station-theme>main>p,
+:root .station-theme>main>details { color:var(--on-dim); }
+:root .station-theme>main>details :is(summary,div,p) { color:var(--on-dim); }
+:root .station-theme>main>div.grid>div { background:var(--forest-surface); color:var(--on); box-shadow:var(--forest-small); border-color:transparent; }
+:root .station-theme>main>div.grid>div p { color:var(--on-dim); }
+:root .station-theme>main>div.grid>div p.num { color:var(--on); }
+:root .station-theme>main>div.grid>div p span { color:var(--on-muted); }
+:root :is(button.bg-brand,a.bg-brand) { background:var(--forest-button); color:#fff; }

@@ -31,26 +31,13 @@ import features from "../../data/features";
 import Button from "../../components/ui/Button";
 import ThemeToggle from "../../components/ui/ThemeToggle";
 import FaceEnrollmentChoice from "../../components/auth/FaceEnrollmentChoice";
-import { useTheme } from "../../context/ThemeContext";
-import techDark from "../../assets/images/tech-bg-dark.jpg";
+import TutorialGuide from "../../components/shared/TutorialGuide";
 
-// Original mobile form; the raised treatment is enabled only at desktop widths.
+// Shared form treatment; no photographic background is needed at any width.
 const panelClasses =
   "auth-panel animate-fade-up lg:rounded-[var(--panel-radius)] lg:border lg:border-line lg:bg-card lg:p-8 lg:shadow-[var(--panel-shadow)]";
 
 const AuthPage = () => {
-  const [desktopAuth, setDesktopAuth] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(min-width: 1024px)").matches,
-  );
-  useEffect(() => {
-    const query = window.matchMedia("(min-width: 1024px)");
-    const update = () => setDesktopAuth(query.matches);
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-
   // Sign-in and sign-up each own a route (/auth and /auth/signup), so the
   // switch behaves like a real page change — the URL updates and the browser's
   // back button works — instead of a silent in-place toggle.
@@ -110,7 +97,6 @@ const AuthPage = () => {
   const [fpNotice, setFpNotice] = useTransientState(""); // success banner on sign-in
 
   const navigate = useNavigate();
-  const { isDark } = useTheme();
 
   const showLogin = () => navigate("/auth");
   const showSignup = () => navigate("/auth/signup");
@@ -431,40 +417,14 @@ const AuthPage = () => {
 
   return (
     <AppBackground
-      className={`auth-responsive ${!isLogin && flow === "form" ? "auth-signup" : ""} ${desktopAuth ? `portal-refined portal-neumorphic auth-neumorphic auth-reference ${flow === "forgotPassword" ? "auth-is-recovery" : ""}` : ""}`}
+      className={`auth-responsive auth-clean portal-refined portal-neumorphic auth-neumorphic ${!isLogin && flow === "form" ? "auth-signup" : ""} ${flow === "forgotPassword" ? "auth-is-recovery" : ""}`}
     >
-      <div
-        className="auth-city-backdrop"
-        aria-hidden="true"
-        style={{ backgroundImage: `url(${techDark})` }}
-      />
       <div className="auth-shell relative flex w-full min-h-screen">
         <ThemeToggle className="auth-theme-toggle" />
+        <TutorialGuide className="auth-help" />
         {/* Desktop branding panel; password recovery uses a centered form. */}
         {flow !== "forgotPassword" && (
           <div className="auth-brand-panel relative hidden w-1/2 overflow-hidden lg:block">
-            <img
-              src={techDark}
-              alt=""
-              aria-hidden="true"
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-            {/* Indigo recolor to match brand */}
-            <div
-              aria-hidden="true"
-              className="absolute inset-0"
-              style={{
-                mixBlendMode: "color",
-                background: "var(--brand)",
-                opacity: isDark ? 0.55 : 0.45,
-              }}
-            />
-            {/* Legibility scrim */}
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 bg-gradient-to-br from-indigo-950/90 via-indigo-950/60 to-slate-900/40"
-            />
-
             <div className="relative z-10 flex h-full flex-col justify-between p-12 xl:p-16">
               <BrandMark onLight />
 
@@ -484,11 +444,11 @@ const AuthPage = () => {
                 </p>
 
                 {isLogin && (
-                  <div className="mt-9 grid gap-3 sm:grid-cols-2">
+                  <div className="auth-feature-grid mt-9 grid gap-3 sm:grid-cols-2">
                     {features.map((f) => (
                       <div
                         key={f.title}
-                        className="flex items-start gap-3.5 rounded-2xl border border-white/20 bg-white/15 p-4 backdrop-blur-sm"
+                        className="auth-feature flex items-start gap-3.5 rounded-2xl border border-white/20 bg-white/10 p-4"
                       >
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20 text-white ring-1 ring-inset ring-white/10">
                           {f.icon}
@@ -515,36 +475,8 @@ const AuthPage = () => {
 
         {/* Right — authentication */}
         <div className="auth-form-column relative flex min-h-screen w-full flex-1 items-center justify-center p-4 sm:p-8">
-          {/* City backdrop for mobile auth and the centered recovery flow. */}
-          <div
-            aria-hidden="true"
-            className={`pointer-events-none absolute inset-0 -z-10 overflow-hidden bg-gradient-to-b from-[#eef2ff] via-[#f7f5ff] to-[#e9f1ff] dark:from-[#0b1020] dark:via-[#141136] dark:to-[#0a1024] ${
-              flow !== "forgotPassword" ? "lg:hidden" : ""
-            }`}
-          >
-            <img
-              src={techDark}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover opacity-[0.28] dark:opacity-[0.4]"
-            />
-            {/* Indigo recolor to match brand (same blend as the desktop panel) */}
-            <div
-              className="absolute inset-0"
-              style={{
-                mixBlendMode: "color",
-                background: "var(--brand)",
-                opacity: isDark ? 0.4 : 0.3,
-              }}
-            />
-            {/* Legibility scrim — keeps every auth state readable over the photo */}
-            <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/60 to-white/88 dark:from-[#0b1020]/80 dark:via-[#0b1020]/60 dark:to-[#0a1024]/88" />
-            <div className="absolute -right-24 top-1/4 h-96 w-96 rotate-45 rounded-[4rem] bg-[var(--brand)]/20 blur-3xl dark:bg-[var(--brand)]/15" />
-            <div className="absolute -left-20 bottom-8 h-72 w-72 -rotate-12 rounded-[3rem] bg-[var(--brand-2)]/25 blur-3xl dark:bg-[var(--brand-2)]/15" />
-            <div className="absolute inset-x-0 top-1/3 h-40 -rotate-6 bg-white/40 blur-2xl dark:bg-white/5" />
-          </div>
-
           <div className="w-full max-w-md">
-            {/* Brand (mobile / tablet, since the photo panel is hidden below lg).
+            {/* Brand (mobile / tablet, since the introduction is hidden below lg).
               The password-reset screens carry their own circular brand badge
               instead, so this one stands down there. */}
             {flow !== "forgotPassword" && (

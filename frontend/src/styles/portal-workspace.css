@@ -69,8 +69,9 @@
   .service-summary-hint { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 }
 
-/* Organizer hierarchy follows the sketch: tall event left, tools and reviews right. */
-.organizer-home-grid .organizer-upcoming-card { min-height:280px; }
+/* Three equal tools above the full-width event overview. */
+.organizer-home-grid { grid-template-columns:minmax(0,1fr); gap:24px; }
+.organizer-home-grid .organizer-upcoming-card { grid-column:1 / -1; min-height:0; }
 .organizer-home-grid .organizer-attendance-card .organizer-review-box { min-height:100px; }
 .organizer-home-grid .organizer-excuses-card .organizer-review-box { min-height:90px; gap:6px; }
 .organizer-home-grid .organizer-excuses-card .organizer-review-box strong { font-size:40px; }
@@ -97,11 +98,8 @@
 }
 
 @media(min-width:1024px) {
-  .organizer-home-grid { grid-template-columns:minmax(0,1.5fr) repeat(2,minmax(0,1fr)); grid-template-rows:auto minmax(auto,1fr); }
-  .organizer-home-grid .organizer-upcoming-card { grid-area:1 / 1 / 3 / 2; }
-  .organizer-home-grid .organizer-face-card { grid-area:1 / 2 / 2 / 3; }
-  .organizer-home-grid .organizer-manual-card { grid-area:1 / 3 / 2 / 4; }
-  .organizer-home-grid .organizer-excuses-card { grid-area:2 / 2 / 3 / 4; }
+  .organizer-home-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .organizer-home-grid .organizer-upcoming-card .stretch-page-list { grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
   .organizer-home-grid .organizer-upcoming-card h2 { font-size:24px; line-height:1.3; }
   .organizer-home-grid .organizer-upcoming-card .organizer-event-box { gap:20px; padding:20px; }
 }

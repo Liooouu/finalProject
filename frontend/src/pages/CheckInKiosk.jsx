@@ -14,6 +14,7 @@ import {
 import api from "../api/axios";
 import { formatDateTime } from "../utils/helpers";
 import TrackMark from "../components/shared/TrackMark";
+import TutorialGuide from "../components/shared/TutorialGuide";
 import ScannerDiagnostics from "../components/shared/ScannerDiagnostics";
 import { faceScanIssue } from "../utils/faceScanQuality";
 import { canPairFaceScans, faceScanSize, MAX_SCAN_PAIR_AGE_MS } from "../utils/faceScanPair";
@@ -472,7 +473,7 @@ const CheckInKiosk = () => {
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#070b12] text-white">
+    <div className="station-theme flex min-h-screen flex-col bg-[var(--app-base)] text-on">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <TrackMark className="h-9 w-9 shrink-0 text-brand" />
@@ -486,6 +487,7 @@ const CheckInKiosk = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <TutorialGuide role="station" />
           <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/70">
             {STATE_LABEL[state] || "Starting"}
           </span>

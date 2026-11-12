@@ -18,12 +18,12 @@ import {
  * Covers attendance, excuse, request and event lifecycle statuses using the
  * Aurora semantic tokens so light and dark themes stay in step.
  */
-const ok = "bg-ok/10 text-ok ring-ok/25";
+const ok = "bg-[var(--status-ok-bg)] text-[var(--status-ok-text)] ring-[var(--status-ok-text)]/35";
 const warn = "bg-warn/10 text-warn ring-warn/25";
 const danger = "bg-danger/10 text-danger ring-danger/25";
 const info = "bg-info/10 text-info ring-info/25";
 const excused = "bg-excused/10 text-excused ring-excused/25";
-const neutral = "bg-card-alt text-on-dim ring-line";
+const neutral = "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-text)] ring-line";
 
 const configs = {
   present: { label: "Present", icon: <FaCheck />, cls: ok },

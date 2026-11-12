@@ -1,5 +1,5 @@
 import { useTransientState } from "../../utils/useTransientState";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import "../../styles/excuse-workspace.css";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
@@ -57,6 +57,7 @@ const ManageExcuses = () => {
   const [reviewingId, setReviewingId] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const fetchSequence = useRef(0);
 
   usePageMeta(
     "Manage Excuses",
@@ -66,22 +67,29 @@ const ManageExcuses = () => {
   );
 
   const fetchExcuses = useCallback(async ({ silent = false } = {}) => {
+    const sequence = ++fetchSequence.current;
     const previous = readScreen(cacheKey);
     if (!silent && previous === undefined) setLoading(true);
     try {
       const res = await api.get("/organizer/excuses");
+      if (sequence !== fetchSequence.current) return;
+      if (!Array.isArray(res.data)) throw new Error("Invalid excuse queue response");
       setExcuses(res.data);
       setLoadError(false);
       writeScreen(cacheKey, { excuses: res.data });
-    } catch {
-      setLoadError(true);
+    } catch (error) {
+      if (sequence !== fetchSequence.current) return;
+      setLoadError(error.response?.status === 403
+        ? "This account could not access excuse reviews. Switch to the organizer portal and try again."
+        : "Excuse letters could not be loaded. Your last loaded letters, if any, are kept below.");
     } finally {
-      if (!silent) setLoading(false);
+      if (sequence === fetchSequence.current) setLoading(false);
     }
   }, [cacheKey]);
 
   useEffect(() => {
     fetchExcuses();
+    return () => { fetchSequence.current += 1; };
   }, [fetchExcuses]);
 
   useAutoRefresh(fetchExcuses, { interval: 30000 });
@@ -208,7 +216,7 @@ const ManageExcuses = () => {
         </div>
       )}
 
-      {loadError && <div role="alert" className="alert alert-danger">Excuse letters could not be refreshed. Please reload to try again.</div>}
+      {loadError && <div role="alert" className="alert alert-danger flex flex-wrap items-center justify-between gap-3"><p>{loadError}</p><Button variant="secondary" size="sm" onClick={() => fetchExcuses()}>Try again</Button></div>}
       <div className="excuse-search-row">
         <label className="excuse-search-field">
           <span className="sr-only">Search students by name or email</span>
@@ -235,13 +243,14 @@ const ManageExcuses = () => {
       </div>
 
       <StablePage pageKey={`${filter}:${searchQuery}:${filteredExcuses.length}`} footer={<Pagination page={currentPage} pageSize={PAGE_SIZE} total={filteredExcuses.length} onChange={setPage} label="Excuse letter pages" />}>
-      {filteredExcuses.length === 0 ? (
+      {filteredExcuses.length === 0 && loadError ? null : filteredExcuses.length === 0 ? (
         <Card>
           <EmptyState
             icon={<FaEdit />}
             title={searchQuery ? "No matching excuse letters" : `No ${filter} excuses`}
-            description={searchQuery ? "Try another student name or email, or clear your search." : "Excuse letters submitted by students will appear here."}
+            description={searchQuery || periodSelection.period ? "No letters match these filters. Clear them to see all school years and students." : "Excuse letters submitted by students will appear here."}
           />
+          {(searchQuery || periodSelection.period) && <Button variant="secondary" size="sm" onClick={() => { setSearch(""); periodSelection.setSchoolYear("all"); setPage(1); }}>Clear filters</Button>}
         </Card>
       ) : (
         <div className="excuse-grid">

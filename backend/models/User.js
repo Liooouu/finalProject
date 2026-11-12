@@ -30,6 +30,16 @@ const userSchema = new mongoose.Schema(
     },
     // Student officers keep their student identity and gain organizer access.
     organizerAccess: { type: Boolean, default: false },
+    tutorialProgress: {
+      student: { type: Number, default: 0 },
+      organizer: { type: Number, default: 0 },
+      admin: { type: Number, default: 0 },
+    },
+    tutorialPages: {
+      student: { type: [String], default: [] },
+      organizer: { type: [String], default: [] },
+      admin: { type: [String], default: [] },
+    },
     organizerAccessVersion: { type: Number, default: 0 },
     sessionVersion: { type: Number, default: 0 },
     organizerDemotedAt: { type: Date, default: null },

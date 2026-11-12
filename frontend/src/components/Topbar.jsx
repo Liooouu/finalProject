@@ -26,6 +26,7 @@ import MobileMenuSheet from "./mobile/MobileMenuSheet";
 import NotificationBell from "./NotificationBell";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import Breadcrumbs from "./ui/Breadcrumbs";
+import TutorialGuide from "./shared/TutorialGuide";
 
 const Topbar = () => {
   const navigate = useNavigate();
@@ -180,6 +181,7 @@ const Topbar = () => {
 
           {/* Actions */}
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <TutorialGuide role={role} account={account} auto />
             <NotificationBell role={role} />
 
             <ThemeToggle className="portal-theme-toggle" />

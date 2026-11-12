@@ -18,6 +18,7 @@ const SegmentedControl = ({
 }) => (
   <div
     role="group"
+    data-guide="view-options"
     aria-label={ariaLabel}
     className={`nice-scroll inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-line bg-card-alt/60 p-1 ${className}`}
   >
@@ -28,11 +29,12 @@ const SegmentedControl = ({
           key={option.value}
           type="button"
           aria-pressed={active}
+          data-guide-option={option.value}
           aria-label={option.shortLabel ? option.label : undefined}
           onClick={() => onChange(option.value)}
           className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 ${
             active
-              ? "bg-card text-brand shadow-[var(--elev-1)]"
+              ? "bg-[var(--brand-solid)] text-white shadow-[var(--elev-1)]"
               : "text-on-dim hover:text-on"
           }`}
         >
@@ -41,7 +43,7 @@ const SegmentedControl = ({
           {option.count != null && (
             <span
               className={`num rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                active ? "bg-brand/10 text-brand" : "bg-card text-on-muted"
+                active ? "bg-white/20 text-white" : "bg-card text-on-muted"
               }`}
             >
               {option.count}

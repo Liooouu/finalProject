@@ -1,5 +1,5 @@
 import EventAttendanceSchedule from "../shared/EventAttendanceSchedule";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import api from "../../api/axios";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
@@ -27,8 +27,12 @@ export default function OrganizerHome() {
   const [lettersError, setLettersError] = useState(seed?.lettersError ?? false);
   const [manualSummary, setManualSummary] = useState(seed?.manualSummary ?? null);
   const [manualError, setManualError] = useState(seed?.manualError ?? false);
+  const refreshSequence = useRef(0);
   usePageMeta("Dashboard", "Live and upcoming events and requests needing review.");
-  const refresh = useCallback(() => Promise.allSettled([api.get("/events/all"), api.get("/organizer/excuses"), api.get("/manual-attendance/summary")]).then(([eventResult, letterResult, manualResult]) => {
+  const refresh = useCallback(() => {
+    const sequence = ++refreshSequence.current;
+    return Promise.allSettled([api.get("/events/all"), api.get("/organizer/excuses"), api.get("/manual-attendance/summary")]).then(([eventResult, letterResult, manualResult]) => {
+    if (sequence !== refreshSequence.current) return;
     const previous = readScreen(CACHE_KEY) || {};
     const next = { ...previous };
     if (eventResult.status === "fulfilled") {
@@ -60,8 +64,9 @@ export default function OrganizerHome() {
     }
     writeScreen(CACHE_KEY, next);
     setLoading(false);
-  }), []);
-  useEffect(() => { refresh(); }, [refresh]);
+  });
+  }, []);
+  useEffect(() => { refresh(); return () => { refreshSequence.current += 1; }; }, [refresh]);
   useAutoRefresh(refresh, { interval: 30000 });
   if (loading) return <Loading label="Loading organizer dashboard..." />;
   const active = dashboardEvents(events);
@@ -84,8 +89,37 @@ export default function OrganizerHome() {
       </div>
     </header>
     {eventsError && <div role="alert" className="alert alert-danger">Events could not be refreshed. <button onClick={() => refresh()} className="underline">Try again</button></div>}
-    <div className="organizer-home-grid grid grid-cols-2 items-stretch gap-3" data-testid="organizer-dashboard-cards">
-      <BaseCard title="Live & upcoming events" eyebrow="01 · Event overview" icon={<FaCalendarAlt />} className={`${cardClass} organizer-upcoming-card col-span-2`} bodyClassName={bodyClass}>
+    <div className="organizer-home-grid grid items-stretch" data-testid="organizer-dashboard-cards">
+      <BaseCard title="Face station" eyebrow="01 · Primary attendance" icon={<FaCamera />} className={`${cardClass} organizer-attendance-card organizer-face-card border-brand/40`} bodyClassName={bodyClass}>
+        {faceEvent ? <>
+          <div className="portal-inset organizer-event-box"><label className="text-xs text-on-muted">Event<select aria-label="Face station event" value={faceEvent._id} onChange={e => { setFaceEventId(e.target.value); }} className="field-select mt-1 w-full">{active.map(event => <option key={event._id} value={event._id}>{event.title}</option>)}</select></label>
+          <div className="organizer-station-actions mt-3 flex flex-wrap items-start gap-2">
+            <OpenFaceStationButton key={faceEvent._id} eventId={faceEvent._id} sessions={faceEvent.attendanceSessions} />
+          </div>
+          </div>
+        </> : <EmptyState compact title={eventsError ? "Events unavailable" : "No event ready for face attendance"} description={eventsError ? "Try loading your events again." : "Create or reopen an event to use the face station."} />}
+      </BaseCard>
+      <BaseCard title="Manual attendance" eyebrow="02 · Record adjustments" icon={<FaClipboardList />} className={`${cardClass} organizer-attendance-card organizer-manual-card`} bodyClassName={bodyClass}>
+        <Link to="/organizer/dashboard/manual-attendance" className="portal-inset portal-action-box organizer-review-box flex-1" aria-label="Open manual attendance">
+          <FaClipboardList aria-hidden="true" className="text-2xl text-brand" />
+          <span className="text-sm font-medium text-on">Open manual attendance →</span>
+          <span className="text-xs text-on-muted">Verify the student and submit for review.</span>
+        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-xs">
+          <Link to="/organizer/dashboard/reviews/manual?view=mine" className="font-medium text-on-dim hover:text-on">{manualSummary ? `${manualSummary.pendingMine || 0} submitted · pending` : "My submitted requests"}</Link>
+          <Link to="/organizer/dashboard/reviews/manual?view=review" className="font-medium text-brand">{manualSummary?.pendingReview ? `${manualSummary.pendingReview} to review →` : "Assigned events →"}</Link>
+        </div>
+        {manualError && <p className="text-xs text-on-muted">Request counts could not refresh. <button onClick={() => refresh()} className="underline">Retry</button></p>}
+      </BaseCard>
+      <BaseCard title="Excuse letters" eyebrow="03 · Requests to review" icon={<FaEnvelopeOpenText />} className={`${cardClass} organizer-excuses-card`} bodyClassName={bodyClass}>
+        {lettersError && <p role="alert" className="text-xs text-danger">Letters could not be refreshed. <button onClick={() => refresh()} className="underline">Try again</button></p>}
+        {!lettersError || letters.length ? <>
+          <Link to="/organizer/dashboard/reviews/excuses" className="portal-inset portal-action-box organizer-review-box flex-1" aria-label="Review letters"><span className="text-xs text-on-dim">Waiting for review</span><strong className="num text-on">{pending.length}</strong><span className="text-xs text-brand">Review letters →</span></Link>
+          <p className="text-xs text-on-muted">{pending.length ? "Review students’ letters across all events." : "You’re all caught up."}</p>
+        </> : <p className="text-sm text-on-muted">Review count unavailable.</p>}
+        {lettersError && !letters.length && <div className="mt-auto pt-3"><Button as={Link} to="/organizer/dashboard/reviews/excuses" variant="secondary" size="sm">Review letters</Button></div>}
+      </BaseCard>
+      <BaseCard title="Live & upcoming events" eyebrow="04 · Event overview" icon={<FaCalendarAlt />} className={`${cardClass} organizer-upcoming-card`} bodyClassName={bodyClass}>
         {active.length ? <StablePage pageKey={`organizer-upcoming:${active.length}`} fill className="flex-1" footer={<>
             <Pagination page={currentEventPage} pageSize={eventPageSize} total={active.length} onChange={setEventPage} label="Upcoming event pages" />
             <Button as={Link} to="/organizer/dashboard/events" variant="ghost" size="sm" className="mt-3">View events</Button>
@@ -106,35 +140,6 @@ export default function OrganizerHome() {
             </article>)}
           </div>
         </StablePage> : <><EmptyState compact title={eventsError ? "Events unavailable" : "No upcoming events"} description={eventsError ? "Try loading your events again." : "Create an event to get started."} /><div className="mt-auto"><Button as={Link} to="/organizer/dashboard/events" variant="ghost" size="sm">View events</Button></div></>}
-      </BaseCard>
-      <BaseCard title="Face station" eyebrow="02 · Primary attendance" icon={<FaCamera />} className={`${cardClass} organizer-attendance-card organizer-face-card border-brand/40`} bodyClassName={bodyClass}>
-        {faceEvent ? <>
-          <div className="portal-inset organizer-event-box"><label className="text-xs text-on-muted">Event<select aria-label="Face station event" value={faceEvent._id} onChange={e => { setFaceEventId(e.target.value); }} className="field-select mt-1 w-full">{active.map(event => <option key={event._id} value={event._id}>{event.title}</option>)}</select></label>
-          <div className="organizer-station-actions mt-3 flex flex-wrap items-start gap-2">
-            <OpenFaceStationButton key={faceEvent._id} eventId={faceEvent._id} sessions={faceEvent.attendanceSessions} />
-          </div>
-          </div>
-        </> : <EmptyState compact title={eventsError ? "Events unavailable" : "No event ready for face attendance"} description={eventsError ? "Try loading your events again." : "Create or reopen an event to use the face station."} />}
-      </BaseCard>
-      <BaseCard title="Manual attendance" eyebrow="03 · Record adjustments" icon={<FaClipboardList />} className={`${cardClass} organizer-attendance-card organizer-manual-card`} bodyClassName={bodyClass}>
-        <Link to="/organizer/dashboard/manual-attendance" className="portal-inset portal-action-box organizer-review-box flex-1" aria-label="Open manual attendance">
-          <FaClipboardList aria-hidden="true" className="text-2xl text-brand" />
-          <span className="text-sm font-medium text-on">Open manual attendance →</span>
-          <span className="text-xs text-on-muted">Verify the student and submit for review.</span>
-        </Link>
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-xs">
-          <Link to="/organizer/dashboard/reviews/manual?view=mine" className="font-medium text-on-dim hover:text-on">{manualSummary ? `${manualSummary.pendingMine || 0} submitted · pending` : "My submitted requests"}</Link>
-          <Link to="/organizer/dashboard/reviews/manual?view=review" className="font-medium text-brand">{manualSummary?.pendingReview ? `${manualSummary.pendingReview} awaiting admin →` : "Assigned events →"}</Link>
-        </div>
-        {manualError && <p className="text-xs text-on-muted">Request counts could not refresh. <button onClick={() => refresh()} className="underline">Retry</button></p>}
-      </BaseCard>
-      <BaseCard title="Excuse letters" eyebrow="04 · Requests to review" icon={<FaEnvelopeOpenText />} className={`${cardClass} organizer-excuses-card col-span-2`} bodyClassName={bodyClass}>
-        {lettersError && <p role="alert" className="text-xs text-danger">Letters could not be refreshed. <button onClick={() => refresh()} className="underline">Try again</button></p>}
-        {!lettersError || letters.length ? <>
-          <Link to="/organizer/dashboard/reviews/excuses" className="portal-inset portal-action-box organizer-review-box flex-1" aria-label="Review letters"><span className="text-xs text-on-dim">Waiting for review</span><strong className="num text-on">{pending.length}</strong><span className="text-xs text-brand">Review letters →</span></Link>
-          {pending.length ? <ul className="divide-y divide-line">{pending.slice(0, 2).map(letter => <li key={letter._id} className="py-2"><p className="text-sm font-medium text-on">{letter.student?.name || "Student"}</p><p className="mt-0.5 text-xs text-on-muted [overflow-wrap:anywhere]">{letter.event?.title || "Event unavailable"}</p></li>)}</ul> : <p className="text-xs text-on-muted">You’re all caught up.</p>}
-        </> : <p className="text-sm text-on-muted">Review count unavailable.</p>}
-        {lettersError && !letters.length && <div className="mt-auto pt-3"><Button as={Link} to="/organizer/dashboard/reviews/excuses" variant="secondary" size="sm">Review letters</Button></div>}
       </BaseCard>
     </div>
   </div>;

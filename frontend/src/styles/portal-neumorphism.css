@@ -2,48 +2,48 @@
    reference. Remove portal-neumorphic from the three portal shells to restore
    the pre-neumorphism design without reverting functional changes. */
 .portal-refined.portal-neumorphic {
-  --portal-card:#e5e2df;
-  --portal-card-tint:#dcd4e5;
-  --portal-card-text:#30303b;
-  --portal-card-dim:#575763;
-  --portal-card-muted:#656573;
-  --portal-card-line:#9c93a7;
-  --neo-plane:#d2cecb;
-  --neo-surface:linear-gradient(145deg,#eae7e4,#e0dcdf);
-  --neo-inner:#dcd4e5;
-  --neo-low:rgba(69,56,78,.39);
-  --neo-contact:rgba(57,45,68,.31);
-  --neo-high:rgba(255,255,255,.65);
+  --portal-card:#f0eeeb;
+  --portal-card-tint:#e5e0e9;
+  --portal-card-text:#252b3b;
+  --portal-card-dim:#50596a;
+  --portal-card-muted:#596170;
+  --portal-card-line:#827b8b;
+  --neo-plane:#e2dfdc;
+  --neo-surface:#f0eeeb;
+  --neo-inner:#e5e0e9;
+  --neo-low:rgba(69,56,78,.12);
+  --neo-contact:rgba(57,45,68,.10);
+  --neo-high:rgba(255,255,255,.55);
   --neo-raised:inset 2px 2px 0 var(--neo-high),inset -1px -2px 0 rgba(151,139,163,.24),-2px 4px 2px var(--neo-contact),-7px 11px 7px var(--neo-low);
   --neo-small:inset 1px 1px 0 var(--neo-high),inset -1px -1px 0 rgba(151,139,163,.16),-1px 3px 1px var(--neo-contact),-4px 7px 5px var(--neo-low);
   --neo-well:var(--neo-small);
   --neo-pressed:inset 1px 3px 4px var(--neo-low),inset 0 -1px 0 var(--neo-high);
   --app-base:var(--neo-plane);
-  --card-bg:var(--neo-plane);
+  --card-bg:var(--portal-card);
   --on:var(--portal-card-text);
   --on-dim:var(--portal-card-dim);
   --on-muted:var(--portal-card-muted);
   background:var(--neo-plane);
 }
 .dark .portal-refined.portal-neumorphic {
-  --portal-card:#1a1d28;
-  --portal-card-tint:#2c2440;
-  --portal-card-text:#f0eff6;
-  --portal-card-dim:#cbc8d8;
-  --portal-card-muted:#a5a5b7;
-  --portal-card-line:#303342;
-  --neo-plane:#12141e;
-  --neo-surface:linear-gradient(145deg,#242331,#1a1d28);
-  --neo-inner:#2c2440;
-  --neo-low:rgba(5,4,12,.64);
-  --neo-contact:rgba(5,4,12,.48);
-  --neo-high:rgba(159,144,191,.34);
+  --portal-card:#242333;
+  --portal-card-tint:#302c42;
+  --portal-card-text:#f4f2fa;
+  --portal-card-dim:#c1c5d3;
+  --portal-card-muted:#b0b7c9;
+  --portal-card-line:#777588;
+  --neo-plane:#151722;
+  --neo-surface:#242333;
+  --neo-inner:#302c42;
+  --neo-low:rgba(5,4,12,.28);
+  --neo-contact:rgba(5,4,12,.20);
+  --neo-high:rgba(159,144,191,.10);
 }
 .portal-neumorphic .app-aurora { background:var(--neo-plane); }
 .portal-neumorphic :is(aside,header.sticky) { background:var(--neo-plane); }
 .portal-refined.portal-neumorphic main :is(.fd-surface.fd-glass,.fd-surface,.panel-surface,.portal-card,.student-card) {
   --fd-radius:18px;
-  border-width:0;
+  border:1px solid var(--portal-card-line);
   border-radius:18px;
   background:var(--neo-surface);
   box-shadow:var(--neo-raised);
@@ -55,7 +55,7 @@
 }
 .portal-refined.portal-neumorphic main :is(.admin-rate-box,.portal-inset,.excuse-event-box),
 .portal-refined.portal-neumorphic main .student-service-summary .fd-body>div:first-child {
-  border-width:0;
+  border:1px solid var(--portal-card-line);
   border-radius:14px;
   background:var(--neo-surface);
   box-shadow:var(--neo-well);
@@ -84,7 +84,7 @@
 .portal-neumorphic [data-ui-variant="secondary"] {
   background:var(--neo-surface);
   border-radius:12px;
-  border-color:transparent;
+  border-color:var(--portal-card-line);
   box-shadow:var(--neo-small);
 }
 .portal-neumorphic [data-ui-variant="secondary"]:active:not(:disabled),
@@ -93,9 +93,11 @@
   box-shadow:var(--neo-pressed);
 }
 .portal-neumorphic aside nav button[aria-current="page"] {
-  background:var(--neo-plane);
-  box-shadow:var(--neo-pressed);
+  background:var(--brand-solid);
+  color:#fff;
+  box-shadow:var(--neo-small);
 }
+.portal-neumorphic aside nav button[aria-current="page"] :is(span,svg) { color:inherit; }
 .event-view-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; }
 .event-view-toolbar>[data-ui-variant] { flex-shrink:0; white-space:nowrap; }
 @media(max-width:639px) {

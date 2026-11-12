@@ -60,6 +60,7 @@ app.use(cors());
 // API URL get nothing without this.
 app.use(compression());
 app.use(express.json());
+app.use(require('./services/searchVisibility').searchVisibility);
 
 const { observeRecordWrites, streamRecordUpdates } = require('./services/recordUpdates');
 app.use('/api', observeRecordWrites);

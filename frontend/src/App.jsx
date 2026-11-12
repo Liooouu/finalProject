@@ -1,4 +1,5 @@
 import PortalNavigationTracker from "./components/shared/PortalNavigationTracker";
+import SearchVisibility from "./components/shared/SearchVisibility";
 import React, { Suspense, lazy } from "react";
 import { Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -41,6 +42,7 @@ function App() {
   return (
     <ThemeProvider>
       <PortalNavigationTracker />
+      <SearchVisibility />
       <ChunkBoundary>
         <Suspense fallback={<BootSplash />}>
           <Routes>

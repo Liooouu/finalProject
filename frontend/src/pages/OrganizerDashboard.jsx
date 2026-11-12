@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useEffect } from "react";
 import "../styles/portal-workspace.css";
 import "../styles/portal-neumorphism.css";
 import "../styles/responsive-workspace.css";
+import "../styles/portal-spacing.css";
 import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import ReviewRedirect from "../components/shared/ReviewRedirect";

@@ -14,6 +14,7 @@ import Reveal from "../components/landing/Reveal";
 import useLandingScroll from "../components/landing/useLandingScroll";
 import features from "../data/features";
 import ThemeToggle from "../components/ui/ThemeToggle";
+import TutorialGuide from "../components/shared/TutorialGuide";
 import campus from "../assets/images/landing/campus.webp";
 import community from "../assets/images/landing/community-service.webp";
 import eventTeam from "../assets/images/landing/event-team.webp";
@@ -434,6 +435,7 @@ export default function LandingPage() {
             </Reveal>
           </section>
           <footer className="landing-footer landing-container">
+            <TutorialGuide />
             <span>© {new Date().getFullYear()} TrackED</span>
             <span>CCIT departmental event attendance &amp; reporting</span>
             <Link to="/terms">Terms &amp; Conditions</Link>
