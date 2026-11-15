@@ -91,6 +91,18 @@ try {
   const aborted=new AbortController();aborted.abort();await assert.rejects(fetchNotificationCount(aborted.signal));
   assert.equal(countRequests,1,"unmounted bells must cancel rather than retry");
   api.defaults.adapter=originalAdapter;
+  // A masked address must still select the internal portal's credential.
+  window.location = { pathname: '/portal', origin: 'https://tracked.test' };
+  window.history = { state: { trackedPortalPath: '/student/dashboard/community-service' } };
+  store.set('token_student', studentToken);store.set('token_organizer', organizerToken);store.set('token_admin', adminToken);
+  assert.equal(getToken(), studentToken);
+  assert.equal(authenticateRequest({url:'/student/community-service',headers:{}}).headers.Authorization, `Bearer ${studentToken}`);
+  window.history.state.trackedPortalPath = '/organizer/dashboard/manual-attendance';
+  assert.equal(getToken(), organizerToken);
+  assert.equal(authenticateRequest({url:'/admin/users',headers:{}}).headers.Authorization, `Bearer ${organizerToken}`);
+  window.history.state.trackedPortalPath = '/admin/dashboard/users';
+  assert.equal(getToken(), adminToken);
+  assert.equal(authenticateRequest({url:'/admin/users',headers:{}}).headers.Authorization, `Bearer ${adminToken}`);
   delete globalThis.window;
   delete globalThis.localStorage;
   console.log('PASS: auth/face settings, legacy session migration, cross-portal token isolation, stale/expired session rejection and student ledger request authentication.');

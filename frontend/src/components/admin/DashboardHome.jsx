@@ -78,7 +78,7 @@ export default function DashboardHome() {
       </Card>
       <Card as="section" className="admin-home-reviews">
         <div className="admin-section-heading"><h2>Needs review</h2><Link to="/admin/dashboard/reviews" className="admin-text-link">All reviews <FaArrowRight aria-hidden="true" /></Link></div>
-        <ul className="admin-review-list">{reviews.map(item=><li key={item.label}><Link to={item.path} className="admin-review-box"><span className="admin-review-icon" aria-hidden="true">{item.icon}</span><span className="admin-review-text"><span className="admin-review-label">{item.label}</span><span className="admin-review-desc">{item.description}</span></span><strong className={`admin-review-count ${item.count ? "text-warn" : "text-on-muted"}`}>{item.count ?? "—"}</strong><span className="sr-only">{item.count === null ? "Unavailable" : " pending"}</span></Link></li>)}</ul>
+        <ul className="admin-review-list">{reviews.map(item=><li key={item.label}><Link to={item.path} data-guide-review={item.path} className="admin-review-box"><span className="admin-review-icon" aria-hidden="true">{item.icon}</span><span className="admin-review-text"><span className="admin-review-label">{item.label}</span><span className="admin-review-desc">{item.description}</span></span><strong className={`admin-review-count ${item.count ? "text-warn" : "text-on-muted"}`}>{item.count ?? "—"}</strong><span className="sr-only">{item.count === null ? "Unavailable" : " pending"}</span></Link></li>)}</ul>
       </Card>
       <Card as={Link} to="/admin/dashboard/users" aria-label="Manage users" className="admin-home-users">
         <span className="admin-bento-icon admin-users-icon" aria-hidden="true"><FaUsers /></span>

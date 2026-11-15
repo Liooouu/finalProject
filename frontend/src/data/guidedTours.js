@@ -56,7 +56,7 @@ export function pageGuide(role, pathname, search, section = '') {
   ];
   if (root === 'dashboard' && role === 'admin') steps = [
     { title: 'Attendance rate', description: topic.steps[0], example: 'Open Attendance reports to inspect the records behind the rate.', targets: ['.admin-home-rate h2', '[data-guide-card="Attendance rate"] .fd-rail'] },
-    { title: 'Reviews', description: 'Review ID attendance, face appeals and excuse letters from here.', example: 'Open a pending review, inspect its evidence, then approve or reject.', targets: ['.admin-home-reviews h2', '.admin-review-links', '[href="/admin/dashboard/reviews/manual"]'] },
+    { title: 'Reviews', description: 'Review ID attendance, face appeals and excuse letters from here.', example: 'Open a pending review, inspect its evidence, then approve or reject.', targets: ['.admin-home-reviews h2', '.admin-review-links', '[data-guide-review="/admin/dashboard/reviews/manual"]'] },
     { title: 'Manage users', description: 'Open student accounts to correct academic details or change organizer access.', example: 'Select the eye icon beside a student to view their account.', targets: ['.admin-home-users'] },
   ];
   if (root === 'dashboard' && role === 'organizer') steps = [

@@ -16,7 +16,7 @@ import {
   FaExchangeAlt,
 } from "react-icons/fa";
 import api from "../api/axios";
-import { getUserFromToken, logout, setAuth } from "../utils/auth";
+import { getUserFromToken, getContextRole, logout, setAuth } from "../utils/auth";
 import { profilePathFor, getPageTitle } from "../utils/nav";
 import { breadcrumbTrail } from "../utils/navItems";
 import { subscribeToDataChanges } from "../utils/dataSync";
@@ -129,7 +129,10 @@ const Topbar = () => {
         role: targetRole,
       });
       setAuth(data.token, data.role);
-      window.location.assign(`/${data.role}/dashboard`);
+      // Change the saved internal entry before reloading the same visible
+      // /portal address; otherwise a reload can restore the previous role.
+      navigate(`/${data.role}/dashboard`, { replace: true });
+      window.location.reload();
     } catch (error) {
       setSwitchError(
         error.response?.data?.message ||
@@ -313,11 +316,7 @@ const Topbar = () => {
 };
 
 const getContextRoleFallback = () => {
-  const p = window.location.pathname;
-  if (p.startsWith("/student")) return "student";
-  if (p.startsWith("/organizer")) return "organizer";
-  if (p.startsWith("/admin")) return "admin";
-  return "student";
+  return getContextRole() || 'student';
 };
 
 export default Topbar;

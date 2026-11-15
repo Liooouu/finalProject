@@ -1,4 +1,5 @@
 import { jwtDecode } from "jwt-decode";
+import { getAppLocation } from './portalLocation';
 
 const ROLES = ["student", "organizer", "admin"];
 
@@ -6,7 +7,7 @@ const ROLES = ["student", "organizer", "admin"];
 // so we can resolve which role's token this tab should use even when
 // multiple accounts are logged in across different tabs.
 export const getContextRole = () => {
-  const path = window.location.pathname;
+  const path = getAppLocation().pathname;
   const role = path.split("/")[1];
   if (ROLES.includes(role)) return role;
   return null;

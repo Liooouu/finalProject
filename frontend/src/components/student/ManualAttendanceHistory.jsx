@@ -1,4 +1,5 @@
 import StudentIdAttendancePreview from "./StudentIdAttendancePreview";
+import { getAppLocation } from '../../utils/portalLocation';
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import api from "../../api/axios";
 import { formatDateTime } from "../../utils/helpers";
@@ -30,7 +31,7 @@ export default function ManualAttendanceHistory() {
   }, [load]);
   useAutoRefresh(load, { interval: 30000 });
   useEffect(() => {
-    if (window.location.hash === "#manual-requests") document.getElementById("manual-requests")?.scrollIntoView({ block: "start" });
+    if (getAppLocation().hash === "#manual-requests") document.getElementById("manual-requests")?.scrollIntoView({ block: "start" });
   }, []);
   return <Card as="section" id="manual-requests" className="scroll-mt-6">
     <h2 className="panel-heading">Manual attendance requests</h2>
