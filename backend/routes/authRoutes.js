@@ -16,6 +16,9 @@ const { isActiveStudent } = require("../services/studentEligibility");
 const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
 const EMAIL_CODE_MAX_ATTEMPTS = 5;
 const EMAIL_RESEND_COOLDOWN_MS = 60 * 1000;
+const verificationCooldownSeconds = (user) => Math.max(0, Math.ceil(
+  (EMAIL_RESEND_COOLDOWN_MS - (Date.now() - new Date(user.emailVerificationLastSentAt || 0).getTime())) / 1000
+));
 // Mint a fresh 6-digit code, store its hash + expiry, and email it. Any prior
 // code is replaced, so only the newest email can be used.
 async function issueEmailCode(user) {
@@ -28,6 +31,7 @@ async function issueEmailCode(user) {
 
   const { subject, html, text } = await renderVerificationEmail({ name: user.name, code });
   const sent = await sendMail({
+    category: "account",
     to: user.email,
     subject,
     html,
@@ -61,6 +65,7 @@ async function issuePasswordResetCode(user) {
 
   const { subject, html, text } = await renderPasswordResetEmail({ name: user.name, code });
   const sent = await sendMail({
+    category: "account",
     to: user.email,
     subject,
     html,
@@ -120,6 +125,7 @@ router.post("/register", async (req, res) => {
         return res.status(200).json({
           message: sent ? "We re-sent your verification code. Check your inbox." : "Your account is awaiting verification. Email delivery is temporarily unavailable; please request a new code shortly.",
           codeSent: sent,
+          retryAfterSeconds: verificationCooldownSeconds(existingUser),
           requiresEmailVerification: true,
           email: existingUser.email,
         });
@@ -183,6 +189,7 @@ router.post("/register", async (req, res) => {
     res.status(201).json({
       message: sent ? "We emailed you a 6-digit code to finish creating your account." : "Your account was created, but email delivery is temporarily unavailable. Request a new verification code shortly.",
       codeSent: sent,
+      retryAfterSeconds: verificationCooldownSeconds(user),
       requiresEmailVerification: true,
       email: user.email,
     });
@@ -291,13 +298,15 @@ router.post("/resend-verification", async (req, res) => {
       );
       return res
         .status(429)
-        .json({ message: `Please wait ${wait}s before requesting another code.` });
+        .json({ message: `Please wait ${wait}s before requesting another code.`, retryAfterSeconds: wait });
     }
 
     const sent = await issueEmailCode(user);
-    if (!sent) return res.status(503).json({ message: "Email delivery is temporarily unavailable. Please request another code shortly." });
+    if (!sent) return res.status(503).json({ codeSent: false, retryAfterSeconds: verificationCooldownSeconds(user), message: "We could not send the code. Please try Resend code when the countdown ends." });
     res.json({
       message: "We sent a new verification code.",
+      codeSent: true,
+      retryAfterSeconds: verificationCooldownSeconds(user),
       requiresEmailVerification: true,
       email: user.email,
     });
@@ -440,9 +449,8 @@ router.post("/login", loginThrottle, async (req, res) => {
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(400).json({ message: "Invalid email or password" });
 
-    // Email not verified yet. If mail is configured, block login and let the
-    // frontend route to the code screen; if mail is off, auto-verify so nobody
-    // gets stranded (this only happens when SMTP was disabled after signup).
+    // Pending accounts stay blocked even when SMTP is temporarily unavailable.
+    // Delivery failures must never activate an account without its code.
     if (user.emailVerified === false) {
       return res.status(403).json({
           message: "Please verify your email to continue. We can send you a new code.",

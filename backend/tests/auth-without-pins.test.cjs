@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const Module = require('node:module');
 const originalLoad = Module._load;
 const UserModel = require('../models/User');
-let currentUser, mailEnabled, saved;
+let currentUser, mailEnabled, saved, submittedMail;
 class User {
   constructor(values) { Object.assign(this, values); this._id='111111111111111111111111'; }
   async save() { saved++; currentUser=this; }
@@ -18,7 +18,7 @@ class User {
   static async findByIdAndUpdate(id, update) { if(update.$inc) for(const [key,value] of Object.entries(update.$inc)) currentUser[key]=(currentUser[key]||0)+value; else Object.assign(currentUser,update); return currentUser; }
 }
 Module._load = function(request, parent, ...rest) {
-  const mocks={ '../models/User':User, '../services/mailer':{isMailEnabled:async()=>mailEnabled,sendMail:async()=>true}, '../services/emailTemplate':{renderVerificationEmail:async()=>({}),renderPasswordResetEmail:async()=>({})} };
+  const mocks={ '../models/User':User, '../services/mailer':{isMailEnabled:async()=>mailEnabled,sendMail:async message=>{submittedMail=message;return true;}}, '../services/emailTemplate':{renderVerificationEmail:async()=>({}),renderPasswordResetEmail:async()=>({})} };
   return mocks[request] || originalLoad.call(this,request,parent,...rest);
 };
 const router=require('../routes/authRoutes');
@@ -83,4 +83,13 @@ test('structured signup stores name parts and a compatible display name',async()
 test('structured signup requires first and last name without saving',async()=>{
  currentUser=null; const r=await request('/register',{firstName:'Ana',lastName:'',email:'ana@example.test',password:'ValidPass123!'});
  assert.equal(r.status,400); assert.equal(saved,0);
+});
+
+test('verification resends use the reserved account connection and return the cooldown', async()=>{
+ currentUser.emailVerified=false;
+ const r=await request('/resend-verification',{email:currentUser.email});
+ assert.equal(r.status,200); assert.equal(r.body.codeSent,true);
+ assert.equal(r.body.retryAfterSeconds,60); assert.equal(submittedMail.category,'account');
+ const limited=await request('/resend-verification',{email:currentUser.email});
+ assert.equal(limited.status,429); assert.ok(limited.body.retryAfterSeconds>0);
 });

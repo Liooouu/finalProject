@@ -81,6 +81,8 @@ const AuthPage = () => {
   const [pendingEmail, setPendingEmail] = useState("");
   const [emailCode, setEmailCode] = useState("");
   const [verifyLoading, setVerifyLoading] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+  const [deliveryNotice, setDeliveryNotice] = useState(null);
   const [resendIn, setResendIn] = useState(0);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollConsent, setEnrollConsent] = useState(false);
@@ -157,12 +159,17 @@ const AuthPage = () => {
     return () => clearTimeout(t);
   }, [fpResendIn]);
 
-  const startEmailVerification = (email) => {
+  const startEmailVerification = (email, codeSent, retryAfterSeconds) => {
     const value = email || formData.email.trim();
     setPendingEmail(value);
     if (value) setPendingVerificationEmail(value);
     setEmailCode("");
-    setResendIn(60);
+    setResendIn(codeSent === undefined ? 0 : (retryAfterSeconds ?? 60));
+    setDeliveryNotice(codeSent === false
+      ? { failed: true, text: "We could not send your code. Your account is saved; use Resend code when it becomes available." }
+      : codeSent === true
+        ? { failed: false, text: "Code sent. Use the latest email; the code expires in 10 minutes." }
+        : null);
     setError("");
     setFlow("verifyEmail");
   };
@@ -186,18 +193,22 @@ const AuthPage = () => {
   };
 
   const handleResendEmail = async () => {
-    if (resendIn > 0 || verifyLoading) return;
-    setVerifyLoading(true);
+    if (resendIn > 0 || verifyLoading || emailSending) return;
+    setEmailSending(true);
     setError("");
     try {
-      await api.post("/auth/resend-verification", {
+      const res = await api.post("/auth/resend-verification", {
         email: pendingEmail.trim(),
       });
-      setResendIn(60);
+      setResendIn(res.data.retryAfterSeconds ?? 60);
+      setEmailCode("");
+      setDeliveryNotice({ failed: false, text: "New code sent. Use the latest email; the previous code no longer works." });
     } catch (err) {
-      setError(err.response?.data?.message || "Something went wrong.");
+      const data = err.response?.data;
+      setDeliveryNotice({ failed: true, text: data?.message || "Could not confirm delivery. Please try Resend code again shortly." });
+      if (data?.retryAfterSeconds !== undefined) setResendIn(data.retryAfterSeconds);
     } finally {
-      setVerifyLoading(false);
+      setEmailSending(false);
     }
   };
 
@@ -258,8 +269,7 @@ const AuthPage = () => {
 
         // Email verification is enforced when the server can send mail.
         if (res.data.requiresEmailVerification) {
-          startEmailVerification(res.data.email);
-          if (res.data.codeSent === false) setError(res.data.message);
+          startEmailVerification(res.data.email, res.data.codeSent, res.data.retryAfterSeconds);
           setFormData({
             ...formData,
             firstName: "",
@@ -496,7 +506,7 @@ const AuthPage = () => {
                       Verify your email
                     </h1>
                     <p className="mt-1.5 text-sm text-on-dim">
-                      We sent a 6-digit code to{" "}
+                      Enter the 6-digit code for{" "}
                       <span className="font-semibold text-on">
                         {pendingEmail}
                       </span>
@@ -504,6 +514,12 @@ const AuthPage = () => {
                     </p>
                   </div>
                 </div>
+
+                {deliveryNotice && (
+                  <div role="status" className={`alert ${deliveryNotice.failed ? "alert-danger" : "alert-ok"} mb-5`}>
+                    {deliveryNotice.text}
+                  </div>
+                )}
 
                 {error && (
                   <div role="alert" className="alert alert-danger mb-5">
@@ -544,7 +560,7 @@ const AuthPage = () => {
 
                   <Button
                     type="submit"
-                    disabled={verifyLoading}
+                    disabled={verifyLoading || emailSending}
                     className="w-full py-2.5"
                   >
                     {verifyLoading ? "Verifying..." : "Verify email"}
@@ -555,10 +571,10 @@ const AuthPage = () => {
                   <button
                     type="button"
                     onClick={handleResendEmail}
-                    disabled={resendIn > 0 || verifyLoading}
+                    disabled={resendIn > 0 || verifyLoading || emailSending}
                     className="font-medium text-on-dim hover:text-on disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {resendIn > 0
+                    {emailSending ? "Sending code..." : resendIn > 0
                       ? `Resend code in ${resendIn}s`
                       : "Resend code"}
                   </button>

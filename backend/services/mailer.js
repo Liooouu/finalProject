@@ -11,15 +11,20 @@ const nodemailer = require("nodemailer");
 const { getEmailSettings } = require("./appSettings");
 const { open } = require("../utils/secretBox");
 
-let transporter = null;
-let initPromise = null;
-let activeSmtp = null;
+// Reserve an SMTP connection for account codes. Department announcements must
+// not occupy the connection needed to sign in or finish registration.
+const lanes = {
+  notification: { transporter: null, initPromise: null, smtp: null },
+  account: { transporter: null, initPromise: null, smtp: null },
+};
 
 function resetTransporter() {
-  transporter?.close();
-  transporter = null;
-  initPromise = null;
-  activeSmtp = null;
+  for (const lane of Object.values(lanes)) {
+    lane.transporter?.close();
+    lane.transporter = null;
+    lane.initPromise = null;
+    lane.smtp = null;
+  }
 }
 
 async function isMailEnabled() {
@@ -45,7 +50,7 @@ function buildTransporter(smtp) {
     secure,
     requireTLS: !secure,
     pool: true,
-    maxConnections: 2,
+    maxConnections: 1,
     maxMessages: 50,
     connectionTimeout: 10000,
     greetingTimeout: 10000,
@@ -57,11 +62,11 @@ function buildTransporter(smtp) {
   });
 }
 
-async function getTransporter() {
-  if (transporter) return transporter;
+async function getTransporter(lane) {
+  if (lane.transporter) return lane.transporter;
   // Share one in-flight init so concurrent first sends don't race.
-  if (!initPromise) {
-    initPromise = (async () => {
+  if (!lane.initPromise) {
+    lane.initPromise = (async () => {
       const { smtp } = await getEmailSettings();
       // appSettings has already chosen one coherent configuration. A sealed
       // password is present only when using the legacy migration fallback.
@@ -71,24 +76,27 @@ async function getTransporter() {
         return null;
       }
 
-      transporter = buildTransporter({ ...smtp, password });
-      activeSmtp = { ...smtp };
+      lane.transporter = buildTransporter({ ...smtp, password });
+      lane.smtp = { ...smtp };
       console.log(`[mail] SMTP transport ready (${smtp.host}:${smtp.port})`);
-      return transporter;
+      return lane.transporter;
     })().catch((err) => {
       // Don't cache a failed init forever — the next send should retry.
-      initPromise = null;
+      lane.initPromise = null;
       throw err;
     });
   }
-  return initPromise;
+  const tx = await lane.initPromise;
+  // Missing configuration can be repaired without restarting the process.
+  if (!tx) lane.initPromise = null;
+  return tx;
 }
 
-async function sendMail({ to, subject, html, text }) {
+async function sendMail({ to, subject, html, text, category = "notification" }) {
   if (!to) return false;
   let tx;
   try {
-    tx = await getTransporter();
+    tx = await getTransporter(category === "account" ? lanes.account : lanes.notification);
   } catch (err) {
     console.error("[mail] Could not initialise SMTP:", err.code || "SMTP_ERROR");
     return false;
@@ -97,7 +105,7 @@ async function sendMail({ to, subject, html, text }) {
 
   try {
     // Keep the From identity paired with the cached transport credentials.
-    const smtp = activeSmtp;
+    const smtp = category === "account" ? lanes.account.smtp : lanes.notification.smtp;
     const from = String(smtp.from || smtp.user).trim();
     const result = await tx.sendMail({
       from: from.includes("<") ? from : { name: "TrackED", address: from },

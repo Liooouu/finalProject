@@ -23,6 +23,7 @@
   --portal-card-dim:#425749;
   --portal-card-muted:#4d6053;
   --portal-card-line:#91a08e;
+  --control-line:#71806d;
   --portal-card-accent:#245d40;
   --portal-card-shadow:var(--forest-raised);
   --app-base:var(--forest-plane);
@@ -34,8 +35,8 @@
   --on-dim:var(--portal-card-dim);
   --on-muted:var(--portal-card-muted);
   --brand:var(--portal-card-accent);
-  --brand-2:#3c7655;
-  --brand-3:#567f63;
+  --brand-2:#2d6448;
+  --brand-3:#32694b;
   --brand-solid:#285f43;
   --line-color:var(--portal-card-line);
   --line-dim-color:#bbc4b5;
@@ -94,6 +95,7 @@
   --portal-card-dim:#d0d2ce;
   --portal-card-muted:#bfc3c0;
   --portal-card-line:#757c77;
+  --control-line:#818982;
   --portal-card-accent:#a5c7ab;
   --brand-2:#bed5ae;
   --brand-3:#88b99e;
@@ -152,7 +154,7 @@
 }
 :root .portal-refined.portal-neumorphic main :is(input.field,textarea.field,select.field-select,input[type="search"]) {
   background:var(--forest-plane);
-  border:1px solid color-mix(in srgb,var(--line-color) 65%,transparent);
+  border:1px solid var(--control-line);
   border-radius:12px;
   box-shadow:var(--forest-inset);
   color:var(--on);
@@ -231,7 +233,7 @@
 :root .auth-clean .auth-feature { border-color:transparent; background:var(--forest-surface); box-shadow:var(--forest-small); }
 :root .auth-clean .auth-feature>span { background:var(--forest-surface); color:var(--brand); box-shadow:var(--forest-small); --tw-ring-color:transparent; }
 :root .auth-clean .auth-form-column { background:var(--forest-surface); }
-:root .auth-clean .auth-field { background:var(--forest-plane); border-color:var(--line-color); box-shadow:var(--forest-inset); color:var(--on); }
+:root .auth-clean .auth-field { background:var(--forest-plane); border-color:var(--control-line); box-shadow:var(--forest-inset); color:var(--on); }
 :root .auth-clean .auth-panel [type="submit"] { background:var(--forest-button); color:#fff; box-shadow:var(--forest-small); }
 :root .portal-refined.portal-neumorphic :is(.bg-gradient-to-br.from-indigo-600,.bg-gradient-to-br.from-brand) { background:var(--forest-button); }
 :root .portal-refined.portal-neumorphic :is([aria-label="Profile sections"],.portal-inset) { background:var(--forest-surface); }
