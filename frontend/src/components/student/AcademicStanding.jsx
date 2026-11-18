@@ -49,10 +49,10 @@ const AcademicStanding = () => {
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
       <p className="text-xs text-on-muted">{data.student.program} · {data.currentSemester?.label || "Current semester not set"}</p>
     </div>
-    <p className="mt-4 text-xs text-on-muted">The administrator sets the active semester manually. Changing semesters does not advance year levels or reset attendance and service balances.</p>
+    <p className="mt-4 text-xs text-on-muted">The administrator sets the active semester manually. Changing semesters does not promote students or reset attendance and service balances.</p>
     <details className="mt-5 rounded-xl border border-line px-4 py-3 text-xs text-on-dim">
-      <summary className="cursor-pointer font-medium text-on">How school-year progression works</summary>
-      <p className="mt-3 leading-relaxed">An administrator reviews registered student accounts before advancing year levels. Students may retain their year level in the new school year. Graduation requires explicit confirmation. Past attendance and service balances are retained.</p>
+      <summary className="cursor-pointer font-medium text-on">How year-level promotion works</summary>
+      <p className="mt-3 leading-relaxed">An administrator reviews registered student accounts before promoting them to the next year level. Unchecked students keep their current academic standing. Graduation requires explicit confirmation. Past attendance and service balances are retained.</p>
     </details>
     {!!data.student.history?.length && <details className="mt-3 rounded-xl border border-line px-4 py-3 text-xs text-on-dim"><summary className="cursor-pointer font-medium text-on">Previous school years</summary><ul className="mt-3 space-y-2">{data.student.history.map((record, index) => <li key={record._id || index}>SY {record.schoolYearStart}–{record.schoolYearStart + 1}: {yearLabel(record.yearLevel)}, Section {record.section}</li>)}</ul></details>}
   </FlightPanel>;

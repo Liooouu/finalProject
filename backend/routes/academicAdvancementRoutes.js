@@ -8,7 +8,7 @@ router.get("/", async (req, res) => {
   try {
     const currentSchoolYear = (await academicPeriods.read()).current?.startYear || Math.max(2026, new Date().getFullYear());
     const selectedSourceYear = req.query.sourceYear === undefined ? currentSchoolYear : Number(req.query.sourceYear);
-    if (selectedSourceYear > currentSchoolYear) return res.status(400).json({message:"Choose the current or an earlier school year for advancement."});
+    if (selectedSourceYear > currentSchoolYear) return res.status(400).json({message:"Choose the current or an earlier school year for promotion."});
     const { classes, students } = await advancement.studentOptions(selectedSourceYear);
     res.set("Cache-Control", "no-store");
     res.json({ currentSchoolYear, selectedSourceYear, classes, students, sourceYears: Array.from({ length: currentSchoolYear - 2026 + 1 }, (_, index) => currentSchoolYear - index) });
@@ -18,7 +18,11 @@ router.post("/preview", async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const currentSchoolYear=(await academicPeriods.read()).current?.startYear || Math.max(2026,new Date().getFullYear());
-    if (Number(req.body.sourceYear)>currentSchoolYear) return res.status(400).json({message:"Choose the current or an earlier school year for advancement."});
+    if (Number(req.body.sourceYear)>currentSchoolYear) return res.status(400).json({message:"Choose the current or an earlier school year for promotion."});
+    if (req.body.studentIds !== undefined) {
+      if (req.body.classScope != null) return res.status(400).json({ message: "Choose individual students or one class, not both." });
+      return res.json(await advancement.previewSelection(req.user._id, req.body.sourceYear, req.body.studentIds));
+    }
     if (!req.body.classScope) return res.status(400).json({ message: "Choose a class before preparing an academic update." });
     res.json(await advancement.preview(req.user._id, req.body.sourceYear, req.body.classScope, true));
   } catch (error) {
@@ -60,7 +64,7 @@ router.post("/:id/confirm", async (req, res) => {
     if (req.body.confirmed !== true) return res.status(400).json({ message: "Review and confirm the academic changes first." });
     res.json(await advancement.commit(req.user._id, req.params.id, req.body.retainedIds, req.body.graduateIds, req.body.selectedIds));
   } catch (error) {
-    res.status(error.status || 503).json({ message: error.status ? error.message : "Could not complete the batch. Retry with the same selections; completed students will not advance again." });
+    res.status(error.status || 503).json({ message: error.status ? error.message : "Could not complete the batch. Retry with the same selections; completed students will not be promoted again." });
   }
 });
 module.exports = router;

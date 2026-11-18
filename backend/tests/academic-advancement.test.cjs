@@ -46,7 +46,7 @@ Module._load = function (name, parent, ...rest) {
   if (name === "../models/AcademicAdvancement") return batchModel;
   return originalLoad.call(this, name, parent, ...rest);
 };
-const { preview, commit, undo, undoPreview, details, studentOptions, listClasses, sourceYearIssue, isEligible } = require("../services/academicAdvancement");
+const { preview, previewSelection, commit, undo, undoPreview, details, studentOptions, listClasses, sourceYearIssue, isEligible } = require("../services/academicAdvancement");
 Module._load = originalLoad;
 
 beforeEach(() => {
@@ -71,6 +71,60 @@ test("preview includes the entire eligible roster once, including promoted stude
   assert.equal(users.get("student-0").yearLevel, 1); assert.equal(users.get("student-0").academicHistory.length, 0);
   assert.equal(isEligible({ ...users.get("student-0"), program: "OTHER" }, 2026), false);
   assert.equal(isEligible({ ...users.get("student-0"), academicYearStart: 2027 }, 2026), false);
+});
+
+test("individual selections across classes save only checked students and support graduation and undo", async () => {
+  users.get("student-1").program = "BSCS";
+  users.get("student-1").section = "B";
+  users.get("student-1").yearLevel = 3;
+  const ids = ["student-0", "student-1", "student-13"], before = copy([...users.values()]);
+  const batch = await previewSelection("admin", 2026, ids);
+  assert.equal(batch.classScope, null);
+  assert.deepEqual(batch.students.map(student => student._id), ids);
+  assert.equal(batches.get(batch.batchId).selectionMode, "explicit");
+  assert.deepEqual([...users.values()], before);
+  await assert.rejects(commit("admin", batch.batchId), { status: 400 });
+  await assert.rejects(commit("admin", batch.batchId, [], [], ids), { status: 400 });
+  await assert.rejects(commit("admin", batch.batchId, [], ["student-13"], [...ids, "student-2"]), { status: 400 });
+  const result = await commit("admin", batch.batchId, [], ["student-13"], ids);
+  assert.equal(result.counts.advanced, 2); assert.equal(result.counts.graduated, 1);
+  assert.equal(users.get("student-1").yearLevel, 4);
+  assert.equal(users.get("student-13").enrollmentStatus, "graduated");
+  for (const previous of before.filter(student => !ids.includes(student._id))) assert.deepEqual(users.get(previous._id), previous);
+  await commit("admin", batch.batchId, [], ["student-13"], ids);
+  assert.equal(users.get("student-0").academicTransitions.length, 1);
+  assert.equal((await details(batch.batchId)).total, 3);
+  await undo("admin", batch.batchId);
+  for (const previous of before) {
+    const current = users.get(previous._id);
+    for (const field of ["program", "section", "yearLevel", "academicYearStart", "enrollmentStatus", "organizerAccess", "serviceBalance"]) assert.equal(current[field], previous[field]);
+  }
+});
+
+test("individual previews reject empty, duplicate, unknown and ineligible selections without saving a draft", async () => {
+  for (const ids of [undefined, null, [], "student-0", [1], [""], ["student-0", "student-0"]]) {
+    await assert.rejects(previewSelection("admin", 2026, ids), { status: 400 });
+  }
+  await assert.rejects(previewSelection("admin", 2025, ["student-0"]), { status: 400 });
+  await assert.rejects(previewSelection("admin", 2026, ["unknown"]), { status: 409 });
+  for (const changes of [{ role: "admin" }, { enrollmentStatus: "graduated" }, { academicYearStart: 2027 }, { program: "OTHER" }]) {
+    const original = copy(users.get("student-0")); Object.assign(users.get("student-0"), changes);
+    await assert.rejects(previewSelection("admin", 2026, ["student-0", "student-1"]), { status: 409 });
+    users.set("student-0", original);
+  }
+  assert.equal(batches.size, 0);
+});
+
+test("single-class individual selections retain class history and protect academic edits after review", async () => {
+  const before = copy(users.get("student-2"));
+  const batch = await previewSelection("admin", 2026, ["student-0", "student-1"]);
+  assert.deepEqual(batch.classScope, { program: "BSIT", yearLevel: 1, section: "A" });
+  assert.equal(batch.students.length, 2);
+  users.get("student-1").yearLevel = 3;
+  const result = await commit("admin", batch.batchId, [], [], ["student-0", "student-1"]);
+  assert.equal(result.counts.advanced, 1); assert.equal(result.counts.skipped, 1);
+  assert.equal(users.get("student-1").yearLevel, 3);
+  assert.deepEqual(users.get("student-2"), before);
 });
 test("confirmation advances all pages, retains selected exceptions, and preserves other records", async () => {
   const batch = await preview("admin", 2026);

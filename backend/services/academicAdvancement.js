@@ -5,7 +5,7 @@ const fail = (status, message) => { throw Object.assign(new Error(message), { st
 const sameIds = (a, b) => [...a].sort().join(",") === [...b].sort().join(",");
 function sourceYearIssue(year) {
   return !Number.isInteger(year) || year < 2026 || year > 2100
-    ? "Choose an existing school year from 2026 onward. Advance one school year at a time." : "";
+    ? "Choose an existing school year from 2026 onward. Promote students one school year at a time." : "";
 }
 function isEligible(student, sourceYear) {
   return student.role === "student" && student.enrollmentStatus !== "graduated" &&
@@ -48,18 +48,34 @@ async function studentOptions(sourceYear) {
   };
 }
 async function listClasses(sourceYear) { return (await studentOptions(sourceYear)).classes; }
+async function savePreview(adminId, sourceYear, scope, students, excludedCount, explicitSelection) {
+  if (!students.length) return { batchId: null, sourceYear, targetYear: sourceYear + 1, classScope: scope, students: [], excludedCount };
+  const batch = await AcademicAdvancement.create({
+    createdBy: adminId, sourceYear, targetYear: sourceYear + 1, classScope: scope, students, ...(explicitSelection?{selectionMode:"explicit"}:{}),
+  });
+  return { batchId: batch._id, sourceYear, targetYear: sourceYear + 1, classScope: scope, students: batch.students, excludedCount };
+}
 async function preview(adminId, sourceYear, classScope = null, explicitSelection = false) {
   const issue = sourceYearIssue(sourceYear);
   if (issue) fail(400, issue);
   const scope = classScope === null ? null : validateClassScope(classScope);
   const roster = (await readRoster()).filter(student => inClass(student, scope));
   const students = roster.filter(student => isEligible(student, sourceYear));
-  if (!students.length) return { batchId: null, sourceYear, targetYear: sourceYear + 1, classScope: scope, students: [], excludedCount: roster.length };
-  const batch = await AcademicAdvancement.create({
-    createdBy: adminId, sourceYear, targetYear: sourceYear + 1, classScope: scope, students, ...(explicitSelection?{selectionMode:"explicit"}:{}),
-  });
-  return { batchId: batch._id, sourceYear, targetYear: sourceYear + 1, classScope: scope, students: batch.students,
-    excludedCount: roster.length - students.length };
+  return savePreview(adminId, sourceYear, scope, students, roster.length - students.length, explicitSelection);
+}
+async function previewSelection(adminId, sourceYear, studentIds) {
+  const issue = sourceYearIssue(sourceYear);
+  if (issue) fail(400, issue);
+  if (!Array.isArray(studentIds) || !studentIds.length ||
+      studentIds.some(id => typeof id !== "string" || !id.trim()) || new Set(studentIds).size !== studentIds.length) {
+    fail(400, "Check the students to promote or graduate before reviewing changes.");
+  }
+  const ids = new Set(studentIds);
+  const students = (await readRoster()).filter(student => ids.has(String(student._id)) && isEligible(student, sourceYear));
+  if (students.length !== ids.size) fail(409, "Selected student records changed or are no longer eligible. Refresh the list and review again.");
+  const first = students[0], scope = { program: first.program, yearLevel: first.yearLevel, section: first.section };
+  // Mixed-class selections are explicit saved IDs, never an unrestricted roster.
+  return savePreview(adminId, sourceYear, students.every(student => inClass(student, scope)) ? scope : null, students, 0, true);
 }
 function validateChoices(batch, retainedIds, graduateIds) {
   if (!Array.isArray(retainedIds) || !Array.isArray(graduateIds) ||
@@ -76,10 +92,10 @@ async function commit(adminId, batchId, retainedIds = [], graduateIds = [], sele
   if (!batch || String(batch.createdBy) !== String(adminId)) fail(404, "Batch not found. Prepare a new preview.");
   if (!["draft", "running", "partial", "completed"].includes(batch.status)) fail(409, "This batch is being undone or has already been undone. Reload the masterlist to prepare a new update.");
   validateChoices(batch, retainedIds, graduateIds);
-  if(batch.selectionMode==="explicit"&&selectedIds===undefined)fail(400,"Check the students to advance before confirming.");
+  if(batch.selectionMode==="explicit"&&selectedIds===undefined)fail(400,"Check the students to promote before confirming.");
   if(selectedIds!==undefined&&(!Array.isArray(selectedIds)||!selectedIds.length||new Set(selectedIds).size!==selectedIds.length||
     selectedIds.some(id=>typeof id!=="string"||!batch.students.some(student=>String(student._id)===id))||
-    graduateIds.some(id=>!selectedIds.includes(id))||retainedIds.length))fail(400,"Select students to advance or graduate before confirming.");
+    graduateIds.some(id=>!selectedIds.includes(id))||retainedIds.length))fail(400,"Select students to promote or graduate before confirming.");
   if(selectedIds!==undefined&&!sameIds(graduateIds,batch.students.filter(student=>student.yearLevel===4&&selectedIds.includes(String(student._id))).map(student=>String(student._id))))fail(400,"Explicitly confirm graduation for selected fourth-year students.");
   if (batch.status === "draft") {
     if (Date.now() - new Date(batch.createdAt).getTime() > 60 * 60 * 1000) fail(409, "Preview expired. Reload the masterlist and review again.");
@@ -129,7 +145,7 @@ async function commit(adminId, batchId, retainedIds = [], graduateIds = [], sele
       }
       results.push({ studentId: id, name: student.name, outcome: change.action });
     } catch {
-      results.push({ studentId: id, name: student.name, outcome: "failed", message: "Could not save. Retry this batch; completed students will not advance again." });
+      results.push({ studentId: id, name: student.name, outcome: "failed", message: "Could not save. Retry this batch; completed students will not be promoted again." });
     }
   }
   // A late concurrent confirmation must not overwrite an undo's status.
@@ -268,4 +284,4 @@ async function details(batchId, query = {}) {
   // later edits or deleted accounts must not erase the historical result.
   return { batch: summarize(batch), students: rows, total, batchSize: (batch.students || []).length, page, pageSize };
 }
-module.exports = { preview, commit, undo, undoPreview, history, details, studentOptions, listClasses, sourceYearIssue, isEligible, plannedChange };
+module.exports = { preview, previewSelection, commit, undo, undoPreview, history, details, studentOptions, listClasses, sourceYearIssue, isEligible, plannedChange };

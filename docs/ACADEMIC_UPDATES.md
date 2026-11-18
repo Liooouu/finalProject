@@ -1,28 +1,38 @@
-# Academic year advancement
+# Year-level promotion
 
 Manage Users has a **Year levels** tab beside Users and School terms.
 Only an administrator in the admin portal can use the corresponding API.
 
 1. Open the tab. Search a student name/email or use the clearly labeled Program,
    Year level and Section filters. Programs are BSIT, BSCS and BSEMC; years are
-   1–4. Search works across eligible registered students before choosing a class.
-2. Choose all three class filters to enable an update. Only that class loads
-   for review, five students per page. No Load button is needed. If there is
+   1–4. Every eligible student has a checkbox, including with All filters.
+2. Filters are optional and narrow the list to five students per page. Check
+   students from one or several classes. Selections survive search, pagination,
+   filter changes and refresh while the accounts remain eligible. If there is
    only one eligible class, its filters fill automatically.
-3. No students are checked initially. **Check all** selects the entire class,
-   across all pages and search results. Uncheck students who should not advance.
-   Checked Years 1–3 advance; checked fourth-year students graduate only after
+3. Each row shows the current and proposed class together, such as
+   **BSIT 3A → BSIT 4A**, beside a **Promoted** checkbox. There is no separate
+   After update column. No students are checked initially. **Check all** selects
+   all students matching the Program/Year level/Section filters, across all
+   pages and regardless of name/email search. Other checked classes stay selected.
+   Uncheck students who
+   should not be promoted. Checked Years 1–3 are promoted; fourth-year rows
+   show **Graduated** instead of a fifth year and graduate only after
    explicit review and confirmation. Unchecked students keep their complete
    academic standing, including their school-year assignment, unchanged.
-4. Review the selected names and counts, then confirm. Refresh preserves the
-   selection for students still in the same preview. A new class starts unchecked.
+4. Choose **Review changes**, inspect the selected names, class transitions
+   and counts, then **Confirm changes**. Refresh preserves the
+   selection for students still eligible. A fresh page starts unchecked.
 5. Use **Clear search & filters** to return to the full student list. Click the
    eye icon in Recent bulk updates to inspect saved results in a popup.
 
-Search and pagination do not limit the batch. Every eligible student in the
-saved preview for the selected class is included once, including students with organizer access.
-The server saves the class scope with the batch and its history. It rejects a
-new API preview without a valid class; filtering is not only a screen display.
+Review changes sends explicit `studentIds` to the admin-only preview API. The
+server revalidates every account and saves only those snapshots, including
+students with organizer access. Empty, duplicate, unknown and ineligible
+selections are rejected. Review does not update any student record. A single-class
+selection saves its class scope; mixed selections appear as Selected students.
+Legacy API clients may still send a validated `classScope` instead of IDs.
+Requests with neither mode, or with both modes, are rejected.
 Earlier saved batches remain reviewable/undoable with their original scope.
 Program and section stay unchanged. Unchecked students retain their source
 school year and year level. The target is one school year after
@@ -35,7 +45,7 @@ student records. Accounts without an academic-year anchor are treated as
 belonging to the explicitly reviewed source year. Confirm academic decisions with the department; this account list is not an
 official registrar integration. A new student or academic edit made after the preview is not
 silently included or overwritten. Draft previews expire after an hour.
-Refreshing preserves exception selections for students still in the new preview.
+Refreshing preserves selections for students still eligible.
 An empty roster shows that no students need updating, with no confirm action.
 
 Year levels no longer advance during login, account/profile reads, server startup,
@@ -56,11 +66,13 @@ failed records can be retried. Do not treat a partial result as a completed batc
 ## Saved results
 
 After confirmation, a compact summary remains on the page. The eye icon opens
-**Saved update results** in a dialog with each student's previous year,
-year after the update and result. It uses the saved batch, so students remain
+**Year update results** in a dialog with each student's saved class transition
+and result. It uses the saved batch, so students remain
 visible after promotion, graduation, later profile edits or account removal.
 The list has five students per page and a name/email search for larger batches.
-The summary distinguishes advanced, retained, graduated, skipped and failed.
+The summary labels successful promotions **Promoted** and distinguishes
+unchanged, graduated, skipped and failed records. Internal `advanced` audit
+values and existing API routes remain compatible with earlier batches.
 Skipped/failed students never show a planned year as an applied change.
 
 Results stay in Recent bulk updates after refreshing. The eye icon opens an

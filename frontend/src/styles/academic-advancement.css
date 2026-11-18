@@ -14,27 +14,30 @@
   .academic-filter-bar { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .academic-filter-search, .academic-filter-program { grid-column: 1 / -1; }
 }
-.academic-result-row { display: grid; grid-template-columns: minmax(0,1.7fr) minmax(0,.8fr) minmax(0,.9fr) minmax(0,1.2fr); gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--line-color); font-size: .8125rem; overflow-wrap: anywhere; }
+.academic-result-row { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1.1fr) minmax(0,1fr); gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--line-color); font-size: .8125rem; overflow-wrap: anywhere; }
 .academic-result-row:last-child { border-bottom: 0; }
 .academic-result-caption { display: block; margin-bottom: .35rem; color: var(--on-muted); font-size: .6875rem; }
 @media (max-width: 640px) {
-  .academic-result-row { grid-template-columns: repeat(3,minmax(0,1fr)); gap: .875rem .5rem; }
+  .academic-result-row { grid-template-columns: minmax(0,1.5fr) minmax(0,1fr); gap: .875rem .5rem; }
   .academic-result-student { grid-column: 1 / -1; }
 }
 .academic-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.125rem 1.25rem; }
 .academic-list-count { display: inline-flex; margin-left: .375rem; padding: .125rem .5rem; border-radius: 999px; background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); font-size: .75rem; font-weight: 600; vertical-align: middle; }
-.academic-roster-head, .academic-roster-row { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(5.5rem, .8fr) minmax(6rem, .9fr) minmax(8.25rem, 1fr); gap: 1rem; align-items: center; padding: .75rem 1.25rem; }
+.academic-roster-head, .academic-roster-row { display: grid; grid-template-columns: minmax(0, 1fr) 7rem; gap: 1.5rem; align-items: center; padding: .75rem 1.25rem; }
 .academic-roster-head { background: color-mix(in srgb, var(--on) 3%, transparent); color: var(--on-muted); text-transform: uppercase; font-size: .625rem; letter-spacing: .09em; font-weight: 600; }
 .academic-roster-row { min-height: 4.1rem; border-bottom: 1px solid color-mix(in srgb, var(--line-color) 60%, transparent); }
 .academic-roster-row:last-child { border-bottom: 0; }
 .academic-roster-row.is-selected { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.academic-roster-details { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; min-width: 0; }
 .academic-student { min-width: 0; overflow-wrap: anywhere; }
 .academic-student > p:first-child { font-size: .8125rem; line-height: 1.5; }
 .academic-student > p + p { margin-top: .125rem; }
-.academic-current { display: grid; gap: .125rem; }
-.academic-current small { font-size: .6875rem; color: var(--on-muted); }
-.academic-year-badge { display: inline-flex; align-items: center; width: fit-content; padding: .25rem .625rem; border-radius: .5rem; background: color-mix(in srgb, var(--brand) 10%, transparent); color: var(--brand); font-size: .75rem; font-weight: 600; }
-.academic-year-badge.is-retained { color: var(--on-dim); background: color-mix(in srgb, var(--on) 5%, transparent); }
+.academic-class-change { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; color: var(--on-dim); font-size: .8125rem; line-height: 1.6; }
+.academic-class-change > span:not(.sr-only) { white-space: nowrap; }
+.academic-class-change > svg { flex-shrink: 0; color: var(--on-muted); font-size: .6875rem; }
+.academic-class-target { font-weight: 600; }
+.academic-class-change.is-selected .academic-class-target { color: var(--brand); }
+.academic-roster-details > .academic-class-change { flex-shrink: 0; }
 .academic-exception label { display: flex; align-items: center; gap: .625rem; min-height: 2.75rem; font-size: .75rem; color: var(--on-dim); cursor: pointer; }
 .academic-exception input { width: 1rem; height: 1rem; margin: 0; flex-shrink: 0; accent-color: var(--brand); cursor: pointer; }
 .academic-exception input:disabled, .academic-exception label:has(input:disabled) { cursor: default; }
@@ -43,20 +46,18 @@
 .academic-review-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; border-top: 1px solid var(--line-color); background: color-mix(in srgb, var(--brand) 4%, transparent); border-radius: 0 0 var(--panel-radius) var(--panel-radius); }
 .academic-summary { display: flex; flex-wrap: wrap; gap: .375rem 1rem; color: var(--on-dim); font-size: .8125rem; }
 .academic-summary strong { color: var(--on); font-weight: 600; }
-.academic-mobile-caption { display: none; }
 @media (max-width: 900px) {
   .academic-list-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .875rem; }
+  .academic-roster-details { flex-direction: column; align-items: flex-start; gap: .375rem; }
 }
 @media (max-width: 640px) {
   .academic-roster-head { display: none; }
-  .academic-roster-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: .75rem .5rem; padding: .875rem 1rem; }
-  .academic-student { grid-column: 1 / -1; }
-  .academic-current, .academic-next { display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; }
-  .academic-current > small { display: none; }
-  .academic-mobile-caption { display: block; font-size: .625rem; color: var(--on-muted); }
-  .academic-exception { align-self: end; }
+  .academic-roster-row { grid-template-columns: minmax(0, 1fr) auto; gap: .5rem .75rem; padding: .875rem 1rem; }
+  .academic-roster-details { display: contents; }
+  .academic-student { grid-column: 1; grid-row: 1; }
+  .academic-roster-details > .academic-class-change { grid-column: 1 / -1; grid-row: 2; }
+  .academic-exception { grid-column: 2; grid-row: 1; }
   .academic-exception label { min-height: 2.75rem; gap: .5rem; font-size: .6875rem; }
-  .academic-year-badge { padding: .1875rem .5rem; }
   .academic-list-heading, .academic-list-bottom { padding: 1rem; }
   .academic-review-bar { flex-direction: column; align-items: stretch; gap: .875rem; padding: 1rem; }
   .academic-review-bar > button { width: 100%; min-height: 2.75rem; }

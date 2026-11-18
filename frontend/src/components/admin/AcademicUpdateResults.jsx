@@ -5,8 +5,10 @@ import Pagination from "../ui/Pagination";
 import StablePage from "../ui/StablePage";
 import { formatDateTime } from "../../utils/helpers";
 import { FaUndo } from "react-icons/fa";
+import AcademicClassChange from "./AcademicClassChange";
+import { academicClassLabel } from "../../utils/academicClassLabel";
 
-const labels = { advanced: "Advanced", retained: "Kept year", unchanged: "Unchanged", graduated: "Graduated", skipped: "Not updated", failed: "Failed", pending: "Pending" };
+const labels = { advanced: "Promoted", retained: "Kept year", unchanged: "Unchanged", graduated: "Graduated", skipped: "Not updated", failed: "Failed", pending: "Pending" };
 const statuses = { completed: "Academic update completed", partial: "Some records need another attempt", running: "Update in progress", undone: "Update undone", reverting: "Undo in progress", undo_partial: "Undo needs attention" };
 
 export default function AcademicUpdateResults({ batchId, revision, fallback, disabled, onUndo, containerRef }) {
@@ -32,28 +34,27 @@ export default function AcademicUpdateResults({ batchId, revision, fallback, dis
   return <Card as="section" id={resultId} ref={containerRef} tabIndex={-1} aria-label="Saved academic update results" className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
-        {batch&&<><p className="mt-1 text-sm font-medium text-on">{scope?`${scope.program} · Year ${scope.yearLevel} · Section ${scope.section}`:"All classes (earlier update)"}</p>
+        {batch&&<><p className="mt-1 text-sm font-medium text-on">{scope?academicClassLabel(scope.program,scope.yearLevel,scope.section):"Selected students"}</p>
           <p className="mt-1 text-xs text-on-dim">S.Y. {batch.sourceYear}–{batch.sourceYear+1} → {batch.targetYear}–{batch.targetYear+1}{batch.createdAt&&` · ${formatDateTime(batch.createdAt)}`}</p></>}
       </div>
       {canUndo&&<Button size="sm" variant="secondary" disabled={disabled||loading} onClick={()=>onUndo(batch)}><FaUndo aria-hidden="true" />{["reverting","undo_partial"].includes(batch.status)?"Retry undo":"Undo this update"}</Button>}
     </div>
     {batch&&<><p role="status" className="text-sm font-medium text-on">{statuses[batch.status]||batch.status}</p>
-      <p className="text-sm text-on-dim">{undoAttempt?`${batch.undo.counts.restored} restored · ${batch.undo.counts.skipped+batch.undo.counts.failed} need review`:<>{batch.counts.advanced} advanced · {batch.unchangedCount||batch.counts.retained} unchanged · {batch.counts.graduated} graduated{batch.counts.skipped>0&&` · ${batch.counts.skipped} skipped`}{batch.counts.failed>0&&` · ${batch.counts.failed} failed`}</>}</p>
+      <p className="text-sm text-on-dim">{undoAttempt?`${batch.undo.counts.restored} restored · ${batch.undo.counts.skipped+batch.undo.counts.failed} need review`:<>{batch.counts.advanced} promoted · {batch.unchangedCount||batch.counts.retained} unchanged · {batch.counts.graduated} graduated{batch.counts.skipped>0&&` · ${batch.counts.skipped} skipped`}{batch.counts.failed>0&&` · ${batch.counts.failed} failed`}</>}</p>
       <p className="text-xs text-on-muted">{undoAttempt?"Restored rows show the year returned by Undo. Rows needing review have not been restored by this action.":"Previous and updated year levels are shown for this batch."}</p></>}
     {data?.batchSize>5&&<div><label htmlFor={searchId} className="field-label">Search saved results</label><input id={searchId} type="search" className="field" value={search} placeholder="Student name or email" onChange={event=>{setSearch(event.target.value);setPage(1);}} /></div>}
     {error&&<div role="alert" className="text-sm text-danger">{error}<Button size="sm" variant="ghost" onClick={()=>setAttempt(value=>value+1)}>Retry results</Button></div>}
     {loading&&<p role="status" className="text-xs text-on-muted">Loading saved results...</p>}
     <StablePage pageKey={`${batchId}:${search}`} loading={loading} footer={data&&<Pagination page={data.page} pageSize={5} total={data.total} onChange={setPage} disabled={loading} label="Saved result pages" />}>
       {!!data?.students.length&&<ul aria-label="Students in saved update" aria-busy={loading}>
-        {data.students.map(student=><li key={student.studentId} className="academic-result-row">
+        {data.students.map(student=>{const classLabel=year=>academicClassLabel(student.program,year,student.section),restored=student.undoOutcome==="restored";return <li key={student.studentId} className="academic-result-row">
           <div className="academic-result-student"><p className="font-medium text-on">{student.name}</p><p className="mt-1 text-xs text-on-muted">{student.email}</p></div>
-          <div><span className="academic-result-caption">{student.undoOutcome==="restored"?"Before undo":"Previous year"}</span><p>{student.undoOutcome==="restored"?(student.outcome==="graduated"?"Graduated":`Year ${student.updatedYearLevel}`):`Year ${student.previousYearLevel}`}</p></div>
-          <div><span className="academic-result-caption">{student.undoOutcome==="restored"?"Restored year":"Year after update"}</span><p>{student.undoOutcome==="restored"?`Year ${student.previousYearLevel}`:student.outcome==="graduated"?"Graduated":student.updatedYearLevel?`Year ${student.updatedYearLevel}`:student.outcome==="pending"?"Pending":"Not applied"}</p></div>
+          <div><span className="academic-result-caption">{restored?"Restored class":"Class change"}</span><AcademicClassChange from={restored?(student.outcome==="graduated"?"Graduated":classLabel(student.updatedYearLevel)):classLabel(student.previousYearLevel)} to={restored?classLabel(student.previousYearLevel):student.outcome==="graduated"?"Graduated":student.updatedYearLevel?classLabel(student.updatedYearLevel):student.outcome==="pending"?"Pending":"Not applied"} selected={restored||["advanced","graduated"].includes(student.outcome)}/></div>
           <div><span className="academic-result-caption">Result</span><p className={["skipped","failed"].includes(student.undoOutcome)?"text-danger":["advanced","graduated"].includes(student.outcome)||student.undoOutcome==="restored"?"text-ok":"text-on-dim"}>{student.undoOutcome==="restored"?"Restored":["skipped","failed"].includes(student.undoOutcome)?"Undo needs review":labels[student.outcome]||student.outcome}</p>
             {student.message&&<p className="mt-1 text-xs text-on-muted">{student.message}</p>}
             {student.undoMessage&&<p className="mt-1 text-xs text-on-muted">{student.undoMessage}</p>}
           </div>
-        </li>)}
+        </li>;})}
       </ul>}
       {!loading&&data&&!data.students.length&&<p className="py-4 text-sm text-on-muted">No students match your search.</p>}
     </StablePage>
